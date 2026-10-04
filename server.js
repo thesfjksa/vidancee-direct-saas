@@ -424,15 +424,17 @@ const server=http.createServer(async (req,res)=>{
       }
 
       if (req.method==='POST' && routePath==='/admin/provider/generate') {
-        if (!allowProviderCharges) return sendJson(res,403,{ok:false,error:'Provider charges are disabled.'});
+        const settings=await getProviderSettings();
+        if (!settings.allowProviderCharges) return sendJson(res,403,{ok:false,error:'Generation submissions are disabled.'});
         const body=await readJson(req);
         const prompt=String(body.prompt||'').trim();
         if (!prompt) return sendJson(res,400,{ok:false,error:'prompt is required'});
-        const result=await providerClient().generateText({
+        const provider=await providerClient();
+        const result=await provider.generateText({
           prompt, model:String(body.model||'seedance_2.5'), duration:Number(body.duration||10),
           aspectRatio:String(body.aspectRatio||'9:16'), quantity:Number(body.quantity||1),
         });
-        return sendJson(res,200,{ok:true,submitted:true,provider:'vidancee',job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
+        return sendJson(res,200,{ok:true,submitted:true,job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
       if (req.method==='GET' && routePath==='/admin/stats') {
