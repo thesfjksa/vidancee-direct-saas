@@ -10,3 +10,11 @@
 - Added provider-spend safety switch.
 - Added admin-only test UI.
 - Added tests and deployment/protocol/handoff documentation.
+
+## 2026-10-04 — Hostinger 503 hardening
+
+- Added explicit package main/build/start configuration.
+- Added `app.js` compatibility launcher.
+- Prevented missing ADMIN_TOKEN from killing the web process.
+- Added safe configuration indicators to `/health`.
+- Documented `PORT=3000` for Hostinger managed Node hosting.
