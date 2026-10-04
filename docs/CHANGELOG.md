@@ -119,3 +119,10 @@
 - Removed provider identity from customer generation API responses.
 - Sanitized public /health to avoid backend/source disclosure.
 - Replaced provider-named customer failure messages with generic generation errors.
+
+## 2026-10-04 — Professional customer UI redesign
+
+- Rebuilt the customer-facing layout as a modern AI creative studio.
+- Added premium auth, sidebar, overview, generation composer, library and account UX.
+- Improved responsive behavior for tablet and mobile.
+- Preserved the unified prompt + optional-reference-image generation workflow.
