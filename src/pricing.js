@@ -8,7 +8,7 @@ function optionalPositiveInt(name, fallback = null) {
 
 function pricingMap() {
   return {
-    seedance_2.5: {
+    'seedance_2.5': {
       label: 'Seedance 2.5',
       durations: {
         10: optionalPositiveInt('PRICE_SEEDANCE_25_10', 6),
@@ -16,7 +16,7 @@ function pricingMap() {
         30: optionalPositiveInt('PRICE_SEEDANCE_25_30', 14),
       },
     },
-    seedance_2.0_fast: {
+    'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       durations: {
         10: optionalPositiveInt('PRICE_SEEDANCE_20_FAST_10', 5),
