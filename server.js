@@ -479,18 +479,19 @@ const server=http.createServer(async (req,res)=>{
       }
 
       if (req.method==='GET' && routePath==='/admin/config') {
+        const providerSettings=await getAdminProviderSettings();
         return sendJson(res,200,{ok:true,
           pricing:publicPricing(),
           aspectRatios:ASPECT_RATIOS,
-          providerChargesEnabled:allowProviderCharges,
           signupsEnabled:allowSignups,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           providers:{
-            vidancee:Boolean(String(process.env.VIDANCEE_EMAIL||'').trim() && String(process.env.VIDANCEE_PASSWORD||'')),
-            createpulse:createPulseConfigured(),
+            vidancee:providerSettings.vidancee.configured,
+            createpulse:providerSettings.createpulse.configured,
           },
-          routing:String(process.env.PROVIDER_ROUTING||'overflow'),
-          createPulseMaxInflight:Math.max(1,Number(process.env.CREATEPULSE_MAX_INFLIGHT||3)),
+          routing:providerSettings.routing,
+          createPulseMaxInflight:providerSettings.createpulse.maxInflight,
+          generationEnabled:providerSettings.allowProviderCharges,
         });
       }
 
