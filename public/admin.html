@@ -1,150 +1,39 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vidancee Direct SaaS — Admin Console</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mehroz AI — Admin</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0f14;color:#eef3f8;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}.wrap{max-width:980px;margin:0 auto;padding:32px 18px}.card{background:#121922;border:1px solid #253344;border-radius:16px;padding:20px;margin:16px 0}.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:170px}input,textarea,select,button{width:100%;border-radius:10px;border:1px solid #34475d;background:#0d141d;color:#f4f8fc;padding:12px;font:inherit}textarea{min-height:120px;resize:vertical}button{cursor:pointer;border:none;background:#e1a772;color:#16110d;font-weight:800}button.secondary{background:#25364a;color:#fff}button.danger{background:#8d3b46;color:#fff}pre{white-space:pre-wrap;word-break:break-word;background:#080c11;border:1px solid #1f2a37;border-radius:10px;padding:14px;min-height:100px}.muted{color:#9fb0c3}.warn{color:#f5c37c}.ok{color:#78d59c}.pill{display:inline-block;background:#203247;color:#c9ddf2;border-radius:999px;padding:5px 9px;font-size:12px}h1{margin:8px 0}h2{font-size:18px}.result-actions{display:none;gap:10px;margin-top:12px}.result-actions a{display:inline-block;text-decoration:none;border-radius:10px;padding:11px 14px;background:#25364a;color:#fff;font-weight:700}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <span class="pill">Admin Console</span>
-  <h1>Vidancee Direct Connector</h1>
-  <p class="muted">Private provider and account administration console.</p>
+:root{color-scheme:dark;--bg:#090e14;--panel:#111923;--line:#26384d;--muted:#93a6bc;--accent:#e5a66e;--danger:#9b4652;--ok:#73d39a}*{box-sizing:border-box}body{margin:0;background:#090e14;color:#f5f8fb;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}.wrap{max-width:1320px;margin:auto;padding:24px 18px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-size:24px;font-weight:900}.muted{color:var(--muted)}.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:17px;margin-top:15px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.n{font-size:28px;font-weight:900;margin-top:6px}.tabs{display:flex;gap:8px;overflow:auto;margin:18px 0}.tabs button{border:1px solid var(--line);background:#152130;color:white;border-radius:9px;padding:9px 12px;cursor:pointer;white-space:nowrap}.tabs button.active{background:var(--accent);color:#21150c;border-color:transparent}.section{display:none}.section.active{display:block}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}input,select,button{padding:10px 12px;border-radius:9px;border:1px solid #37506a;background:#0c131c;color:white;font:inherit}button{cursor:pointer}.btn{background:var(--accent);color:#1c120b;border:0;font-weight:800}.secondary{background:#273b52;color:white}.danger{background:var(--danger);color:white}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}th{color:#bfd0e3}.badge{padding:4px 8px;border-radius:999px;background:#22344a;font-size:11px}.ok{color:var(--ok)}.err{color:#ff939d}pre{white-space:pre-wrap;word-break:break-word;background:#080c11;border:1px solid #202d3b;border-radius:10px;padding:12px;max-height:430px;overflow:auto}.login{max-width:520px;margin:80px auto}.hide{display:none!important}
+@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<div id="loginBox" class="card login"><div class="brand">Mehroz AI Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
+<div id="adminApp" class="hide">
+  <div class="top"><div><div class="brand">Mehroz AI Admin</div><div class="muted">Production control center</div></div><button class="secondary" onclick="adminLogout()">Lock admin</button></div>
+  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button></div>
 
-  <div class="card">
-    <h2>Admin access</h2>
-    <label>ADMIN_TOKEN</label>
-    <input id="token" type="password" autocomplete="off" placeholder="Paste the ADMIN_TOKEN configured in hPanel">
-    <p class="muted">The token is kept only in this browser tab.</p>
-  </div>
+  <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
-  <div class="card">
-    <h2>Provider connection</h2>
-    <div class="row">
-      <button onclick="providerCheck()">Check Vidancee login</button>
-      <button class="secondary" onclick="refreshJobs()">Refresh jobs</button>
-    </div>
-    <pre id="providerStatus">Ready.</pre>
-  </div>
+  <section id="users" class="section"><div class="card"><div class="top"><h2>Customer users</h2><button class="secondary" onclick="loadUsers()">Refresh</button></div><div class="row"><input id="userSearch" placeholder="Search email or ID"><select id="userStatus"><option value="">All statuses</option><option>active</option><option>disabled</option></select><button class="btn" onclick="loadUsers()">Search</button></div><div class="tablewrap"><table><thead><tr><th>ID</th><th>Email</th><th>Credits</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h3>Adjust credits</h3><div class="row"><input id="creditIdentifier" placeholder="User ID or email"><input id="creditAmount" type="number" placeholder="Amount (+100 or -25)"><input id="creditNote" placeholder="Reason"><button class="btn" onclick="adjustCredits()">Apply</button></div><div id="creditMsg" class="muted" style="margin-top:8px"></div></div></section>
 
-  <div class="card">
-    <h2>Real generation test</h2>
-    <p class="warn">This spends provider credits only when ALLOW_PROVIDER_CHARGES=yes in hPanel.</p>
-    <label>Prompt</label>
-    <textarea id="prompt">A cinematic red sports car driving through a modern city at night</textarea>
-    <div class="row">
-      <div><label>Model</label><select id="model"><option value="seedance_2.5">Seedance 2.5</option><option value="seedance_2.0_fast">Seedance 2.0 Fast</option></select></div>
-      <div><label>Duration</label><select id="duration"><option value="10">10s</option><option value="15">15s</option><option value="30">30s</option></select></div>
-      <div><label>Aspect ratio</label><select id="ratio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:3</option><option>3:4</option><option>21:9</option></select></div>
-    </div>
-    <button class="danger" style="margin-top:12px" onclick="generate()">Submit paid provider test</button>
-    <pre id="generationStatus">No generation submitted.</pre>
-    <div id="resultActions" class="result-actions">
-      <a id="videoLink" target="_blank" rel="noopener">Open completed video</a>
-      <a id="posterLink" target="_blank" rel="noopener">Open poster</a>
-    </div>
-  </div>
-  <div class="card">
-    <h2>Customer users</h2>
-    <div class="row">
-      <button class="secondary" onclick="loadUsers()">Load users</button>
-    </div>
-    <pre id="usersStatus">Not loaded.</pre>
-    <div class="row">
-      <input id="creditUserId" placeholder="User ID or email">
-      <input id="creditAmount" type="number" placeholder="Credits to add, e.g. 100">
-      <button onclick="adjustCredits()">Adjust credits</button>
-    </div>
-  </div>
-</div>
+  <section id="generations" class="section"><div class="card"><div class="top"><h2>Generations</h2><button class="secondary" onclick="loadGenerations()">Refresh</button></div><div class="row"><input id="genSearch" placeholder="Email, local ID, or provider job ID"><select id="genStatus"><option value="">All statuses</option><option>queued</option><option>submitting</option><option>submitted</option><option>processing</option><option>completed</option><option>failed</option><option>submit_error</option></select><button class="btn" onclick="loadGenerations()">Filter</button></div><div class="tablewrap"><table><thead><tr><th>User</th><th>Status</th><th>Model</th><th>Duration</th><th>Credits</th><th>Provider job</th><th>Created</th><th>Prompt/Error</th></tr></thead><tbody id="generationRows"></tbody></table></div></div></section>
+
+  <section id="credits" class="section"><div class="card"><div class="top"><h2>Credit ledger</h2><button class="secondary" onclick="loadCredits()">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>User</th><th>Generation</th><th>Type</th><th>Note</th><th>Amount</th></tr></thead><tbody id="creditRows"></tbody></table></div></div></section>
+
+  <section id="provider" class="section"><div class="grid" style="grid-template-columns:1fr 1fr"><div class="card"><h2>Vidancee connection</h2><button class="btn" onclick="checkProvider()">Check login & status</button><pre id="providerOut">Ready.</pre></div><div class="card"><h2>Configuration</h2><pre id="configOut">Loading...</pre></div></div><div class="card"><h2>Recent provider jobs</h2><button class="secondary" onclick="providerJobs()">Refresh provider jobs</button><pre id="providerJobsOut">Not loaded.</pre></div></section>
+</div></div>
 <script>
-let pollTimer=null;
-function adminToken(){ return document.getElementById('token').value.trim(); }
-async function api(path, options={}){
-  const headers=Object.assign({'x-admin-token':adminToken()},options.headers||{});
-  const response=await fetch(path,Object.assign({},options,{headers}));
-  const data=await response.json().catch(()=>({ok:false,error:'Non-JSON response'}));
-  if(!response.ok) throw new Error(data.error||('HTTP '+response.status));
-  return data;
-}
-async function providerCheck(){
-  const out=document.getElementById('providerStatus');out.textContent='Checking...';
-  try{out.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}
-  catch(error){out.textContent='ERROR: '+error.message}
-}
-async function refreshJobs(){
-  const out=document.getElementById('providerStatus');out.textContent='Refreshing...';
-  try{out.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}
-  catch(error){out.textContent='ERROR: '+error.message}
-}
-function stopPolling(){
-  if(pollTimer){clearTimeout(pollTimer);pollTimer=null;}
-}
-async function pollJob(jobId){
-  stopPolling();
-  const out=document.getElementById('generationStatus');
-  const actions=document.getElementById('resultActions');
-  actions.style.display='none';
-  try{
-    const result=await api('/admin/provider/job?id='+encodeURIComponent(jobId));
-    if(!result.found){
-      out.textContent='Job '+jobId+' submitted. Waiting for it to appear in provider jobs...';
-      pollTimer=setTimeout(()=>pollJob(jobId),5000);
-      return;
-    }
-    const job=result.job;
-    out.textContent=JSON.stringify({ok:true,monitoring_job_id:jobId,job},null,2);
-    if(job.status==='completed'){
-      if(job.output_absolute_url){
-        const video=document.getElementById('videoLink');
-        video.href=job.output_absolute_url;
-        actions.style.display='flex';
-      }
-      if(job.poster_absolute_url){
-        document.getElementById('posterLink').href=job.poster_absolute_url;
-        actions.style.display='flex';
-      }
-      return;
-    }
-    if(job.status==='failed') return;
-    pollTimer=setTimeout(()=>pollJob(jobId),5000);
-  }catch(error){
-    out.textContent='Polling error for job '+jobId+': '+error.message+'\nRetrying in 5 seconds...';
-    pollTimer=setTimeout(()=>pollJob(jobId),5000);
-  }
-}
-async function loadUsers(){
-  const out=document.getElementById('usersStatus');out.textContent='Loading...';
-  try{out.textContent=JSON.stringify(await api('/admin/users'),null,2)}
-  catch(error){out.textContent='ERROR: '+error.message}
-}
-async function adjustCredits(){
-  const out=document.getElementById('usersStatus');
-  const identifier=document.getElementById('creditUserId').value.trim();
-  const amount=Number(document.getElementById('creditAmount').value);
-  try{out.textContent=JSON.stringify(await api('/admin/users/credits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier,amount,note:'Admin console adjustment'})}),null,2);await loadUsers();}
-  catch(error){out.textContent='ERROR: '+error.message}
-}
-async function generate(){
-  stopPolling();
-  const out=document.getElementById('generationStatus');out.textContent='Submitting...';
-  document.getElementById('resultActions').style.display='none';
-  const body={
-    prompt:document.getElementById('prompt').value,
-    model:document.getElementById('model').value,
-    duration:Number(document.getElementById('duration').value),
-    aspectRatio:document.getElementById('ratio').value,
-    quantity:1
-  };
-  try{
-    const result=await api('/admin/provider/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-    out.textContent=JSON.stringify(result,null,2)+'\n\nMonitoring job '+result.job_id+' automatically...';
-    if(result.job_id) pollTimer=setTimeout(()=>pollJob(result.job_id),1500);
-  }catch(error){out.textContent='ERROR: '+error.message}
-}
-</script>
-</body>
-</html>
+const $=id=>document.getElementById(id);let token=sessionStorage.getItem('mehroz_admin_token')||'';
+async function api(path,options={}){const headers=Object.assign({'x-admin-token':token},options.headers||{});if(options.body&&!headers['content-type'])headers['content-type']='application/json';const r=await fetch(path,Object.assign({},options,{headers}));const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d}
+async function adminLogin(){token=$('tokenInput').value.trim();try{await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview()}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
+function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='credits')loadCredits();if(name==='provider')loadProviderConfig()}
+async function loadOverview(){try{const d=await api('/admin/stats');$('sUsers').textContent=d.stats.users;$('sGen').textContent=d.stats.generations;$('sActive').textContent=d.stats.active;$('sCompleted').textContent=d.stats.completed;const c=await api('/admin/config');$('systemInfo').textContent=JSON.stringify({stats:d.stats,config:c},null,2)}catch(e){$('systemInfo').textContent='ERROR: '+e.message}}
+async function loadUsers(){try{const q=encodeURIComponent($('userSearch').value.trim()),st=encodeURIComponent($('userStatus').value);const d=await api('/admin/users?q='+q+'&status='+st);$('userRows').innerHTML=d.users.length?d.users.map(u=>'<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td><strong>'+u.credits+'</strong></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></td></tr>').join(''):'<tr><td colspan="7" class="muted">No users found.</td></tr>'}catch(e){$('userRows').innerHTML='<tr><td colspan="7" class="err">'+esc(e.message)+'</td></tr>'}}
+async function toggleUser(id,status){try{await api('/admin/users/'+id,{method:'PATCH',body:JSON.stringify({status})});loadUsers()}catch(e){alert(e.message)}}
+async function adjustCredits(){const m=$('creditMsg');try{const d=await api('/admin/users/credits',{method:'POST',body:JSON.stringify({identifier:$('creditIdentifier').value.trim(),amount:Number($('creditAmount').value),note:$('creditNote').value.trim()||'Admin credit adjustment'})});m.className='ok';m.textContent='Updated '+d.user.email+' to '+d.user.credits+' credits.';loadUsers();loadOverview()}catch(e){m.className='err';m.textContent=e.message}}
+async function loadGenerations(){try{const q=encodeURIComponent($('genSearch').value.trim()),st=encodeURIComponent($('genStatus').value);const d=await api('/admin/generations?q='+q+'&status='+st);$('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+esc(g.user_email)+'</td><td><span class="badge">'+esc(g.status)+'</span></td><td>'+esc(g.model)+'</td><td>'+g.duration+'s</td><td>'+g.credits_cost+'</td><td>'+(g.provider_job_id||'—')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+'</td></tr>').join(''):'<tr><td colspan="8" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>'}}
+async function loadCredits(){try{const d=await api('/admin/credits');$('creditRows').innerHTML=d.transactions.length?d.transactions.map(c=>'<tr><td>'+fmt(c.created_at)+'</td><td>'+esc(c.email)+'</td><td>'+(c.generation_id||'—')+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.note||'—')+'</td><td class="'+(c.amount>0?'ok':'err')+'">'+(c.amount>0?'+':'')+c.amount+'</td></tr>').join(''):'<tr><td colspan="6" class="muted">No credit activity.</td></tr>'}catch(e){}}
+async function checkProvider(){const o=$('providerOut');o.textContent='Checking...';try{o.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
+async function providerJobs(){const o=$('providerJobsOut');o.textContent='Loading...';try{o.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
+async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
+function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+if(token){$('tokenInput').value=token;adminLogin()}
+</script></body></html>
