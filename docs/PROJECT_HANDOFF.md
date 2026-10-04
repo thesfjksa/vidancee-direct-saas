@@ -487,3 +487,27 @@ Implemented end-to-end:
 - generation history displays the correct mode
 
 New dependency: `busboy` for streaming multipart upload parsing.
+
+## CreatePulse multi-provider backend added — 2026-10-04
+
+CreatePulse is now supported as a second backend via its official API.
+
+Routing defaults to PROVIDER_ROUTING=overflow: Vidancee remains primary, and compatible queued jobs spill to CreatePulse when Vidancee has no free slot.
+
+CreatePulse model mapping:
+- seedance_2.5 + 10s -> dreamina-seedance-2.5
+- seedance_2.0_fast + 10s -> dreamina-seedance-2.0
+- seedance_2.0_fast + 15s -> dreamina-seedance-2.0-15s
+
+CreatePulse routing uses only aspect ratios documented by its API: 9:16, 16:9, 1:1, 4:3.
+
+For image-to-video, the first uploaded image is exposed to CreatePulse as init_image_url and up to four additional images as image_reference_urls. Temporary URLs are HMAC-signed provider asset routes on APP_URL. Image blobs are retained until the CreatePulse job finishes, then deleted.
+
+Database migration changes provider_job_id from BIGINT to VARCHAR(191), provider_cost to DECIMAL(12,4), and adds provider_cost_unit.
+
+New environment settings:
+CREATEPULSE_BASE_URL=https://createpulse.online
+CREATEPULSE_API_KEY=<secret>
+CREATEPULSE_MAX_INFLIGHT=3
+PROVIDER_ROUTING=overflow
+PROVIDER_ASSET_SECRET=<long-random-secret>
