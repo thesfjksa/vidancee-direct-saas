@@ -14,7 +14,7 @@ const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
-const { GenerationWorker } = require('./src/worker.js');
+const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const {
   getProviderSettings,
   getAdminProviderSettings,
