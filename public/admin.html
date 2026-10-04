@@ -54,7 +54,7 @@
     </div>
     <pre id="usersStatus">Not loaded.</pre>
     <div class="row">
-      <input id="creditUserId" placeholder="User ID">
+      <input id="creditUserId" placeholder="User ID or email">
       <input id="creditAmount" type="number" placeholder="Credits to add, e.g. 100">
       <button onclick="adjustCredits()">Adjust credits</button>
     </div>
@@ -123,9 +123,9 @@ async function loadUsers(){
 }
 async function adjustCredits(){
   const out=document.getElementById('usersStatus');
-  const id=document.getElementById('creditUserId').value.trim();
+  const identifier=document.getElementById('creditUserId').value.trim();
   const amount=Number(document.getElementById('creditAmount').value);
-  try{out.textContent=JSON.stringify(await api('/admin/users/'+encodeURIComponent(id)+'/credits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({amount,note:'Admin console adjustment'})}),null,2);await loadUsers();}
+  try{out.textContent=JSON.stringify(await api('/admin/users/credits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier,amount,note:'Admin console adjustment'})}),null,2);await loadUsers();}
   catch(error){out.textContent='ERROR: '+error.message}
 }
 async function generate(){
