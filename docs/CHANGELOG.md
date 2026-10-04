@@ -104,3 +104,9 @@
 - 30-second Seedance 2.5 customer jobs can now use CreatePulse overflow routing.
 - Added optional PRICE_SEEDANCE_25_20 customer pricing switch.
 - Expanded CreatePulse image routing to the app's full 6-image upload limit.
+
+## 2026-10-04 — Lock public aspect ratios to shared provider support
+
+- Public aspect-ratio options are now limited to 9:16, 16:9, 1:1 and 4:3.
+- Removed 3:4 and 21:9 from customer generation options.
+- Ensures every visible ratio can route to either backend without exposing provider differences.
