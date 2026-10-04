@@ -79,3 +79,12 @@
 - Rebuilt admin console with stats, users, generations, credit ledger and provider monitoring.
 - Added user enable/disable controls and searchable admin tables.
 - Made worker respect ALLOW_PROVIDER_CHARGES.
+
+## 2026-10-04 — Add Image → Video end-to-end
+
+- Captured exact Vidancee image-to-video multipart fields.
+- Added browser image upload UI with previews.
+- Added multipart parsing with Busboy.
+- Added generation_images MySQL table for queued reference images.
+- Added provider generateImage() using images[] and max_retries=3.
+- Updated worker to submit image-to-video jobs and clear temporary blobs after submission.
