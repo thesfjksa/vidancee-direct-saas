@@ -784,3 +784,14 @@ Implementation notes:
 - Escape and outside-click close open menus
 
 This removes browser/OS-native blue dropdown styling without changing backend request behavior.
+
+
+## Generation card actions — 2026-10-04
+
+Customer generation cards now include three practical actions:
+
+- **Reuse prompt** — loads the generation's prompt, model, duration, and aspect ratio back into the unified Create composer. Previously uploaded reference images are not restored; the user can upload new references if needed.
+- **Download** — shown when a completed video is available and downloads the authenticated generation media.
+- **Delete** — shown for terminal generations (completed, failed, submit_error). The backend refuses deletion while a generation is still queued/submitting/submitted/processing.
+
+Deletion is ownership-scoped through `DELETE /api/generations/:id`. Deleting a generation removes it from the user's library; linked credit transaction history is preserved because the database foreign key sets its generation reference to NULL. Deletion does not create a refund.
