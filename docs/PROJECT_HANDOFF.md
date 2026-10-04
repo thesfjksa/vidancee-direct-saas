@@ -527,3 +527,17 @@ The provider adapter now maps our `seedance_2.5` model to all four durations. Th
 The 20s customer option is configurable through `PRICE_SEEDANCE_25_20`; leave it blank to hide 20s or set a positive integer customer-credit cost to expose it.
 
 CreatePulse image routing now accepts all 6 images supported by our customer upload UI (one init image + up to five reference URLs).
+
+
+## Unified aspect-ratio lock — 2026-10-04
+
+The customer-facing generator is now intentionally restricted to the four aspect ratios supported by both configured backends:
+
+- 9:16
+- 16:9
+- 1:1
+- 4:3
+
+Previously exposed Vidancee-only ratios 3:4 and 21:9 have been removed from the public configuration.
+
+Reason: the SaaS keeps provider routing completely invisible to customers. Every aspect ratio shown in the generation UI must be routable to either backend, allowing the queue/router to choose capacity without changing the customer's requested output format or exposing provider names.
