@@ -2,36 +2,12 @@ const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
 const { providerAssetUrl } = require('./provider/assets.js');
+const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
 
 function truthy(value, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
   return /^(1|true|yes|on)$/i.test(String(value));
-}
-
-function vidanceeConfigured() {
-  return Boolean(String(process.env.VIDANCEE_EMAIL || '').trim() && String(process.env.VIDANCEE_PASSWORD || ''));
-}
-
-function createPulseConfigured() {
-  return Boolean(String(process.env.CREATEPULSE_API_KEY || '').trim());
-}
-
-function createVidancee() {
-  if (!vidanceeConfigured()) return null;
-  return new VidanceeClient({
-    baseUrl: String(process.env.VIDANCEE_BASE_URL || 'https://vidancee.com'),
-    email: String(process.env.VIDANCEE_EMAIL || '').trim(),
-    password: String(process.env.VIDANCEE_PASSWORD || ''),
-  });
-}
-
-function createCreatePulse() {
-  if (!createPulseConfigured()) return null;
-  return new CreatePulseClient({
-    baseUrl: String(process.env.CREATEPULSE_BASE_URL || 'https://createpulse.online'),
-    apiKey: String(process.env.CREATEPULSE_API_KEY || '').trim(),
-  });
 }
 
 class GenerationWorker {
@@ -40,9 +16,12 @@ class GenerationWorker {
     this.timer = null;
     this.vidancee = null;
     this.createPulse = null;
+    this.vidanceeFingerprint = '';
+    this.createPulseFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
-    this.createPulseMaxInflight = Math.max(1, Number(process.env.CREATEPULSE_MAX_INFLIGHT || 3));
-    this.routing = String(process.env.PROVIDER_ROUTING || 'overflow').toLowerCase();
+    this.createPulseMaxInflight = 3;
+    this.routing = 'overflow';
+    this.allowProviderCharges = false;
   }
 
   enabled() {
@@ -88,6 +67,36 @@ class GenerationWorker {
     try { await this.runOnce(); }
     catch (error) { console.error('Worker tick failed:', error); }
     finally { this.running = false; this.schedule(); }
+  }
+
+  async refreshProviderSettings() {
+    const settings = await getProviderSettings();
+    this.routing = settings.routing;
+    this.createPulseMaxInflight = settings.createPulseMaxInflight;
+    this.allowProviderCharges = settings.allowProviderCharges;
+
+    const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
+    if (vidFingerprint !== this.vidanceeFingerprint) {
+      this.vidanceeFingerprint = vidFingerprint;
+      this.vidancee = settings.vidanceeEmail && settings.vidanceePassword
+        ? new VidanceeClient({
+            baseUrl: settings.vidanceeBaseUrl,
+            email: settings.vidanceeEmail,
+            password: settings.vidanceePassword,
+          })
+        : null;
+    }
+
+    const cpFingerprint = JSON.stringify([settings.createPulseBaseUrl, settings.createPulseApiKey]);
+    if (cpFingerprint !== this.createPulseFingerprint) {
+      this.createPulseFingerprint = cpFingerprint;
+      this.createPulse = settings.createPulseApiKey
+        ? new CreatePulseClient({
+            baseUrl: settings.createPulseBaseUrl,
+            apiKey: settings.createPulseApiKey,
+          })
+        : null;
+    }
   }
 
   async syncVidancee(db) {
@@ -248,8 +257,13 @@ class GenerationWorker {
 
   async runOnce() {
     const db = getPool();
+    await this.refreshProviderSettings();
     const vidSnapshot = await this.syncVidancee(db);
     await this.syncCreatePulse(db);
+
+    // Pausing submissions does not stop polling jobs that are already running.
+    if (!this.allowProviderCharges) return;
+    if (!this.vidancee && !this.createPulse) return;
 
     let vidSlots = 0;
     if (this.vidancee && vidSnapshot) {
@@ -298,4 +312,4 @@ class GenerationWorker {
   }
 }
 
-module.exports = { GenerationWorker, vidanceeConfigured, createPulseConfigured, createVidancee, createCreatePulse };
+module.exports = { GenerationWorker };
