@@ -1,1 +1,2 @@
-// Hostinger compatibility entry point. The real application lives in server.js.\nimport './server.js';\n
+// Hostinger/LiteSpeed compatibility entry point.
+module.exports = require('./server.js');
