@@ -14,7 +14,13 @@ const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
-const { GenerationWorker, createPulseConfigured } = require('./src/worker.js');
+const { GenerationWorker } = require('./src/worker.js');
+const {
+  getProviderSettings,
+  getAdminProviderSettings,
+  updateProviderSettings,
+  migrateLegacyProviderEnvSettings,
+} = require('./src/settings.js');
 const { verifyAssetSignature } = require('./src/provider/assets.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -23,20 +29,24 @@ const adminPage = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
 const adminToken = String(process.env.ADMIN_TOKEN || '').trim();
-const providerBaseUrl = String(process.env.VIDANCEE_BASE_URL || 'https://vidancee.com').replace(/\/$/, '');
-const allowProviderCharges = /^(1|true|yes|on)$/i.test(String(process.env.ALLOW_PROVIDER_CHARGES || 'no'));
 const allowSignups = !/^(0|false|no|off)$/i.test(String(process.env.ALLOW_SIGNUPS || 'yes'));
 const startingCredits = Math.max(0, Number(process.env.STARTING_CREDITS || 0));
 
 if (!adminToken) console.warn('ADMIN_TOKEN is not configured. Admin routes will be unavailable.');
 
-function providerConfig() {
-  const email = String(process.env.VIDANCEE_EMAIL || '').trim();
-  const password = String(process.env.VIDANCEE_PASSWORD || '');
-  if (!email || !password) throw new Error('VIDANCEE_EMAIL and VIDANCEE_PASSWORD must be configured in hPanel.');
-  return { baseUrl: providerBaseUrl, email, password };
+async function providerClient() {
+  const settings = await getProviderSettings();
+  if (!settings.vidanceeEmail || !settings.vidanceePassword) {
+    const error = new Error('Primary provider credentials are not configured in the Admin dashboard.');
+    error.statusCode = 503;
+    throw error;
+  }
+  return new VidanceeClient({
+    baseUrl: settings.vidanceeBaseUrl,
+    email: settings.vidanceeEmail,
+    password: settings.vidanceePassword,
+  });
 }
-function providerClient() { return new VidanceeClient(providerConfig()); }
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body, null, 2);
