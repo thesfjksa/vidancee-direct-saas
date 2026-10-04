@@ -541,3 +541,22 @@ The customer-facing generator is now intentionally restricted to the four aspect
 Previously exposed Vidancee-only ratios 3:4 and 21:9 have been removed from the public configuration.
 
 Reason: the SaaS keeps provider routing completely invisible to customers. Every aspect ratio shown in the generation UI must be routable to either backend, allowing the queue/router to choose capacity without changing the customer's requested output format or exposing provider names.
+
+
+## Unified generation window + provider privacy — 2026-10-04
+
+Customer generation UX is now a single form. There is no Text-to-Video / Image-to-Video mode selector.
+
+Behavior:
+- prompt + no uploaded image -> backend derives text-to-video
+- prompt + one or more uploaded images -> backend derives image-to-video
+- customer cannot choose or submit a mode field
+- the same POST /api/generations endpoint is used in both cases
+
+Provider/source privacy was tightened:
+- customer generation serialization no longer includes the internal provider
+- public /health no longer exposes provider names, provider domains, routing mode, or provider credential state
+- customer-visible generation errors use generic service wording rather than backend names
+- admin generation monitoring still includes the internal provider for operational use
+
+The four public aspect ratios remain 9:16, 16:9, 1:1, and 4:3.
