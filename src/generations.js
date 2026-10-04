@@ -132,6 +132,47 @@ async function getUserGeneration(userId, id) {
   return rows[0] || null;
 }
 
+async function deleteUserGeneration(userId, generationId) {
+  const db = getPool();
+  const conn = await db.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const [rows] = await conn.execute(
+      'SELECT id, user_id, status FROM generations WHERE id = ? AND user_id = ? FOR UPDATE',
+      [generationId, userId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      const error = new Error('Generation not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const terminalStatuses = new Set(['completed', 'failed', 'submit_error']);
+    if (!terminalStatuses.has(String(row.status))) {
+      const error = new Error('This generation is still in progress and cannot be deleted yet.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    await conn.execute(
+      'DELETE FROM generations WHERE id = ? AND user_id = ?',
+      [generationId, userId],
+    );
+
+    await conn.commit();
+    return true;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 async function refundGeneration(generationId, status, message, providerCost = null) {
   const db = getPool();
   const conn = await db.getConnection();
@@ -184,5 +225,6 @@ module.exports = {
   createGenerationForUser,
   listUserGenerations,
   getUserGeneration,
+  deleteUserGeneration,
   refundGeneration,
 };
