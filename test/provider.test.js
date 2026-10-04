@@ -1,6 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { extractLoginCsrf, extractStudioCsrf, VidanceeClient } from '../src/provider/vidancee.js';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { extractLoginCsrf, extractStudioCsrf, VidanceeClient } = require('../src/provider/vidancee.js');
 
 test('extractLoginCsrf reads hidden csrf_token', () => {
   const html = '<form><input type="hidden" name="csrf_token" value="abc123"></form>';
