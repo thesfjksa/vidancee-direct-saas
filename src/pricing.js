@@ -28,7 +28,7 @@ function pricingMap() {
   };
 }
 
-const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:3', '3:4', '21:9'];
+const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:3'];
 
 function getCost(model, duration) {
   const modelInfo = pricingMap()[model];
