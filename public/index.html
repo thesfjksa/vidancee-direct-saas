@@ -581,7 +581,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 </div>
 
 <script>
-let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all';
+let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -634,7 +634,12 @@ function enterApp(){
   go('create');
   loadAll();
   clearInterval(poll);
-  poll=setInterval(()=>{loadGenerations();loadDashboard()},5000);
+  poll=setInterval(()=>{
+    if(document.visibilityState==='visible'){
+      loadGenerations();
+      loadDashboard();
+    }
+  },5000);
 }
 
 function go(name){
@@ -788,12 +793,18 @@ async function loadDashboard(){
 }
 
 async function loadGenerations(){
+  if(generationLoadPending)return;
+  generationLoadPending=true;
   try{
     const d=await api('/api/generations');
     generations=d.generations;
     renderCreateGallery();
     renderLibrary();
-  }catch(e){if(e.status===401)location.reload()}
+  }catch(e){
+    if(e.status===401)location.reload();
+  }finally{
+    generationLoadPending=false;
+  }
 }
 
 function filteredGenerations(){
@@ -802,15 +813,84 @@ function filteredGenerations(){
   return generations;
 }
 
+function generationFingerprint(g){
+  return JSON.stringify([
+    g.id,g.status,g.has_video,g.video_url,g.has_poster,g.poster_url,
+    g.credits_cost,g.model,g.duration,g.aspect_ratio,g.prompt,g.error_message
+  ]);
+}
+
+function buildJobNode(g){
+  const tpl=document.createElement('template');
+  tpl.innerHTML=jobCard(g).trim();
+  const node=tpl.content.firstElementChild;
+  node.dataset.generationId=String(g.id);
+  node.dataset.fingerprint=generationFingerprint(g);
+  return node;
+}
+
+function updateGallery(containerId,list,emptyMessage){
+  const container=$(containerId);
+  if(!container)return;
+
+  if(!list.length){
+    if(!container.querySelector('.empty') || container.querySelectorAll('.job').length){
+      container.innerHTML='<div class="empty">'+escapeHtml(emptyMessage)+'</div>';
+    }
+    return;
+  }
+
+  const existing=new Map(
+    [...container.querySelectorAll('.job[data-generation-id]')]
+      .map(node=>[node.dataset.generationId,node])
+  );
+
+  const empty=container.querySelector('.empty');
+  if(empty)empty.remove();
+
+  list.forEach((g,index)=>{
+    const id=String(g.id);
+    const fingerprint=generationFingerprint(g);
+    let node=existing.get(id);
+
+    // Preserve the exact existing <video> element whenever this render has not changed.
+    // That keeps playback time, volume, pause/play state, fullscreen state and buffering intact.
+    if(!node || node.dataset.fingerprint!==fingerprint){
+      const replacement=buildJobNode(g);
+      if(node){
+        node.replaceWith(replacement);
+      }else{
+        const at=container.children[index]||null;
+        container.insertBefore(replacement,at);
+      }
+      node=replacement;
+    }
+
+    const currentAtIndex=container.children[index];
+    if(currentAtIndex!==node){
+      container.insertBefore(node,currentAtIndex||null);
+    }
+
+    existing.delete(id);
+  });
+
+  existing.forEach(node=>node.remove());
+}
+
 function renderCreateGallery(){
-  if(!$('createGallery'))return;
-  const list=filteredGenerations();
-  $('createGallery').innerHTML=list.length?list.map(jobCard).join(''):'<div class="empty">Your renders will appear here. Start with a prompt on the left.</div>';
+  updateGallery(
+    'createGallery',
+    filteredGenerations(),
+    'Your renders will appear here. Start with a prompt on the left.'
+  );
 }
 
 function renderLibrary(){
-  if(!$('libraryGallery'))return;
-  $('libraryGallery').innerHTML=generations.length?generations.map(jobCard).join(''):'<div class="empty">No generations yet.</div>';
+  updateGallery(
+    'libraryGallery',
+    generations,
+    'No generations yet.'
+  );
 }
 
 async function loadCredits(){
