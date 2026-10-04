@@ -3,6 +3,7 @@ const { URL } = require('node:url');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
@@ -70,6 +71,68 @@ async function readJson(req) {
   if (!chunks.length) return {};
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { const error=new Error('Invalid JSON body.'); error.statusCode=400; throw error; }
+}
+
+function readGenerationRequest(req) {
+  const contentType=String(req.headers['content-type']||'');
+  if (!contentType.toLowerCase().startsWith('multipart/form-data')) return readJson(req);
+
+  return new Promise((resolve,reject)=>{
+    const fields={};
+    const images=[];
+    let totalBytes=0;
+    let settled=false;
+
+    function fail(message,statusCode=400){
+      if(settled)return;
+      settled=true;
+      const error=new Error(message); error.statusCode=statusCode; reject(error);
+    }
+
+    let bb;
+    try {
+      bb=Busboy({
+        headers:req.headers,
+        limits:{files:6,fileSize:10*1024*1024,fields:20,parts:30},
+      });
+    } catch(error) {
+      error.statusCode=400; return reject(error);
+    }
+
+    bb.on('field',(name,value)=>{fields[name]=value;});
+    bb.on('file',(name,file,info)=>{
+      if(name!=='images' && name!=='images[]'){ file.resume(); return; }
+      const mimeType=String(info.mimeType||'').toLowerCase();
+      if(!['image/jpeg','image/png','image/webp'].includes(mimeType)){
+        file.resume(); return fail('Images must be JPEG, PNG, or WebP.');
+      }
+      const chunks=[]; let bytes=0;
+      file.on('data',(chunk)=>{
+        bytes+=chunk.length; totalBytes+=chunk.length;
+        if(totalBytes>30*1024*1024) fail('Combined image upload is too large.',413);
+        if(!settled) chunks.push(chunk);
+      });
+      file.on('limit',()=>fail('Each image must be 10 MB or smaller.',413));
+      file.on('end',()=>{
+        if(!settled && bytes>0){
+          images.push({
+            filename:String(info.filename||'reference-image').slice(0,255),
+            mimeType,
+            data:Buffer.concat(chunks),
+          });
+        }
+      });
+    });
+    bb.on('filesLimit',()=>fail('A maximum of 6 images is allowed.'));
+    bb.on('error',(error)=>{if(!settled){settled=true;reject(error);}});
+    bb.on('close',()=>{
+      if(settled)return;
+      settled=true;
+      fields.images=images;
+      resolve(fields);
+    });
+    req.pipe(bb);
+  });
 }
 function adminAuthorized(req) {
   const supplied=String(req.headers['x-admin-token']||'');
@@ -258,7 +321,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
-      const body=await readJson(req);
+      const body=await readGenerationRequest(req);
       const generation=await createGenerationForUser(user.id,body);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
