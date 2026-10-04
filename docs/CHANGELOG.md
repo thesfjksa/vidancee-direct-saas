@@ -134,3 +134,11 @@
 - Added render status filters and masonry-style media cards.
 - Made Create the default signed-in workspace.
 - Preserved one unified prompt + optional image workflow.
+
+## 2026-10-04 — Preserve video playback during live polling
+
+- Replaced full gallery re-renders with keyed per-generation DOM updates.
+- Existing video elements are preserved when generation data is unchanged.
+- Prevented playback resets caused by 5-second background refreshes.
+- Added a pending-request guard to avoid overlapping generation polling.
+- Paused generation polling while the browser tab is hidden.
