@@ -112,12 +112,13 @@ async function proxyMedia(req,res,row,type) {
 
 const server=http.createServer(async (req,res)=>{
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
+  const routePath = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
 
   try {
-    if (req.method==='GET' && url.pathname==='/') return sendHtml(res,200,customerPage);
-    if (req.method==='GET' && url.pathname==='/admin-console') return sendHtml(res,200,adminPage);
+    if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
+    if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
 
-    if (req.method==='GET' && url.pathname==='/health') {
+    if (req.method==='GET' && routePath==='/health') {
       const database=await dbHealth();
       return sendJson(res,200,{
         ok:true, app:'vidancee-direct-saas', milestone:2, node:process.version,
@@ -133,13 +134,13 @@ const server=http.createServer(async (req,res)=>{
       });
     }
 
-    if (req.method==='GET' && url.pathname==='/api/config') {
+    if (req.method==='GET' && routePath==='/api/config') {
       return sendJson(res,200,{
         ok:true, signupsEnabled:allowSignups, pricing:publicPricing(), aspectRatios:ASPECT_RATIOS,
       });
     }
 
-    if (req.method==='POST' && url.pathname==='/api/auth/register') {
+    if (req.method==='POST' && routePath==='/api/auth/register') {
       requireDatabase();
       if (!allowSignups) return sendJson(res,403,{ok:false,error:'Signups are disabled.'});
       const body=await readJson(req);
@@ -161,7 +162,7 @@ const server=http.createServer(async (req,res)=>{
       }
     }
 
-    if (req.method==='POST' && url.pathname==='/api/auth/login') {
+    if (req.method==='POST' && routePath==='/api/auth/login') {
       requireDatabase();
       const body=await readJson(req);
       const email=normalizeEmail(body.email);
@@ -175,26 +176,26 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,user:userPayload(user)});
     }
 
-    if (req.method==='POST' && url.pathname==='/api/auth/logout') {
+    if (req.method==='POST' && routePath==='/api/auth/logout') {
       requireDatabase();
       await destroySession(req,res);
       return sendJson(res,200,{ok:true});
     }
 
-    if (req.method==='GET' && url.pathname==='/api/me') {
+    if (req.method==='GET' && routePath==='/api/me') {
       requireDatabase();
       const user=await userFromRequest(req);
       if (!user) return sendJson(res,401,{ok:false,error:'Not signed in.'});
       return sendJson(res,200,{ok:true,user:userPayload(user)});
     }
 
-    if (req.method==='GET' && url.pathname==='/api/generations') {
+    if (req.method==='GET' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
       return sendJson(res,200,{ok:true,generations:await listUserGenerations(user.id,50)});
     }
 
-    if (req.method==='POST' && url.pathname==='/api/generations') {
+    if (req.method==='POST' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
       const body=await readJson(req);
@@ -204,7 +205,7 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
     }
 
-    const genMatch=url.pathname.match(/^\/api\/generations\/([0-9a-f-]{36})$/i);
+    const genMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})$/i);
     if (req.method==='GET' && genMatch) {
       requireDatabase();
       const user=await requireUser(req);
@@ -213,7 +214,7 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,generation:serializeGeneration(row)});
     }
 
-    const mediaMatch=url.pathname.match(/^\/api\/generations\/([0-9a-f-]{36})\/media$/i);
+    const mediaMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/media$/i);
     if (req.method==='GET' && mediaMatch) {
       requireDatabase();
       const user=await requireUser(req);
@@ -223,11 +224,11 @@ const server=http.createServer(async (req,res)=>{
       return proxyMedia(req,res,row,type);
     }
 
-    if (url.pathname.startsWith('/admin/')) {
+    if (routePath.startsWith('/admin/')) {
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
-      if (req.method==='POST' && url.pathname==='/admin/provider/check') {
+      if (req.method==='POST' && routePath==='/admin/provider/check') {
         const provider=providerClient();
         await provider.login();
         const snapshot=await provider.getJobs(12);
@@ -238,11 +239,11 @@ const server=http.createServer(async (req,res)=>{
         }});
       }
 
-      if (req.method==='GET' && url.pathname==='/admin/provider/jobs') {
+      if (req.method==='GET' && routePath==='/admin/provider/jobs') {
         return sendJson(res,200,await providerClient().getJobs(12));
       }
 
-      if (req.method==='GET' && url.pathname==='/admin/provider/job') {
+      if (req.method==='GET' && routePath==='/admin/provider/job') {
         const jobId=Number(url.searchParams.get('id'));
         if (!Number.isFinite(jobId)||jobId<=0) return sendJson(res,400,{ok:false,error:'Valid job id is required.'});
         const provider=providerClient();
@@ -252,7 +253,7 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,found:Boolean(job),job:job?provider.normalizeJob(job):null});
       }
 
-      if (req.method==='POST' && url.pathname==='/admin/provider/generate') {
+      if (req.method==='POST' && routePath==='/admin/provider/generate') {
         if (!allowProviderCharges) return sendJson(res,403,{ok:false,error:'Provider charges are disabled.'});
         const body=await readJson(req);
         const prompt=String(body.prompt||'').trim();
@@ -264,14 +265,44 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,submitted:true,provider:'vidancee',job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
-      if (req.method==='GET' && url.pathname==='/admin/users') {
+      if (req.method==='GET' && routePath==='/admin/users') {
         requireDatabase();
         const db=getPool();
         const [rows]=await db.query('SELECT id,email,credits,role,status,created_at FROM users ORDER BY created_at DESC LIMIT 100');
         return sendJson(res,200,{ok:true,users:rows.map(userPayload)});
       }
 
-      const creditMatch=url.pathname.match(/^\/admin\/users\/(\d+)\/credits$/);
+      if (req.method==='POST' && routePath==='/admin/users/credits') {
+        requireDatabase();
+        const body=await readJson(req);
+        const identifier=String(body.identifier||'').trim();
+        const amount=Number(body.amount);
+        if (!identifier) return sendJson(res,400,{ok:false,error:'User ID or email is required.'});
+        if (!Number.isInteger(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero integer'});
+
+        const db=getPool(); const conn=await db.getConnection();
+        try {
+          await conn.beginTransaction();
+          const isId=/^\d+$/.test(identifier);
+          const [users]=isId
+            ? await conn.execute('SELECT * FROM users WHERE id=? FOR UPDATE',[Number(identifier)])
+            : await conn.execute('SELECT * FROM users WHERE email=? FOR UPDATE',[normalizeEmail(identifier)]);
+          const user=users[0];
+          if (!user) { await conn.rollback(); return sendJson(res,404,{ok:false,error:'User not found.'}); }
+          if (Number(user.credits)+amount<0) { await conn.rollback(); return sendJson(res,400,{ok:false,error:'Credit adjustment would make balance negative.'}); }
+          await conn.execute('UPDATE users SET credits=credits+? WHERE id=?',[amount,user.id]);
+          await conn.execute(
+            "INSERT INTO credit_transactions (user_id,amount,type,note) VALUES (?,?,'admin_adjustment',?)",
+            [user.id,amount,String(body.note||'Admin credit adjustment').slice(0,255)],
+          );
+          await conn.commit();
+          const [updated]=await db.execute('SELECT id,email,credits,role,status,created_at FROM users WHERE id=?',[user.id]);
+          return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
+        } catch(error) { await conn.rollback(); throw error; }
+        finally { conn.release(); }
+      }
+
+      const creditMatch=routePath.match(/^\/admin\/users\/(\d+)\/credits$/);
       if (req.method==='POST' && creditMatch) {
         requireDatabase();
         const body=await readJson(req);
@@ -296,7 +327,7 @@ const server=http.createServer(async (req,res)=>{
         finally { conn.release(); }
       }
 
-      if (req.method==='GET' && url.pathname==='/admin/generations') {
+      if (req.method==='GET' && routePath==='/admin/generations') {
         requireDatabase();
         const db=getPool();
         const [rows]=await db.query(
