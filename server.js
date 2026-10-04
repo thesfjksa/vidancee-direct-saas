@@ -398,7 +398,7 @@ const server=http.createServer(async (req,res)=>{
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
       if (req.method==='POST' && routePath==='/admin/provider/check') {
-        const provider=providerClient();
+        const provider=await providerClient();
         await provider.login();
         const snapshot=await provider.getJobs(12);
         return sendJson(res,200,{ok:true,login:'OK',provider:{
@@ -409,13 +409,14 @@ const server=http.createServer(async (req,res)=>{
       }
 
       if (req.method==='GET' && routePath==='/admin/provider/jobs') {
-        return sendJson(res,200,await providerClient().getJobs(12));
+        const provider=await providerClient();
+        return sendJson(res,200,await provider.getJobs(12));
       }
 
       if (req.method==='GET' && routePath==='/admin/provider/job') {
         const jobId=Number(url.searchParams.get('id'));
         if (!Number.isFinite(jobId)||jobId<=0) return sendJson(res,400,{ok:false,error:'Valid job id is required.'});
-        const provider=providerClient();
+        const provider=await providerClient();
         const snapshot=await provider.getJobs(12);
         const all=[...(snapshot.active||[]),...(snapshot.jobs||[])];
         const job=all.find(item=>Number(item.id)===jobId)||null;
