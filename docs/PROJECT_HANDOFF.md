@@ -385,3 +385,19 @@ Next production verification sequence:
 5. Confirm the background worker submits it to Vidancee
 6. Confirm the customer UI reaches completed status and plays the proxied video
 7. Test one failure/refund path before considering Milestone 2 complete
+
+
+## Admin user route compatibility fix — 2026-10-04
+
+The Milestone 2 admin console displayed `ERROR: Admin route not found.` when loading customer users.
+
+Fixes applied:
+
+- request paths are now normalized to ignore trailing slashes, so both `/admin/users` and `/admin/users/` resolve consistently
+- admin credit adjustment now accepts either a numeric user ID or an email address
+- new endpoint:
+  `POST /admin/users/credits`
+  with JSON `{ "identifier": "<id-or-email>", "amount": 100 }`
+- admin console input now says **User ID or email**
+
+The original numeric endpoint remains supported for compatibility.
