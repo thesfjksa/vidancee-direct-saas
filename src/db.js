@@ -74,7 +74,7 @@ async function initDb() {
       id CHAR(36) NOT NULL,
       user_id BIGINT UNSIGNED NOT NULL,
       provider VARCHAR(40) NOT NULL DEFAULT 'vidancee',
-      provider_job_id BIGINT NULL,
+      provider_job_id VARCHAR(191) NULL,
       mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video',
       model VARCHAR(80) NOT NULL,
       duration INT NOT NULL,
@@ -82,7 +82,8 @@ async function initDb() {
       prompt TEXT NOT NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'queued',
       credits_cost INT NOT NULL,
-      provider_cost INT NULL,
+      provider_cost DECIMAL(12,4) NULL,
+      provider_cost_unit VARCHAR(20) NULL,
       output_url TEXT NULL,
       poster_url TEXT NULL,
       error_message TEXT NULL,
@@ -130,6 +131,21 @@ async function initDb() {
 
   for (const sql of statements) {
     await db.query(sql);
+  }
+
+  const [providerJobColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_job_id'");
+  if (providerJobColumn[0] && !/varchar/i.test(String(providerJobColumn[0].Type || ''))) {
+    await db.query("ALTER TABLE generations MODIFY provider_job_id VARCHAR(191) NULL");
+  }
+
+  const [providerCostColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_cost'");
+  if (providerCostColumn[0] && !/decimal/i.test(String(providerCostColumn[0].Type || ''))) {
+    await db.query("ALTER TABLE generations MODIFY provider_cost DECIMAL(12,4) NULL");
+  }
+
+  const [costUnitColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_cost_unit'");
+  if (!costUnitColumn.length) {
+    await db.query("ALTER TABLE generations ADD COLUMN provider_cost_unit VARCHAR(20) NULL AFTER provider_cost");
   }
 
   initialized = true;
