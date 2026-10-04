@@ -110,3 +110,12 @@
 - Public aspect-ratio options are now limited to 9:16, 16:9, 1:1 and 4:3.
 - Removed 3:4 and 21:9 from customer generation options.
 - Ensures every visible ratio can route to either backend without exposing provider differences.
+
+## 2026-10-04 — Unified generation form and hide backend providers
+
+- Removed the customer mode selector.
+- Optional reference images now automatically determine image-assisted generation.
+- Server derives generation mode from file presence and ignores customer mode selection.
+- Removed provider identity from customer generation API responses.
+- Sanitized public /health to avoid backend/source disclosure.
+- Replaced provider-named customer failure messages with generic generation errors.
