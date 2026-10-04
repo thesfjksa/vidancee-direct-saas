@@ -600,3 +600,21 @@ Key UX changes:
 - no backend/provider engine names are exposed in customer UI
 
 The unified generation behavior remains unchanged: no image = prompt-only generation; one or more images = image-guided generation.
+
+
+## Stable video playback during polling — 2026-10-04
+
+The customer render gallery previously refreshed every polling cycle because the frontend rebuilt the entire gallery with `innerHTML` every 5 seconds. That recreated completed `<video>` elements and caused visible playback resets while a user was watching a render.
+
+The gallery now uses keyed DOM updates based on generation ID and a generation fingerprint.
+
+Behavior:
+- unchanged render cards keep their existing DOM nodes
+- completed `<video>` elements are preserved instead of recreated
+- playback time, play/pause state, volume, buffering state, and fullscreen context are no longer reset by routine polling
+- only a render whose data actually changed is replaced
+- removed generations are cleaned from the DOM
+- background generation polling is skipped while the browser tab is hidden
+- overlapping `/api/generations` requests are prevented with a pending-request guard
+
+This keeps status polling active without interrupting media playback.
