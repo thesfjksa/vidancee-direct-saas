@@ -50,3 +50,9 @@
 - Added real customer dashboard and generation history.
 - Added same-origin media proxy.
 - Added admin user listing and credit adjustment controls.
+
+## 2026-10-04 — Fix pricing syntax and non-blocking DB startup
+
+- Quoted model IDs containing periods in src/pricing.js.
+- Start HTTP server before MySQL initialization.
+- Added MySQL connection timeout and keep-alive options.
