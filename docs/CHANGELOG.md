@@ -70,3 +70,12 @@
 - Normalize route trailing slashes.
 - Add credit adjustment by user ID or email.
 - Update admin console to accept email identifiers.
+
+## 2026-10-04 — Milestone 3 complete dashboard/admin application
+
+- Rebuilt customer UI as a responsive multi-page-style SPA.
+- Added overview, create, library, credits and account sections.
+- Added customer dashboard/credit-ledger/password APIs.
+- Rebuilt admin console with stats, users, generations, credit ledger and provider monitoring.
+- Added user enable/disable controls and searchable admin tables.
+- Made worker respect ALLOW_PROVIDER_CHARGES.
