@@ -641,7 +641,7 @@ server.on('error',(error)=>{console.error('HTTP server failed:',error);process.e
 function bootstrap() {
   // Start HTTP immediately so Hostinger can route traffic even if MySQL is
   // temporarily unavailable or misconfigured.
-  server.listen(port,host,()=>console.log('vidancee-direct-saas milestone 2 listening on '+host+':'+port));
+  server.listen(port,host,()=>console.log('mehroz-ai milestone 4 listening on '+host+':'+port));
 
   if (!dbConfigured()) {
     console.warn('MySQL not configured yet. Public UI will load, but account/generation APIs are unavailable.');
@@ -649,8 +649,10 @@ function bootstrap() {
   }
 
   initDb()
-    .then(() => {
+    .then(async () => {
       console.log('MySQL schema ready.');
+      const migrated=await migrateLegacyProviderEnvSettings();
+      if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       const worker=new GenerationWorker();
       worker.start();
     })
