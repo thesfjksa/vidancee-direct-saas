@@ -618,3 +618,169 @@ Behavior:
 - overlapping `/api/generations` requests are prevented with a pending-request guard
 
 This keeps status polling active without interrupting media playback.
+
+
+## CURRENT STATE SNAPSHOT — authoritative as of 2026-10-04
+
+> Earlier milestone sections below are historical records. If an older section conflicts with this snapshot, use this snapshot as the current project state.
+
+### Deployment and repository
+
+- Production domain: `https://ai.mehroz.online`
+- GitHub repository: `thesfjksa/vidancee-direct-saas`
+- Active branch: `main`
+- Customer app: `/`
+- Private admin app: `/admin-console`
+- Health endpoint: `/health`
+
+### Customer generation UX
+
+The public product has one unified generation composer.
+
+- prompt only -> text-to-video
+- prompt + 1–6 reference images -> image-to-video
+- customers do not choose a mode
+- customers do not see provider/source-engine names
+- the backend derives the mode automatically from uploaded images
+- the same `POST /api/generations` route is used for both workflows
+
+Public aspect ratios are intentionally limited to the set supported by both internal engines:
+
+- 9:16
+- 16:9
+- 1:1
+- 4:3
+
+### Internal generation engines
+
+Two internal generation sources are integrated behind the private router:
+
+1. Vidancee
+2. CreatePulse
+
+Provider selection is server-side only and invisible to customers.
+
+Routing policy is configurable from the Admin dashboard. Supported policies are:
+
+- `overflow` — primary first, overflow engine when needed
+- `balanced`
+- `createpulse-first`
+
+CreatePulse supports the mapped Seedance 2.5 10s / 15s / 20s / 30s variants used by this project. Unsupported provider combinations are not silently converted to another duration or aspect ratio.
+
+### Provider credentials are Admin-managed
+
+Provider credentials are no longer intended to be managed as normal provider ENV values.
+
+Admin path:
+
+`/admin-console` -> **Provider**
+
+The Admin Provider panel manages:
+
+- primary provider base URL
+- primary provider login email/password
+- overflow provider base URL
+- overflow provider API key
+- overflow max-inflight limit
+- routing policy
+- generation submission Enabled / Paused state
+
+Secrets are stored in MySQL and encrypted before persistence. The Admin read endpoint never returns saved provider passwords/API keys; it only reports configured/not-configured state.
+
+Encryption root:
+
+1. `SETTINGS_ENCRYPTION_KEY`, if configured
+2. otherwise `ADMIN_TOKEN`
+
+The worker reloads provider settings dynamically, so changing a provider API key or login in Admin does not require a redeploy.
+
+A one-time legacy migration imports old provider ENV values into database settings when the saved setting does not yet exist. After verifying the Admin Provider page shows the credentials as configured, the legacy provider credential ENV values can be removed from hPanel.
+
+Infrastructure ENV values still belong in hPanel, including:
+
+- `APP_URL`
+- `ADMIN_TOKEN`
+- optional `SETTINGS_ENCRYPTION_KEY`
+- MySQL credentials
+- worker timing/settings
+- customer pricing variables
+
+### Active worker/runtime files
+
+The active server imports:
+
+`src/worker_admin_settings.js`
+
+That worker reads provider configuration through:
+
+`src/settings.js`
+
+Do not treat the older transitional `src/worker.js` as the active runtime worker unless the server import is changed again.
+
+### Current customer UI
+
+The customer frontend is a gallery-first dark creative studio.
+
+Current layout:
+
+- compact global top navigation
+- Create is the default signed-in workspace
+- left-side generation composer on desktop
+- large render gallery/canvas on the right
+- prompt + optional reference images in one workflow
+- model, duration, aspect ratio, cost, Generate controls
+- All / Completed / In progress filters
+- Library, Credits and Account sections
+- responsive tablet/mobile layout
+- source-engine names hidden from customers
+
+The visible Model, Duration and Aspect Ratio controls use custom themed dropdown components. Native browser selects remain hidden for state/form compatibility, preventing Windows/Edge from showing the default blue native option menu.
+
+### Stable media polling
+
+The render gallery continues polling for job updates without recreating unchanged video elements.
+
+Current behavior:
+
+- unchanged render cards preserve their DOM nodes
+- completed videos keep playback position and play/pause state
+- only generations whose data changed are replaced
+- overlapping generation fetches are blocked
+- background polling pauses when the browser tab is hidden
+
+This prevents completed videos from visibly refreshing every polling cycle.
+
+### Current high-value implementation files
+
+- `public/index.html` — customer studio UI
+- `public/admin.html` — private admin console
+- `server.js` — HTTP/API routes
+- `src/settings.js` — encrypted provider settings
+- `src/worker_admin_settings.js` — active generation worker/router
+- `src/provider/vidancee.js` — Vidancee adapter
+- `src/provider/createpulse.js` — CreatePulse adapter
+- `src/provider/assets.js` — signed temporary image URLs for external provider fetching
+- `src/generations.js` — customer generation records, credits and mode derivation
+- `src/pricing.js` — customer model/duration pricing and public aspect ratios
+- `src/db.js` — schema initialization
+- `docs/ADMIN_PROVIDER_SETTINGS.md` — provider credential-management notes
+
+
+
+## Theme-matched custom dropdowns — 2026-10-04
+
+The customer Model, Duration and Aspect Ratio selectors previously used visible native HTML `<select>` menus. On Windows/Edge the open option list used the operating system's bright blue selection styling, which conflicted with the dark lime-accent product theme.
+
+The frontend now renders custom dropdown controls for all three selectors.
+
+Implementation notes:
+
+- the original `<select>` elements remain hidden as the authoritative form/state controls
+- custom trigger/menu UI mirrors each native select's options
+- selecting a custom option updates the hidden select and dispatches the normal `change` event
+- existing model -> duration pricing behavior is preserved
+- dropdown menu, hover, selected state, chevron, border and focus styles use the product theme
+- Escape and outside-click close open menus
+
+This removes browser/OS-native blue dropdown styling without changing backend request behavior.
