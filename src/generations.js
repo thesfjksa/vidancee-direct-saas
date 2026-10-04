@@ -31,6 +31,19 @@ async function createGenerationForUser(userId, input) {
   const model = String(input.model || '');
   const duration = Number(input.duration);
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
+  const mode = String(input.mode || 'text-to-video');
+  const images = Array.isArray(input.images) ? input.images : [];
+
+  if (!['text-to-video','image-to-video'].includes(mode)) {
+    const error = new Error('Unsupported generation mode.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (mode === 'image-to-video' && (images.length < 1 || images.length > 6)) {
+    const error = new Error('Image-to-video requires between 1 and 6 reference images.');
+    error.statusCode = 400;
+    throw error;
+  }
 
   if (!prompt) {
     const error = new Error('Prompt is required.');
@@ -71,9 +84,21 @@ async function createGenerationForUser(userId, input) {
     await conn.execute(
       `INSERT INTO generations
        (id, user_id, provider, mode, model, duration, aspect_ratio, prompt, status, credits_cost)
-       VALUES (?, ?, 'vidancee', 'text-to-video', ?, ?, ?, ?, 'queued', ?)`,
-      [id, userId, model, duration, aspectRatio, prompt, cost],
+       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, 'queued', ?)`,
+      [id, userId, mode, model, duration, aspectRatio, prompt, cost],
     );
+
+    if (mode === 'image-to-video') {
+      for (let i = 0; i < images.length; i += 1) {
+        const image = images[i];
+        await conn.execute(
+          `INSERT INTO generation_images
+           (generation_id, position_index, filename, mime_type, image_data)
+           VALUES (?, ?, ?, ?, ?)`,
+          [id, i, image.filename, image.mimeType, image.data],
+        );
+      }
+    }
 
     await conn.execute('UPDATE users SET credits = credits - ? WHERE id = ?', [cost, userId]);
     await conn.execute(
