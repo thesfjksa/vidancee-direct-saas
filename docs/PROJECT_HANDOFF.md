@@ -132,3 +132,16 @@ A provider password was previously visible in a chat screenshot. It should be ro
 ## Instructions for another LLM
 
 Continue from this repository. Treat `docs/VIDANCEE_PROTOCOL.md` as confirmed protocol evidence, not as a generic guess. Do not replace this direct HTTP integration with Browserless unless the direct protocol demonstrably stops working. First verify the deployed Milestone-1 provider check and one real text-to-video generation, then move to Milestone 2.
+
+
+## Hostinger 503 troubleshooting update — 2026-10-04
+
+The first deployment returned a generic 503 Service Unavailable. The repository was hardened for Hostinger:
+
+- `package.json` now has explicit `main`, `build`, and `start` scripts.
+- `app.js` compatibility entry point was added in case hPanel defaults to `app.js`.
+- Missing `ADMIN_TOKEN` no longer terminates the entire process at startup; the server can still expose `/health` while admin routes report configuration error.
+- `/health` now reports only safe booleans indicating whether required provider/admin variables are configured.
+- Recommended managed-hosting port is `3000`; server remains compatible with `process.env.PORT || 3000`.
+
+If a 503 remains after redeployment, inspect hPanel **Deployments → deployment details** and **Runtime logs** before changing application logic.
