@@ -5,6 +5,7 @@ const { getCost, validateAspectRatio } = require('./pricing.js');
 function serializeGeneration(row) {
   return {
     id: row.id,
+    provider: row.provider || null,
     mode: row.mode,
     model: row.model,
     duration: Number(row.duration),
