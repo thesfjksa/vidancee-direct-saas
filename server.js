@@ -1,12 +1,10 @@
-import http from 'node:http';
-import { URL } from 'node:url';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { VidanceeClient } from './src/provider/vidancee.js';
+const http = require('node:http');
+const { URL } = require('node:url');
+const fs = require('node:fs');
+const path = require('node:path');
+const { VidanceeClient } = require('./src/provider/vidancee.js');
 
-const here = dirname(fileURLToPath(import.meta.url));
-const page = await readFile(join(here, 'public', 'index.html'), 'utf8');
+const page = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
@@ -71,7 +69,7 @@ function safeError(error) {
   return {
     ok: false,
     error: error instanceof Error ? error.message : String(error),
-    name: error?.name || 'Error',
+    name: error && error.name ? error.name : 'Error',
   };
 }
 
@@ -200,3 +198,5 @@ server.on('error', (error) => {
 server.listen(port, host, () => {
   console.log(`vidancee-direct-saas listening on ${host}:${port}`);
 });
+
+module.exports = server;
