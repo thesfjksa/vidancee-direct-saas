@@ -581,3 +581,22 @@ Updated areas:
 - no provider/source engine names exposed to customers
 
 All existing generation, authentication, credits, library, and account APIs remain unchanged.
+
+
+## Gallery-first creative studio redesign — 2026-10-04
+
+The customer frontend was rebuilt again to follow a professional creative-tool layout similar in information architecture to leading AI video products, while keeping original branding and functionality.
+
+Key UX changes:
+- slim promotional strip and compact global navigation
+- Create is now the default authenticated workspace
+- fixed/sticky left generation composer on desktop
+- prompt, optional reference images, model, duration, ratio, cost and Generate are all contained in one compact control panel
+- large gallery/canvas area on the right for render history
+- masonry-style render gallery that respects generation aspect ratios
+- All / Completed / In progress render filters
+- dedicated Library, Credits and Account views
+- responsive layout collapses the creator above the gallery on tablet/mobile
+- no backend/provider engine names are exposed in customer UI
+
+The unified generation behavior remains unchanged: no image = prompt-only generation; one or more images = image-guided generation.
