@@ -32,3 +32,10 @@
 - jobs.php provider-state read succeeded.
 - Observed provider state: 321 credits, concurrency 1, processing 0.
 - Next checkpoint: one controlled paid text-to-video generation.
+
+## 2026-10-04 — First production generation submitted
+
+- Successfully submitted provider job 1410 from ai.mehroz.online.
+- Confirmed generate.php integration from production.
+- Added automatic per-job polling to the Milestone-1 test console.
+- Completed jobs now surface direct video/poster links in the test console.
