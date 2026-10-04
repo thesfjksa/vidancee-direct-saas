@@ -169,3 +169,37 @@ Fix applied:
 - changed `app.js` compatibility entry to `module.exports = require('./server.js')`
 
 This project should remain CommonJS while hosted through Hostinger LiteSpeed unless the hosting runtime is changed.
+
+
+## Milestone 1 provider connectivity verified — 2026-10-04
+
+Live Hostinger deployment at `https://ai.mehroz.online` successfully authenticated to Vidancee and read provider state.
+
+Observed successful provider-check response:
+
+```json
+{
+  "ok": true,
+  "login": "OK",
+  "provider": {
+    "credits": 321,
+    "reserved": 0,
+    "concurrency": 1,
+    "processing": 0,
+    "activeCount": 0,
+    "returnedHistoryCount": 12,
+    "hasMore": true
+  }
+}
+```
+
+This confirms the production Hostinger server can:
+
+- reach Vidancee
+- retrieve the login CSRF token
+- authenticate with the configured provider account
+- preserve PHPSESSID
+- retrieve the studio CSRF token
+- call the authenticated jobs endpoint
+
+Next step: temporarily set `ALLOW_PROVIDER_CHARGES=yes`, redeploy/restart, and submit one controlled 10-second text-to-video generation. Record the returned `job_id`, then poll jobs until terminal status.
