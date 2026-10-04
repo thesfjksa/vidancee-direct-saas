@@ -345,6 +345,73 @@ class VidanceeClient {
     });
   }
 
+  async generateImage({
+    prompt,
+    images,
+    model = 'seedance_2.5',
+    duration = 10,
+    aspectRatio = '9:16',
+    quantity = 1,
+    maxRetries = 3,
+  }) {
+    if (!Array.isArray(images) || images.length < 1) {
+      throw new VidanceeProtocolError('Image-to-video requires at least one image.');
+    }
+
+    return this.withAuth(async () => {
+      if (!this.studioCsrf) await this.refreshStudioCsrf();
+
+      const form = new FormData();
+      form.append('mode', 'image-to-video');
+      form.append('model', model);
+      form.append('duration', String(duration));
+      form.append('aspect_ratio', aspectRatio);
+      form.append('prompt', prompt);
+      form.append('quantity', String(quantity));
+      form.append('max_retries', String(maxRetries));
+
+      for (const image of images) {
+        const blob = new Blob([image.data], { type: image.mimeType || 'application/octet-stream' });
+        form.append('images[]', blob, image.filename || 'reference-image');
+      }
+
+      const response = await this.request('/api/generate.php', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': this.studioCsrf,
+          origin: this.baseUrl,
+          referer: `${this.baseUrl}/studio.php`,
+          accept: 'application/json, text/plain, */*',
+        },
+        body: form,
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        throw new VidanceeAuthError(`generate.php returned HTTP ${response.status}.`);
+      }
+
+      const data = await jsonBody(response, '/api/generate.php');
+      if (response.status !== 200 || data?.ok !== true) {
+        throw new VidanceeProtocolError('Vidancee image-to-video request was rejected.', {
+          status: response.status,
+          data,
+        });
+      }
+
+      const ids = Array.isArray(data.job_ids)
+        ? data.job_ids
+        : data.job_id
+          ? [data.job_id]
+          : [];
+
+      if (!ids.length) {
+        throw new VidanceeProtocolError('Image-to-video succeeded but no job ID was returned.', data);
+      }
+
+      return data;
+    });
+  }
+
   normalizeJob(job) {
     return {
       ...job,
