@@ -39,3 +39,14 @@
 - Confirmed generate.php integration from production.
 - Added automatic per-job polling to the Milestone-1 test console.
 - Completed jobs now surface direct video/poster links in the test console.
+
+## 2026-10-04 — Milestone 2 multi-user SaaS layer
+
+- Added MySQL persistence and automatic schema initialization.
+- Added user registration/login/session authentication.
+- Added customer credit ledger and atomic debits/refunds.
+- Added persistent generation records and provider job mapping.
+- Added background queue/worker with provider concurrency awareness.
+- Added real customer dashboard and generation history.
+- Added same-origin media proxy.
+- Added admin user listing and credit adjustment controls.
