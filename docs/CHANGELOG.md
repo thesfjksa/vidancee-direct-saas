@@ -64,3 +64,9 @@
 - Provider credentials configured.
 - Customer signups enabled.
 - Ready for first end-to-end customer account + credits + generation test.
+
+## 2026-10-04 — Fix admin user/credit routes
+
+- Normalize route trailing slashes.
+- Add credit adjustment by user ID or email.
+- Update admin console to accept email identifiers.
