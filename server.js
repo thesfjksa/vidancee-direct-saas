@@ -219,20 +219,23 @@ const server=http.createServer(async (req,res)=>{
 
     if (req.method==='GET' && routePath==='/health') {
       const database=await dbHealth();
-      const generationBackendReady=Boolean(
-        (String(process.env.VIDANCEE_EMAIL||'').trim() && String(process.env.VIDANCEE_PASSWORD||'')) ||
-        createPulseConfigured()
-      );
+      let generationBackendReady=false;
+      let generationEnabled=false;
+      if (database.connected) {
+        const providerSettings=await getAdminProviderSettings();
+        generationBackendReady=Boolean(providerSettings.vidancee.configured || providerSettings.createpulse.configured);
+        generationEnabled=Boolean(providerSettings.allowProviderCharges);
+      }
       return sendJson(res,200,{
         ok:true,
         app:'mehroz-ai',
-        milestone:3,
+        milestone:4,
         node:process.version,
         database,
         services:{
           generationBackendReady,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
-          generationEnabled:allowProviderCharges,
+          generationEnabled,
         },
         config:{
           adminTokenConfigured:Boolean(adminToken),
