@@ -193,6 +193,13 @@ textarea:focus,input:focus,select:focus{
   background:#151619;
   box-shadow:0 16px 42px rgba(0,0,0,.52);
   max-height:220px;overflow:auto;
+  scrollbar-width:thin;
+  scrollbar-color:#343740 #151619;
+}
+.custom-select.drop-up .custom-select-menu{
+  top:auto;
+  bottom:calc(100% + 5px);
+  box-shadow:0 -16px 42px rgba(0,0,0,.46);
 }
 .custom-select.open .custom-select-menu{display:block;animation:selectPop .12s ease-out}
 @keyframes selectPop{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
@@ -650,7 +657,37 @@ function go(name){
 }
 
 function closeCustomSelects(except=null){
-  document.querySelectorAll('.custom-select.open').forEach(el=>{if(el!==except)el.classList.remove('open')});
+  document.querySelectorAll('.custom-select.open').forEach(el=>{
+    if(el!==except){
+      el.classList.remove('open','drop-up');
+      const trigger=el.querySelector('.custom-select-trigger');
+      if(trigger)trigger.setAttribute('aria-expanded','false');
+    }
+  });
+}
+
+function positionCustomSelect(wrap){
+  if(!wrap)return;
+  const trigger=wrap.querySelector('.custom-select-trigger');
+  const menu=wrap.querySelector('.custom-select-menu');
+  if(!trigger||!menu)return;
+
+  // The generator panel is scrollable. Pick the direction that has enough
+  // visible room inside that panel so the menu never disappears behind the footer.
+  wrap.classList.remove('drop-up');
+  const triggerRect=trigger.getBoundingClientRect();
+  const scrollParent=wrap.closest('.creator-scroll');
+  const bounds=scrollParent
+    ? scrollParent.getBoundingClientRect()
+    : {top:8,bottom:window.innerHeight-8};
+
+  const menuHeight=Math.min(220,Math.max(44,menu.scrollHeight||([...menu.children].length*34+10)));
+  const roomBelow=Math.max(0,bounds.bottom-triggerRect.bottom-6);
+  const roomAbove=Math.max(0,triggerRect.top-bounds.top-6);
+
+  if(roomBelow<menuHeight && roomAbove>roomBelow){
+    wrap.classList.add('drop-up');
+  }
 }
 
 function ensureCustomSelect(id){
@@ -685,6 +722,11 @@ function ensureCustomSelect(id){
       closeCustomSelects(wrap);
       wrap.classList.toggle('open',willOpen);
       trigger.setAttribute('aria-expanded',willOpen?'true':'false');
+      if(willOpen){
+        requestAnimationFrame(()=>positionCustomSelect(wrap));
+      }else{
+        wrap.classList.remove('drop-up');
+      }
     });
 
     menu.addEventListener('click',e=>{
@@ -694,7 +736,7 @@ function ensureCustomSelect(id){
       if(!Number.isInteger(index))return;
       select.selectedIndex=index;
       syncCustomSelect(id);
-      wrap.classList.remove('open');
+      wrap.classList.remove('open','drop-up');
       trigger.setAttribute('aria-expanded','false');
       select.dispatchEvent(new Event('change',{bubbles:true}));
     });
@@ -734,6 +776,13 @@ document.addEventListener('click',()=>closeCustomSelects());
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeCustomSelects();
 });
+window.addEventListener('resize',()=>closeCustomSelects());
+document.addEventListener('scroll',e=>{
+  const open=document.querySelector('.custom-select.open');
+  if(!open)return;
+  if(e.target && e.target.closest && e.target.closest('.custom-select')===open)return;
+  positionCustomSelect(open);
+},true);
 
 function renderConfig(){
   if(!config)return;
