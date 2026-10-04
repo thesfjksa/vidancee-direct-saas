@@ -234,3 +234,81 @@ prompt: A cinematic red sports car driving through a modern city at night
 This confirms the production server can successfully call `/api/generate.php` and receive a provider job ID.
 
 The temporary admin test UI was also upgraded to automatically poll `/admin/provider/job?id=<jobId>` every 5 seconds after submission and surface the final video/poster URLs once the provider job reaches `completed`.
+
+
+## Milestone 2 implemented — 2026-10-04
+
+The repository now contains the first real multi-user SaaS layer.
+
+Implemented:
+
+- MySQL persistence with automatic schema creation
+- users table
+- secure password hashing using Node scrypt
+- opaque server-side sessions stored as SHA-256 token hashes
+- login/register/logout/me APIs
+- customer credit balance
+- credit ledger
+- atomic credit deduction when a generation is queued
+- generations table with provider_job_id mapping
+- background generation worker
+- provider concurrency awareness
+- automatic provider-job synchronization
+- automatic refund on provider failure or submission error
+- customer generation history
+- same-domain media proxy so customer responses do not expose raw provider video URLs
+- admin user listing and credit adjustment API
+- real customer-facing dashboard at /
+- provider/admin console moved to /admin-console
+
+New production dependencies:
+
+```text
+mysql2
+```
+
+New required hPanel variables:
+
+```env
+DB_HOST=
+DB_PORT=3306
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+```
+
+Important: create a MySQL database/user in Hostinger and add those credentials before testing registration. The app still boots when MySQL is absent, but account/generation APIs return a configuration error.
+
+Customer generation flow:
+
+```text
+POST /api/generations
+→ transaction locks user
+→ checks credit balance
+→ inserts queued generation
+→ deducts customer credits
+→ writes credit ledger debit
+→ worker checks provider capacity
+→ worker submits to Vidancee
+→ stores provider_job_id
+→ worker polls jobs.php
+→ completed: stores internal provider media URL
+→ failed: atomically restores customer credits and writes refund ledger entry
+```
+
+The customer API never returns the stored provider media URL. Instead it returns same-origin media endpoints such as:
+
+```text
+/api/generations/<id>/media?type=video
+```
+
+Next verification steps:
+
+1. Configure MySQL environment variables in hPanel.
+2. Redeploy.
+3. Check /health and confirm database.connected=true.
+4. Register a test customer.
+5. Open /admin-console, load users, and add test credits.
+6. Queue a customer generation from /.
+7. Confirm the worker submits it and the UI moves through queued/submitted/processing/completed.
+8. Confirm failed provider jobs restore credits.
