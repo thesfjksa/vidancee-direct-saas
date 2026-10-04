@@ -295,6 +295,20 @@ textarea::placeholder,input::placeholder{color:#555860}
 .job-title{font-size:10px;font-weight:650;margin:8px 0 4px}
 .job-prompt{font-size:9px;line-height:1.45;color:#777a83;margin:0}
 .job-error{font-size:9px;color:#ff8c96;margin-top:6px}
+.job-actions{
+  display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:9px;
+  border-top:1px solid #22242a
+}
+.job-action{
+  height:29px;display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  border:1px solid #2c2f35;border-radius:8px;background:#17181c;color:#aeb1b9;
+  padding:0 8px;font-size:9px;font-weight:650;white-space:nowrap;transition:.14s
+}
+.job-action:hover{background:#202226;border-color:#3a3d45;color:#fff}
+.job-action svg{width:12px;height:12px;flex:0 0 auto}
+.job-action.download:hover{border-color:#4b5529;color:var(--accent);background:rgba(215,255,63,.05)}
+.job-action.delete{margin-left:auto;color:#9b777b}
+.job-action.delete:hover{border-color:#5d3439;color:#ff919a;background:rgba(255,123,135,.06)}
 .empty{
   column-span:all;padding:44px;border:1px dashed #2c2e34;border-radius:12px;
   background:#0f1012;text-align:center;color:#6e717a;font-size:11px
@@ -985,6 +999,79 @@ function aspectValue(ratio){
   return map[ratio]||'16 / 9';
 }
 
+function findGeneration(id){
+  return generations.find(g=>String(g.id)===String(id))||null;
+}
+
+function reuseGeneration(id){
+  const g=findGeneration(id);
+  if(!g)return;
+
+  go('create');
+  $('prompt').value=g.prompt||'';
+
+  const modelExists=[...$('model').options].some(o=>o.value===g.model);
+  if(modelExists){
+    $('model').value=g.model;
+    renderDurations();
+  }
+
+  const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
+  if(durationExists){
+    $('duration').value=String(g.duration);
+    updateCost();
+  }
+
+  const ratioExists=[...$('ratio').options].some(o=>o.value===g.aspect_ratio||o.textContent===g.aspect_ratio);
+  if(ratioExists){
+    $('ratio').value=g.aspect_ratio;
+    syncCustomSelect('ratio');
+  }
+
+  syncCustomSelect('model');
+  syncCustomSelect('duration');
+
+  $('imageInput').value='';
+  $('imagePreview').innerHTML='';
+  $('genMsg').className='msg muted';
+  $('genMsg').textContent='Prompt and generation settings reused. Add reference images again if needed.';
+
+  const promptBox=$('prompt');
+  promptBox.focus();
+  promptBox.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function downloadGeneration(id){
+  const g=findGeneration(id);
+  if(!g||!g.has_video||!g.video_url)return;
+
+  const a=document.createElement('a');
+  a.href=g.video_url;
+  a.download='mehroz-ai-'+String(g.id).slice(0,8)+'.mp4';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function deleteGeneration(id){
+  const g=findGeneration(id);
+  if(!g)return;
+
+  const confirmed=window.confirm('Delete this generation from your library? This cannot be undone.');
+  if(!confirmed)return;
+
+  try{
+    await api('/api/generations/'+encodeURIComponent(id),{method:'DELETE'});
+    generations=generations.filter(item=>String(item.id)!==String(id));
+    renderCreateGallery();
+    renderLibrary();
+    await loadDashboard();
+  }catch(e){
+    window.alert(e.message);
+  }
+}
+
 function jobCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   let media;
@@ -997,12 +1084,28 @@ function jobCard(g){
       (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
       '</div>';
   }
+
+  const reuseButton='<button type="button" class="job-action" onclick="reuseGeneration(\''+escapeHtml(g.id)+'\')" title="Reuse prompt and settings">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1-7.5L4 10"/></svg>Reuse prompt</button>';
+
+  const downloadButton=g.has_video
+    ?'<button type="button" class="job-action download" onclick="downloadGeneration(\''+escapeHtml(g.id)+'\')" title="Download video">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v11"/><path d="m8 11 4 4 4-4"/><path d="M5 20h14"/></svg>Download</button>'
+    :'';
+
+  const canDelete=['completed','failed','submit_error'].includes(g.status);
+  const deleteButton=canDelete
+    ?'<button type="button" class="job-action delete" onclick="deleteGeneration(\''+escapeHtml(g.id)+'\')" title="Delete generation">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>Delete</button>'
+    :'';
+
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
       '<div class="job-title">'+escapeHtml(g.model)+' · '+g.duration+'s · '+escapeHtml(g.aspect_ratio)+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
+      '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
     '</div></article>';
 }
 
