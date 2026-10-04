@@ -30,6 +30,9 @@ function getPool() {
       timezone: 'Z',
       supportBigNumbers: true,
       bigNumberStrings: false,
+      connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 8000),
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
     });
   }
 
