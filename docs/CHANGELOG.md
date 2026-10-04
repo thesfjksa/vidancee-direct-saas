@@ -56,3 +56,11 @@
 - Quoted model IDs containing periods in src/pricing.js.
 - Start HTTP server before MySQL initialization.
 - Added MySQL connection timeout and keep-alive options.
+
+## 2026-10-04 — Milestone 2 production DB verified
+
+- Production /health is green.
+- MySQL configured=true and connected=true.
+- Provider credentials configured.
+- Customer signups enabled.
+- Ready for first end-to-end customer account + credits + generation test.
