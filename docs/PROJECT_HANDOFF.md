@@ -203,3 +203,34 @@ This confirms the production Hostinger server can:
 - call the authenticated jobs endpoint
 
 Next step: temporarily set `ALLOW_PROVIDER_CHARGES=yes`, redeploy/restart, and submit one controlled 10-second text-to-video generation. Record the returned `job_id`, then poll jobs until terminal status.
+
+
+## First live paid generation submitted — 2026-10-04
+
+A production text-to-video request was successfully submitted from `https://ai.mehroz.online`.
+
+Observed response:
+
+```json
+{
+  "ok": true,
+  "submitted": true,
+  "provider": "vidancee",
+  "job_id": 1410,
+  "job_ids": [1410],
+  "quantity": 1
+}
+```
+
+Test configuration:
+
+```text
+model: Seedance 2.5
+duration: 10s
+aspect ratio: 9:16
+prompt: A cinematic red sports car driving through a modern city at night
+```
+
+This confirms the production server can successfully call `/api/generate.php` and receive a provider job ID.
+
+The temporary admin test UI was also upgraded to automatically poll `/admin/provider/job?id=<jobId>` every 5 seconds after submission and surface the final video/poster URLs once the provider job reaches `completed`.
