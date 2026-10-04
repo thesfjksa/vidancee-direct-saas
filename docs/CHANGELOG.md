@@ -126,3 +126,11 @@
 - Added premium auth, sidebar, overview, generation composer, library and account UX.
 - Improved responsive behavior for tablet and mobile.
 - Preserved the unified prompt + optional-reference-image generation workflow.
+
+## 2026-10-04 — Gallery-first creative studio UI
+
+- Rebuilt customer workspace around a left-side generation composer and large render gallery.
+- Added compact global navigation and responsive mobile dock.
+- Added render status filters and masonry-style media cards.
+- Made Create the default signed-in workspace.
+- Preserved one unified prompt + optional image workflow.
