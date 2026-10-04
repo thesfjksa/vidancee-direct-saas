@@ -312,3 +312,31 @@ Next verification steps:
 6. Queue a customer generation from /.
 7. Confirm the worker submits it and the UI moves through queued/submitted/processing/completed.
 8. Confirm failed provider jobs restore credits.
+
+
+## Milestone 2 syntax/startup fix — 2026-10-04
+
+Hostinger runtime logs reported:
+
+```text
+src/pricing.js:11
+seedance_2.5: {
+          ^^
+SyntaxError: Unexpected number
+```
+
+Cause: JavaScript object keys containing periods must be quoted. The pricing keys were written as bare identifiers.
+
+Fixed:
+
+```js
+'seedance_2.5': { ... }
+'seedance_2.0_fast': { ... }
+```
+
+Additional resilience added at the same time:
+
+- HTTP listener now starts before MySQL schema initialization
+- MySQL initialization runs in the background
+- database connection timeout defaults to 8 seconds
+- a bad/unreachable database can no longer prevent the site and /health endpoint from starting
