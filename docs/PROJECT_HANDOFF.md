@@ -560,3 +560,24 @@ Provider/source privacy was tightened:
 - admin generation monitoring still includes the internal provider for operational use
 
 The four public aspect ratios remain 9:16, 16:9, 1:1, and 4:3.
+
+
+## Professional customer UI redesign — 2026-10-04
+
+The user-facing application in `public/index.html` was fully redesigned into a polished dark AI-studio interface inspired by contemporary creative-video SaaS UX patterns.
+
+Updated areas:
+- split-screen premium authentication experience
+- compact professional sidebar navigation
+- modern top bar with account avatar and credit balance
+- overview hero and compact operational metrics
+- unified generation composer with large prompt canvas
+- optional reference-image upload integrated directly into the composer
+- compact model/duration/aspect-ratio controls
+- cleaner generation cost and CTA treatment
+- redesigned video library cards and status badges
+- improved credit history and account-security views
+- responsive tablet/mobile navigation
+- no provider/source engine names exposed to customers
+
+All existing generation, authentication, credits, library, and account APIs remain unchanged.
