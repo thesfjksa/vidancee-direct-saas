@@ -3,7 +3,7 @@ const DEFAULT_HEADERS = {
   accept: '*/*',
 };
 
-export class VidanceeError extends Error {
+class VidanceeError extends Error {
   constructor(message, details = null) {
     super(message);
     this.name = 'VidanceeError';
@@ -11,21 +11,21 @@ export class VidanceeError extends Error {
   }
 }
 
-export class VidanceeAuthError extends VidanceeError {
+class VidanceeAuthError extends VidanceeError {
   constructor(message, details = null) {
     super(message, details);
     this.name = 'VidanceeAuthError';
   }
 }
 
-export class VidanceeProtocolError extends VidanceeError {
+class VidanceeProtocolError extends VidanceeError {
   constructor(message, details = null) {
     super(message, details);
     this.name = 'VidanceeProtocolError';
   }
 }
 
-export function extractLoginCsrf(html) {
+function extractLoginCsrf(html) {
   const patterns = [
     /<input[^>]*name=["']csrf_token["'][^>]*value=["']([^"']+)["'][^>]*>/i,
     /<input[^>]*value=["']([^"']+)["'][^>]*name=["']csrf_token["'][^>]*>/i,
@@ -37,7 +37,7 @@ export function extractLoginCsrf(html) {
   return '';
 }
 
-export function extractStudioCsrf(html) {
+function extractStudioCsrf(html) {
   const patterns = [
     /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["'][^>]*>/i,
     /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["'][^>]*>/i,
@@ -130,8 +130,11 @@ async function jsonBody(response, endpoint) {
   }
 }
 
-export class VidanceeClient {
-  constructor({ baseUrl = 'https://vidancee.com', email, password, fetchImpl = fetch }) {
+class VidanceeClient {
+  constructor({ baseUrl = 'https://vidancee.com', email, password, fetchImpl = globalThis.fetch }) {
+    if (typeof fetchImpl !== 'function') {
+      throw new VidanceeProtocolError('Global fetch is unavailable. Use Node.js 18+.');
+    }
     this.baseUrl = String(baseUrl).replace(/\/$/, '');
     this.email = email;
     this.password = password;
@@ -356,3 +359,12 @@ export class VidanceeClient {
     return new URL(String(value).replace(/^\//, ''), `${this.baseUrl}/`).toString();
   }
 }
+
+module.exports = {
+  VidanceeError,
+  VidanceeAuthError,
+  VidanceeProtocolError,
+  extractLoginCsrf,
+  extractStudioCsrf,
+  VidanceeClient,
+};
