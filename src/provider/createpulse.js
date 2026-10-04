@@ -8,6 +8,9 @@ class CreatePulseError extends Error {
 
 const MODEL_MAP = {
   'seedance_2.5:10': 'dreamina-seedance-2.5',
+  'seedance_2.5:15': 'dreamina-seedance-2.5-15s',
+  'seedance_2.5:20': 'dreamina-seedance-2.5-20s',
+  'seedance_2.5:30': 'dreamina-seedance-2.5-30s',
   'seedance_2.0_fast:10': 'dreamina-seedance-2.0',
   'seedance_2.0_fast:15': 'dreamina-seedance-2.0-15s',
 };
@@ -32,7 +35,7 @@ class CreatePulseClient {
     if (!this.configured()) return false;
     if (!this.mapModel(model, duration)) return false;
     if (!SUPPORTED_ASPECTS.has(String(aspectRatio))) return false;
-    if (mode === 'image-to-video' && (imageCount < 1 || imageCount > 5)) return false;
+    if (mode === 'image-to-video' && (imageCount < 1 || imageCount > 6)) return false;
     return mode === 'text-to-video' || mode === 'image-to-video';
   }
 
@@ -61,7 +64,7 @@ class CreatePulseClient {
 
     const body = { kind: 'video', model: mappedModel, prompt: String(prompt || ''), aspect: String(aspectRatio), duration: Number(duration) };
     if (initImageUrl) body.init_image_url = initImageUrl;
-    if (Array.isArray(imageReferenceUrls) && imageReferenceUrls.length) body.image_reference_urls = imageReferenceUrls.slice(0, 4);
+    if (Array.isArray(imageReferenceUrls) && imageReferenceUrls.length) body.image_reference_urls = imageReferenceUrls.slice(0, 5);
 
     const data = await this.request('/api/generate', {
       method: 'POST',
