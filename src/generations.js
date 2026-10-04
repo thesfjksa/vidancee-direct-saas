@@ -5,7 +5,6 @@ const { getCost, validateAspectRatio } = require('./pricing.js');
 function serializeGeneration(row) {
   return {
     id: row.id,
-    provider: row.provider || null,
     mode: row.mode,
     model: row.model,
     duration: Number(row.duration),
@@ -32,14 +31,8 @@ async function createGenerationForUser(userId, input) {
   const model = String(input.model || '');
   const duration = Number(input.duration);
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
-  const mode = String(input.mode || 'text-to-video');
   const images = Array.isArray(input.images) ? input.images : [];
-
-  if (!['text-to-video','image-to-video'].includes(mode)) {
-    const error = new Error('Unsupported generation mode.');
-    error.statusCode = 400;
-    throw error;
-  }
+  const mode = images.length > 0 ? 'image-to-video' : 'text-to-video';
   if (mode === 'image-to-video' && (images.length < 1 || images.length > 6)) {
     const error = new Error('Image-to-video requires between 1 and 6 reference images.');
     error.statusCode = 400;
