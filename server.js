@@ -14,7 +14,8 @@ const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
-const { GenerationWorker } = require('./src/worker.js');
+const { GenerationWorker, createPulseConfigured } = require('./src/worker.js');
+const { verifyAssetSignature } = require('./src/provider/assets.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const adminPage = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
@@ -182,6 +183,30 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
 
+    const providerAssetMatch=routePath.match(/^\/provider-assets\/([0-9a-f-]{36})\/(\d+)$/i);
+    if (req.method==='GET' && providerAssetMatch) {
+      requireDatabase();
+      const generationId=providerAssetMatch[1];
+      const position=Number(providerAssetMatch[2]);
+      const signature=String(url.searchParams.get('sig')||'');
+      if (!verifyAssetSignature(generationId,position,signature)) {
+        return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
+      }
+      const db=getPool();
+      const [rows]=await db.execute(
+        'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? AND position_index=? LIMIT 1',
+        [generationId,position]
+      );
+      const image=rows[0];
+      if (!image) return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
+      res.statusCode=200;
+      res.setHeader('content-type',image.mime_type);
+      res.setHeader('content-length',image.image_data.length);
+      res.setHeader('cache-control','private, max-age=300');
+      res.setHeader('x-content-type-options','nosniff');
+      return res.end(image.image_data);
+    }
+
     if (req.method==='GET' && routePath==='/health') {
       const database=await dbHealth();
       return sendJson(res,200,{
@@ -193,6 +218,9 @@ const server=http.createServer(async (req,res)=>{
           providerEmailConfigured:Boolean(String(process.env.VIDANCEE_EMAIL||'').trim()),
           providerPasswordConfigured:Boolean(String(process.env.VIDANCEE_PASSWORD||'')),
           providerBaseUrl,
+          createPulseConfigured:createPulseConfigured(),
+          createPulseBaseUrl:String(process.env.CREATEPULSE_BASE_URL||'https://createpulse.online'),
+          providerRouting:String(process.env.PROVIDER_ROUTING||'overflow'),
           signupsEnabled:allowSignups,
         }
       });
@@ -424,6 +452,12 @@ const server=http.createServer(async (req,res)=>{
           providerChargesEnabled:allowProviderCharges,
           signupsEnabled:allowSignups,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
+          providers:{
+            vidancee:Boolean(String(process.env.VIDANCEE_EMAIL||'').trim() && String(process.env.VIDANCEE_PASSWORD||'')),
+            createpulse:createPulseConfigured(),
+          },
+          routing:String(process.env.PROVIDER_ROUTING||'overflow'),
+          createPulseMaxInflight:Math.max(1,Number(process.env.CREATEPULSE_MAX_INFLIGHT||3)),
         });
       }
 
