@@ -437,6 +437,18 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,submitted:true,job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
+      if (req.method==='GET' && routePath==='/admin/provider-settings') {
+        requireDatabase();
+        return sendJson(res,200,{ok:true,settings:await getAdminProviderSettings()});
+      }
+
+      if (req.method==='PUT' && routePath==='/admin/provider-settings') {
+        requireDatabase();
+        const body=await readJson(req);
+        const settings=await updateProviderSettings(body);
+        return sendJson(res,200,{ok:true,settings});
+      }
+
       if (req.method==='GET' && routePath==='/admin/stats') {
         requireDatabase();
         const db=getPool();
