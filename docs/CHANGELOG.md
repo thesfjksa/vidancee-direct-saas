@@ -24,3 +24,11 @@
 - Converted runtime from ESM to CommonJS for Hostinger LiteSpeed compatibility.
 - Removed top-level await from the entry graph.
 - Converted provider module and tests to CommonJS.
+
+## 2026-10-04 — Production provider login verified
+
+- Hostinger deployment at ai.mehroz.online is live.
+- Vidancee authentication succeeded from production.
+- jobs.php provider-state read succeeded.
+- Observed provider state: 321 credits, concurrency 1, processing 0.
+- Next checkpoint: one controlled paid text-to-video generation.
