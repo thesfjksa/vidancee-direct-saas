@@ -88,3 +88,12 @@
 - Added generation_images MySQL table for queued reference images.
 - Added provider generateImage() using images[] and max_retries=3.
 - Updated worker to submit image-to-video jobs and clear temporary blobs after submission.
+
+## 2026-10-04 — Add CreatePulse overflow backend
+
+- Added CreatePulse official API adapter.
+- Added Vidancee-to-CreatePulse overflow routing.
+- Added configurable CreatePulse inflight cap.
+- Added CreatePulse-compatible image-to-video routing via signed temporary image URLs.
+- Migrated provider job IDs to string storage for CreatePulse batch IDs.
+- Added provider column to admin generation monitoring.
