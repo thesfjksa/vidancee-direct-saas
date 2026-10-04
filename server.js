@@ -318,17 +318,27 @@ const server=http.createServer(async (req,res)=>{
 
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;});
 
-async function bootstrap() {
-  if (dbConfigured()) {
-    try { await initDb(); console.log('MySQL schema ready.'); }
-    catch(error) { console.error('MySQL initialization failed:',error); }
-  } else {
-    console.warn('MySQL not configured yet. Public UI will load, but account/generation APIs are unavailable.');
-  }
+function bootstrap() {
+  // Start HTTP immediately so Hostinger can route traffic even if MySQL is
+  // temporarily unavailable or misconfigured.
   server.listen(port,host,()=>console.log('vidancee-direct-saas milestone 2 listening on '+host+':'+port));
-  const worker=new GenerationWorker();
-  worker.start();
+
+  if (!dbConfigured()) {
+    console.warn('MySQL not configured yet. Public UI will load, but account/generation APIs are unavailable.');
+    return;
+  }
+
+  initDb()
+    .then(() => {
+      console.log('MySQL schema ready.');
+      const worker=new GenerationWorker();
+      worker.start();
+    })
+    .catch((error) => {
+      console.error('MySQL initialization failed:',error);
+      console.error('Web server remains online; inspect /health for database diagnostics.');
+    });
 }
 
-bootstrap().catch((error)=>{console.error('Bootstrap failed:',error);process.exitCode=1;});
+bootstrap();
 module.exports=server;
