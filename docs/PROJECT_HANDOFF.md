@@ -401,3 +401,54 @@ Fixes applied:
 - admin console input now says **User ID or email**
 
 The original numeric endpoint remains supported for compatibility.
+
+
+## Milestone 3 complete application UI — 2026-10-04
+
+The project has been upgraded from a development console into a full SaaS application shell.
+
+Customer dashboard now includes:
+
+- responsive authenticated layout
+- overview statistics
+- create-video page
+- model/duration/aspect-ratio pricing controls
+- generation history with live status updates
+- completed video playback through the same-origin media proxy
+- credit balance and full credit ledger
+- account/profile information
+- password change with session rotation
+- mobile navigation
+
+Admin panel at `/admin-console` now includes:
+
+- private ADMIN_TOKEN gate stored only in browser sessionStorage
+- overview statistics
+- searchable/filterable customer users
+- enable/disable customer accounts
+- credit adjustment by user ID or email
+- searchable/filterable generation monitoring
+- full credit ledger
+- Vidancee connection/status checks
+- provider job viewer
+- configuration/pricing visibility
+
+New API routes:
+
+```text
+GET  /api/dashboard
+GET  /api/credits
+POST /api/account/password
+
+GET   /admin/stats
+GET   /admin/config
+GET   /admin/users?q=&status=
+PATCH /admin/users/:id
+POST  /admin/users/credits
+GET   /admin/generations?q=&status=
+GET   /admin/credits
+```
+
+The generation worker now also respects `ALLOW_PROVIDER_CHARGES`. Turning provider charges off prevents automatic queued customer jobs from being submitted.
+
+Scope note: text-to-video is production-enabled. Image-to-video is intentionally not exposed yet because its exact provider submission payload has not been captured/verified.
