@@ -5,10 +5,12 @@
   "type": "module",
   "description": "Direct Vidancee connector milestone for a video-generation SaaS.",
   "scripts": {
+    "build": "node -e \"console.log('No build step required')\"",
     "start": "node server.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "main": "server.js"
 }
