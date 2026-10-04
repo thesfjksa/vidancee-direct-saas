@@ -1,0 +1,14 @@
+{
+  "name": "vidancee-direct-saas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Direct Vidancee connector milestone for a video-generation SaaS.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
