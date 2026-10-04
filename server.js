@@ -15,8 +15,7 @@ const providerBaseUrl = String(process.env.VIDANCEE_BASE_URL || 'https://vidance
 const allowProviderCharges = /^(1|true|yes|on)$/i.test(String(process.env.ALLOW_PROVIDER_CHARGES || 'no'));
 
 if (!adminToken) {
-  console.error('ADMIN_TOKEN is required.');
-  process.exit(1);
+  console.warn('ADMIN_TOKEN is not configured. The server will still start, but /admin/* endpoints will be unavailable.');
 }
 
 function providerConfig() {
@@ -90,11 +89,21 @@ const server = http.createServer(async (req, res) => {
       milestone: 1,
       node: process.version,
       providerChargesEnabled: allowProviderCharges,
+      config: {
+        adminTokenConfigured: Boolean(adminToken),
+        providerEmailConfigured: Boolean(String(process.env.VIDANCEE_EMAIL || '').trim()),
+        providerPasswordConfigured: Boolean(String(process.env.VIDANCEE_PASSWORD || '')),
+        providerBaseUrl,
+      },
     });
   }
 
   if (!url.pathname.startsWith('/admin/')) {
     return sendJson(res, 404, { ok: false, error: 'Not found' });
+  }
+
+  if (!adminToken) {
+    return sendJson(res, 503, { ok: false, error: 'ADMIN_TOKEN is not configured in hPanel.' });
   }
 
   if (!authorized(req)) {
@@ -181,6 +190,11 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     return sendJson(res, 500, safeError(error));
   }
+});
+
+server.on('error', (error) => {
+  console.error('HTTP server failed:', error);
+  process.exitCode = 1;
 });
 
 server.listen(port, host, () => {
