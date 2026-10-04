@@ -383,6 +383,13 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,generation:serializeGeneration(row)});
     }
 
+    if (req.method==='DELETE' && genMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      await deleteUserGeneration(user.id,genMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:genMatch[1]});
+    }
+
     const mediaMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/media$/i);
     if (req.method==='GET' && mediaMatch) {
       requireDatabase();
