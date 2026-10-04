@@ -127,13 +127,36 @@ class GenerationWorker {
     if (!claim.affectedRows) return;
 
     try {
-      const result = await this.provider.generateText({
-        prompt: job.prompt,
-        model: job.model,
-        duration: Number(job.duration),
-        aspectRatio: job.aspect_ratio,
-        quantity: 1,
-      });
+      let result;
+      if (job.mode === 'image-to-video') {
+        const [imageRows] = await db.execute(
+          `SELECT filename, mime_type, image_data
+           FROM generation_images WHERE generation_id=? ORDER BY position_index ASC`,
+          [job.id],
+        );
+        if (!imageRows.length) throw new Error('Reference images are missing for this image-to-video job.');
+        result = await this.provider.generateImage({
+          prompt: job.prompt,
+          model: job.model,
+          duration: Number(job.duration),
+          aspectRatio: job.aspect_ratio,
+          quantity: 1,
+          maxRetries: 3,
+          images: imageRows.map((image) => ({
+            filename: image.filename,
+            mimeType: image.mime_type,
+            data: image.image_data,
+          })),
+        });
+      } else {
+        result = await this.provider.generateText({
+          prompt: job.prompt,
+          model: job.model,
+          duration: Number(job.duration),
+          aspectRatio: job.aspect_ratio,
+          quantity: 1,
+        });
+      }
       const providerJobId = result.job_id || (Array.isArray(result.job_ids) ? result.job_ids[0] : null);
       if (!providerJobId) throw new Error('Provider returned no job ID.');
 
@@ -141,6 +164,9 @@ class GenerationWorker {
         "UPDATE generations SET status='submitted', provider_job_id=?, submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
         [providerJobId, job.id],
       );
+      if (job.mode === 'image-to-video') {
+        await db.execute('DELETE FROM generation_images WHERE generation_id=?', [job.id]);
+      }
       console.log('Submitted generation', job.id, 'to provider job', providerJobId);
     } catch (error) {
       console.error('Provider submission failed for', job.id, error);
