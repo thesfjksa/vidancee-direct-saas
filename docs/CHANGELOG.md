@@ -156,3 +156,11 @@
 - Replaced visible native Model, Duration and Aspect Ratio menus with custom dark dropdown components.
 - Prevented Windows/Edge native blue option styling from appearing in the customer studio.
 - Preserved hidden native select state and existing change-event behavior.
+
+## 2026-10-04 — Generation card actions
+
+- Added Reuse prompt action to restore prompt/model/duration/aspect ratio into Create.
+- Added Download action for completed videos.
+- Added confirmed Delete action for terminal generations.
+- Added ownership-scoped DELETE /api/generations/:id endpoint.
+- Active/in-progress generations cannot be deleted.
