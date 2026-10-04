@@ -511,3 +511,19 @@ CREATEPULSE_API_KEY=<secret>
 CREATEPULSE_MAX_INFLIGHT=3
 PROVIDER_ROUTING=overflow
 PROVIDER_ASSET_SECRET=<long-random-secret>
+
+
+## CreatePulse long Seedance 2.5 durations verified — 2026-10-04
+
+CreatePulse's current API documentation confirms these canonical model IDs:
+
+- `dreamina-seedance-2.5` — 10s
+- `dreamina-seedance-2.5-15s` — 15s
+- `dreamina-seedance-2.5-20s` — 20s
+- `dreamina-seedance-2.5-30s` — 30s
+
+The provider adapter now maps our `seedance_2.5` model to all four durations. This means existing customer 30s Seedance 2.5 jobs can overflow to CreatePulse instead of being forced to wait for Vidancee.
+
+The 20s customer option is configurable through `PRICE_SEEDANCE_25_20`; leave it blank to hide 20s or set a positive integer customer-credit cost to expose it.
+
+CreatePulse image routing now accepts all 6 images supported by our customer upload UI (one init image + up to five reference URLs).
