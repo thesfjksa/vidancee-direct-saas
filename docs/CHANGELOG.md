@@ -142,3 +142,17 @@
 - Prevented playback resets caused by 5-second background refreshes.
 - Added a pending-request guard to avoid overlapping generation polling.
 - Paused generation polling while the browser tab is hidden.
+
+## 2026-10-04 — Admin-managed provider credentials
+
+- Added database-backed provider settings in the private Admin dashboard.
+- Provider passwords/API keys are encrypted before persistence.
+- Worker reloads saved provider credentials dynamically without redeploy.
+- Routing, overflow concurrency and generation enable/pause can be controlled from Admin.
+- Added one-time migration from legacy provider ENV values.
+
+## 2026-10-04 — Theme-matched custom dropdowns
+
+- Replaced visible native Model, Duration and Aspect Ratio menus with custom dark dropdown components.
+- Prevented Windows/Edge native blue option styling from appearing in the customer studio.
+- Preserved hidden native select state and existing change-event behavior.
