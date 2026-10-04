@@ -209,18 +209,23 @@ const server=http.createServer(async (req,res)=>{
 
     if (req.method==='GET' && routePath==='/health') {
       const database=await dbHealth();
+      const generationBackendReady=Boolean(
+        (String(process.env.VIDANCEE_EMAIL||'').trim() && String(process.env.VIDANCEE_PASSWORD||'')) ||
+        createPulseConfigured()
+      );
       return sendJson(res,200,{
-        ok:true, app:'vidancee-direct-saas', milestone:2, node:process.version,
-        providerChargesEnabled:allowProviderCharges,
+        ok:true,
+        app:'mehroz-ai',
+        milestone:3,
+        node:process.version,
         database,
+        services:{
+          generationBackendReady,
+          workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
+          generationEnabled:allowProviderCharges,
+        },
         config:{
           adminTokenConfigured:Boolean(adminToken),
-          providerEmailConfigured:Boolean(String(process.env.VIDANCEE_EMAIL||'').trim()),
-          providerPasswordConfigured:Boolean(String(process.env.VIDANCEE_PASSWORD||'')),
-          providerBaseUrl,
-          createPulseConfigured:createPulseConfigured(),
-          createPulseBaseUrl:String(process.env.CREATEPULSE_BASE_URL||'https://createpulse.online'),
-          providerRouting:String(process.env.PROVIDER_ROUTING||'overflow'),
           signupsEnabled:allowSignups,
         }
       });
@@ -589,7 +594,7 @@ const server=http.createServer(async (req,res)=>{
            ORDER BY g.created_at DESC LIMIT 200`,
           params,
         );
-        return sendJson(res,200,{ok:true,generations:rows.map(row=>({...serializeGeneration(row),user_email:row.email,provider_job_id:row.provider_job_id}))});
+        return sendJson(res,200,{ok:true,generations:rows.map(row=>({...serializeGeneration(row),user_email:row.email,provider:row.provider,provider_job_id:row.provider_job_id}))});
       }
 
       return sendJson(res,404,{ok:false,error:'Admin route not found.'});
