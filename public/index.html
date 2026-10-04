@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Vidancee Direct SaaS — Milestone 1</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0f14;color:#eef3f8;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}.wrap{max-width:980px;margin:0 auto;padding:32px 18px}.card{background:#121922;border:1px solid #253344;border-radius:16px;padding:20px;margin:16px 0}.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:170px}input,textarea,select,button{width:100%;border-radius:10px;border:1px solid #34475d;background:#0d141d;color:#f4f8fc;padding:12px;font:inherit}textarea{min-height:120px;resize:vertical}button{cursor:pointer;border:none;background:#e1a772;color:#16110d;font-weight:800}button.secondary{background:#25364a;color:#fff}button.danger{background:#8d3b46;color:#fff}pre{white-space:pre-wrap;word-break:break-word;background:#080c11;border:1px solid #1f2a37;border-radius:10px;padding:14px;min-height:100px}.muted{color:#9fb0c3}.warn{color:#f5c37c}.pill{display:inline-block;background:#203247;color:#c9ddf2;border-radius:999px;padding:5px 9px;font-size:12px}h1{margin:8px 0}h2{font-size:18px}
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0f14;color:#eef3f8;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}.wrap{max-width:980px;margin:0 auto;padding:32px 18px}.card{background:#121922;border:1px solid #253344;border-radius:16px;padding:20px;margin:16px 0}.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:170px}input,textarea,select,button{width:100%;border-radius:10px;border:1px solid #34475d;background:#0d141d;color:#f4f8fc;padding:12px;font:inherit}textarea{min-height:120px;resize:vertical}button{cursor:pointer;border:none;background:#e1a772;color:#16110d;font-weight:800}button.secondary{background:#25364a;color:#fff}button.danger{background:#8d3b46;color:#fff}pre{white-space:pre-wrap;word-break:break-word;background:#080c11;border:1px solid #1f2a37;border-radius:10px;padding:14px;min-height:100px}.muted{color:#9fb0c3}.warn{color:#f5c37c}.ok{color:#78d59c}.pill{display:inline-block;background:#203247;color:#c9ddf2;border-radius:999px;padding:5px 9px;font-size:12px}h1{margin:8px 0}h2{font-size:18px}.result-actions{display:none;gap:10px;margin-top:12px}.result-actions a{display:inline-block;text-decoration:none;border-radius:10px;padding:11px 14px;background:#25364a;color:#fff;font-weight:700}
 </style>
 </head>
 <body>
@@ -42,29 +42,72 @@
     </div>
     <button class="danger" style="margin-top:12px" onclick="generate()">Submit paid provider test</button>
     <pre id="generationStatus">No generation submitted.</pre>
+    <div id="resultActions" class="result-actions">
+      <a id="videoLink" target="_blank" rel="noopener">Open completed video</a>
+      <a id="posterLink" target="_blank" rel="noopener">Open poster</a>
+    </div>
   </div>
 </div>
 <script>
+let pollTimer=null;
 function adminToken(){ return document.getElementById('token').value.trim(); }
 async function api(path, options={}){
-  const headers = Object.assign({'x-admin-token': adminToken()}, options.headers || {});
-  const response = await fetch(path, Object.assign({}, options, {headers}));
-  const data = await response.json().catch(()=>({ok:false,error:'Non-JSON response'}));
-  if(!response.ok) throw new Error(data.error || ('HTTP '+response.status));
+  const headers=Object.assign({'x-admin-token':adminToken()},options.headers||{});
+  const response=await fetch(path,Object.assign({},options,{headers}));
+  const data=await response.json().catch(()=>({ok:false,error:'Non-JSON response'}));
+  if(!response.ok) throw new Error(data.error||('HTTP '+response.status));
   return data;
 }
 async function providerCheck(){
-  const out=document.getElementById('providerStatus'); out.textContent='Checking...';
+  const out=document.getElementById('providerStatus');out.textContent='Checking...';
   try{out.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}
   catch(error){out.textContent='ERROR: '+error.message}
 }
 async function refreshJobs(){
-  const out=document.getElementById('providerStatus'); out.textContent='Refreshing...';
+  const out=document.getElementById('providerStatus');out.textContent='Refreshing...';
   try{out.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}
   catch(error){out.textContent='ERROR: '+error.message}
 }
+function stopPolling(){
+  if(pollTimer){clearTimeout(pollTimer);pollTimer=null;}
+}
+async function pollJob(jobId){
+  stopPolling();
+  const out=document.getElementById('generationStatus');
+  const actions=document.getElementById('resultActions');
+  actions.style.display='none';
+  try{
+    const result=await api('/admin/provider/job?id='+encodeURIComponent(jobId));
+    if(!result.found){
+      out.textContent='Job '+jobId+' submitted. Waiting for it to appear in provider jobs...';
+      pollTimer=setTimeout(()=>pollJob(jobId),5000);
+      return;
+    }
+    const job=result.job;
+    out.textContent=JSON.stringify({ok:true,monitoring_job_id:jobId,job},null,2);
+    if(job.status==='completed'){
+      if(job.output_absolute_url){
+        const video=document.getElementById('videoLink');
+        video.href=job.output_absolute_url;
+        actions.style.display='flex';
+      }
+      if(job.poster_absolute_url){
+        document.getElementById('posterLink').href=job.poster_absolute_url;
+        actions.style.display='flex';
+      }
+      return;
+    }
+    if(job.status==='failed') return;
+    pollTimer=setTimeout(()=>pollJob(jobId),5000);
+  }catch(error){
+    out.textContent='Polling error for job '+jobId+': '+error.message+'\nRetrying in 5 seconds...';
+    pollTimer=setTimeout(()=>pollJob(jobId),5000);
+  }
+}
 async function generate(){
-  const out=document.getElementById('generationStatus'); out.textContent='Submitting...';
+  stopPolling();
+  const out=document.getElementById('generationStatus');out.textContent='Submitting...';
+  document.getElementById('resultActions').style.display='none';
   const body={
     prompt:document.getElementById('prompt').value,
     model:document.getElementById('model').value,
@@ -72,8 +115,11 @@ async function generate(){
     aspectRatio:document.getElementById('ratio').value,
     quantity:1
   };
-  try{out.textContent=JSON.stringify(await api('/admin/provider/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),null,2)}
-  catch(error){out.textContent='ERROR: '+error.message}
+  try{
+    const result=await api('/admin/provider/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    out.textContent=JSON.stringify(result,null,2)+'\n\nMonitoring job '+result.job_id+' automatically...';
+    if(result.job_id) pollTimer=setTimeout(()=>pollJob(result.job_id),1500);
+  }catch(error){out.textContent='ERROR: '+error.message}
 }
 </script>
 </body>
