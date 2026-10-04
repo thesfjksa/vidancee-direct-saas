@@ -13,6 +13,7 @@ function pricingMap() {
       durations: {
         10: optionalPositiveInt('PRICE_SEEDANCE_25_10', 6),
         15: optionalPositiveInt('PRICE_SEEDANCE_25_15', 9),
+        20: optionalPositiveInt('PRICE_SEEDANCE_25_20', null),
         30: optionalPositiveInt('PRICE_SEEDANCE_25_30', 14),
       },
     },
