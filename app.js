@@ -1,0 +1,1 @@
+// Hostinger compatibility entry point. The real application lives in server.js.\nimport './server.js';\n
