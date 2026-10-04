@@ -340,3 +340,48 @@ Additional resilience added at the same time:
 - MySQL initialization runs in the background
 - database connection timeout defaults to 8 seconds
 - a bad/unreachable database can no longer prevent the site and /health endpoint from starting
+
+
+## Milestone 2 production database verified — 2026-10-04
+
+Production health check at `https://ai.mehroz.online/health` returned:
+
+```json
+{
+  "ok": true,
+  "app": "vidancee-direct-saas",
+  "milestone": 2,
+  "node": "v20.19.4",
+  "providerChargesEnabled": true,
+  "database": {
+    "configured": true,
+    "connected": true
+  },
+  "config": {
+    "adminTokenConfigured": true,
+    "providerEmailConfigured": true,
+    "providerPasswordConfigured": true,
+    "providerBaseUrl": "https://vidancee.com",
+    "signupsEnabled": true
+  }
+}
+```
+
+This verifies:
+
+- Hostinger runtime is healthy on Milestone 2
+- MySQL credentials are valid
+- schema initialization can reach the production database
+- provider credentials are configured
+- customer signups are enabled
+- provider charging is enabled
+
+Next production verification sequence:
+
+1. Register the first customer at `/`
+2. Open `/admin-console`
+3. Load users and add credits to the new user
+4. Queue one customer generation
+5. Confirm the background worker submits it to Vidancee
+6. Confirm the customer UI reaches completed status and plays the proxied video
+7. Test one failure/refund path before considering Milestone 2 complete
