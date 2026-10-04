@@ -97,3 +97,10 @@
 - Added CreatePulse-compatible image-to-video routing via signed temporary image URLs.
 - Migrated provider job IDs to string storage for CreatePulse batch IDs.
 - Added provider column to admin generation monitoring.
+
+## 2026-10-04 — Enable CreatePulse Seedance 2.5 long durations
+
+- Added CreatePulse mappings for Seedance 2.5 15s, 20s and 30s.
+- 30-second Seedance 2.5 customer jobs can now use CreatePulse overflow routing.
+- Added optional PRICE_SEEDANCE_25_20 customer pricing switch.
+- Expanded CreatePulse image routing to the app's full 6-image upload limit.
