@@ -3,558 +3,484 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#09090b">
+<meta name="theme-color" content="#0a0a0b">
 <title>Mehroz AI — Video Studio</title>
 <style>
 :root{
   color-scheme:dark;
-  --bg:#09090b;
-  --bg-soft:#0d0d10;
-  --surface:#121216;
-  --surface-2:#17171c;
-  --surface-3:#1d1d23;
-  --line:#28282f;
-  --line-soft:#202027;
+  --bg:#0a0a0b;
+  --panel:#111214;
+  --panel-2:#151619;
+  --panel-3:#1a1b1f;
+  --line:#26282e;
+  --line-2:#30323a;
   --text:#f7f7f8;
-  --muted:#8d8d98;
-  --muted-2:#686873;
-  --accent:#8b5cf6;
-  --accent-2:#a78bfa;
-  --accent-soft:rgba(139,92,246,.14);
-  --green:#50d890;
-  --red:#ff7a85;
-  --amber:#f3bc63;
-  --radius:16px;
-  --radius-sm:11px;
-  --shadow:0 18px 50px rgba(0,0,0,.28);
+  --muted:#92959f;
+  --muted-2:#686b74;
+  --accent:#d7ff3f;
+  --accent-2:#bdf51d;
+  --accent-ink:#121400;
+  --success:#78e3a7;
+  --danger:#ff7b87;
+  --warning:#f4c66d;
+  --radius:14px;
+  --shadow:0 22px 60px rgba(0,0,0,.32);
 }
 *{box-sizing:border-box}
-html{background:var(--bg)}
+html,body{margin:0;min-height:100%;background:var(--bg)}
 body{
-  margin:0;
   min-height:100vh;
-  background:
-    radial-gradient(900px 540px at 72% -120px,rgba(124,58,237,.12),transparent 70%),
-    radial-gradient(600px 420px at 18% 0,rgba(75,85,99,.08),transparent 70%),
-    var(--bg);
   color:var(--text);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(900px 480px at 82% -160px,rgba(215,255,63,.045),transparent 70%),
+    var(--bg);
 }
 button,input,textarea,select{font:inherit}
 button{cursor:pointer}
 .hide{display:none!important}
 .muted{color:var(--muted)}
-.ok{color:var(--green)}
-.err{color:var(--red)}
-.positive{color:var(--green)}
-.negative{color:var(--red)}
-.kicker{font-size:12px;color:var(--muted);letter-spacing:.01em}
+.ok{color:var(--success)}
+.err{color:var(--danger)}
+.positive{color:var(--success)}
+.negative{color:var(--danger)}
+.kicker{font-size:11px;color:var(--muted);letter-spacing:.01em}
 .section{display:none}
-.section.active{display:block;animation:fadeIn .18s ease-out}
-@keyframes fadeIn{from{opacity:.2;transform:translateY(3px)}to{opacity:1;transform:none}}
+.section.active{display:block;animation:fade .16s ease-out}
+@keyframes fade{from{opacity:.2;transform:translateY(2px)}to{opacity:1;transform:none}}
 
-.app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
-.sidebar{
-  position:sticky;top:0;height:100vh;padding:18px 12px 16px;
-  border-right:1px solid var(--line-soft);
-  background:rgba(9,9,11,.88);
-  backdrop-filter:blur(18px);
-  z-index:30;
+.promo{
+  height:34px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  background:linear-gradient(90deg,#dbff34,#c6ff1b);
+  color:#101200;font-size:11px;font-weight:650;letter-spacing:.01em;
+  border-bottom:1px solid rgba(0,0,0,.22)
 }
-.brand{
-  height:46px;display:flex;align-items:center;gap:10px;
-  padding:0 10px;font-size:17px;font-weight:800;letter-spacing:-.35px;
+.promo .tag{
+  padding:3px 7px;border-radius:6px;background:#111;color:#fff;font-size:9px;font-weight:700
 }
-.brand-mark{
-  width:28px;height:28px;border-radius:9px;
-  display:grid;place-items:center;
-  background:linear-gradient(145deg,#f7f7f8,#9d9da8);
-  color:#09090b;font-size:13px;font-weight:950;
-  box-shadow:0 6px 20px rgba(255,255,255,.06);
-}
-.brand span{color:var(--text)}
-.nav{margin-top:18px}
-.nav-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#5f5f69;padding:10px 12px 7px}
-.nav button{
-  width:100%;height:40px;display:flex;align-items:center;gap:11px;
-  border:0;border-radius:10px;padding:0 11px;margin:3px 0;
-  background:transparent;color:#9d9da7;text-align:left;
-  transition:.16s ease;
-}
-.nav button svg{width:17px;height:17px;opacity:.84;flex:0 0 auto}
-.nav button:hover{background:#141419;color:#e9e9ee}
-.nav button.active{background:#1a1a20;color:#fff;box-shadow:inset 0 0 0 1px #25252d}
-.nav button.active svg{color:var(--accent-2)}
-.sidebar-foot{position:absolute;left:12px;right:12px;bottom:14px}
-.credit-mini{
-  border:1px solid var(--line);border-radius:12px;padding:12px;
-  background:linear-gradient(145deg,#15151a,#101014);
-}
-.credit-mini .value{font-size:20px;font-weight:750;margin-top:3px}
-.signout{
-  width:100%;margin-top:8px;border:0;background:transparent;color:#7d7d87;
-  text-align:left;padding:10px 11px;border-radius:9px
-}
-.signout:hover{background:#141419;color:#ddd}
 
-.main{min-width:0}
-.main-inner{max-width:1240px;margin:0 auto;padding:24px 28px 56px}
-.topbar{
-  height:50px;display:flex;align-items:center;justify-content:space-between;
-  gap:18px;margin-bottom:24px
+.topnav{
+  height:50px;display:flex;align-items:center;gap:18px;
+  padding:0 14px;border-bottom:1px solid #202126;
+  background:rgba(10,10,11,.94);backdrop-filter:blur(16px);
+  position:sticky;top:0;z-index:60
 }
-.page-title{font-size:18px;font-weight:690;letter-spacing:-.3px}
-.top-actions{display:flex;align-items:center;gap:9px}
+.logo{
+  display:flex;align-items:center;gap:9px;min-width:max-content;
+  font-weight:800;letter-spacing:-.4px;font-size:15px
+}
+.logo-mark{
+  width:25px;height:25px;border-radius:8px;
+  display:grid;place-items:center;background:#f1f1f2;color:#0b0b0c;
+  font-size:12px;font-weight:950
+}
+.main-nav{display:flex;align-items:center;gap:2px;min-width:0;overflow:auto}
+.main-nav button{
+  height:34px;padding:0 10px;border:0;background:transparent;border-radius:8px;
+  color:#72757f;font-size:12px;font-weight:580;white-space:nowrap
+}
+.main-nav button:hover{color:#d9d9de;background:#141518}
+.main-nav button.active{color:#fff;background:#191a1e}
+.main-nav button.active.create-tab{color:var(--accent)}
+.nav-spacer{flex:1}
+.nav-actions{display:flex;align-items:center;gap:8px}
 .credit-pill{
-  display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;
-  border:1px solid var(--line);border-radius:999px;background:#111115;
-  font-size:12px;color:#b7b7c0
+  height:32px;padding:0 11px;display:flex;align-items:center;gap:7px;
+  border:1px solid var(--line);border-radius:9px;background:#121316;color:#9b9da6;font-size:11px
 }
-.credit-pill strong{color:#fff;font-size:13px}
+.credit-pill strong{color:#fff;font-size:12px}
 .avatar{
-  width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
-  background:#1a1a20;border:1px solid #2c2c35;color:#d6d6de;font-size:12px;font-weight:700
+  width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:#202126;border:1px solid #2e3036;color:#d7d7dc;font-size:11px;font-weight:750;
+  position:relative
 }
-.mobile-nav{display:none}
+.avatar:after{
+  content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:var(--accent);
+  right:-1px;bottom:0;border:2px solid var(--bg)
+}
 
-.card{
-  background:linear-gradient(180deg,rgba(20,20,24,.96),rgba(15,15,18,.96));
-  border:1px solid var(--line-soft);border-radius:var(--radius);
+.app-shell{min-height:calc(100vh - 84px)}
+.create-layout{
+  display:grid;grid-template-columns:310px minmax(0,1fr);
+  min-height:calc(100vh - 84px)
 }
-.card-pad{padding:18px}
-.panel-title{font-size:14px;font-weight:680;letter-spacing:-.1px}
-.panel-sub{font-size:12px;color:var(--muted);margin-top:4px}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.row>*{flex:1;min-width:150px}
-.field{margin-top:14px}
-.field label{display:block;font-size:11px;color:#777782;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em}
+.creator{
+  border-right:1px solid #202126;background:#0d0e10;
+  position:sticky;top:50px;height:calc(100vh - 84px);
+  display:flex;flex-direction:column;min-width:0
+}
+.creator-head{
+  height:48px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;border-bottom:1px solid #222329
+}
+.creator-head strong{font-size:12px}
+.creator-head .sub{font-size:10px;color:#686b74}
+.creator-scroll{padding:12px;overflow:auto;flex:1}
+.creator-scroll::-webkit-scrollbar{width:8px}
+.creator-scroll::-webkit-scrollbar-thumb{background:#22252a;border-radius:8px}
+.block{
+  border:1px solid #24262c;border-radius:12px;background:#121316;
+  padding:11px;margin-bottom:10px
+}
+.block-title{font-size:11px;font-weight:650;margin-bottom:8px}
+.block-help{font-size:10px;line-height:1.45;color:#6d7079}
+.ref-drop{
+  min-height:96px;border:1px dashed #343740;border-radius:10px;
+  background:#0f1012;display:grid;place-items:center;text-align:center;padding:14px;
+  transition:.16s
+}
+.ref-drop:hover{border-color:#59602c;background:#111310}
+.ref-icon{
+  width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+  background:#1b1d20;border:1px solid #2b2e34;margin:0 auto 8px
+}
+.ref-drop strong{display:block;font-size:11px}
+.ref-drop span{font-size:9px;color:#6f727b}
+.image-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.image-chip{min-width:0}
+.image-chip img{
+  width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid #2a2d33
+}
+.image-chip div{font-size:8px;color:#6c6f77;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 
-input,textarea,select{
-  width:100%;border:1px solid var(--line);background:#0e0e12;color:#f4f4f5;
-  border-radius:10px;padding:11px 12px;outline:none;transition:.15s;
+label.meta{
+  display:block;font-size:9px;color:#6c6f78;text-transform:uppercase;letter-spacing:.08em;
+  margin:10px 0 5px
 }
-input:hover,textarea:hover,select:hover{border-color:#35353e}
-input:focus,textarea:focus,select:focus{border-color:#615374;box-shadow:0 0 0 3px rgba(139,92,246,.08)}
-input:disabled{color:#83838c;background:#0c0c0f}
-textarea{resize:vertical}
+textarea,input,select{
+  width:100%;outline:none;color:#f2f2f4;background:#0d0e11;
+  border:1px solid #2a2c32;border-radius:9px;padding:9px 10px;font-size:11px;
+  transition:.15s
+}
+textarea:hover,input:hover,select:hover{border-color:#383a42}
+textarea:focus,input:focus,select:focus{
+  border-color:#545936;box-shadow:0 0 0 3px rgba(215,255,63,.045)
+}
+textarea{resize:vertical;min-height:124px;line-height:1.5}
+textarea::placeholder,input::placeholder{color:#555860}
+.control-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.control-grid .wide{grid-column:1/-1}
+.creator-footer{
+  padding:11px;border-top:1px solid #222329;background:#0d0e10
+}
+.cost-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:10px;color:#747780}
+.cost-row strong{color:#e7e7eb}
+.generate{
+  width:100%;height:42px;border:0;border-radius:10px;font-weight:750;font-size:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--accent-ink);
+  transition:.16s;box-shadow:0 10px 30px rgba(215,255,63,.08)
+}
+.generate:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.generate:disabled{opacity:.35;cursor:not-allowed;transform:none;filter:none}
+.msg{min-height:20px;margin-top:7px;font-size:10px}
 
-.btn{
-  border:0;border-radius:10px;padding:10px 13px;font-weight:650;
-  background:#f3f3f4;color:#0a0a0c;transition:.16s;white-space:nowrap;
+.canvas{
+  min-width:0;padding:14px 16px 48px;background:
+    radial-gradient(circle at 1px 1px,#1d1f24 1px,transparent 0);
+  background-size:18px 18px;
+  background-color:#0b0c0e;
 }
-.btn:hover{background:#fff;transform:translateY(-1px)}
-.btn:active{transform:translateY(0)}
-.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.btn.primary{
-  background:linear-gradient(135deg,#9a6cff,#7c4fe4);color:white;
-  box-shadow:0 9px 24px rgba(124,79,228,.18)
+.canvas-head{
+  min-height:48px;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:12px
 }
-.btn.primary:hover{background:linear-gradient(135deg,#a77bff,#8859ea)}
-.btn.secondary{background:#1b1b21;color:#e7e7eb;border:1px solid #2a2a32}
-.btn.secondary:hover{background:#222229}
-.btn.ghost{background:transparent;color:#a4a4ae;border:1px solid var(--line)}
-.btn.ghost:hover{background:#15151a;color:#eee}
-
-.hero{
-  display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,.7fr);
-  gap:14px;margin-bottom:14px
+.canvas-head h1{font-size:14px;margin:0;letter-spacing:-.2px}
+.canvas-head p{font-size:10px;color:#70737c;margin:4px 0 0}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filter-btn{
+  height:30px;padding:0 10px;border:1px solid #2b2d34;background:#121317;
+  border-radius:999px;color:#777a84;font-size:10px
 }
-.hero-main{
-  min-height:224px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;
-  overflow:hidden;position:relative;
+.filter-btn:hover{color:#ddd;border-color:#393c44}
+.filter-btn.active{background:#eeeeef;color:#0e0e10;border-color:#eeeeef}
+.gallery{
+  columns:4 250px;
+  column-gap:10px
 }
-.hero-main:after{
-  content:"";position:absolute;width:260px;height:260px;border-radius:50%;
-  right:-80px;top:-120px;background:radial-gradient(circle,rgba(139,92,246,.19),transparent 70%);
-  pointer-events:none;
-}
-.eyebrow{
-  display:inline-flex;align-items:center;gap:7px;width:max-content;
-  font-size:11px;color:#bcbcc5;border:1px solid #303038;border-radius:999px;
-  padding:6px 9px;background:#17171c
-}
-.hero h1{font-size:32px;line-height:1.1;letter-spacing:-1.1px;margin:14px 0 8px;max-width:560px}
-.hero p{max-width:520px;color:#93939e;font-size:14px;line-height:1.55;margin:0}
-.hero-actions{display:flex;gap:8px;margin-top:22px}
-.hero-side{padding:18px}
-.hero-side .metric{
-  padding:14px 0;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center
-}
-.hero-side .metric:last-child{border-bottom:0}
-.hero-side .metric strong{font-size:19px;font-weight:720}
-
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.stat{padding:15px}
-.stat .label{font-size:11px;color:#73737d;text-transform:uppercase;letter-spacing:.06em}
-.stat .n{font-size:24px;font-weight:720;margin-top:7px;letter-spacing:-.7px}
-
-.content-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.55fr);gap:14px}
-.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
-.section-head h2{font-size:15px;letter-spacing:-.2px;margin:0}
-.section-head p{font-size:12px;color:var(--muted);margin:4px 0 0}
-
-.create-shell{max-width:980px;margin:0 auto}
-.create-card{padding:0;overflow:hidden;border-color:#292932;box-shadow:var(--shadow)}
-.create-head{padding:18px 20px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center}
-.create-head .mode-note{font-size:11px;color:#696974}
-.prompt-wrap{padding:18px 20px 14px}
-.prompt-wrap textarea{
-  min-height:172px;border:0;background:transparent;border-radius:0;padding:0;
-  font-size:18px;line-height:1.5;letter-spacing:-.25px;color:#f3f3f5;
-  box-shadow:none
-}
-.prompt-wrap textarea::placeholder{color:#52525d}
-.ref-area{padding:0 20px 16px}
-.upload-label{
-  display:flex;align-items:center;justify-content:space-between;gap:14px;
-  min-height:62px;border:1px dashed #34343e;border-radius:12px;padding:12px 13px;
-  background:#0e0e12;transition:.16s;cursor:pointer
-}
-.upload-label:hover{border-color:#544a65;background:#111116}
-.upload-left{display:flex;align-items:center;gap:11px;min-width:0}
-.upload-icon{width:34px;height:34px;border-radius:9px;background:#18181e;border:1px solid #292932;display:grid;place-items:center;color:#bbb}
-.upload-copy strong{display:block;font-size:12px;font-weight:630}
-.upload-copy span{display:block;font-size:11px;color:#686873;margin-top:3px}
-.image-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.image-chip{width:94px}
-.image-chip img{width:94px;height:68px;object-fit:cover;border-radius:10px;border:1px solid #2b2b33;background:#0c0c0f}
-.image-chip div{font-size:10px;color:#6f6f79;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px}
-
-.controls{
-  display:grid;grid-template-columns:1.25fr .8fr .8fr auto;
-  gap:9px;padding:14px 20px;border-top:1px solid var(--line-soft);
-  background:#0e0e12
-}
-.control{min-width:0}
-.control label{font-size:9px;color:#63636d;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:5px}
-.control select{height:38px;padding:0 10px;font-size:12px;background:#15151a}
-.generate-control{display:flex;align-items:flex-end;gap:9px}
-.cost-pill{
-  height:38px;min-width:72px;padding:0 10px;border-radius:9px;
-  border:1px solid var(--line);background:#15151a;display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#9b9ba5
-}
-.generate-control .btn{height:38px;min-width:120px}
-.msg{min-height:22px;margin:10px 20px 0;font-size:12px}
-
-.jobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
 .job{
-  overflow:hidden;background:#101014;border:1px solid var(--line-soft);
-  border-radius:14px;transition:.16s ease
+  break-inside:avoid;margin:0 0 10px;
+  border-radius:12px;overflow:hidden;border:1px solid #24262b;background:#111214;
+  transition:.16s;box-shadow:0 4px 14px rgba(0,0,0,.10)
 }
-.job:hover{border-color:#34343d;transform:translateY(-1px)}
-.job-media{aspect-ratio:16/10;background:#0a0a0d;display:grid;place-items:center;position:relative}
-.job-media:before{
-  content:"";position:absolute;inset:0;background:
-  linear-gradient(135deg,transparent 45%,rgba(255,255,255,.018) 45% 55%,transparent 55%);
-  background-size:22px 22px;pointer-events:none
+.job:hover{border-color:#34373e;transform:translateY(-1px)}
+.job-media{
+  background:#0b0c0e;display:grid;place-items:center;position:relative;overflow:hidden
 }
-.job-media video,.job-media img{position:relative;width:100%;height:100%;object-fit:cover}
-.job-body{padding:12px}
-.job-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.job-media:after{
+  content:"";position:absolute;inset:auto 0 0;height:34%;
+  background:linear-gradient(transparent,rgba(0,0,0,.36));pointer-events:none
+}
+.job-media video,.job-media img{width:100%;height:100%;object-fit:cover;display:block}
+.job-placeholder{
+  min-height:180px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#14161a,#0e0f12)
+}
+.job-placeholder .spinner{
+  width:26px;height:26px;border-radius:50%;border:2px solid #2b2e35;border-top-color:var(--accent);
+  animation:spin 1s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.job-body{padding:10px}
+.job-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .badge{
   display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;
-  background:#1a1a21;color:#aaaab4;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase
+  background:#1a1b1f;color:#9699a2;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em
 }
-.badge.completed{background:rgba(80,216,144,.10);color:#72dda4}
-.badge.failed,.badge.submit_error{background:rgba(255,122,133,.10);color:#ff929c}
-.badge.processing,.badge.submitted,.badge.submitting,.badge.queued{background:rgba(139,92,246,.12);color:#b79cf5}
-.job-title{font-size:12px;font-weight:630;margin:10px 0 5px}
-.job-prompt{font-size:11px;line-height:1.45;color:#74747e;margin:0}
-
-.credit-list{display:flex;flex-direction:column}
-.credit-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
-.credit-row:last-child{border-bottom:0}
-.credit-row .note{font-size:11px;color:#7a7a84;margin-top:3px}
-
-.ledger{width:100%;border-collapse:collapse}
-.ledger th,.ledger td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line-soft);font-size:11px}
-.ledger th{font-size:9px;color:#696974;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
-
-.auth-shell{
-  min-height:100vh;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(420px,.85fr);
-}
-.auth-visual{
-  padding:44px;display:flex;flex-direction:column;justify-content:space-between;
-  border-right:1px solid var(--line-soft);
-  background:
-    radial-gradient(620px 460px at 35% 35%,rgba(139,92,246,.15),transparent 65%),
-    #0b0b0e;
-}
-.auth-visual h1{font-size:48px;line-height:1.02;letter-spacing:-2px;max-width:620px;margin:0}
-.auth-visual p{font-size:15px;color:#8e8e99;max-width:500px;line-height:1.55}
-.auth-proof{display:flex;gap:8px;flex-wrap:wrap}
-.proof-pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;color:#9696a0;font-size:11px;background:#111115}
-.auth-side{display:grid;place-items:center;padding:28px}
-.auth-card{width:min(400px,100%)}
-.auth-card .brand{padding:0;height:auto;margin-bottom:46px}
-.auth-card h2{font-size:26px;letter-spacing:-.8px;margin:0 0 6px}
-.auth-card .sub{font-size:13px;color:#777782;margin-bottom:22px}
-.tabs{display:flex;background:#111115;border:1px solid var(--line-soft);border-radius:11px;padding:3px;margin:18px 0}
-.tabs button{flex:1;border:0;border-radius:8px;padding:9px;background:transparent;color:#777782}
-.tabs button.active{background:#1b1b21;color:#fff;box-shadow:inset 0 0 0 1px #282830}
-
+.badge.completed{background:rgba(120,227,167,.09);color:#86e8b1}
+.badge.failed,.badge.submit_error{background:rgba(255,123,135,.10);color:#ff919a}
+.badge.processing,.badge.submitted,.badge.submitting,.badge.queued{background:rgba(215,255,63,.08);color:#d7ff63}
+.job-title{font-size:10px;font-weight:650;margin:8px 0 4px}
+.job-prompt{font-size:9px;line-height:1.45;color:#777a83;margin:0}
+.job-error{font-size:9px;color:#ff8c96;margin-top:6px}
 .empty{
-  padding:28px;border:1px dashed #292932;border-radius:12px;text-align:center;color:#64646e;font-size:12px
+  column-span:all;padding:44px;border:1px dashed #2c2e34;border-radius:12px;
+  background:#0f1012;text-align:center;color:#6e717a;font-size:11px
 }
 
-@media(max-width:980px){
-  .app{grid-template-columns:78px minmax(0,1fr)}
-  .sidebar{padding:18px 10px}
-  .brand{justify-content:center;padding:0}.brand .brand-text{display:none}
-  .nav-label,.nav button span,.sidebar-foot .credit-mini .kicker,.sidebar-foot .credit-mini .value,.signout span{display:none}
-  .nav button{justify-content:center;padding:0}
-  .sidebar-foot{left:10px;right:10px}
-  .credit-mini{display:grid;place-items:center;padding:9px}
-  .credit-mini:after{content:"C";font-size:12px;color:#aaa}
-  .signout{text-align:center}
-  .hero{grid-template-columns:1fr}
-  .hero-side{display:grid;grid-template-columns:repeat(3,1fr)}
-  .hero-side .metric{border-bottom:0;border-right:1px solid var(--line-soft);padding:6px 12px}
-  .hero-side .metric:last-child{border-right:0}
-  .content-grid{grid-template-columns:1fr}
+.page{
+  max-width:1180px;margin:0 auto;padding:22px 20px 56px
 }
-@media(max-width:760px){
-  .app{display:block}
-  .sidebar{display:none}
-  .main-inner{padding:16px 14px 76px}
-  .topbar{margin-bottom:14px}
-  .mobile-nav{
-    display:flex;position:fixed;left:10px;right:10px;bottom:10px;z-index:60;
-    background:rgba(18,18,22,.92);border:1px solid #292932;border-radius:14px;
-    padding:6px;backdrop-filter:blur(18px);box-shadow:0 18px 50px #0008
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:18px}
+.page-head h1{font-size:20px;letter-spacing:-.5px;margin:0}
+.page-head p{font-size:11px;color:#777a83;margin:5px 0 0}
+.card{
+  background:#111214;border:1px solid #25272d;border-radius:14px;padding:16px
+}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+.stat{padding:14px}
+.stat .label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#6b6e77}
+.stat .value{font-size:24px;font-weight:740;letter-spacing:-.7px;margin-top:7px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.panel-title{font-size:12px;font-weight:650;margin:0 0 4px}
+.panel-sub{font-size:10px;color:#757881;margin:0 0 12px}
+.field{margin-top:12px}
+.field label{display:block;font-size:9px;color:#6c6f78;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.btn{
+  height:36px;border:0;border-radius:9px;padding:0 12px;font-size:10px;font-weight:650;
+  background:#e9e9ea;color:#101114
+}
+.btn.secondary{background:#1a1b20;color:#ddd;border:1px solid #2c2e35}
+.btn.primary{background:var(--accent);color:#101200}
+.ledger{width:100%;border-collapse:collapse}
+.ledger th,.ledger td{text-align:left;padding:10px;border-bottom:1px solid #23252a;font-size:10px}
+.ledger th{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#656872}
+
+.auth-shell{min-height:100vh;display:grid;grid-template-columns:1.2fr .8fr}
+.auth-visual{
+  min-height:100vh;position:relative;overflow:hidden;padding:34px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  background:
+    radial-gradient(620px 420px at 30% 35%,rgba(215,255,63,.10),transparent 70%),
+    linear-gradient(145deg,#111310,#090a0b 60%)
+}
+.auth-visual:after{
+  content:"";position:absolute;inset:0;background:
+    linear-gradient(90deg,rgba(255,255,255,.016) 1px,transparent 1px),
+    linear-gradient(rgba(255,255,255,.016) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none
+}
+.auth-visual .copy{position:relative;z-index:2}
+.auth-visual h1{font-size:54px;line-height:.98;letter-spacing:-2.4px;margin:0;max-width:660px}
+.auth-visual h1 em{font-style:normal;color:var(--accent)}
+.auth-visual p{font-size:14px;line-height:1.55;color:#8b8e97;max-width:500px}
+.auth-side{display:grid;place-items:center;padding:28px;background:#0c0d0f}
+.auth-card{width:min(390px,100%)}
+.auth-card .logo{margin-bottom:54px}
+.auth-card h2{font-size:25px;letter-spacing:-.7px;margin:0}
+.auth-card .sub{font-size:11px;color:#777a83;margin:7px 0 18px}
+.tabs{display:flex;padding:3px;border:1px solid #27292f;background:#111214;border-radius:10px;margin-bottom:14px}
+.tabs button{
+  flex:1;height:31px;border:0;border-radius:7px;background:transparent;color:#6f727b;font-size:10px
+}
+.tabs button.active{background:#1d1f23;color:#fff}
+.auth-card .field{margin-top:10px}
+.auth-card input{height:40px;font-size:11px}
+.auth-card .btn{height:40px;width:100%;margin-top:14px}
+
+.mobile-dock{display:none}
+
+@media(max-width:1100px){
+  .gallery{columns:3 230px}
+  .create-layout{grid-template-columns:290px minmax(0,1fr)}
+}
+@media(max-width:860px){
+  .promo{display:none}
+  .topnav{top:0}
+  .app-shell{min-height:calc(100vh - 50px)}
+  .create-layout{grid-template-columns:1fr}
+  .creator{
+    position:relative;top:auto;height:auto;border-right:0;border-bottom:1px solid #202126
   }
-  .mobile-nav button{flex:1;border:0;background:transparent;color:#81818b;border-radius:9px;padding:9px 5px;font-size:10px}
-  .hero h1{font-size:28px}
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .controls{grid-template-columns:1fr 1fr}
-  .generate-control{grid-column:1/-1}
-  .generate-control .btn{flex:1}
+  .creator-scroll{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:8px}
+  .creator-scroll .block{margin:0}
+  .creator-footer{position:sticky;bottom:0;z-index:8}
+  .gallery{columns:2 240px}
   .auth-shell{grid-template-columns:1fr}
   .auth-visual{display:none}
   .auth-side{min-height:100vh}
+  .main-nav{display:none}
+  .mobile-dock{
+    display:flex;position:fixed;left:10px;right:10px;bottom:10px;z-index:100;
+    background:rgba(20,21,24,.94);border:1px solid #2b2d33;border-radius:13px;
+    padding:5px;backdrop-filter:blur(18px);box-shadow:0 18px 60px rgba(0,0,0,.45)
+  }
+  .mobile-dock button{
+    flex:1;border:0;background:transparent;color:#777a83;border-radius:8px;padding:8px 4px;font-size:9px
+  }
+  .mobile-dock button.active{background:#25272d;color:#fff}
 }
-@media(max-width:520px){
-  .main-inner{padding-left:11px;padding-right:11px}
-  .hero-main{padding:18px;min-height:210px}
-  .hero-side{grid-template-columns:1fr}
-  .hero-side .metric{border-right:0;border-bottom:1px solid var(--line-soft)}
+@media(max-width:620px){
+  .nav-actions .credit-pill span{display:none}
+  .logo{font-size:13px}
+  .creator-scroll{grid-template-columns:1fr}
+  .gallery{columns:1}
+  .canvas{padding:12px 10px 76px}
+  .page{padding:18px 12px 76px}
   .stats{grid-template-columns:1fr 1fr}
-  .controls{grid-template-columns:1fr}
-  .generate-control{grid-column:auto}
-  .create-head,.prompt-wrap,.ref-area{padding-left:14px;padding-right:14px}
-  .controls{padding:12px 14px}
-  .jobs{grid-template-columns:1fr}
+  .two-col{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
+
 <div id="auth" class="auth-shell">
   <section class="auth-visual">
-    <div>
-      <div class="brand"><div class="brand-mark">M</div><span class="brand-text">Mehroz AI</span></div>
+    <div class="copy"><div class="logo"><div class="logo-mark">M</div><span>Mehroz AI</span></div></div>
+    <div class="copy">
+      <div class="kicker" style="color:#b9ca73;margin-bottom:12px">AI VIDEO STUDIO</div>
+      <h1>Create <em>motion</em><br>from an idea.</h1>
+      <p>Generate polished video from a prompt, or guide the result with reference images — one clean workflow from concept to render.</p>
     </div>
-    <div>
-      <div class="eyebrow">AI video workspace</div>
-      <h1>Turn an idea into motion.</h1>
-      <p>Generate polished video from a prompt, or add reference images to guide the result — all from one clean workspace.</p>
-    </div>
-    <div class="auth-proof">
-      <span class="proof-pill">Prompt → video</span>
-      <span class="proof-pill">Image-guided video</span>
-      <span class="proof-pill">One unified workflow</span>
-    </div>
+    <div class="copy kicker">Creative tools, without the clutter.</div>
   </section>
 
   <section class="auth-side">
     <div class="auth-card">
-      <div class="brand"><div class="brand-mark">M</div><span class="brand-text">Mehroz AI</span></div>
+      <div class="logo"><div class="logo-mark">M</div><span>Mehroz AI</span></div>
       <h2 id="authTitle">Welcome back</h2>
-      <div class="sub">Sign in to continue to your studio.</div>
+      <div class="sub">Sign in to enter your video studio.</div>
       <div class="tabs">
         <button id="loginTab" class="active" onclick="setAuth('login')">Sign in</button>
         <button id="registerTab" onclick="setAuth('register')">Create account</button>
       </div>
       <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
       <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="••••••••"></div>
-      <button id="authBtn" class="btn primary" style="width:100%;margin-top:16px" onclick="submitAuth()">Continue</button>
-      <div id="authMsg" class="msg muted" style="margin-left:0"></div>
+      <button id="authBtn" class="btn primary" onclick="submitAuth()">Continue</button>
+      <div id="authMsg" class="msg muted"></div>
     </div>
   </section>
 </div>
 
-<div id="shell" class="app hide">
-  <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">M</div><span class="brand-text">Mehroz AI</span></div>
-    <nav class="nav">
-      <div class="nav-label">Workspace</div>
-      <button class="active" data-section="home" onclick="go('home',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span>Overview</span>
-      </button>
-      <button data-section="create" onclick="go('create',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg><span>Create</span>
-      </button>
-      <button data-section="library" onclick="go('library',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m9 9 6 3-6 3z"/></svg><span>Library</span>
-      </button>
-      <div class="nav-label">Account</div>
-      <button data-section="credits" onclick="go('credits',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h5M7 9h5"/></svg><span>Credits</span>
-      </button>
-      <button data-section="account" onclick="go('account',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span>Account</span>
-      </button>
+<div id="shell" class="hide">
+  <div class="promo"><span class="tag">NEW</span><span>Unified AI video studio — prompt or image guided, one workflow</span></div>
+  <header class="topnav">
+    <div class="logo"><div class="logo-mark">M</div><span>Mehroz AI</span></div>
+    <nav class="main-nav">
+      <button class="create-tab active" data-section="create" onclick="go('create')">Create</button>
+      <button data-section="library" onclick="go('library')">Library</button>
+      <button data-section="credits" onclick="go('credits')">Credits</button>
+      <button data-section="account" onclick="go('account')">Account</button>
     </nav>
-    <div class="sidebar-foot">
-      <div class="credit-mini">
-        <div class="kicker">Credits</div>
-        <div class="value"><span id="creditsSide">0</span></div>
-      </div>
-      <button class="signout" onclick="logout()"><span>Sign out</span></button>
+    <div class="nav-spacer"></div>
+    <div class="nav-actions">
+      <div class="credit-pill"><span>Credits</span><strong id="creditsTop">0</strong></div>
+      <div class="avatar" id="avatar">M</div>
     </div>
-  </aside>
+  </header>
 
-  <main class="main">
-    <div class="main-inner">
-      <header class="topbar">
-        <div>
-          <div class="page-title" id="pageTitle">Overview</div>
-          <div class="kicker" id="welcomeText"></div>
-        </div>
-        <div class="top-actions">
-          <div class="credit-pill"><span>Credits</span><strong id="creditsTop">0</strong></div>
-          <div class="avatar" id="avatar">M</div>
-        </div>
-      </header>
-
-      <div class="mobile-nav">
-        <button onclick="go('home')">Overview</button>
-        <button onclick="go('create')">Create</button>
-        <button onclick="go('library')">Library</button>
-        <button onclick="go('credits')">Credits</button>
-        <button onclick="go('account')">Account</button>
-      </div>
-
-      <section id="home" class="section active">
-        <div class="hero">
-          <div class="card hero-main">
-            <div>
-              <div class="eyebrow">Creative studio</div>
-              <h1>Create your next video in one flow.</h1>
-              <p>Start with words. Add reference images when you want visual guidance. The studio handles the rest automatically.</p>
-            </div>
-            <div class="hero-actions">
-              <button class="btn primary" onclick="go('create')">Create video</button>
-              <button class="btn secondary" onclick="go('library')">Open library</button>
-            </div>
-          </div>
-          <div class="card hero-side">
-            <div class="metric"><span class="muted">Total videos</span><strong id="statTotalHero">0</strong></div>
-            <div class="metric"><span class="muted">Completed</span><strong id="statCompletedHero">0</strong></div>
-            <div class="metric"><span class="muted">In progress</span><strong id="statActiveHero">0</strong></div>
-          </div>
-        </div>
-
-        <div class="stats">
-          <div class="card stat"><div class="label">Total videos</div><div class="n" id="statTotal">0</div></div>
-          <div class="card stat"><div class="label">Completed</div><div class="n" id="statCompleted">0</div></div>
-          <div class="card stat"><div class="label">In progress</div><div class="n" id="statActive">0</div></div>
-          <div class="card stat"><div class="label">Available credits</div><div class="n" id="statCredits">0</div></div>
-        </div>
-
-        <div class="content-grid">
-          <div class="card card-pad">
-            <div class="section-head">
-              <div><h2>Recent creations</h2><p>Your latest video generations.</p></div>
-              <button class="btn secondary" onclick="go('library')">View all</button>
-            </div>
-            <div id="recentJobs" class="jobs"></div>
-          </div>
-          <div class="card card-pad">
-            <div class="section-head"><div><h2>Credit activity</h2><p>Latest balance changes.</p></div></div>
-            <div id="recentCredits" class="credit-list"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="create" class="section">
-        <div class="create-shell">
-          <div class="section-head" style="margin-bottom:12px">
-            <div><h2 style="font-size:18px">Create video</h2><p>One composer for prompt-only and image-guided generation.</p></div>
+  <div class="app-shell">
+    <section id="create" class="section active">
+      <div class="create-layout">
+        <aside class="creator">
+          <div class="creator-head">
+            <div><strong>Create video</strong><div class="sub">Prompt + optional reference images</div></div>
+            <div class="kicker">Studio</div>
           </div>
 
-          <div class="card create-card">
-            <div class="create-head">
-              <div>
-                <div class="panel-title">Generation composer</div>
-                <div class="panel-sub">Describe the shot you want to create.</div>
-              </div>
-              <div class="mode-note">Reference images are optional</div>
-            </div>
-
-            <div class="prompt-wrap">
-              <textarea id="prompt" placeholder="Describe the subject, motion, camera, lighting, mood, environment, and visual style..."></textarea>
-            </div>
-
-            <div id="imageUploadBox" class="ref-area">
+          <div class="creator-scroll">
+            <div class="block">
+              <div class="block-title">Reference images</div>
               <input id="imageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="previewImages()">
-              <label class="upload-label" for="imageInput">
-                <div class="upload-left">
-                  <div class="upload-icon">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+              <label class="ref-drop" for="imageInput">
+                <div>
+                  <div class="ref-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
                   </div>
-                  <div class="upload-copy">
-                    <strong>Add reference images</strong>
-                    <span>Optional · up to 6 JPG, PNG or WebP files</span>
-                  </div>
+                  <strong>Add visual references</strong>
+                  <span>Optional · up to 6 images</span>
                 </div>
-                <span class="kicker">Browse</span>
               </label>
               <div id="imagePreview" class="image-preview"></div>
             </div>
 
-            <div class="controls">
-              <div class="control"><label>Model</label><select id="model" onchange="renderDurations()"></select></div>
-              <div class="control"><label>Duration</label><select id="duration" onchange="updateCost()"></select></div>
-              <div class="control"><label>Ratio</label><select id="ratio"></select></div>
-              <div class="generate-control">
-                <div class="cost-pill"><span id="cost">—</span>&nbsp;cr</div>
-                <button id="generateBtn" class="btn primary" onclick="createGeneration()">Generate</button>
+            <div class="block">
+              <div class="block-title">Prompt</div>
+              <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
+
+              <label class="meta">Model</label>
+              <select id="model" onchange="renderDurations()"></select>
+
+              <div class="control-grid">
+                <div>
+                  <label class="meta">Duration</label>
+                  <select id="duration" onchange="updateCost()"></select>
+                </div>
+                <div>
+                  <label class="meta">Aspect ratio</label>
+                  <select id="ratio"></select>
+                </div>
               </div>
             </div>
+          </div>
+
+          <div class="creator-footer">
+            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div>
+            <button id="generateBtn" class="generate" onclick="createGeneration()">Generate</button>
             <div id="genMsg" class="msg muted"></div>
           </div>
+        </aside>
 
-          <div style="margin-top:14px">
-            <div class="section-head"><div><h2>Recent</h2><p>Latest generations from your workspace.</p></div></div>
-            <div id="createRecentJobs" class="jobs"></div>
+        <main class="canvas">
+          <div class="canvas-head">
+            <div>
+              <h1>Your renders</h1>
+              <p>Recent generations update automatically.</p>
+            </div>
+            <div class="filters">
+              <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All</button>
+              <button class="filter-btn" data-filter="completed" onclick="setFilter('completed',this)">Completed</button>
+              <button class="filter-btn" data-filter="active" onclick="setFilter('active',this)">In progress</button>
+            </div>
           </div>
-        </div>
-      </section>
+          <div id="createGallery" class="gallery"></div>
+        </main>
+      </div>
+    </section>
 
-      <section id="library" class="section">
-        <div class="section-head">
-          <div><h2 style="font-size:18px">Library</h2><p>Every generation, in one place.</p></div>
+    <section id="library" class="section">
+      <div class="page">
+        <div class="page-head">
+          <div><h1>Library</h1><p>Everything you have generated, in one visual archive.</p></div>
           <button class="btn secondary" onclick="loadGenerations()">Refresh</button>
         </div>
-        <div id="jobs" class="jobs"></div>
-      </section>
+        <div id="libraryGallery" class="gallery"></div>
+      </div>
+    </section>
 
-      <section id="credits" class="section">
-        <div class="hero" style="grid-template-columns:minmax(0,.65fr) minmax(0,1.35fr)">
-          <div class="card card-pad">
-            <div class="kicker">Available balance</div>
-            <div style="font-size:42px;font-weight:760;letter-spacing:-1.5px;margin-top:10px"><span id="creditBalance">0</span></div>
-            <div class="muted" style="font-size:12px;margin-top:2px">credits</div>
-          </div>
-          <div class="card card-pad">
-            <div class="panel-title">Credit usage</div>
-            <div class="panel-sub">Each generation uses credits based on model and duration. Your full transaction history is shown below.</div>
-          </div>
+    <section id="credits" class="section">
+      <div class="page">
+        <div class="page-head"><div><h1>Credits</h1><p>Balance, usage and account adjustments.</p></div></div>
+        <div class="stats">
+          <div class="card stat"><div class="label">Available credits</div><div class="value" id="creditBalance">0</div></div>
+          <div class="card stat"><div class="label">Total videos</div><div class="value" id="statTotal">0</div></div>
+          <div class="card stat"><div class="label">Completed</div><div class="value" id="statCompleted">0</div></div>
+          <div class="card stat"><div class="label">In progress</div><div class="value" id="statActive">0</div></div>
         </div>
-        <div class="card card-pad">
-          <div class="section-head"><div><h2>Transactions</h2><p>Debits, refunds and adjustments.</p></div></div>
+        <div class="card">
+          <div class="panel-title">Credit activity</div>
+          <div class="panel-sub">Debits, refunds and manual adjustments.</div>
           <div style="overflow:auto">
             <table class="ledger">
               <thead><tr><th>Date</th><th>Type</th><th>Note</th><th>Amount</th></tr></thead>
@@ -562,33 +488,46 @@ textarea{resize:vertical}
             </table>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section id="account" class="section">
-        <div class="section-head"><div><h2 style="font-size:18px">Account</h2><p>Profile and security settings.</p></div></div>
-        <div class="content-grid">
-          <div class="card card-pad">
+    <section id="account" class="section">
+      <div class="page">
+        <div class="page-head">
+          <div><h1>Account</h1><p>Profile, security and session controls.</p></div>
+          <button class="btn secondary" onclick="logout()">Sign out</button>
+        </div>
+        <div class="two-col">
+          <div class="card">
             <div class="panel-title">Profile</div>
+            <div class="panel-sub">Your account information.</div>
             <div class="field"><label>Email</label><input id="accountEmail" disabled></div>
             <div class="field"><label>Status</label><input id="accountStatus" disabled></div>
             <div class="field"><label>Member since</label><input id="accountCreated" disabled></div>
           </div>
-          <div class="card card-pad">
-            <div class="panel-title">Password</div>
+          <div class="card">
+            <div class="panel-title">Change password</div>
             <div class="panel-sub">Use at least 8 characters.</div>
             <div class="field"><label>Current password</label><input id="currentPassword" type="password"></div>
             <div class="field"><label>New password</label><input id="newPassword" type="password"></div>
             <button class="btn primary" style="margin-top:14px" onclick="changePassword()">Update password</button>
-            <div id="passwordMsg" class="msg" style="margin-left:0"></div>
+            <div id="passwordMsg" class="msg"></div>
           </div>
         </div>
-      </section>
-    </div>
-  </main>
+      </div>
+    </section>
+  </div>
+
+  <nav class="mobile-dock">
+    <button class="active" data-section="create" onclick="go('create')">Create</button>
+    <button data-section="library" onclick="go('library')">Library</button>
+    <button data-section="credits" onclick="go('credits')">Credits</button>
+    <button data-section="account" onclick="go('account')">Account</button>
+  </nav>
 </div>
 
 <script>
-let authMode='login',config=null,me=null,poll=null,generations=[];
+let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all';
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -625,13 +564,12 @@ async function logout(){
 }
 
 function syncUser(){
-  for(const id of ['creditsSide','creditsTop','statCredits','creditBalance'])$(id).textContent=Number(me?.credits||0);
-  $('welcomeText').textContent=me?me.email:'';
+  $('creditsTop').textContent=Number(me?.credits||0);
+  $('creditBalance').textContent=Number(me?.credits||0);
   $('accountEmail').value=me?.email||'';
   $('accountStatus').value=me?.status||'';
   $('accountCreated').value=me?.created_at?new Date(me.created_at).toLocaleString():'';
-  const initial=(me?.email||'M').charAt(0).toUpperCase();
-  $('avatar').textContent=initial;
+  $('avatar').textContent=(me?.email||'M').charAt(0).toUpperCase();
 }
 
 function enterApp(){
@@ -639,19 +577,17 @@ function enterApp(){
   $('shell').classList.remove('hide');
   syncUser();
   renderConfig();
+  go('create');
   loadAll();
   clearInterval(poll);
-  poll=setInterval(()=>{loadGenerations(false);loadDashboard(false)},5000);
+  poll=setInterval(()=>{loadGenerations();loadDashboard()},5000);
 }
 
 function go(name){
   document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));
-  document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
-  const titles={home:'Overview',create:'Create',library:'Library',credits:'Credits',account:'Account'};
-  $('pageTitle').textContent=titles[name]||'Studio';
+  document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
+  if(name==='library')renderLibrary();
   if(name==='credits')loadCredits();
-  if(name==='library')loadGenerations();
-  if(name==='create')renderCreateRecent();
 }
 
 function renderConfig(){
@@ -686,6 +622,12 @@ function previewImages(){
   }
 }
 
+function setFilter(filter,button){
+  currentFilter=filter;
+  document.querySelectorAll('.filter-btn').forEach(x=>x.classList.toggle('active',x===button));
+  renderCreateGallery();
+}
+
 async function loadAll(){
   await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
 }
@@ -697,15 +639,6 @@ async function loadDashboard(){
     $('statTotal').textContent=d.stats.total;
     $('statCompleted').textContent=d.stats.completed;
     $('statActive').textContent=d.stats.active;
-    $('statTotalHero').textContent=d.stats.total;
-    $('statCompletedHero').textContent=d.stats.completed;
-    $('statActiveHero').textContent=d.stats.active;
-    $('recentCredits').innerHTML=d.recentCredits.length
-      ?d.recentCredits.map(c=>
-        '<div class="credit-row"><div><div class="kicker">'+escapeHtml(c.type)+'</div><div class="note">'+escapeHtml(c.note||'Credit activity')+'</div></div><strong class="'+(c.amount>0?'positive':'negative')+'">'+(c.amount>0?'+':'')+c.amount+'</strong></div>'
-      ).join('')
-      :'<div class="empty">No credit activity yet.</div>';
-    renderRecent();
   }catch(e){if(e.status===401)location.reload()}
 }
 
@@ -713,20 +646,26 @@ async function loadGenerations(){
   try{
     const d=await api('/api/generations');
     generations=d.generations;
-    $('jobs').innerHTML=generations.length?generations.map(jobCard).join(''):'<div class="empty">No generations yet. Create your first video to start your library.</div>';
-    renderRecent();
-    renderCreateRecent();
+    renderCreateGallery();
+    renderLibrary();
   }catch(e){if(e.status===401)location.reload()}
 }
 
-function renderRecent(){
-  if(!$('recentJobs'))return;
-  $('recentJobs').innerHTML=generations.length?generations.slice(0,4).map(jobCard).join(''):'<div class="empty">Your latest videos will appear here.</div>';
+function filteredGenerations(){
+  if(currentFilter==='completed')return generations.filter(g=>g.status==='completed');
+  if(currentFilter==='active')return generations.filter(g=>['queued','submitting','submitted','processing'].includes(g.status));
+  return generations;
 }
 
-function renderCreateRecent(){
-  if(!$('createRecentJobs'))return;
-  $('createRecentJobs').innerHTML=generations.length?generations.slice(0,3).map(jobCard).join(''):'<div class="empty">Nothing generated yet.</div>';
+function renderCreateGallery(){
+  if(!$('createGallery'))return;
+  const list=filteredGenerations();
+  $('createGallery').innerHTML=list.length?list.map(jobCard).join(''):'<div class="empty">Your renders will appear here. Start with a prompt on the left.</div>';
+}
+
+function renderLibrary(){
+  if(!$('libraryGallery'))return;
+  $('libraryGallery').innerHTML=generations.length?generations.map(jobCard).join(''):'<div class="empty">No generations yet.</div>';
 }
 
 async function loadCredits(){
@@ -743,7 +682,7 @@ async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
   b.disabled=true;
   m.className='msg muted';
-  m.textContent='Sending generation...';
+  m.textContent='Submitting generation...';
   try{
     const files=[...$('imageInput').files];
     if(files.length>6)throw new Error('Choose no more than 6 reference images.');
@@ -759,26 +698,37 @@ async function createGeneration(){
     $('imageInput').value='';
     $('imagePreview').innerHTML='';
     m.className='msg ok';
-    m.textContent='Generation queued successfully.';
-    await loadAll();
-    setTimeout(()=>go('library'),450);
+    m.textContent='Generation queued.';
+    await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
-    m.className='msg err';m.textContent=e.message;
+    m.className='msg err';
+    m.textContent=e.message;
   }finally{b.disabled=false}
 }
 
+function aspectValue(ratio){
+  const map={'9:16':'9 / 16','16:9':'16 / 9','1:1':'1 / 1','4:3':'4 / 3'};
+  return map[ratio]||'16 / 9';
+}
+
 function jobCard(g){
-  const media=g.has_video
-    ?'<div class="job-media"><video controls preload="metadata" src="'+g.video_url+'"></video></div>'
-    :g.has_poster
-      ?'<div class="job-media"><img src="'+g.poster_url+'"></div>'
-      :'<div class="job-media"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span></div>';
+  const aspect=aspectValue(g.aspect_ratio);
+  let media;
+  if(g.has_video){
+    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="metadata" src="'+g.video_url+'"></video></div>';
+  }else if(g.has_poster){
+    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+g.poster_url+'"></div>';
+  }else{
+    media='<div class="job-media job-placeholder" style="aspect-ratio:'+aspect+'">'+
+      (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
+      '</div>';
+  }
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
       '<div class="job-title">'+escapeHtml(g.model)+' · '+g.duration+'s · '+escapeHtml(g.aspect_ratio)+'</div>'+
-      '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,150))+'</p>'+
-      (g.error_message?'<p class="err" style="font-size:11px">'+escapeHtml(g.error_message)+'</p>':'')+
+      '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
+      (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
     '</div></article>';
 }
 
