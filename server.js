@@ -80,6 +80,7 @@ function userPayload(user) {
   return {
     id:Number(user.id), email:user.email, credits:Number(user.credits),
     role:user.role, status:user.status, created_at:user.created_at,
+    updated_at:user.updated_at || null,
   };
 }
 function requireDatabase() {
@@ -189,6 +190,65 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,user:userPayload(user)});
     }
 
+    if (req.method==='GET' && routePath==='/api/dashboard') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const db=getPool();
+      const [statusRows]=await db.execute(
+        `SELECT status, COUNT(*) AS total FROM generations WHERE user_id=? GROUP BY status`,
+        [user.id],
+      );
+      const generationCounts={};
+      for (const row of statusRows) generationCounts[row.status]=Number(row.total);
+      const [creditRows]=await db.execute(
+        `SELECT id, generation_id, amount, type, note, created_at
+         FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 8`,
+        [user.id],
+      );
+      return sendJson(res,200,{
+        ok:true,
+        user:userPayload(user),
+        stats:{
+          total:Object.values(generationCounts).reduce((sum,value)=>sum+Number(value||0),0),
+          completed:Number(generationCounts.completed||0),
+          active:Number(generationCounts.queued||0)+Number(generationCounts.submitting||0)+Number(generationCounts.submitted||0)+Number(generationCounts.processing||0),
+          failed:Number(generationCounts.failed||0)+Number(generationCounts.submit_error||0),
+        },
+        recentCredits:creditRows,
+      });
+    }
+
+    if (req.method==='GET' && routePath==='/api/credits') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const db=getPool();
+      const [rows]=await db.execute(
+        `SELECT id, generation_id, amount, type, note, created_at
+         FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 100`,
+        [user.id],
+      );
+      return sendJson(res,200,{ok:true,credits:Number(user.credits),transactions:rows});
+    }
+
+    if (req.method==='POST' && routePath==='/api/account/password') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const body=await readJson(req);
+      const current=String(body.currentPassword||'');
+      const next=String(body.newPassword||'');
+      if (next.length<8) return sendJson(res,400,{ok:false,error:'New password must be at least 8 characters.'});
+      const db=getPool();
+      const [rows]=await db.execute('SELECT password_hash FROM users WHERE id=? LIMIT 1',[user.id]);
+      if (!rows[0] || !(await verifyPassword(current,rows[0].password_hash))) {
+        return sendJson(res,401,{ok:false,error:'Current password is incorrect.'});
+      }
+      const nextHash=await hashPassword(next);
+      await db.execute('UPDATE users SET password_hash=?, updated_at=UTC_TIMESTAMP() WHERE id=?',[nextHash,user.id]);
+      await db.execute('DELETE FROM sessions WHERE user_id=?',[user.id]);
+      await createSession(res,user.id);
+      return sendJson(res,200,{ok:true});
+    }
+
     if (req.method==='GET' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
@@ -265,11 +325,87 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,submitted:true,provider:'vidancee',job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
+      if (req.method==='GET' && routePath==='/admin/stats') {
+        requireDatabase();
+        const db=getPool();
+        const [[userStats]] = await db.query(
+          `SELECT COUNT(*) AS users,
+                  COALESCE(SUM(credits),0) AS user_credits,
+                  SUM(status='active') AS active_users
+           FROM users`
+        );
+        const [[genStats]] = await db.query(
+          `SELECT COUNT(*) AS generations,
+                  SUM(status='completed') AS completed,
+                  SUM(status IN ('queued','submitting','submitted','processing')) AS active,
+                  SUM(status IN ('failed','submit_error')) AS failed,
+                  COALESCE(SUM(credits_cost),0) AS credits_charged
+           FROM generations`
+        );
+        return sendJson(res,200,{ok:true,stats:{
+          users:Number(userStats.users||0),
+          activeUsers:Number(userStats.active_users||0),
+          userCredits:Number(userStats.user_credits||0),
+          generations:Number(genStats.generations||0),
+          completed:Number(genStats.completed||0),
+          active:Number(genStats.active||0),
+          failed:Number(genStats.failed||0),
+          creditsCharged:Number(genStats.credits_charged||0),
+        }});
+      }
+
+      if (req.method==='GET' && routePath==='/admin/config') {
+        return sendJson(res,200,{ok:true,
+          pricing:publicPricing(),
+          aspectRatios:ASPECT_RATIOS,
+          providerChargesEnabled:allowProviderCharges,
+          signupsEnabled:allowSignups,
+          workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
+        });
+      }
+
       if (req.method==='GET' && routePath==='/admin/users') {
         requireDatabase();
         const db=getPool();
-        const [rows]=await db.query('SELECT id,email,credits,role,status,created_at FROM users ORDER BY created_at DESC LIMIT 100');
+        const q=String(url.searchParams.get('q')||'').trim();
+        const status=String(url.searchParams.get('status')||'').trim();
+        const clauses=[]; const params=[];
+        if (q) {
+          clauses.push('(email LIKE ? OR CAST(id AS CHAR)=?)');
+          params.push('%'+q+'%',q);
+        }
+        if (status==='active'||status==='disabled') { clauses.push('status=?'); params.push(status); }
+        const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
+        const [rows]=await db.query(
+          'SELECT id,email,credits,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
+          params,
+        );
         return sendJson(res,200,{ok:true,users:rows.map(userPayload)});
+      }
+
+      const userPatchMatch=routePath.match(/^\/admin\/users\/(\d+)$/);
+      if (req.method==='PATCH' && userPatchMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const db=getPool();
+        const userId=Number(userPatchMatch[1]);
+        const [rows]=await db.execute('SELECT * FROM users WHERE id=? LIMIT 1',[userId]);
+        if (!rows[0]) return sendJson(res,404,{ok:false,error:'User not found.'});
+
+        const updates=[]; const params=[];
+        if (body.status!==undefined) {
+          if (!['active','disabled'].includes(String(body.status))) return sendJson(res,400,{ok:false,error:'Invalid user status.'});
+          updates.push('status=?'); params.push(String(body.status));
+        }
+        if (body.role!==undefined) {
+          if (!['user','admin'].includes(String(body.role))) return sendJson(res,400,{ok:false,error:'Invalid user role.'});
+          updates.push('role=?'); params.push(String(body.role));
+        }
+        if (!updates.length) return sendJson(res,400,{ok:false,error:'No user fields supplied.'});
+        params.push(userId);
+        await db.execute('UPDATE users SET '+updates.join(', ')+', updated_at=UTC_TIMESTAMP() WHERE id=?',params);
+        const [updated]=await db.execute('SELECT id,email,credits,role,status,created_at,updated_at FROM users WHERE id=?',[userId]);
+        return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
       }
 
       if (req.method==='POST' && routePath==='/admin/users/credits') {
@@ -327,12 +463,34 @@ const server=http.createServer(async (req,res)=>{
         finally { conn.release(); }
       }
 
+      if (req.method==='GET' && routePath==='/admin/credits') {
+        requireDatabase();
+        const db=getPool();
+        const userId=Number(url.searchParams.get('user_id')||0);
+        const params=[]; let where='';
+        if (userId>0) { where=' WHERE c.user_id=?'; params.push(userId); }
+        const [rows]=await db.query(
+          `SELECT c.id,c.user_id,u.email,c.generation_id,c.amount,c.type,c.note,c.created_at
+           FROM credit_transactions c JOIN users u ON u.id=c.user_id`+where+`
+           ORDER BY c.created_at DESC LIMIT 200`,
+          params,
+        );
+        return sendJson(res,200,{ok:true,transactions:rows});
+      }
+
       if (req.method==='GET' && routePath==='/admin/generations') {
         requireDatabase();
         const db=getPool();
+        const status=String(url.searchParams.get('status')||'').trim();
+        const q=String(url.searchParams.get('q')||'').trim();
+        const clauses=[]; const params=[];
+        if (status) { clauses.push('g.status=?'); params.push(status); }
+        if (q) { clauses.push('(u.email LIKE ? OR g.id=? OR CAST(g.provider_job_id AS CHAR)=?)'); params.push('%'+q+'%',q,q); }
+        const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
-          `SELECT g.*,u.email FROM generations g JOIN users u ON u.id=g.user_id
-           ORDER BY g.created_at DESC LIMIT 100`
+          `SELECT g.*,u.email FROM generations g JOIN users u ON u.id=g.user_id`+where+`
+           ORDER BY g.created_at DESC LIMIT 200`,
+          params,
         );
         return sendJson(res,200,{ok:true,generations:rows.map(row=>({...serializeGeneration(row),user_email:row.email,provider_job_id:row.provider_job_id}))});
       }
