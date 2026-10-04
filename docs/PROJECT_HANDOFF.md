@@ -452,3 +452,38 @@ GET   /admin/credits
 The generation worker now also respects `ALLOW_PROVIDER_CHARGES`. Turning provider charges off prevents automatic queued customer jobs from being submitted.
 
 Scope note: text-to-video is production-enabled. Image-to-video is intentionally not exposed yet because its exact provider submission payload has not been captured/verified.
+
+
+## Image-to-video protocol captured and implemented — 2026-10-04
+
+The exact Vidancee Image → Video multipart payload was captured from the browser.
+
+Confirmed fields:
+
+```text
+mode         = image-to-video
+model        = seedance_2.5
+duration     = 10
+aspect_ratio = 9:16
+prompt       = create ad of this
+quantity     = 1
+max_retries  = 3
+images[]     = (binary)
+```
+
+No separate upload endpoint was observed before `generate.php`; the image binary is sent directly in the `generate.php` multipart request.
+
+Implemented end-to-end:
+
+- customer Text → Video / Image → Video toggle
+- 1–6 reference image upload
+- JPEG/PNG/WebP validation
+- 10 MB per image and 30 MB combined upload cap
+- temporary image persistence in MySQL `generation_images`
+- worker loads reference images when the queued job is submitted
+- Vidancee provider adapter appends each reference as `images[]`
+- provider request includes `max_retries=3`
+- temporary image blobs are deleted after successful provider submission
+- generation history displays the correct mode
+
+New dependency: `busboy` for streaming multipart upload parsing.
