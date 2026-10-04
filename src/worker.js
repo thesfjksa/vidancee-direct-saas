@@ -26,12 +26,14 @@ class GenerationWorker {
   }
 
   enabled() {
-    return /^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED || 'true'));
+    const workerEnabled=/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED || 'true'));
+    const providerChargesAllowed=/^(1|true|yes|on)$/i.test(String(process.env.ALLOW_PROVIDER_CHARGES || 'no'));
+    return workerEnabled && providerChargesAllowed;
   }
 
   start() {
     if (!this.enabled()) {
-      console.log('Generation worker disabled.');
+      console.log('Generation worker disabled (WORKER_ENABLED or ALLOW_PROVIDER_CHARGES is off).');
       return;
     }
     if (!dbConfigured() || !providerConfigured()) {
