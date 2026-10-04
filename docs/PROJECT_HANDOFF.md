@@ -145,3 +145,27 @@ The first deployment returned a generic 503 Service Unavailable. The repository 
 - Recommended managed-hosting port is `3000`; server remains compatible with `process.env.PORT || 3000`.
 
 If a 503 remains after redeployment, inspect hPanel **Deployments → deployment details** and **Runtime logs** before changing application logic.
+
+
+## Hostinger LiteSpeed runtime fix — 2026-10-04
+
+Runtime logs showed:
+
+```text
+Error [ERR_REQUIRE_ASYNC_MODULE]: require() cannot be used on an ESM graph with top-level await
+...
+at startApplication (/usr/local/lsws/fcgi-bin/lsnode.js:426:15)
+```
+
+Root cause: Hostinger LiteSpeed's Node launcher loads the application entry through CommonJS `require()`. The repository used ESM (`"type":"module"`) and the entry contained top-level `await` to read the HTML file.
+
+Fix applied:
+
+- removed `"type":"module"` from package.json
+- converted `server.js` to CommonJS
+- replaced top-level async file read with `fs.readFileSync`
+- converted `src/provider/vidancee.js` to CommonJS
+- converted tests to CommonJS
+- changed `app.js` compatibility entry to `module.exports = require('./server.js')`
+
+This project should remain CommonJS while hosted through Hostinger LiteSpeed unless the hosting runtime is changed.
