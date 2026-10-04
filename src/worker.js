@@ -120,7 +120,7 @@ class GenerationWorker {
            providerJob.started_at || null, providerJob.completed_at || null, row.id]
         );
       } else if (providerJob.status === 'failed') {
-        await refundGeneration(row.id, 'failed', providerJob.error_message || 'Vidancee generation failed.',
+        await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.',
           providerJob.cost_credits == null ? null : Number(providerJob.cost_credits));
       } else if (providerJob.status === 'processing') {
         await db.execute(
@@ -147,7 +147,7 @@ class GenerationWorker {
           );
           await db.execute('DELETE FROM generation_images WHERE generation_id=?', [row.id]);
         } else if (status.status === 'failed') {
-          await refundGeneration(row.id, 'failed', status.error || 'CreatePulse generation failed.', status.amount);
+          await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.', status.amount);
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
           await db.execute('DELETE FROM generation_images WHERE generation_id=?', [row.id]);
         } else {
@@ -224,14 +224,14 @@ class GenerationWorker {
     let initImageUrl = null;
     let imageReferenceUrls = [];
     if (job.mode === 'image-to-video') {
-      if (imageCount < 1 || imageCount > 5) throw new Error('CreatePulse supports this route only for 1–5 reference images.');
+      if (imageCount < 1 || imageCount > 6) throw new Error('Image reference count is outside the supported range.');
       const [images] = await db.execute(
         'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
         [job.id]
       );
       const urls = images.map((image) => providerAssetUrl(job.id, image.position_index));
       initImageUrl = urls[0] || null;
-      imageReferenceUrls = urls.slice(1, 5);
+      imageReferenceUrls = urls.slice(1, 6);
     }
 
     const result = await this.createPulse.generateVideo({
@@ -291,7 +291,7 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error(chosen, 'submission failed for', job.id, error);
-        await refundGeneration(job.id, 'submit_error', chosen + ' submission error: ' + error.message, null);
+        await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
         await db.execute('DELETE FROM generation_images WHERE generation_id=?', [job.id]);
       }
     }
