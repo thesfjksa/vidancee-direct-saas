@@ -262,12 +262,29 @@ const server=http.createServer(async (req,res)=>{
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
+      let videoPricing=publicPricing();
+      let imagePricing=publicImagePricing();
+
+      if (dbConfigured()) {
+        try {
+          const providerSettings=await getAdminProviderSettings();
+          if (!providerSettings.vgenv.configured) {
+            videoPricing=videoPricing.filter(model=>model.id!=='minimax_h3');
+          }
+          if (!providerSettings.atlascloud.configured) {
+            imagePricing=[];
+          }
+        } catch {
+          // Keep public config usable during transient database/provider-setting issues.
+        }
+      }
+
       return sendJson(res,200,{
         ok:true,
         signupsEnabled:allowSignups,
-        pricing:publicPricing(),
+        pricing:videoPricing,
         aspectRatios:ASPECT_RATIOS,
-        imagePricing:publicImagePricing(),
+        imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
       });
     }
@@ -438,6 +455,15 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const user=await requireUser(req);
       const body=await readGenerationRequest(req);
+      if (String(body.model||'')==='minimax_h3') {
+        const providerSettings=await getProviderSettings();
+        if (!providerSettings.allowProviderCharges) {
+          return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+        }
+        if (!providerSettings.vgenvApiKey) {
+          return sendJson(res,503,{ok:false,error:'This model is not configured yet.'});
+        }
+      }
       const generation=await createGenerationForUser(user.id,body);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
