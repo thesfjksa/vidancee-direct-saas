@@ -783,7 +783,7 @@ const server=http.createServer(async (req,res)=>{
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
           `SELECT
-             g.id,g.user_id,g.provider,g.media_type,g.provider_job_id,g.mode,g.model,g.duration,g.aspect_ratio,
+             g.id,g.user_id,g.provider,g.media_type,g.provider_job_id,g.mode,g.model,g.duration,g.resolution,g.aspect_ratio,
              g.prompt,g.status,g.credits_cost,g.provider_cost,g.provider_cost_unit,g.output_url,g.poster_url,
              g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,
              u.email
