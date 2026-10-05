@@ -26,15 +26,48 @@ function serializeGeneration(row) {
   };
 }
 
+function normalizeReuseImageIds(value) {
+  if (value == null || value === '') return [];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); }
+    catch {
+      const error = new Error('Invalid reused reference image selection.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (!Array.isArray(parsed)) {
+    const error = new Error('Invalid reused reference image selection.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const ids = [...new Set(parsed.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+  if (ids.length > 6) {
+    const error = new Error('A maximum of 6 reference images is allowed.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return ids;
+}
+
 async function createGenerationForUser(userId, input) {
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const duration = Number(input.duration);
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
-  const images = Array.isArray(input.images) ? input.images : [];
-  const mode = images.length > 0 ? 'image-to-video' : 'text-to-video';
-  if (mode === 'image-to-video' && (images.length < 1 || images.length > 6)) {
-    const error = new Error('Image-to-video requires between 1 and 6 reference images.');
+  const freshImages = Array.isArray(input.images) ? input.images : [];
+  const reuseGenerationId = String(input.reuseGenerationId || input.reuse_generation_id || '').trim();
+  const reuseImageIds = normalizeReuseImageIds(input.reuseImageIds || input.reuse_image_ids || '');
+
+  if (freshImages.length + reuseImageIds.length > 6) {
+    const error = new Error('A maximum of 6 reference images is allowed in total.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (reuseImageIds.length && !/^[0-9a-f-]{36}$/i.test(reuseGenerationId)) {
+    const error = new Error('The reused generation reference is invalid.');
     error.statusCode = 400;
     throw error;
   }
@@ -75,6 +108,39 @@ async function createGenerationForUser(userId, input) {
       throw error;
     }
 
+    let reusedImages = [];
+    if (reuseImageIds.length) {
+      const [sourceRows] = await conn.execute(
+        'SELECT id FROM generations WHERE id = ? AND user_id = ? LIMIT 1',
+        [reuseGenerationId, userId],
+      );
+      if (!sourceRows[0]) {
+        const error = new Error('The source generation for these reference images was not found.');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const placeholders = reuseImageIds.map(() => '?').join(',');
+      const [imageRows] = await conn.query(
+        `SELECT id, filename, mime_type, image_data
+         FROM generation_images
+         WHERE generation_id = ? AND id IN (${placeholders})`,
+        [reuseGenerationId, ...reuseImageIds],
+      );
+
+      const byId = new Map(imageRows.map(row => [Number(row.id), row]));
+      reusedImages = reuseImageIds.map(imageId => byId.get(imageId)).filter(Boolean);
+
+      if (reusedImages.length !== reuseImageIds.length) {
+        const error = new Error('One or more reused reference images are no longer available.');
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const allImageCount = reusedImages.length + freshImages.length;
+    const mode = allImageCount > 0 ? 'image-to-video' : 'text-to-video';
+
     await conn.execute(
       `INSERT INTO generations
        (id, user_id, provider, mode, model, duration, aspect_ratio, prompt, status, credits_cost)
@@ -82,16 +148,25 @@ async function createGenerationForUser(userId, input) {
       [id, userId, mode, model, duration, aspectRatio, prompt, cost],
     );
 
-    if (mode === 'image-to-video') {
-      for (let i = 0; i < images.length; i += 1) {
-        const image = images[i];
-        await conn.execute(
-          `INSERT INTO generation_images
-           (generation_id, position_index, filename, mime_type, image_data)
-           VALUES (?, ?, ?, ?, ?)`,
-          [id, i, image.filename, image.mimeType, image.data],
-        );
-      }
+    let position = 0;
+    for (const image of reusedImages) {
+      await conn.execute(
+        `INSERT INTO generation_images
+         (generation_id, position_index, filename, mime_type, image_data)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id, position, image.filename, image.mime_type, image.image_data],
+      );
+      position += 1;
+    }
+
+    for (const image of freshImages) {
+      await conn.execute(
+        `INSERT INTO generation_images
+         (generation_id, position_index, filename, mime_type, image_data)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id, position, image.filename, image.mimeType, image.data],
+      );
+      position += 1;
     }
 
     await conn.execute('UPDATE users SET credits = credits - ? WHERE id = ?', [cost, userId]);
@@ -128,6 +203,39 @@ async function getUserGeneration(userId, id) {
   const [rows] = await db.execute(
     'SELECT * FROM generations WHERE id = ? AND user_id = ? LIMIT 1',
     [id, userId],
+  );
+  return rows[0] || null;
+}
+
+async function listUserGenerationReferenceImages(userId, generationId) {
+  const db = getPool();
+  const [rows] = await db.execute(
+    `SELECT gi.id, gi.position_index, gi.filename, gi.mime_type
+     FROM generation_images gi
+     JOIN generations g ON g.id = gi.generation_id
+     WHERE gi.generation_id = ? AND g.user_id = ?
+     ORDER BY gi.position_index ASC, gi.id ASC`,
+    [generationId, userId],
+  );
+
+  return rows.map(row => ({
+    id: Number(row.id),
+    position: Number(row.position_index),
+    filename: row.filename,
+    mime_type: row.mime_type,
+    url: '/api/generations/' + generationId + '/reference-images/' + row.id,
+  }));
+}
+
+async function getUserGenerationReferenceImage(userId, generationId, imageId) {
+  const db = getPool();
+  const [rows] = await db.execute(
+    `SELECT gi.id, gi.filename, gi.mime_type, gi.image_data
+     FROM generation_images gi
+     JOIN generations g ON g.id = gi.generation_id
+     WHERE gi.generation_id = ? AND gi.id = ? AND g.user_id = ?
+     LIMIT 1`,
+    [generationId, imageId, userId],
   );
   return rows[0] || null;
 }
@@ -243,6 +351,8 @@ module.exports = {
   createGenerationForUser,
   listUserGenerations,
   getUserGeneration,
+  listUserGenerationReferenceImages,
+  getUserGenerationReferenceImage,
   deleteUserGeneration,
   refundGeneration,
 };
