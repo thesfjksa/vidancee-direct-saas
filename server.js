@@ -14,6 +14,13 @@ const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits } = require('./src/billing.js');
 const {
+  publicPlans,
+  getPlanStatus,
+  createPlanRequest,
+  listPlanRequests,
+  decidePlanRequest,
+} = require('./src/plans.js');
+const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
   deleteUserGeneration, serializeGeneration,
@@ -164,6 +171,7 @@ function adminAuthorized(req) {
 function userPayload(user) {
   return {
     id:Number(user.id), email:user.email, credits:Number(user.credits),
+    plan_code:user.plan_code || null,
     role:user.role, status:user.status, created_at:user.created_at,
     updated_at:user.updated_at || null,
   };
@@ -286,6 +294,7 @@ const server=http.createServer(async (req,res)=>{
         aspectRatios:ASPECT_RATIOS,
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
+        plans:publicPlans(),
       });
     }
 
@@ -364,6 +373,20 @@ const server=http.createServer(async (req,res)=>{
         },
         recentCredits:creditRows,
       });
+    }
+
+    if (req.method==='GET' && routePath==='/api/plan-status') {
+      requireDatabase();
+      const user=await requireUser(req);
+      return sendJson(res,200,{ok:true,...(await getPlanStatus(user.id))});
+    }
+
+    if (req.method==='POST' && routePath==='/api/plan-requests') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const body=await readJson(req);
+      const request=await createPlanRequest(user.id,body.planCode);
+      return sendJson(res,201,{ok:true,request});
     }
 
     if (req.method==='GET' && routePath==='/api/credits') {
@@ -616,6 +639,7 @@ const server=http.createServer(async (req,res)=>{
           atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
+          plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
         });
       }
@@ -633,7 +657,7 @@ const server=http.createServer(async (req,res)=>{
         if (status==='active'||status==='disabled') { clauses.push('status=?'); params.push(status); }
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
-          'SELECT id,email,credits,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
+          'SELECT id,email,credits,plan_code,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
           params,
         );
         return sendJson(res,200,{ok:true,users:rows.map(userPayload)});
@@ -660,7 +684,7 @@ const server=http.createServer(async (req,res)=>{
         if (!updates.length) return sendJson(res,400,{ok:false,error:'No user fields supplied.'});
         params.push(userId);
         await db.execute('UPDATE users SET '+updates.join(', ')+', updated_at=UTC_TIMESTAMP() WHERE id=?',params);
-        const [updated]=await db.execute('SELECT id,email,credits,role,status,created_at,updated_at FROM users WHERE id=?',[userId]);
+        const [updated]=await db.execute('SELECT id,email,credits,plan_code,role,status,created_at,updated_at FROM users WHERE id=?',[userId]);
         return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
       }
 
@@ -688,7 +712,7 @@ const server=http.createServer(async (req,res)=>{
             [user.id,amount,String(body.note||'Admin credit adjustment').slice(0,255)],
           );
           await conn.commit();
-          const [updated]=await db.execute('SELECT id,email,credits,role,status,created_at FROM users WHERE id=?',[user.id]);
+          const [updated]=await db.execute('SELECT id,email,credits,plan_code,role,status,created_at FROM users WHERE id=?',[user.id]);
           return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
         } catch(error) { await conn.rollback(); throw error; }
         finally { conn.release(); }
@@ -717,6 +741,20 @@ const server=http.createServer(async (req,res)=>{
           return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
         } catch(error) { await conn.rollback(); throw error; }
         finally { conn.release(); }
+      }
+
+      if (req.method==='GET' && routePath==='/admin/plan-requests') {
+        requireDatabase();
+        const status=String(url.searchParams.get('status')||'').trim();
+        return sendJson(res,200,{ok:true,requests:await listPlanRequests(status)});
+      }
+
+      const planRequestActionMatch=routePath.match(/^\/admin\/plan-requests\/(\d+)$/);
+      if (req.method==='POST' && planRequestActionMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const result=await decidePlanRequest(Number(planRequestActionMatch[1]),body.action);
+        return sendJson(res,200,{ok:true,result});
       }
 
       if (req.method==='GET' && routePath==='/admin/credits') {
