@@ -1,6 +1,7 @@
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
+const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
@@ -16,10 +17,13 @@ class GenerationWorker {
     this.timer = null;
     this.vidancee = null;
     this.createPulse = null;
+    this.atlasCloud = null;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
+    this.atlasCloudFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
     this.createPulseMaxInflight = 3;
+    this.atlasCloudMaxInflight = 4;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
   }
@@ -52,6 +56,7 @@ class GenerationWorker {
     const settings = await getProviderSettings();
     this.routing = settings.routing;
     this.createPulseMaxInflight = settings.createPulseMaxInflight;
+    this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
     this.allowProviderCharges = settings.allowProviderCharges;
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
@@ -76,6 +81,17 @@ class GenerationWorker {
           })
         : null;
     }
+
+    const atlasFingerprint = JSON.stringify([settings.atlasCloudBaseUrl, settings.atlasCloudApiKey]);
+    if (atlasFingerprint !== this.atlasCloudFingerprint) {
+      this.atlasCloudFingerprint = atlasFingerprint;
+      this.atlasCloud = settings.atlasCloudApiKey
+        ? new AtlasCloudClient({
+            baseUrl: settings.atlasCloudBaseUrl,
+            apiKey: settings.atlasCloudApiKey,
+          })
+        : null;
+    }
   }
 
   async syncVidancee(db) {
@@ -87,7 +103,7 @@ class GenerationWorker {
     const allProviderJobs = [...(snapshot.active || []), ...(snapshot.jobs || [])];
     const providerById = new Map(allProviderJobs.map(job => [String(job.id), job]));
     const [rows] = await db.query(
-      "SELECT * FROM generations WHERE provider='vidancee' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
+      "SELECT * FROM generations WHERE media_type='video' AND provider='vidancee' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
     );
 
     for (const row of rows) {
@@ -122,7 +138,7 @@ class GenerationWorker {
   async syncCreatePulse(db) {
     if (!this.createPulse) return;
     const [rows] = await db.query(
-      "SELECT * FROM generations WHERE provider='createpulse' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 50"
+      "SELECT * FROM generations WHERE media_type='video' AND provider='createpulse' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 50"
     );
     for (const row of rows) {
       try {
@@ -143,6 +159,89 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error('Overflow provider status sync failed for', row.id, error.message);
+      }
+    }
+  }
+
+  async syncAtlasImages(db) {
+    if (!this.atlasCloud) return;
+    const [rows] = await db.query(
+      "SELECT * FROM generations WHERE media_type='image' AND provider='atlascloud' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
+    );
+
+    for (const row of rows) {
+      try {
+        const prediction = await this.atlasCloud.getPrediction(row.provider_job_id);
+        if (prediction.status === 'completed') {
+          const output = prediction.outputs[0] || null;
+          if (!output) throw new Error('Atlas Cloud completed without an output image URL.');
+          await db.execute(
+            "UPDATE generations SET status='completed', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [output, row.id]
+          );
+        } else if (prediction.status === 'failed' || prediction.status === 'timeout') {
+          await refundGeneration(
+            row.id,
+            'failed',
+            prediction.error || 'Image generation failed. Credits were refunded.',
+            null
+          );
+        } else {
+          await db.execute(
+            "UPDATE generations SET status='processing', started_at=COALESCE(started_at, UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [row.id]
+          );
+        }
+      } catch (error) {
+        console.error('Atlas Cloud image status sync failed for', row.id, error.message);
+      }
+    }
+  }
+
+  async submitAtlasImages(db) {
+    if (!this.atlasCloud) return;
+
+    const [[activeRow]] = await db.query(
+      "SELECT COUNT(*) AS total FROM generations WHERE media_type='image' AND provider='atlascloud' AND status IN ('submitting','submitted','processing')"
+    );
+    let slots = Math.max(0, this.atlasCloudMaxInflight - Number(activeRow?.total || 0));
+    if (slots <= 0) return;
+
+    const [queued] = await db.query(
+      "SELECT * FROM generations WHERE media_type='image' AND status='queued' ORDER BY created_at ASC LIMIT 25"
+    );
+
+    for (const job of queued) {
+      if (slots <= 0) break;
+
+      const [claim] = await db.execute(
+        "UPDATE generations SET status='submitting', provider='atlascloud', error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=? AND media_type='image' AND status='queued'",
+        [job.id]
+      );
+      if (!claim.affectedRows) continue;
+
+      try {
+        const [images] = await db.execute(
+          'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
+          [job.id]
+        );
+        const imageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
+
+        const result = await this.atlasCloud.generateImage({
+          model: job.model,
+          prompt: job.prompt,
+          aspectRatio: job.aspect_ratio,
+          imageUrls,
+        });
+
+        await db.execute(
+          "UPDATE generations SET status='submitted', provider_job_id=?, submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at, UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
+          [result.id, job.id]
+        );
+        slots -= 1;
+      } catch (error) {
+        console.error('Atlas Cloud image submission failed for', job.id, error);
+        await refundGeneration(job.id, 'submit_error', 'Image generation could not be submitted. Credits were refunded.', null);
       }
     }
   }
@@ -248,8 +347,12 @@ class GenerationWorker {
 
     const vidSnapshot = await this.syncVidancee(db);
     await this.syncCreatePulse(db);
+    await this.syncAtlasImages(db);
 
     if (!this.allowProviderCharges) return;
+
+    await this.submitAtlasImages(db);
+
     if (!this.vidancee && !this.createPulse) return;
 
     let vidSlots = 0;
@@ -265,13 +368,13 @@ class GenerationWorker {
     let cpSlots = 0;
     if (this.createPulse) {
       const [[row]] = await db.query(
-        "SELECT COUNT(*) AS total FROM generations WHERE provider='createpulse' AND status IN ('submitting','submitted','processing')"
+        "SELECT COUNT(*) AS total FROM generations WHERE media_type='video' AND provider='createpulse' AND status IN ('submitting','submitted','processing')"
       );
       cpSlots = Math.max(0, this.createPulseMaxInflight - Number(row?.total || 0));
     }
 
     if (vidSlots <= 0 && cpSlots <= 0) return;
-    const [queued] = await db.query("SELECT * FROM generations WHERE status='queued' ORDER BY created_at ASC LIMIT 25");
+    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND status='queued' ORDER BY created_at ASC LIMIT 25");
 
     for (const job of queued) {
       if (vidSlots <= 0 && cpSlots <= 0) break;
