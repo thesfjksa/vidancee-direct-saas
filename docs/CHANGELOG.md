@@ -171,3 +171,8 @@
 - Made Admin generations query explicit and lighter.
 - Added idempotent migrations for current multi-provider generation columns.
 - Fixed missing deleteUserGeneration server import.
+
+## 2026-10-05 — Lock Seedance 2.0 Fast to 10s
+
+- Removed 15s and 30s customer duration exposure for Seedance 2.0 Fast.
+- Added single-option dropdown behavior so a one-value Duration control no longer opens an unnecessary menu.
