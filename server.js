@@ -668,9 +668,9 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const identifier=String(body.identifier||'').trim();
-        const amount=Number(body.amount);
+        const amount=roundCredits(Number(body.amount));
         if (!identifier) return sendJson(res,400,{ok:false,error:'User ID or email is required.'});
-        if (!Number.isInteger(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero integer'});
+        if (!Number.isFinite(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero number'});
 
         const db=getPool(); const conn=await db.getConnection();
         try {
