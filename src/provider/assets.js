@@ -5,13 +5,13 @@ function appUrl() { return String(process.env.APP_URL || '').replace(/\/$/, '');
 
 function assetSignature(generationId, position) {
   const secret = assetSecret();
-  if (!secret) throw new Error('PROVIDER_ASSET_SECRET or ADMIN_TOKEN is required for provider image URLs.');
+  if (!secret) throw new Error('PROVIDER_ASSET_SECRET or ADMIN_TOKEN is required for signed provider asset URLs.');
   return crypto.createHmac('sha256', secret).update(String(generationId) + ':' + Number(position)).digest('hex');
 }
 
 function providerAssetUrl(generationId, position) {
   const base = appUrl();
-  if (!base) throw new Error('APP_URL is required for CreatePulse image-to-video routing.');
+  if (!base) throw new Error('APP_URL is required for provider reference-image routing.');
   const sig = assetSignature(generationId, position);
   return base + '/provider-assets/' + encodeURIComponent(generationId) + '/' + Number(position) + '?sig=' + sig;
 }
