@@ -186,6 +186,16 @@ async function createGenerationForUser(userId, input) {
       }
     }
 
+    if (model === 'minimax_h3') {
+      const oversizedReused = reusedImages.find(image => Buffer.isBuffer(image.image_data) && image.image_data.length > 5 * 1024 * 1024);
+      const oversizedFresh = freshImages.find(image => Buffer.isBuffer(image.data) && image.data.length > 5 * 1024 * 1024);
+      if (oversizedReused || oversizedFresh) {
+        const error = new Error('MiniMax H3 reference images must be 5 MB or smaller.');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
     let orderedImages = [
       ...reusedImages.map(image => ({ kind: 'reused', image })),
       ...freshImages.map(image => ({ kind: 'fresh', image })),
