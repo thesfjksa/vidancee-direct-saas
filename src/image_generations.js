@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
 
 function serializeImageGeneration(row) {
@@ -56,7 +57,7 @@ async function createImageGenerationForUser(userId, input) {
     await conn.beginTransaction();
 
     const [users] = await conn.execute(
-      'SELECT id, credits, status FROM users WHERE id=? FOR UPDATE',
+      'SELECT id, credits, status, plan_code FROM users WHERE id=? FOR UPDATE',
       [userId],
     );
     const user = users[0];
@@ -71,11 +72,26 @@ async function createImageGenerationForUser(userId, input) {
       throw error;
     }
 
+    const planProfile = getPlanProfile(user.plan_code);
+    const [[activeRow]] = await conn.execute(
+      "SELECT COUNT(*) AS total FROM generations WHERE user_id=? AND status IN ('queued','submitting','submitted','processing')",
+      [userId],
+    );
+    if (Number(activeRow?.total || 0) >= planProfile.concurrency) {
+      const error = new Error(
+        planProfile.code
+          ? planProfile.name + ' allows up to ' + planProfile.concurrency + ' simultaneous generations.'
+          : 'Choose a plan to run more than one generation at a time.'
+      );
+      error.statusCode = 429;
+      throw error;
+    }
+
     await conn.execute(
       `INSERT INTO generations
-       (id,user_id,provider,media_type,mode,model,duration,aspect_ratio,prompt,status,credits_cost)
-       VALUES (?,?,'atlascloud','image',?,?,0,?,?,'queued',?)`,
-      [id, userId, mode, model, aspectRatio, prompt, cost],
+       (id,user_id,provider,media_type,queue_priority,mode,model,duration,aspect_ratio,prompt,status,credits_cost)
+       VALUES (?,?,'atlascloud','image',?,?,?,0,?,?,'queued',?)`,
+      [id, userId, planProfile.queuePriority, mode, model, aspectRatio, prompt, cost],
     );
 
     for (let i = 0; i < images.length; i += 1) {
