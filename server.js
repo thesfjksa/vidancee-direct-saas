@@ -383,6 +383,13 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/image-generations') {
       requireDatabase();
       const user=await requireUser(req);
+      const providerSettings=await getProviderSettings();
+      if (!providerSettings.allowProviderCharges) {
+        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+      }
+      if (!providerSettings.atlasCloudApiKey) {
+        return sendJson(res,503,{ok:false,error:'Image generation is not configured yet.'});
+      }
       const body=await readGenerationRequest(req);
       const generation=await createImageGenerationForUser(user.id,body);
       const db=getPool();
