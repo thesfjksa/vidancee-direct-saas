@@ -193,3 +193,12 @@
 - Added remove control for reused reference images.
 - Workers now retain reference-image blobs until the generation itself is deleted.
 - Older jobs whose images were already purged cannot recover those historical blobs.
+
+## 2026-10-05 — Reference image delete and reorder controls
+
+- Added a small remove icon to every reference-image thumbnail.
+- Added drag/drop thumbnail reordering.
+- Added touch/pointer drag support through a compact grip control.
+- Added direct file drag/drop onto the reference upload area.
+- Added backend referenceOrder validation and exact position persistence.
+- Mixed reused + fresh reference images now retain the user-selected order through provider submission.
