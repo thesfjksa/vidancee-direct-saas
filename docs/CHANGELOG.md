@@ -164,3 +164,10 @@
 - Added confirmed Delete action for terminal generations.
 - Added ownership-scoped DELETE /api/generations/:id endpoint.
 - Active/in-progress generations cannot be deleted.
+
+## 2026-10-05 — Harden Admin generations API
+
+- Replaced generic "Invalid server response" handling with HTTP status and sanitized non-JSON response diagnostics.
+- Made Admin generations query explicit and lighter.
+- Added idempotent migrations for current multi-provider generation columns.
+- Fixed missing deleteUserGeneration server import.
