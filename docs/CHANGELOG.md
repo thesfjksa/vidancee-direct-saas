@@ -183,3 +183,13 @@
 - Explicitly delete stored generation image rows.
 - No longer relies solely on historical foreign-key ON DELETE definitions.
 - Keeps credit history while allowing terminal generations to be removed reliably.
+
+## 2026-10-05 — Restore images with Reuse prompt
+
+- Reuse prompt now reloads saved reference-image thumbnails.
+- Added authenticated per-generation reference-image delivery route.
+- Added backend copying of selected reused images into new generation jobs.
+- Reused and new uploads can be combined up to 6 total images.
+- Added remove control for reused reference images.
+- Workers now retain reference-image blobs until the generation itself is deleted.
+- Older jobs whose images were already purged cannot recover those historical blobs.
