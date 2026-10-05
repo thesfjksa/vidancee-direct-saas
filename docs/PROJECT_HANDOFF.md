@@ -1243,3 +1243,33 @@ Current behavior:
 - the Admin API helper recognizes common edge/browser-challenge HTML and shows a clear hosting-security message instead of dumping HTML/CSS into the Provider page
 
 This change does not alter provider secret storage or encryption.
+
+
+## Video resolution selector — 2026-10-05
+
+The customer video composer now supports model-specific resolution selection.
+
+Current implementation:
+- MiniMax H3 exposes **480p** and **768p**
+- H3 defaults to **768p**
+- Seedance models keep their existing provider-defined resolution and therefore do not show an unnecessary resolution selector
+- changing H3 resolution immediately recalculates the displayed credit cost
+- selected resolution is stored in `generations.resolution`
+- Reuse prompt restores the previous resolution
+- generation cards display the selected resolution
+- Admin generation monitoring includes a Resolution column
+- the worker forwards the stored resolution to vgenv
+
+H3 Fast source-rate defaults used by the shared 2.5× pricing rule:
+- 480p: `0.15` source units/sec (normalized from $0.0015/sec)
+- 768p: `0.3` source units/sec (normalized from $0.003/sec)
+
+Environment overrides:
+- `SOURCE_MINIMAX_H3_FAST_480P_CREDITS_PER_SECOND`
+- `SOURCE_MINIMAX_H3_FAST_768P_CREDITS_PER_SECOND`
+
+At the current 2.5× multiplier this yields:
+- 480p: 0.375 customer credits/sec before two-decimal rounding
+- 768p: 0.75 customer credits/sec
+
+The public pricing payload now includes per-resolution duration/cost entries for models that expose customer-selectable resolutions.
