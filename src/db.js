@@ -51,6 +51,7 @@ async function initDb() {
       email VARCHAR(190) NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       credits DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      plan_code VARCHAR(20) NULL,
       role VARCHAR(20) NOT NULL DEFAULT 'user',
       status VARCHAR(20) NOT NULL DEFAULT 'active',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -76,6 +77,7 @@ async function initDb() {
       provider VARCHAR(40) NOT NULL DEFAULT 'vidancee',
       media_type VARCHAR(20) NOT NULL DEFAULT 'video',
       provider_job_id VARCHAR(191) NULL,
+      queue_priority INT NOT NULL DEFAULT 0,
       mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video',
       model VARCHAR(80) NOT NULL,
       duration INT NOT NULL,
@@ -127,6 +129,23 @@ async function initDb() {
       KEY idx_credit_generation (generation_id),
       CONSTRAINT fk_credit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       CONSTRAINT fk_credit_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS plan_requests (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      plan_code VARCHAR(20) NOT NULL,
+      price_pkr DECIMAL(12,2) NOT NULL,
+      credits DECIMAL(12,2) NOT NULL,
+      concurrency_limit INT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      decided_at DATETIME NULL,
+      PRIMARY KEY (id),
+      KEY idx_plan_requests_user_created (user_id, created_at),
+      KEY idx_plan_requests_status_created (status, created_at),
+      CONSTRAINT fk_plan_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ];
 
@@ -142,9 +161,15 @@ async function initDb() {
     return columns[0] || null;
   }
 
+  const [userPlanColumn] = await db.query("SHOW COLUMNS FROM users LIKE 'plan_code'");
+  if (!userPlanColumn.length) {
+    await db.query("ALTER TABLE users ADD COLUMN plan_code VARCHAR(20) NULL AFTER credits");
+  }
+
   await ensureGenerationColumn('provider', "provider VARCHAR(40) NOT NULL DEFAULT 'vidancee' AFTER user_id");
   await ensureGenerationColumn('media_type', "media_type VARCHAR(20) NOT NULL DEFAULT 'video' AFTER provider");
   const providerJobColumn = await ensureGenerationColumn('provider_job_id', "provider_job_id VARCHAR(191) NULL AFTER media_type");
+  await ensureGenerationColumn('queue_priority', "queue_priority INT NOT NULL DEFAULT 0 AFTER provider_job_id");
   if (providerJobColumn && !/varchar/i.test(String(providerJobColumn.Type || ''))) {
     await db.query("ALTER TABLE generations MODIFY provider_job_id VARCHAR(191) NULL");
   }
