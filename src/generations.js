@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { getPlanProfile } = require('./plans.js');
-const { getCost, validateAspectRatio } = require('./pricing.js');
+const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
 
 function serializeGeneration(row) {
   return {
@@ -9,6 +9,7 @@ function serializeGeneration(row) {
     mode: row.mode,
     model: row.model,
     duration: Number(row.duration),
+    resolution: row.resolution || null,
     aspect_ratio: row.aspect_ratio,
     prompt: row.prompt,
     status: row.status,
@@ -103,6 +104,7 @@ async function createGenerationForUser(userId, input) {
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const duration = Number(input.duration);
+  const requestedResolution = String(input.resolution || '').trim();
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
   const freshImages = Array.isArray(input.images) ? input.images : [];
   const reuseGenerationId = String(input.reuseGenerationId || input.reuse_generation_id || '').trim();
@@ -133,7 +135,8 @@ async function createGenerationForUser(userId, input) {
   }
 
   validateAspectRatio(aspectRatio);
-  const cost = getCost(model, duration);
+  const resolution = normalizeResolution(model, requestedResolution);
+  const cost = getCost(model, duration, resolution);
   const id = crypto.randomUUID();
 
   const db = getPool();
@@ -262,9 +265,9 @@ async function createGenerationForUser(userId, input) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id, user_id, provider, queue_priority, mode, model, duration, aspect_ratio, prompt, status, credits_cost)
-       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, ?, 'queued', ?)`,
-      [id, userId, planProfile.queuePriority, mode, model, duration, aspectRatio, prompt, cost],
+       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost)
+       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+      [id, userId, planProfile.queuePriority, mode, model, duration, resolution, aspectRatio, prompt, cost],
     );
 
     let position = 0;
