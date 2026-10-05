@@ -8,6 +8,9 @@ const DEFAULTS = {
   createpulse_base_url: 'https://createpulse.online',
   createpulse_api_key: '',
   createpulse_max_inflight: '3',
+  atlascloud_base_url: 'https://api.atlascloud.ai',
+  atlascloud_api_key: '',
+  atlascloud_max_inflight: '4',
   provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
@@ -95,6 +98,9 @@ async function getProviderSettings() {
     createPulseBaseUrl: normalizeUrl(read('createpulse_base_url'), DEFAULTS.createpulse_base_url),
     createPulseApiKey: String(read('createpulse_api_key') || '').trim(),
     createPulseMaxInflight: Math.max(1, Math.min(50, Number(read('createpulse_max_inflight') || 3))),
+    atlasCloudBaseUrl: normalizeUrl(read('atlascloud_base_url'), DEFAULTS.atlascloud_base_url),
+    atlasCloudApiKey: String(read('atlascloud_api_key') || '').trim(),
+    atlasCloudMaxInflight: Math.max(1, Math.min(50, Number(read('atlascloud_max_inflight') || 4))),
     routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
@@ -114,6 +120,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.createPulseApiKey),
       maxInflight: s.createPulseMaxInflight,
       configured: Boolean(s.createPulseApiKey),
+    },
+    atlascloud: {
+      baseUrl: s.atlasCloudBaseUrl,
+      apiKeyConfigured: Boolean(s.atlasCloudApiKey),
+      maxInflight: s.atlasCloudMaxInflight,
+      configured: Boolean(s.atlasCloudApiKey),
     },
     routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
@@ -135,6 +147,16 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Max inflight must be 1 to 50.');
     await put('createpulse_max_inflight', String(n));
   }
+  if ('atlasCloudBaseUrl' in input) await put('atlascloud_base_url', normalizeUrl(input.atlasCloudBaseUrl, DEFAULTS.atlascloud_base_url));
+  if (input.clearAtlasCloudApiKey === true) await del('atlascloud_api_key');
+  else if (String(input.atlasCloudApiKey || '').trim()) await put('atlascloud_api_key', String(input.atlasCloudApiKey).trim(), true);
+
+  if ('atlasCloudMaxInflight' in input) {
+    const n = Number(input.atlasCloudMaxInflight);
+    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Atlas Cloud max inflight must be 1 to 50.');
+    await put('atlascloud_max_inflight', String(n));
+  }
+
   if ('routing' in input) {
     const routing = String(input.routing || '');
     if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
@@ -161,6 +183,9 @@ async function migrateLegacyProviderEnvSettings() {
   plain('createpulse_base_url', 'CREATEPULSE_BASE_URL');
   secret('createpulse_api_key', 'CREATEPULSE_API_KEY');
   plain('createpulse_max_inflight', 'CREATEPULSE_MAX_INFLIGHT');
+  plain('atlascloud_base_url', 'ATLASCLOUD_BASE_URL');
+  secret('atlascloud_api_key', 'ATLASCLOUD_API_KEY');
+  plain('atlascloud_max_inflight', 'ATLASCLOUD_MAX_INFLIGHT');
   plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
