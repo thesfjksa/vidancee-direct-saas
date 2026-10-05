@@ -278,7 +278,7 @@ async function listUserGenerations(userId, limit = 50) {
   const db = getPool();
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 50));
   const [rows] = await db.query(
-    'SELECT * FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT ' + safeLimit,
+    "SELECT * FROM generations WHERE user_id = ? AND media_type='video' ORDER BY created_at DESC LIMIT " + safeLimit,
     [userId],
   );
   return rows.map(serializeGeneration);
@@ -287,7 +287,7 @@ async function listUserGenerations(userId, limit = 50) {
 async function getUserGeneration(userId, id) {
   const db = getPool();
   const [rows] = await db.execute(
-    'SELECT * FROM generations WHERE id = ? AND user_id = ? LIMIT 1',
+    "SELECT * FROM generations WHERE id = ? AND user_id = ? AND media_type='video' LIMIT 1",
     [id, userId],
   );
   return rows[0] || null;
@@ -334,7 +334,7 @@ async function deleteUserGeneration(userId, generationId) {
     await conn.beginTransaction();
 
     const [rows] = await conn.execute(
-      'SELECT id, user_id, status FROM generations WHERE id = ? AND user_id = ? FOR UPDATE',
+      "SELECT id, user_id, status FROM generations WHERE id = ? AND user_id = ? AND media_type='video' FOR UPDATE",
       [generationId, userId],
     );
     const row = rows[0];
