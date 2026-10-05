@@ -240,3 +240,17 @@
 - Enabled decimal Admin credit adjustments.
 
 - Added v1/v2 endpoint compatibility fallback for the vgenv Video resource.
+
+## 2026-10-05 — Add Basic, Pro and Premium plans
+
+- Added Basic at PKR 1,500/month with 500 credits.
+- Added Pro at PKR 4,500/month with 1,500 credits.
+- Added Premium at PKR 12,000/month with 4,000 credits.
+- Added customer Plans page and plan request flow.
+- Added Admin Plans tab for manual payment verification/approval.
+- Plan approval grants the included credits and writes a plan_credit ledger transaction.
+- Added users.plan_code and plan_requests persistence.
+- Added plan concurrency limits: 2 / 3 / 5 active generations.
+- Added plan queue priorities and priority-aware worker ordering.
+- Unsubscribed users retain a one-generation concurrency limit.
+- Kept the existing universal 2.5× model-cost rule separate from plan pricing.
