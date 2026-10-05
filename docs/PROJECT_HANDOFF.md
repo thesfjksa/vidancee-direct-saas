@@ -795,3 +795,16 @@ Customer generation cards now include three practical actions:
 - **Delete** — shown for terminal generations (completed, failed, submit_error). The backend refuses deletion while a generation is still queued/submitting/submitted/processing.
 
 Deletion is ownership-scoped through `DELETE /api/generations/:id`. Deleting a generation removes it from the user's library; linked credit transaction history is preserved because the database foreign key sets its generation reference to NULL. Deletion does not create a refund.
+
+
+## Admin generations response hardening — 2026-10-05
+
+An Admin → Generations screen could show "Invalid server response" when the browser received a non-JSON upstream/hosting error page instead of the expected API JSON.
+
+Hardening added:
+- Admin API client now reads the raw response first and reports HTTP status plus a short sanitized response preview when JSON parsing fails.
+- `/admin/generations` now selects only the generation fields it actually needs rather than `g.*`.
+- database startup now idempotently verifies/adds key generation columns used by the current multi-provider schema (`provider`, `provider_job_id`, `mode`, `poster_url`, `provider_cost`, `provider_cost_unit`).
+- fixed the server import for `deleteUserGeneration` used by the customer generation delete route.
+
+This makes schema upgrades from earlier project milestones safer and makes future Hostinger/Node errors visible in the Admin UI instead of the generic "Invalid server response" message.
