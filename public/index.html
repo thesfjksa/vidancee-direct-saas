@@ -132,6 +132,10 @@ button{cursor:pointer}
   transition:.16s
 }
 .ref-drop:hover{border-color:#59602c;background:#111310}
+.ref-drop.drag-over{
+  border-color:var(--accent);background:rgba(215,255,63,.045);
+  box-shadow:0 0 0 3px rgba(215,255,63,.045) inset
+}
 .ref-icon{
   width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
   background:#1b1d20;border:1px solid #2b2e34;margin:0 auto 8px
@@ -139,22 +143,42 @@ button{cursor:pointer}
 .ref-drop strong{display:block;font-size:11px}
 .ref-drop span{font-size:9px;color:#6f727b}
 .image-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
-.image-chip{min-width:0;position:relative}
+.image-chip{
+  min-width:0;position:relative;border-radius:8px;
+  cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s
+}
+.image-chip:active{cursor:grabbing}
+.image-chip.dragging{opacity:.42;transform:scale(.97)}
+.image-chip.drag-target{
+  box-shadow:0 0 0 2px var(--accent);
+  background:rgba(215,255,63,.04)
+}
 .image-chip img{
-  width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid #2a2d33
+  width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid #2a2d33;
+  display:block;pointer-events:none
 }
 .image-chip .image-name{font-size:8px;color:#6c6f77;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 .image-chip .reused-tag{
   position:absolute;left:5px;top:5px;padding:3px 5px;border-radius:999px;
   background:rgba(10,10,11,.82);border:1px solid rgba(215,255,63,.28);
-  color:var(--accent);font-size:7px;font-weight:750;text-transform:uppercase;letter-spacing:.04em
+  color:var(--accent);font-size:7px;font-weight:750;text-transform:uppercase;letter-spacing:.04em;
+  pointer-events:none
 }
 .image-chip .remove-reference{
   position:absolute;right:5px;top:5px;width:20px;height:20px;padding:0;border:1px solid #44474f;
-  border-radius:50%;background:rgba(10,10,11,.86);color:#fff;display:grid;place-items:center;
-  font-size:12px;line-height:1
+  border-radius:50%;background:rgba(10,10,11,.90);color:#fff;display:grid;place-items:center;
+  font-size:12px;line-height:1;z-index:3;cursor:pointer
 }
 .image-chip .remove-reference:hover{border-color:#6b3439;color:#ff929c;background:#211316}
+.image-chip .drag-reference{
+  position:absolute;right:5px;bottom:20px;width:20px;height:20px;padding:0;border:1px solid #383b42;
+  border-radius:6px;background:rgba(10,10,11,.82);color:#a7aab2;display:grid;place-items:center;
+  font-size:11px;line-height:1;z-index:2;cursor:grab;touch-action:none
+}
+.image-chip .drag-reference:active{cursor:grabbing;color:var(--accent);border-color:#626936}
+.image-order-hint{
+  grid-column:1/-1;font-size:8px;color:#61646d;margin-top:1px;
+}
 
 label.meta{
   display:block;font-size:9px;color:#6c6f78;text-transform:uppercase;letter-spacing:.08em;
@@ -495,13 +519,13 @@ textarea::placeholder,input::placeholder{color:#555860}
             <div class="block">
               <div class="block-title">Reference images</div>
               <input id="imageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="previewImages()">
-              <label class="ref-drop" for="imageInput">
+              <label id="refDrop" class="ref-drop" for="imageInput">
                 <div>
                   <div class="ref-icon">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
                   </div>
                   <strong>Add visual references</strong>
-                  <span>Optional · up to 6 images</span>
+                  <span>Optional · up to 6 images · drag files here</span>
                 </div>
               </label>
               <div id="imagePreview" class="image-preview"></div>
@@ -620,7 +644,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
-let reusedReferenceGenerationId=null,reusedReferenceImages=[];
+let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -670,6 +694,7 @@ function enterApp(){
   $('shell').classList.remove('hide');
   syncUser();
   renderConfig();
+  setupReferenceDrop();
   go('create');
   loadAll();
   clearInterval(poll);
@@ -851,44 +876,205 @@ function updateCost(){
   syncCustomSelect('duration');
 }
 
-function renderReferencePreview(){
-  const fresh=[...$('imageInput').files];
-  const reusedHtml=reusedReferenceImages.map(image=>
-    '<div class="image-chip">'+
-      '<img src="'+escapeHtml(image.url)+'" alt="'+escapeHtml(image.filename||'Reference image')+'">'+
-      '<span class="reused-tag">Reused</span>'+
-      '<button type="button" class="remove-reference" onclick="removeReusedReference('+Number(image.id)+',event)" title="Remove reference image">×</button>'+
-      '<div class="image-name">'+escapeHtml(image.filename||'Reference image')+'</div>'+
-    '</div>'
-  ).join('');
-
-  const freshHtml=fresh.map(file=>
-    '<div class="image-chip"><img src="'+URL.createObjectURL(file)+'" alt="'+escapeHtml(file.name)+'"><div class="image-name">'+escapeHtml(file.name)+'</div></div>'
-  ).join('');
-
-  $('imagePreview').innerHTML=reusedHtml+freshHtml;
-  const total=reusedReferenceImages.length+fresh.length;
-  if(total>6){
-    $('genMsg').className='msg err';
-    $('genMsg').textContent='Maximum 6 reference images are allowed in total.';
+function clearReferenceItems(){
+  for(const item of referenceItems){
+    if(item.kind==='fresh' && item.url)URL.revokeObjectURL(item.url);
   }
+  referenceItems=[];
+  reusedReferenceGenerationId=null;
+  draggedReferenceKey=null;
+  $('imageInput').value='';
+  $('imagePreview').innerHTML='';
 }
 
-function removeReusedReference(imageId,event){
-  if(event)event.stopPropagation();
-  reusedReferenceImages=reusedReferenceImages.filter(image=>Number(image.id)!==Number(imageId));
-  if(!reusedReferenceImages.length)reusedReferenceGenerationId=null;
+function freshReferenceItem(file){
+  return {
+    key:'fresh-'+(++referenceItemSeq),
+    kind:'fresh',
+    file,
+    filename:file.name||'reference-image',
+    url:URL.createObjectURL(file),
+  };
+}
+
+function reusedReferenceItem(image){
+  return {
+    key:'reused-'+Number(image.id),
+    kind:'reused',
+    id:Number(image.id),
+    filename:image.filename||'Reference image',
+    url:image.url,
+  };
+}
+
+function addReferenceFiles(fileList){
+  const incoming=[...fileList].filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
+  const invalid=[...fileList].length-incoming.length;
+  const slots=Math.max(0,6-referenceItems.length);
+  const accepted=incoming.slice(0,slots);
+
+  referenceItems.push(...accepted.map(freshReferenceItem));
+  $('imageInput').value='';
   renderReferencePreview();
-  if(reusedReferenceImages.length+[...$('imageInput').files].length<=6){
-    $('genMsg').textContent='';
+
+  if(invalid>0){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='Reference images must be JPEG, PNG, or WebP.';
+  }else if(incoming.length>slots){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='Maximum 6 reference images are allowed.';
+  }else{
+    $('genMsg').className='msg muted';
+    $('genMsg').textContent=referenceItems.length>1?'Drag thumbnails to change their order.':'';
   }
 }
+
+function renderReferencePreview(){
+  $('imagePreview').innerHTML=referenceItems.map(item=>
+    '<div class="image-chip" draggable="true" data-reference-key="'+escapeHtml(item.key)+'" '+
+      'ondragstart="referenceDragStart(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondragover="referenceDragOver(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondragleave="referenceDragLeave(event)" '+
+      'ondrop="referenceDrop(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondragend="referenceDragEnd(event)">'+
+      '<img src="'+escapeHtml(item.url)+'" alt="'+escapeHtml(item.filename)+'">'+
+      (item.kind==='reused'?'<span class="reused-tag">Reused</span>':'')+
+      '<button type="button" class="remove-reference" onclick="removeReferenceItem(\''+escapeHtml(item.key)+'\',event)" title="Remove reference image" aria-label="Remove reference image">×</button>'+
+      '<button type="button" class="drag-reference" onpointerdown="referencePointerStart(event,\''+escapeHtml(item.key)+'\')" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</button>'+
+      '<div class="image-name">'+escapeHtml(item.filename)+'</div>'+
+    '</div>'
+  ).join('')+(referenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to set the reference-image order.</div>':'');
+
+  if(!referenceItems.some(item=>item.kind==='reused'))reusedReferenceGenerationId=null;
+}
+
+function removeReferenceItem(key,event){
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const index=referenceItems.findIndex(item=>item.key===key);
+  if(index<0)return;
+  const [removed]=referenceItems.splice(index,1);
+  if(removed.kind==='fresh' && removed.url)URL.revokeObjectURL(removed.url);
+  renderReferencePreview();
+  $('genMsg').className='msg muted';
+  $('genMsg').textContent=referenceItems.length>1?'Drag thumbnails to change their order.':'';
+}
+
+function moveReferenceItem(sourceKey,targetKey,after=false){
+  if(!sourceKey||!targetKey||sourceKey===targetKey)return;
+  const sourceIndex=referenceItems.findIndex(item=>item.key===sourceKey);
+  const targetIndex=referenceItems.findIndex(item=>item.key===targetKey);
+  if(sourceIndex<0||targetIndex<0)return;
+
+  const [item]=referenceItems.splice(sourceIndex,1);
+  let insertIndex=referenceItems.findIndex(candidate=>candidate.key===targetKey);
+  if(insertIndex<0)insertIndex=referenceItems.length;
+  if(after)insertIndex+=1;
+  referenceItems.splice(Math.min(insertIndex,referenceItems.length),0,item);
+  renderReferencePreview();
+}
+
+function clearReferenceDragClasses(){
+  document.querySelectorAll('.image-chip.dragging,.image-chip.drag-target').forEach(el=>{
+    el.classList.remove('dragging','drag-target');
+  });
+}
+
+function referenceDragStart(event,key){
+  draggedReferenceKey=key;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('text/plain',key);
+  requestAnimationFrame(()=>event.currentTarget.classList.add('dragging'));
+}
+
+function referenceDragOver(event,key){
+  if(!draggedReferenceKey||draggedReferenceKey===key)return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect='move';
+  document.querySelectorAll('.image-chip.drag-target').forEach(el=>el.classList.remove('drag-target'));
+  event.currentTarget.classList.add('drag-target');
+}
+
+function referenceDragLeave(event){
+  event.currentTarget.classList.remove('drag-target');
+}
+
+function referenceDrop(event,key){
+  event.preventDefault();
+  const rect=event.currentTarget.getBoundingClientRect();
+  const after=event.clientX>rect.left+(rect.width/2);
+  moveReferenceItem(draggedReferenceKey||event.dataTransfer.getData('text/plain'),key,after);
+  draggedReferenceKey=null;
+  clearReferenceDragClasses();
+}
+
+function referenceDragEnd(){
+  draggedReferenceKey=null;
+  clearReferenceDragClasses();
+}
+
+let pointerReferenceDrag=null;
+function referencePointerStart(event,key){
+  if(event.pointerType==='mouse')return;
+  event.preventDefault();
+  event.stopPropagation();
+  pointerReferenceDrag={key,pointerId:event.pointerId};
+  const chip=event.currentTarget.closest('.image-chip');
+  if(chip)chip.classList.add('dragging');
+}
+
+document.addEventListener('pointermove',event=>{
+  if(!pointerReferenceDrag||event.pointerId!==pointerReferenceDrag.pointerId)return;
+  event.preventDefault();
+  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest?.('.image-chip');
+  document.querySelectorAll('.image-chip.drag-target').forEach(el=>el.classList.remove('drag-target'));
+  if(target && target.dataset.referenceKey!==pointerReferenceDrag.key)target.classList.add('drag-target');
+},{passive:false});
+
+document.addEventListener('pointerup',event=>{
+  if(!pointerReferenceDrag||event.pointerId!==pointerReferenceDrag.pointerId)return;
+  const sourceKey=pointerReferenceDrag.key;
+  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest?.('.image-chip');
+  if(target && target.dataset.referenceKey!==sourceKey){
+    const rect=target.getBoundingClientRect();
+    const after=event.clientX>rect.left+(rect.width/2);
+    moveReferenceItem(sourceKey,target.dataset.referenceKey,after);
+  }
+  pointerReferenceDrag=null;
+  clearReferenceDragClasses();
+});
 
 function previewImages(){
-  renderReferencePreview();
-  const total=reusedReferenceImages.length+[...$('imageInput').files].length;
-  if(total<=6 && !reusedReferenceImages.length){
-    $('genMsg').textContent='';
+  addReferenceFiles($('imageInput').files);
+}
+
+let referenceDropReady=false;
+function setupReferenceDrop(){
+  if(referenceDropReady)return;
+  referenceDropReady=true;
+  const drop=$('refDrop');
+  if(!drop)return;
+
+  for(const type of ['dragenter','dragover']){
+    drop.addEventListener(type,event=>{
+      if(!event.dataTransfer?.types?.includes('Files'))return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect='copy';
+      drop.classList.add('drag-over');
+    });
+  }
+
+  for(const type of ['dragleave','drop']){
+    drop.addEventListener(type,event=>{
+      if(type==='drop' && event.dataTransfer?.files?.length){
+        event.preventDefault();
+        event.stopPropagation();
+        addReferenceFiles(event.dataTransfer.files);
+      }
+      drop.classList.remove('drag-over');
+    });
   }
 }
 
@@ -1029,26 +1215,36 @@ async function createGeneration(){
   m.className='msg muted';
   m.textContent='Submitting generation...';
   try{
-    const files=[...$('imageInput').files];
-    const totalReferences=reusedReferenceImages.length+files.length;
-    if(totalReferences>6)throw new Error('Choose no more than 6 reference images in total.');
+    if(referenceItems.length>6)throw new Error('Choose no more than 6 reference images in total.');
     const form=new FormData();
     form.append('prompt',$('prompt').value);
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     form.append('aspectRatio',$('ratio').value);
-    if(reusedReferenceImages.length && reusedReferenceGenerationId){
+
+    const reused=referenceItems.filter(item=>item.kind==='reused');
+    const fresh=referenceItems.filter(item=>item.kind==='fresh');
+    if(reused.length && reusedReferenceGenerationId){
       form.append('reuseGenerationId',reusedReferenceGenerationId);
-      form.append('reuseImageIds',JSON.stringify(reusedReferenceImages.map(image=>Number(image.id))));
+      form.append('reuseImageIds',JSON.stringify(reused.map(item=>Number(item.id))));
     }
-    for(const file of files)form.append('images',file,file.name);
+
+    const freshIndexByKey=new Map();
+    fresh.forEach((item,index)=>{
+      freshIndexByKey.set(item.key,index);
+      form.append('images',item.file,item.filename);
+    });
+
+    form.append('referenceOrder',JSON.stringify(referenceItems.map(item=>
+      item.kind==='reused'
+        ?{kind:'reused',id:Number(item.id)}
+        :{kind:'fresh',index:freshIndexByKey.get(item.key)}
+    )));
+
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
     $('prompt').value='';
-    $('imageInput').value='';
-    reusedReferenceGenerationId=null;
-    reusedReferenceImages=[];
-    $('imagePreview').innerHTML='';
+    clearReferenceItems();
     m.className='msg ok';
     m.textContent='Generation queued.';
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
@@ -1102,14 +1298,15 @@ async function reuseGeneration(id){
     syncCustomSelect('model');
     syncCustomSelect('duration');
 
-    $('imageInput').value='';
-    reusedReferenceImages=Array.isArray(g.reference_images)?g.reference_images.slice(0,6):[];
-    reusedReferenceGenerationId=reusedReferenceImages.length?String(g.id):null;
+    clearReferenceItems();
+    const restored=Array.isArray(g.reference_images)?g.reference_images.slice(0,6):[];
+    referenceItems=restored.map(reusedReferenceItem);
+    reusedReferenceGenerationId=referenceItems.length?String(g.id):null;
     renderReferencePreview();
 
     $('genMsg').className='msg muted';
-    if(reusedReferenceImages.length){
-      $('genMsg').textContent='Prompt, settings, and '+reusedReferenceImages.length+' reference image'+(reusedReferenceImages.length===1?'':'s')+' reused.';
+    if(referenceItems.length){
+      $('genMsg').textContent='Prompt, settings, and '+referenceItems.length+' reference image'+(referenceItems.length===1?'':'s')+' reused. Drag to reorder or remove any image.';
     }else if(g.mode==='image-to-video'){
       $('genMsg').textContent='Prompt and settings reused. The reference images for this older generation are no longer stored, so upload them again if needed.';
     }else{
