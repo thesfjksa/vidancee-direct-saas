@@ -7,11 +7,34 @@
 <div id="loginBox" class="card login"><div class="brand">Mehroz AI Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
 <div id="adminApp" class="hide">
   <div class="top"><div><div class="brand">Mehroz AI Admin</div><div class="muted">Production control center</div></div><button class="secondary" onclick="adminLogout()">Lock admin</button></div>
-  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button></div>
+  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button></div>
 
   <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
-  <section id="users" class="section"><div class="card"><div class="top"><h2>Customer users</h2><button class="secondary" onclick="loadUsers()">Refresh</button></div><div class="row"><input id="userSearch" placeholder="Search email or ID"><select id="userStatus"><option value="">All statuses</option><option>active</option><option>disabled</option></select><button class="btn" onclick="loadUsers()">Search</button></div><div class="tablewrap"><table><thead><tr><th>ID</th><th>Email</th><th>Credits</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h3>Adjust credits</h3><div class="row"><input id="creditIdentifier" placeholder="User ID or email"><input id="creditAmount" type="number" step="0.01" placeholder="Amount (+100 or -25.5)"><input id="creditNote" placeholder="Reason"><button class="btn" onclick="adjustCredits()">Apply</button></div><div id="creditMsg" class="muted" style="margin-top:8px"></div></div></section>
+  <section id="users" class="section"><div class="card"><div class="top"><h2>Customer users</h2><button class="secondary" onclick="loadUsers()">Refresh</button></div><div class="row"><input id="userSearch" placeholder="Search email or ID"><select id="userStatus"><option value="">All statuses</option><option>active</option><option>disabled</option></select><button class="btn" onclick="loadUsers()">Search</button></div><div class="tablewrap"><table><thead><tr><th>ID</th><th>Email</th><th>Plan</th><th>Credits</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h3>Adjust credits</h3><div class="row"><input id="creditIdentifier" placeholder="User ID or email"><input id="creditAmount" type="number" step="0.01" placeholder="Amount (+100 or -25.5)"><input id="creditNote" placeholder="Reason"><button class="btn" onclick="adjustCredits()">Apply</button></div><div id="creditMsg" class="muted" style="margin-top:8px"></div></div></section>
+
+  <section id="plans" class="section">
+    <div class="card">
+      <div class="top">
+        <div><h2 style="margin:0">Plan requests</h2><div class="muted">Approve after payment is verified. Approval activates the plan and grants its included credits.</div></div>
+        <button class="secondary" onclick="loadPlanRequests()">Refresh</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <select id="planRequestStatus" onchange="loadPlanRequests()">
+          <option value="">All requests</option>
+          <option value="pending" selected>Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>User</th><th>Current plan</th><th>Requested</th><th>Price</th><th>Credits</th><th>Status</th><th>Requested at</th><th>Actions</th></tr></thead>
+          <tbody id="planRequestRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
   <section id="generations" class="section"><div class="card"><div class="top"><h2>Generations</h2><button class="secondary" onclick="loadGenerations()">Refresh</button></div><div class="row"><input id="genSearch" placeholder="Email, local ID, or provider job ID"><select id="genStatus"><option value="">All statuses</option><option>queued</option><option>submitting</option><option>submitted</option><option>processing</option><option>completed</option><option>failed</option><option>submit_error</option></select><button class="btn" onclick="loadGenerations()">Filter</button></div><div class="tablewrap"><table><thead><tr><th>User</th><th>Type</th><th>Status</th><th>Provider</th><th>Model</th><th>Duration</th><th>Credits</th><th>Provider job</th><th>Created</th><th>Prompt/Error</th></tr></thead><tbody id="generationRows"></tbody></table></div></div></section>
 
@@ -85,11 +108,45 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview()}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='credits')loadCredits();if(name==='provider'){loadProviderSettings();loadProviderConfig()}}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderSettings();loadProviderConfig()}}
 async function loadOverview(){try{const d=await api('/admin/stats');$('sUsers').textContent=d.stats.users;$('sGen').textContent=d.stats.generations;$('sActive').textContent=d.stats.active;$('sCompleted').textContent=d.stats.completed;const c=await api('/admin/config');$('systemInfo').textContent=JSON.stringify({stats:d.stats,config:c},null,2)}catch(e){$('systemInfo').textContent='ERROR: '+e.message}}
-async function loadUsers(){try{const q=encodeURIComponent($('userSearch').value.trim()),st=encodeURIComponent($('userStatus').value);const d=await api('/admin/users?q='+q+'&status='+st);$('userRows').innerHTML=d.users.length?d.users.map(u=>'<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td><strong>'+u.credits+'</strong></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></td></tr>').join(''):'<tr><td colspan="7" class="muted">No users found.</td></tr>'}catch(e){$('userRows').innerHTML='<tr><td colspan="7" class="err">'+esc(e.message)+'</td></tr>'}}
+async function loadUsers(){try{const q=encodeURIComponent($('userSearch').value.trim()),st=encodeURIComponent($('userStatus').value);const d=await api('/admin/users?q='+q+'&status='+st);$('userRows').innerHTML=d.users.length?d.users.map(u=>'<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></td></tr>').join(''):'<tr><td colspan="8" class="muted">No users found.</td></tr>'}catch(e){$('userRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>'}}
 async function toggleUser(id,status){try{await api('/admin/users/'+id,{method:'PATCH',body:JSON.stringify({status})});loadUsers()}catch(e){alert(e.message)}}
 async function adjustCredits(){const m=$('creditMsg');try{const d=await api('/admin/users/credits',{method:'POST',body:JSON.stringify({identifier:$('creditIdentifier').value.trim(),amount:Number($('creditAmount').value),note:$('creditNote').value.trim()||'Admin credit adjustment'})});m.className='ok';m.textContent='Updated '+d.user.email+' to '+d.user.credits+' credits.';loadUsers();loadOverview()}catch(e){m.className='err';m.textContent=e.message}}
+async function loadPlanRequests(){
+  const rows=$('planRequestRows');
+  if(!rows)return;
+  try{
+    const status=encodeURIComponent($('planRequestStatus').value||'');
+    const d=await api('/admin/plan-requests?status='+status);
+    rows.innerHTML=d.requests.length?d.requests.map(r=>
+      '<tr>'+
+        '<td>'+esc(r.email)+'</td>'+
+        '<td>'+esc((r.current_plan||'none').toUpperCase())+'</td>'+
+        '<td><strong>'+esc(String(r.plan_code||'').toUpperCase())+'</strong></td>'+
+        '<td>PKR '+Number(r.price_pkr||0).toLocaleString()+'</td>'+
+        '<td>'+Number(r.credits||0).toLocaleString()+'</td>'+
+        '<td><span class="badge">'+esc(r.status)+'</span></td>'+
+        '<td>'+fmt(r.created_at)+'</td>'+
+        '<td>'+(r.status==='pending'
+          ?'<button class="btn" onclick="decidePlanRequest('+r.id+',\'approve\')">Approve</button> <button class="danger" onclick="decidePlanRequest('+r.id+',\'reject\')">Reject</button>'
+          :'—')+'</td>'+
+      '</tr>'
+    ).join(''):'<tr><td colspan="8" class="muted">No plan requests found.</td></tr>';
+  }catch(e){
+    rows.innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>';
+  }
+}
+
+async function decidePlanRequest(id,action){
+  const verb=action==='approve'?'approve and grant credits to':'reject';
+  if(!confirm('Are you sure you want to '+verb+' this plan request?'))return;
+  try{
+    await api('/admin/plan-requests/'+id,{method:'POST',body:JSON.stringify({action})});
+    await Promise.all([loadPlanRequests(),loadUsers(),loadOverview(),loadCredits()]);
+  }catch(e){alert(e.message)}
+}
+
 async function loadGenerations(){try{const q=encodeURIComponent($('genSearch').value.trim()),st=encodeURIComponent($('genStatus').value);const d=await api('/admin/generations?q='+q+'&status='+st);$('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+esc(g.user_email)+'</td><td>'+esc(g.media_type||'video')+'</td><td><span class="badge">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+g.credits_cost+'</td><td>'+(g.provider_job_id||'—')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+'</td></tr>').join(''):'<tr><td colspan="10" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="10" class="err">'+esc(e.message)+'</td></tr>'}}
 async function loadCredits(){try{const d=await api('/admin/credits');$('creditRows').innerHTML=d.transactions.length?d.transactions.map(c=>'<tr><td>'+fmt(c.created_at)+'</td><td>'+esc(c.email)+'</td><td>'+(c.generation_id||'—')+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.note||'—')+'</td><td class="'+(c.amount>0?'ok':'err')+'">'+(c.amount>0?'+':'')+c.amount+'</td></tr>').join(''):'<tr><td colspan="6" class="muted">No credit activity.</td></tr>'}catch(e){}}
 async function loadProviderSettings(){try{const d=await api('/admin/provider-settings');const s=d.settings;$('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';$('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;$('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;$('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;$('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false'}catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
