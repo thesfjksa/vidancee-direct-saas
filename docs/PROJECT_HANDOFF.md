@@ -1035,8 +1035,9 @@ Customer behavior:
 
 Internal vgenv contract:
 - Base URL default: `https://api.vgenv.com`
-- Create: `POST /v1/videos`
-- Poll: `GET /v1/videos/:id`
+- Primary create path: `POST /v1/videos`
+- Primary poll path: `GET /v1/videos/:id`
+- The provider client automatically falls back to the equivalent `/v2/videos` endpoints on HTTP 404 because current vgenv public materials show both versioned forms.
 - public model ID: `minimax/h3`
 - tier: `fast`
 - resolution: `768p`
