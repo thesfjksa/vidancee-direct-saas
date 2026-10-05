@@ -11,6 +11,9 @@ const DEFAULTS = {
   atlascloud_base_url: 'https://api.atlascloud.ai',
   atlascloud_api_key: '',
   atlascloud_max_inflight: '4',
+  vgenv_base_url: 'https://api.vgenv.com',
+  vgenv_api_key: '',
+  vgenv_max_inflight: '4',
   provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
@@ -101,6 +104,9 @@ async function getProviderSettings() {
     atlasCloudBaseUrl: normalizeUrl(read('atlascloud_base_url'), DEFAULTS.atlascloud_base_url),
     atlasCloudApiKey: String(read('atlascloud_api_key') || '').trim(),
     atlasCloudMaxInflight: Math.max(1, Math.min(50, Number(read('atlascloud_max_inflight') || 4))),
+    vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
+    vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
+    vgenvMaxInflight: Math.max(1, Math.min(50, Number(read('vgenv_max_inflight') || 4))),
     routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
@@ -126,6 +132,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.atlasCloudApiKey),
       maxInflight: s.atlasCloudMaxInflight,
       configured: Boolean(s.atlasCloudApiKey),
+    },
+    vgenv: {
+      baseUrl: s.vgenvBaseUrl,
+      apiKeyConfigured: Boolean(s.vgenvApiKey),
+      maxInflight: s.vgenvMaxInflight,
+      configured: Boolean(s.vgenvApiKey),
     },
     routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
@@ -157,6 +169,16 @@ async function updateProviderSettings(input = {}) {
     await put('atlascloud_max_inflight', String(n));
   }
 
+  if ('vgenvBaseUrl' in input) await put('vgenv_base_url', normalizeUrl(input.vgenvBaseUrl, DEFAULTS.vgenv_base_url));
+  if (input.clearVgenvApiKey === true) await del('vgenv_api_key');
+  else if (String(input.vgenvApiKey || '').trim()) await put('vgenv_api_key', String(input.vgenvApiKey).trim(), true);
+
+  if ('vgenvMaxInflight' in input) {
+    const n = Number(input.vgenvMaxInflight);
+    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('vgenv max inflight must be 1 to 50.');
+    await put('vgenv_max_inflight', String(n));
+  }
+
   if ('routing' in input) {
     const routing = String(input.routing || '');
     if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
@@ -186,6 +208,9 @@ async function migrateLegacyProviderEnvSettings() {
   plain('atlascloud_base_url', 'ATLASCLOUD_BASE_URL');
   secret('atlascloud_api_key', 'ATLASCLOUD_API_KEY');
   plain('atlascloud_max_inflight', 'ATLASCLOUD_MAX_INFLIGHT');
+  plain('vgenv_base_url', 'VGENV_BASE_URL');
+  secret('vgenv_api_key', 'VGENV_API_KEY');
+  plain('vgenv_max_inflight', 'VGENV_MAX_INFLIGHT');
   plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
