@@ -517,11 +517,12 @@ textarea::placeholder,input::placeholder{color:#555860}
 </div>
 
 <div id="shell" class="hide">
-  <div class="promo"><span class="tag">NEW</span><span>Unified AI video studio — prompt or image guided, one workflow</span></div>
+  <div class="promo"><span class="tag">NEW</span><span>AI creation studio — video and image generation in one workspace</span></div>
   <header class="topnav">
     <div class="logo"><div class="logo-mark">M</div><span>Mehroz AI</span></div>
     <nav class="main-nav">
       <button class="create-tab active" data-section="create" onclick="go('create')">Create</button>
+      <button data-section="images" onclick="go('images')">Images</button>
       <button data-section="library" onclick="go('library')">Library</button>
       <button data-section="credits" onclick="go('credits')">Credits</button>
       <button data-section="account" onclick="go('account')">Account</button>
@@ -602,6 +603,63 @@ textarea::placeholder,input::placeholder{color:#555860}
       </div>
     </section>
 
+    <section id="images" class="section">
+      <div class="create-layout">
+        <aside class="creator">
+          <div class="creator-head">
+            <div><strong>Create image</strong><div class="sub">Prompt + optional reference images</div></div>
+            <div class="kicker">Atlas</div>
+          </div>
+
+          <div class="creator-scroll">
+            <div class="block">
+              <div class="block-title">Reference images</div>
+              <input id="imageGenInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addImageGenerationFiles(this.files)">
+              <label id="imageGenDrop" class="ref-drop" for="imageGenInput">
+                <div>
+                  <div class="ref-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+                  </div>
+                  <strong>Add image references</strong>
+                  <span>Optional · up to 6 images · drag files here</span>
+                </div>
+              </label>
+              <div id="imageGenPreview" class="image-preview"></div>
+            </div>
+
+            <div class="block">
+              <div class="block-title">Prompt</div>
+              <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details..."></textarea>
+
+              <label class="meta">Model</label>
+              <select id="imageModel" onchange="updateImageCost()"></select>
+
+              <label class="meta">Aspect ratio</label>
+              <select id="imageRatio"></select>
+            </div>
+          </div>
+
+          <div class="creator-footer">
+            <div class="cost-row"><span>Generation cost</span><strong><span id="imageCost">—</span> credits</strong></div>
+            <button id="generateImageBtn" class="generate" onclick="createImageGeneration()">Generate image</button>
+            <div id="imageGenMsg" class="msg muted"></div>
+          </div>
+        </aside>
+
+        <main class="canvas">
+          <div class="canvas-head">
+            <div><h1>Your images</h1><p>Atlas Cloud image generations update automatically.</p></div>
+            <div class="filters">
+              <button class="filter-btn active" onclick="setImageFilter('all',this)">All</button>
+              <button class="filter-btn" onclick="setImageFilter('completed',this)">Completed</button>
+              <button class="filter-btn" onclick="setImageFilter('active',this)">In progress</button>
+            </div>
+          </div>
+          <div id="imageGallery" class="gallery"></div>
+        </main>
+      </div>
+    </section>
+
     <section id="library" class="section">
       <div class="page">
         <div class="page-head">
@@ -617,7 +675,7 @@ textarea::placeholder,input::placeholder{color:#555860}
         <div class="page-head"><div><h1>Credits</h1><p>Balance, usage and account adjustments.</p></div></div>
         <div class="stats">
           <div class="card stat"><div class="label">Available credits</div><div class="value" id="creditBalance">0</div></div>
-          <div class="card stat"><div class="label">Total videos</div><div class="value" id="statTotal">0</div></div>
+          <div class="card stat"><div class="label">Total generations</div><div class="value" id="statTotal">0</div></div>
           <div class="card stat"><div class="label">Completed</div><div class="value" id="statCompleted">0</div></div>
           <div class="card stat"><div class="label">In progress</div><div class="value" id="statActive">0</div></div>
         </div>
@@ -663,6 +721,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
   <nav class="mobile-dock">
     <button class="active" data-section="create" onclick="go('create')">Create</button>
+    <button data-section="images" onclick="go('images')">Images</button>
     <button data-section="library" onclick="go('library')">Library</button>
     <button data-section="credits" onclick="go('credits')">Credits</button>
     <button data-section="account" onclick="go('account')">Account</button>
@@ -671,7 +730,9 @@ textarea::placeholder,input::placeholder{color:#555860}
 
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
+let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false;
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
+let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -722,13 +783,16 @@ function enterApp(){
   $('shell').classList.remove('hide');
   syncUser();
   renderConfig();
+  renderImageConfig();
   setupReferenceDrop();
+  setupImageGenerationDrop();
   go('create');
   loadAll();
   clearInterval(poll);
   poll=setInterval(()=>{
     if(document.visibilityState==='visible'){
       loadGenerations();
+      loadImageGenerations();
       loadDashboard();
     }
   },5000);
@@ -737,6 +801,7 @@ function enterApp(){
 function go(name){
   document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));
   document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
+  if(name==='images')renderImageGallery();
   if(name==='library')renderLibrary();
   if(name==='credits')loadCredits();
 }
@@ -1074,6 +1139,24 @@ document.addEventListener('pointerup',event=>{
   clearReferenceDragClasses();
 });
 
+function renderImageConfig(){
+  if(!config)return;
+  $('imageModel').innerHTML=(config.imagePricing||[]).map(m=>
+    '<option value="'+escapeHtml(m.id)+'" data-cost="'+Number(m.cost)+'">'+escapeHtml(m.label)+'</option>'
+  ).join('');
+  $('imageRatio').innerHTML=(config.imageAspectRatios||[]).map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
+  ensureCustomSelect('imageModel');
+  ensureCustomSelect('imageRatio');
+  updateImageCost();
+}
+
+function updateImageCost(){
+  const selected=$('imageModel').options[$('imageModel').selectedIndex];
+  $('imageCost').textContent=selected?selected.dataset.cost:'—';
+  syncCustomSelect('imageModel');
+  syncCustomSelect('imageRatio');
+}
+
 function previewImages(){
   addReferenceFiles($('imageInput').files);
 }
@@ -1113,7 +1196,7 @@ function setFilter(filter,button){
 }
 
 async function loadAll(){
-  await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
+  await Promise.all([loadGenerations(),loadImageGenerations(),loadDashboard(),loadCredits()]);
 }
 
 async function loadDashboard(){
@@ -1225,6 +1308,222 @@ function renderLibrary(){
     generations,
     'No generations yet.'
   );
+}
+
+function imageRefItem(file){
+  return {
+    key:'imgref-'+(++imageReferenceSeq),
+    file,
+    filename:file.name||'reference-image',
+    url:URL.createObjectURL(file),
+  };
+}
+
+function clearImageReferenceItems(){
+  for(const item of imageReferenceItems)if(item.url)URL.revokeObjectURL(item.url);
+  imageReferenceItems=[];
+  imageDraggedKey=null;
+  $('imageGenInput').value='';
+  $('imageGenPreview').innerHTML='';
+}
+
+function renderImageReferencePreview(){
+  $('imageGenPreview').innerHTML=imageReferenceItems.map(item=>
+    '<div class="image-chip" draggable="true" data-image-ref-key="'+escapeHtml(item.key)+'" '+
+      'ondragstart="imageRefDragStart(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondragover="imageRefDragOver(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondrop="imageRefDrop(event,\''+escapeHtml(item.key)+'\')" '+
+      'ondragend="imageRefDragEnd()">'+
+      '<img src="'+escapeHtml(item.url)+'" alt="'+escapeHtml(item.filename)+'">'+
+      '<button type="button" class="remove-reference" onclick="removeImageReference(\''+escapeHtml(item.key)+'\',event)" title="Remove reference image">×</button>'+
+      '<div class="image-name">'+escapeHtml(item.filename)+'</div>'+
+    '</div>'
+  ).join('')+(imageReferenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to change the reference order.</div>':'');
+}
+
+function addImageGenerationFiles(fileList){
+  const files=[...fileList];
+  const valid=files.filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
+  const slots=Math.max(0,6-imageReferenceItems.length);
+  imageReferenceItems.push(...valid.slice(0,slots).map(imageRefItem));
+  $('imageGenInput').value='';
+  renderImageReferencePreview();
+
+  const m=$('imageGenMsg');
+  if(valid.length!==files.length){
+    m.className='msg err';m.textContent='Reference images must be JPEG, PNG, or WebP.';
+  }else if(valid.length>slots){
+    m.className='msg err';m.textContent='Maximum 6 reference images are allowed.';
+  }else{
+    m.className='msg muted';m.textContent=imageReferenceItems.length>1?'Drag thumbnails to change their order.':'';
+  }
+}
+
+function removeImageReference(key,event){
+  if(event){event.preventDefault();event.stopPropagation()}
+  const index=imageReferenceItems.findIndex(item=>item.key===key);
+  if(index<0)return;
+  const [item]=imageReferenceItems.splice(index,1);
+  if(item.url)URL.revokeObjectURL(item.url);
+  renderImageReferencePreview();
+}
+
+function moveImageReference(sourceKey,targetKey,after=false){
+  if(!sourceKey||!targetKey||sourceKey===targetKey)return;
+  const sourceIndex=imageReferenceItems.findIndex(item=>item.key===sourceKey);
+  const targetIndex=imageReferenceItems.findIndex(item=>item.key===targetKey);
+  if(sourceIndex<0||targetIndex<0)return;
+  const [item]=imageReferenceItems.splice(sourceIndex,1);
+  let insert=imageReferenceItems.findIndex(candidate=>candidate.key===targetKey);
+  if(insert<0)insert=imageReferenceItems.length;
+  if(after)insert+=1;
+  imageReferenceItems.splice(Math.min(insert,imageReferenceItems.length),0,item);
+  renderImageReferencePreview();
+}
+
+function imageRefDragStart(event,key){
+  imageDraggedKey=key;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('text/plain',key);
+  requestAnimationFrame(()=>event.currentTarget.classList.add('dragging'));
+}
+function imageRefDragOver(event,key){
+  if(!imageDraggedKey||imageDraggedKey===key)return;
+  event.preventDefault();
+  event.currentTarget.classList.add('drag-target');
+}
+function imageRefDrop(event,key){
+  event.preventDefault();
+  const rect=event.currentTarget.getBoundingClientRect();
+  moveImageReference(imageDraggedKey||event.dataTransfer.getData('text/plain'),key,event.clientX>rect.left+rect.width/2);
+  imageDraggedKey=null;
+  document.querySelectorAll('#imageGenPreview .image-chip').forEach(el=>el.classList.remove('dragging','drag-target'));
+}
+function imageRefDragEnd(){
+  imageDraggedKey=null;
+  document.querySelectorAll('#imageGenPreview .image-chip').forEach(el=>el.classList.remove('dragging','drag-target'));
+}
+
+let imageDropReady=false;
+function setupImageGenerationDrop(){
+  if(imageDropReady)return;
+  imageDropReady=true;
+  const drop=$('imageGenDrop');
+  if(!drop)return;
+  for(const type of ['dragenter','dragover']){
+    drop.addEventListener(type,event=>{
+      if(!event.dataTransfer?.types?.includes('Files'))return;
+      event.preventDefault();event.dataTransfer.dropEffect='copy';drop.classList.add('drag-over');
+    });
+  }
+  drop.addEventListener('dragleave',()=>drop.classList.remove('drag-over'));
+  drop.addEventListener('drop',event=>{
+    event.preventDefault();event.stopPropagation();drop.classList.remove('drag-over');
+    if(event.dataTransfer?.files?.length)addImageGenerationFiles(event.dataTransfer.files);
+  });
+}
+
+async function createImageGeneration(){
+  const b=$('generateImageBtn'),m=$('imageGenMsg');
+  b.disabled=true;m.className='msg muted';m.textContent='Submitting image generation...';
+  try{
+    if(!config.imagePricing?.length)throw new Error('Image generation models are not configured.');
+    const form=new FormData();
+    form.append('prompt',$('imagePrompt').value);
+    form.append('model',$('imageModel').value);
+    form.append('aspectRatio',$('imageRatio').value);
+    for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
+    const d=await api('/api/image-generations',{method:'POST',body:form});
+    me=d.user;syncUser();
+    $('imagePrompt').value='';
+    clearImageReferenceItems();
+    m.className='msg ok';m.textContent='Image generation queued.';
+    await Promise.all([loadImageGenerations(),loadDashboard(),loadCredits()]);
+  }catch(e){
+    m.className='msg err';m.textContent=e.message;
+  }finally{b.disabled=false}
+}
+
+async function loadImageGenerations(){
+  if(imageGenerationLoadPending)return;
+  imageGenerationLoadPending=true;
+  try{
+    const d=await api('/api/image-generations');
+    imageGenerations=d.generations||[];
+    renderImageGallery();
+  }catch(e){
+    if(e.status===401)location.reload();
+  }finally{
+    imageGenerationLoadPending=false;
+  }
+}
+
+function filteredImageGenerations(){
+  if(imageFilter==='completed')return imageGenerations.filter(g=>g.status==='completed');
+  if(imageFilter==='active')return imageGenerations.filter(g=>['queued','submitting','submitted','processing'].includes(g.status));
+  return imageGenerations;
+}
+
+function setImageFilter(filter,button){
+  imageFilter=filter;
+  const section=$('images');
+  section.querySelectorAll('.filter-btn').forEach(x=>x.classList.toggle('active',x===button));
+  renderImageGallery();
+}
+
+function renderImageGallery(){
+  const container=$('imageGallery');
+  if(!container)return;
+  const list=filteredImageGenerations();
+  container.innerHTML=list.length?list.map(imageGenerationCard).join(''):'<div class="empty">Your generated images will appear here.</div>';
+}
+
+function imageGenerationCard(g){
+  const aspect=aspectValue(g.aspect_ratio);
+  const media=g.has_image
+    ?'<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+escapeHtml(g.image_url)+'" alt="Generated image" loading="lazy"></div>'
+    :'<div class="job-media job-placeholder" style="aspect-ratio:'+aspect+'">'+
+      (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
+      '</div>';
+
+  const download=g.has_image
+    ?'<button type="button" class="job-action download" onclick="downloadImageGeneration(\''+escapeHtml(g.id)+'\')">Download</button>'
+    :'';
+  const del=['completed','failed','submit_error'].includes(g.status)
+    ?'<button type="button" class="job-action delete" onclick="deleteImageGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>'
+    :'';
+
+  return '<article class="job">'+media+
+    '<div class="job-body">'+
+      '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
+      '<div class="job-title">'+escapeHtml(imageModelLabel(g.model))+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,180))+'</p>'+
+      (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
+      '<div class="job-actions">'+download+del+'</div>'+
+    '</div></article>';
+}
+
+function imageModelLabel(id){
+  return config?.imagePricing?.find(model=>model.id===id)?.label||id;
+}
+
+function downloadImageGeneration(id){
+  const g=imageGenerations.find(item=>String(item.id)===String(id));
+  if(!g?.image_url)return;
+  const a=document.createElement('a');
+  a.href=g.image_url;
+  a.download='mehroz-ai-image-'+String(id).slice(0,8)+'.jpg';
+  a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+}
+
+async function deleteImageGeneration(id){
+  if(!window.confirm('Delete this generated image? This cannot be undone.'))return;
+  try{
+    await api('/api/image-generations/'+encodeURIComponent(id),{method:'DELETE'});
+    imageGenerations=imageGenerations.filter(item=>String(item.id)!==String(id));
+    renderImageGallery();
+    await loadDashboard();
+  }catch(e){window.alert(e.message)}
 }
 
 async function loadCredits(){
