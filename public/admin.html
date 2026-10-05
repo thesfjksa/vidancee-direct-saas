@@ -54,7 +54,19 @@
 </div></div>
 <script>
 const $=id=>document.getElementById(id);let token=sessionStorage.getItem('mehroz_admin_token')||'';
-async function api(path,options={}){const headers=Object.assign({'x-admin-token':token},options.headers||{});if(options.body&&!headers['content-type'])headers['content-type']='application/json';const r=await fetch(path,Object.assign({},options,{headers}));const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d}
+async function api(path,options={}){
+  const headers=Object.assign({'x-admin-token':token},options.headers||{});
+  if(options.body&&!headers['content-type'])headers['content-type']='application/json';
+  const r=await fetch(path,Object.assign({},options,{headers}));
+  const raw=await r.text();
+  let d=null;
+  try{d=raw?JSON.parse(raw):{}}catch{
+    const clean=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+    throw new Error('Server returned non-JSON response (HTTP '+r.status+')'+(clean?': '+clean:''));
+  }
+  if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
+  return d;
+}
 async function adminLogin(){token=$('tokenInput').value.trim();try{await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview()}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
 function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='credits')loadCredits();if(name==='provider'){loadProviderSettings();loadProviderConfig()}}
