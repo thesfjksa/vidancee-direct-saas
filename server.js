@@ -12,7 +12,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier } = require('./src/billing.js');
+const { creditMultiplier, roundCredits } = require('./src/billing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
@@ -698,8 +698,8 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='POST' && creditMatch) {
         requireDatabase();
         const body=await readJson(req);
-        const amount=Number(body.amount);
-        if (!Number.isInteger(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero integer'});
+        const amount=roundCredits(Number(body.amount));
+        if (!Number.isFinite(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero number'});
         const db=getPool(); const conn=await db.getConnection();
         try {
           await conn.beginTransaction();
