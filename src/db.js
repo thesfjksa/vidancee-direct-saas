@@ -133,20 +133,29 @@ async function initDb() {
     await db.query(sql);
   }
 
-  const [providerJobColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_job_id'");
-  if (providerJobColumn[0] && !/varchar/i.test(String(providerJobColumn[0].Type || ''))) {
+  async function ensureGenerationColumn(name, definition) {
+    const [columns] = await db.query("SHOW COLUMNS FROM generations LIKE ?", [name]);
+    if (!columns.length) {
+      await db.query("ALTER TABLE generations ADD COLUMN " + definition);
+    }
+    return columns[0] || null;
+  }
+
+  await ensureGenerationColumn('provider', "provider VARCHAR(40) NOT NULL DEFAULT 'vidancee' AFTER user_id");
+  const providerJobColumn = await ensureGenerationColumn('provider_job_id', "provider_job_id VARCHAR(191) NULL AFTER provider");
+  if (providerJobColumn && !/varchar/i.test(String(providerJobColumn.Type || ''))) {
     await db.query("ALTER TABLE generations MODIFY provider_job_id VARCHAR(191) NULL");
   }
 
-  const [providerCostColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_cost'");
-  if (providerCostColumn[0] && !/decimal/i.test(String(providerCostColumn[0].Type || ''))) {
+  await ensureGenerationColumn('mode', "mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video' AFTER provider_job_id");
+  await ensureGenerationColumn('poster_url', "poster_url TEXT NULL AFTER output_url");
+
+  const providerCostColumn = await ensureGenerationColumn('provider_cost', "provider_cost DECIMAL(12,4) NULL AFTER credits_cost");
+  if (providerCostColumn && !/decimal/i.test(String(providerCostColumn.Type || ''))) {
     await db.query("ALTER TABLE generations MODIFY provider_cost DECIMAL(12,4) NULL");
   }
 
-  const [costUnitColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'provider_cost_unit'");
-  if (!costUnitColumn.length) {
-    await db.query("ALTER TABLE generations ADD COLUMN provider_cost_unit VARCHAR(20) NULL AFTER provider_cost");
-  }
+  await ensureGenerationColumn('provider_cost_unit', "provider_cost_unit VARCHAR(20) NULL AFTER provider_cost");
 
   initialized = true;
   return true;
