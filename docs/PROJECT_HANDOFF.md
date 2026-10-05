@@ -1129,3 +1129,105 @@ Updated major files:
 - `src/generations.js`
 - `server.js`
 - `public/admin.html`
+
+
+## Customer plans + manual fulfillment workflow — 2026-10-05
+
+Mehroz AI now has three customer plans built into the SaaS:
+
+| Plan | Price | Included credits | Simultaneous generations | Queue priority |
+| --- | ---: | ---: | ---: | --- |
+| Basic | PKR 1,500/month | 500 | 2 | Standard |
+| Pro | PKR 4,500/month | 1,500 | 3 | Priority |
+| Premium | PKR 12,000/month | 4,000 | 5 | Highest |
+
+### Customer UX
+
+A new **Plans** navigation section shows the three plan cards, current plan, pending purchase request, included credits, concurrency level, and plan features.
+
+Customers can request a plan from the Plans page. Until a payment gateway is integrated, plan fulfillment is intentionally manual:
+
+1. customer chooses a plan
+2. a pending plan request is stored in MySQL
+3. Admin verifies payment outside the app
+4. Admin approves the request
+5. the selected plan becomes active
+6. the plan's included credits are added to the user's existing credit balance
+7. a `plan_credit` ledger entry is created
+
+Renewing the same plan is supported by submitting another request after the previous request has been decided.
+
+### Admin workflow
+
+The private Admin dashboard now has a **Plans** tab.
+
+Admin can:
+- filter plan requests
+- see user/current plan/requested plan/price/credits
+- approve a pending request
+- reject a pending request
+
+Approval is transactional: user plan assignment, credit grant, ledger entry, and request decision are committed together.
+
+### Plan-aware runtime limits
+
+Generation concurrency is enforced across both image and video jobs.
+
+- no paid plan: 1 active generation
+- Basic: 2
+- Pro: 3
+- Premium: 5
+
+Active means any generation in:
+- queued
+- submitting
+- submitted
+- processing
+
+Queue priority is also persisted per generation:
+
+- no paid plan: 0
+- Basic: 10
+- Pro: 20
+- Premium: 30
+
+Both the image and video workers now select queued work with:
+
+`ORDER BY queue_priority DESC, created_at ASC`
+
+So higher plans receive their promised queue preference without changing provider identity or routing.
+
+### Database additions
+
+`users.plan_code VARCHAR(20) NULL`
+
+`generations.queue_priority INT NOT NULL DEFAULT 0`
+
+New table:
+
+`plan_requests`
+
+It stores:
+- user
+- plan code
+- PKR price snapshot
+- credit snapshot
+- concurrency snapshot
+- request status
+- created/updated/decided timestamps
+
+### Plan APIs
+
+Customer:
+- `GET /api/plan-status`
+- `POST /api/plan-requests`
+
+Admin:
+- `GET /admin/plan-requests?status=...`
+- `POST /admin/plan-requests/:id` with `approve` or `reject`
+
+Plan definitions live in `src/plans.js`.
+
+### Billing relationship
+
+The plan prices sell the customer credit pool. Model generation costs still use the existing universal source-cost × 2.5 customer-credit rule. The plan layer does not apply a second markup to model consumption.
