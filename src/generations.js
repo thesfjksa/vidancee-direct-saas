@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio } = require('./pricing.js');
 
 function serializeGeneration(row) {
@@ -141,7 +142,7 @@ async function createGenerationForUser(userId, input) {
     await conn.beginTransaction();
 
     const [users] = await conn.execute(
-      "SELECT id, credits, status FROM users WHERE id = ? FOR UPDATE",
+      "SELECT id, credits, status, plan_code FROM users WHERE id = ? FOR UPDATE",
       [userId],
     );
     const user = users[0];
@@ -153,6 +154,21 @@ async function createGenerationForUser(userId, input) {
     if (Number(user.credits) < cost) {
       const error = new Error('Not enough credits.');
       error.statusCode = 402;
+      throw error;
+    }
+
+    const planProfile = getPlanProfile(user.plan_code);
+    const [[activeRow]] = await conn.execute(
+      "SELECT COUNT(*) AS total FROM generations WHERE user_id=? AND status IN ('queued','submitting','submitted','processing')",
+      [userId],
+    );
+    if (Number(activeRow?.total || 0) >= planProfile.concurrency) {
+      const error = new Error(
+        planProfile.code
+          ? planProfile.name + ' allows up to ' + planProfile.concurrency + ' simultaneous generations.'
+          : 'Choose a plan to run more than one generation at a time.'
+      );
+      error.statusCode = 429;
       throw error;
     }
 
@@ -246,9 +262,9 @@ async function createGenerationForUser(userId, input) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id, user_id, provider, mode, model, duration, aspect_ratio, prompt, status, credits_cost)
-       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, 'queued', ?)`,
-      [id, userId, mode, model, duration, aspectRatio, prompt, cost],
+       (id, user_id, provider, queue_priority, mode, model, duration, aspect_ratio, prompt, status, credits_cost)
+       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+      [id, userId, planProfile.queuePriority, mode, model, duration, aspectRatio, prompt, cost],
     );
 
     let position = 0;
