@@ -1015,3 +1015,116 @@ Optional ENV overrides:
 - `PRICE_IMAGE_NANO_BANANA_2`
 
 These are customer-facing credit prices, not Atlas Cloud billing values.
+
+
+## vgenv MiniMax H3 + universal 2.5× pricing rule — 2026-10-05
+
+### MiniMax H3 video integration
+
+Mehroz AI now includes customer-facing **MiniMax H3** video generation backed privately by **vgenv**.
+
+Customer behavior:
+- MiniMax H3 appears as a normal model in the existing Create video model selector.
+- Provider identity remains hidden from customers.
+- supported duration options are every integer from **4 through 15 seconds**
+- public app aspect ratios remain the shared set: 9:16, 16:9, 1:1, 4:3
+- prompt-only jobs are sent as text-to-video
+- prompt + reference images are sent as ordered reference-image video generation
+- the existing app limit stays at 6 reference images
+- H3 references are limited to 5 MB each to stay inside the vgenv public input contract used by this integration
+
+Internal vgenv contract:
+- Base URL default: `https://api.vgenv.com`
+- Create: `POST /v1/videos`
+- Poll: `GET /v1/videos/:id`
+- public model ID: `minimax/h3`
+- tier: `fast`
+- resolution: `768p`
+- create calls use an idempotency key based on the local generation UUID
+- completed jobs store the returned signed output URL in `generations.output_url`
+- the provider quote snapshot is stored in `provider_cost` with `provider_cost_unit='usd'`
+- failed/cancelled jobs refund customer credits
+
+The active worker routes `model='minimax_h3'` exclusively to vgenv. Existing Seedance jobs continue to use the Vidancee/CreatePulse routing policy. vgenv has its own configurable local inflight cap.
+
+### Admin-managed vgenv settings
+
+`/admin-console` -> **Provider** now includes a MiniMax H3/vgenv card with:
+- Base URL
+- encrypted API key
+- Max inflight H3 jobs
+
+Settings keys:
+- `vgenv_base_url`
+- `vgenv_api_key`
+- `vgenv_max_inflight`
+
+Legacy environment migration is supported for:
+- `VGENV_BASE_URL`
+- `VGENV_API_KEY`
+- `VGENV_MAX_INFLIGHT`
+
+The customer config hides MiniMax H3 until the vgenv API key is configured, and the generation POST route also refuses H3 submission if the backend is not configured.
+
+### Universal 2.5× customer-credit rule
+
+All model pricing now passes through one shared billing rule:
+
+`customer credits = source billing units × 2.5`
+
+The default multiplier is implemented centrally in `src/billing.js` and can be overridden with:
+
+`CUSTOMER_CREDIT_MULTIPLIER=2.5`
+
+This multiplier is applied to:
+- Seedance 2.5
+- Seedance 2.0 Fast
+- MiniMax H3
+- Seedream 5.0 Lite
+- Nano Banana 2
+- future models that use the shared billing helper
+
+Existing `PRICE_SEEDANCE_*` and `PRICE_IMAGE_*` values are now treated as **source-site billing units before markup**, not final customer prices.
+
+Examples with the current defaults:
+- Seedance 2.5 10s: source 6 -> customer 15 credits
+- Seedance 2.5 15s: source 9 -> customer 22.5 credits
+- Seedance 2.0 Fast 10s: source 5 -> customer 12.5 credits
+- Seedream 5.0 Lite: source 2 -> customer 5 credits
+- Nano Banana 2: source 3 -> customer 7.5 credits
+
+For vgenv H3, the current Fast 768p public rate is represented internally in source-cent units:
+- source rate default: 0.3 source units/sec (= $0.003/sec)
+- customer rate at 2.5×: 0.75 credits/sec
+- 5s = 3.75 credits
+- 10s = 7.5 credits
+- 15s = 11.25 credits
+
+The H3 source-unit rate can be changed with:
+`SOURCE_MINIMAX_H3_FAST_768P_CREDITS_PER_SECOND`
+
+### Fractional-credit migration
+
+Because a strict 2.5× multiplier produces half/quarter-credit values, credit storage now supports decimals.
+
+Database types are migrated idempotently to:
+- `users.credits DECIMAL(12,2)`
+- `generations.credits_cost DECIMAL(12,2)`
+- `credit_transactions.amount DECIMAL(12,2)`
+
+Admin credit adjustments also accept decimal values.
+
+### New implementation files
+
+- `src/billing.js` — universal customer-credit multiplier
+- `src/provider/vgenv.js` — vgenv MiniMax H3 client
+
+Updated major files:
+- `src/pricing.js`
+- `src/image_pricing.js`
+- `src/settings.js`
+- `src/worker_admin_settings.js`
+- `src/db.js`
+- `src/generations.js`
+- `server.js`
+- `public/admin.html`
