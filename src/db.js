@@ -81,6 +81,7 @@ async function initDb() {
       mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video',
       model VARCHAR(80) NOT NULL,
       duration INT NOT NULL,
+      resolution VARCHAR(20) NULL,
       aspect_ratio VARCHAR(20) NOT NULL,
       prompt TEXT NOT NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'queued',
@@ -174,7 +175,8 @@ async function initDb() {
     await db.query("ALTER TABLE generations MODIFY provider_job_id VARCHAR(191) NULL");
   }
 
-  await ensureGenerationColumn('mode', "mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video' AFTER provider_job_id");
+  await ensureGenerationColumn('mode', "mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video' AFTER queue_priority");
+  await ensureGenerationColumn('resolution', "resolution VARCHAR(20) NULL AFTER duration");
   await ensureGenerationColumn('poster_url', "poster_url TEXT NULL AFTER output_url");
 
   const providerCostColumn = await ensureGenerationColumn('provider_cost', "provider_cost DECIMAL(12,4) NULL AFTER credits_cost");
