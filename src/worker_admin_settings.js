@@ -2,6 +2,7 @@ const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
 const { AtlasCloudClient } = require('./provider/atlascloud.js');
+const { VgenvClient } = require('./provider/vgenv.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
@@ -18,12 +19,15 @@ class GenerationWorker {
     this.vidancee = null;
     this.createPulse = null;
     this.atlasCloud = null;
+    this.vgenv = null;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
     this.atlasCloudFingerprint = '';
+    this.vgenvFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
     this.createPulseMaxInflight = 3;
     this.atlasCloudMaxInflight = 4;
+    this.vgenvMaxInflight = 4;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
   }
@@ -57,6 +61,7 @@ class GenerationWorker {
     this.routing = settings.routing;
     this.createPulseMaxInflight = settings.createPulseMaxInflight;
     this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
+    this.vgenvMaxInflight = settings.vgenvMaxInflight;
     this.allowProviderCharges = settings.allowProviderCharges;
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
@@ -89,6 +94,17 @@ class GenerationWorker {
         ? new AtlasCloudClient({
             baseUrl: settings.atlasCloudBaseUrl,
             apiKey: settings.atlasCloudApiKey,
+          })
+        : null;
+    }
+
+    const vgenvFingerprint = JSON.stringify([settings.vgenvBaseUrl, settings.vgenvApiKey]);
+    if (vgenvFingerprint !== this.vgenvFingerprint) {
+      this.vgenvFingerprint = vgenvFingerprint;
+      this.vgenv = settings.vgenvApiKey
+        ? new VgenvClient({
+            baseUrl: settings.vgenvBaseUrl,
+            apiKey: settings.vgenvApiKey,
           })
         : null;
     }
@@ -159,6 +175,42 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error('Overflow provider status sync failed for', row.id, error.message);
+      }
+    }
+  }
+
+  async syncVgenv(db) {
+    if (!this.vgenv) return;
+
+    const [rows] = await db.query(
+      "SELECT * FROM generations WHERE media_type='video' AND provider='vgenv' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
+    );
+
+    for (const row of rows) {
+      try {
+        const video = await this.vgenv.getVideo(row.provider_job_id);
+        if (video.status === 'succeeded') {
+          if (!video.outputUrl) throw new Error('vgenv succeeded without an output URL.');
+          await db.execute(
+            "UPDATE generations SET status='completed', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='usd', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [video.price, video.outputUrl, row.id]
+          );
+        } else if (video.status === 'failed' || video.status === 'cancelled') {
+          await refundGeneration(
+            row.id,
+            'failed',
+            video.error || 'Generation failed during processing. Credits were refunded.',
+            video.price
+          );
+          await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
+        } else {
+          await db.execute(
+            "UPDATE generations SET status='processing', provider_cost=COALESCE(?,provider_cost), provider_cost_unit=CASE WHEN ? IS NULL THEN provider_cost_unit ELSE 'usd' END, started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [video.price, video.price, row.id]
+          );
+        }
+      } catch (error) {
+        console.error('vgenv status sync failed for', row.id, error.message);
       }
     }
   }
@@ -251,7 +303,10 @@ class GenerationWorker {
     return Number(row?.total || 0);
   }
 
-  chooseProvider(job, imageCount, vidSlots, cpSlots) {
+  chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots) {
+    if (job.model === 'minimax_h3') {
+      return this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
+    }
     const cpEligible = this.createPulse && cpSlots > 0 && this.createPulse.supports({
       model: job.model,
       duration: Number(job.duration),
@@ -312,6 +367,38 @@ class GenerationWorker {
     );
   }
 
+  async submitVgenv(db, job, imageCount) {
+    if (!this.vgenv) throw new Error('MiniMax H3 provider is not configured.');
+    if (Number(job.duration) < 4 || Number(job.duration) > 15 || !Number.isInteger(Number(job.duration))) {
+      throw new Error('MiniMax H3 duration must be an integer from 4 to 15 seconds.');
+    }
+
+    let referenceImageUrls = [];
+    if (job.mode === 'image-to-video') {
+      if (imageCount < 1 || imageCount > 6) {
+        throw new Error('MiniMax H3 supports 1 to 6 reference images in this app.');
+      }
+      const [images] = await db.execute(
+        'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
+        [job.id]
+      );
+      referenceImageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
+    }
+
+    const result = await this.vgenv.generateVideo({
+      prompt: job.prompt,
+      duration: Number(job.duration),
+      aspectRatio: job.aspect_ratio,
+      referenceImageUrls,
+      idempotencyKey: 'mehroz-' + job.id,
+    });
+
+    await db.execute(
+      "UPDATE generations SET provider='vgenv', status='submitted', provider_job_id=?, provider_cost=?, provider_cost_unit='usd', submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
+      [result.id, result.price, job.id]
+    );
+  }
+
   async submitCreatePulse(db, job, imageCount) {
     let initImageUrl = null;
     let imageReferenceUrls = [];
@@ -347,13 +434,14 @@ class GenerationWorker {
 
     const vidSnapshot = await this.syncVidancee(db);
     await this.syncCreatePulse(db);
+    await this.syncVgenv(db);
     await this.syncAtlasImages(db);
 
     if (!this.allowProviderCharges) return;
 
     await this.submitAtlasImages(db);
 
-    if (!this.vidancee && !this.createPulse) return;
+    if (!this.vidancee && !this.createPulse && !this.vgenv) return;
 
     let vidSlots = 0;
     if (this.vidancee && vidSnapshot) {
@@ -373,13 +461,21 @@ class GenerationWorker {
       cpSlots = Math.max(0, this.createPulseMaxInflight - Number(row?.total || 0));
     }
 
-    if (vidSlots <= 0 && cpSlots <= 0) return;
+    let vgenvSlots = 0;
+    if (this.vgenv) {
+      const [[row]] = await db.query(
+        "SELECT COUNT(*) AS total FROM generations WHERE media_type='video' AND provider='vgenv' AND status IN ('submitting','submitted','processing')"
+      );
+      vgenvSlots = Math.max(0, this.vgenvMaxInflight - Number(row?.total || 0));
+    }
+
+    if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) return;
     const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND status='queued' ORDER BY created_at ASC LIMIT 25");
 
     for (const job of queued) {
-      if (vidSlots <= 0 && cpSlots <= 0) break;
+      if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) break;
       const count = job.mode === 'image-to-video' ? await this.imageCount(db, job.id) : 0;
-      const chosen = this.chooseProvider(job, count, vidSlots, cpSlots);
+      const chosen = this.chooseProvider(job, count, vidSlots, cpSlots, vgenvSlots);
       if (!chosen) continue;
 
       const [claim] = await db.execute(
@@ -392,6 +488,9 @@ class GenerationWorker {
         if (chosen === 'createpulse') {
           await this.submitCreatePulse(db, job, count);
           cpSlots -= 1;
+        } else if (chosen === 'vgenv') {
+          await this.submitVgenv(db, job, count);
+          vgenvSlots -= 1;
         } else {
           await this.submitVidancee(db, job);
           vidSlots -= 1;
