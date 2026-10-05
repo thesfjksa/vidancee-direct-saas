@@ -20,9 +20,8 @@ function pricingMap() {
     'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       durations: {
+        // Customer-facing product rule: Seedance 2.0 Fast is locked to 10 seconds.
         10: optionalPositiveInt('PRICE_SEEDANCE_20_FAST_10', 5),
-        15: optionalPositiveInt('PRICE_SEEDANCE_20_FAST_15', null),
-        30: optionalPositiveInt('PRICE_SEEDANCE_20_FAST_30', null),
       },
     },
   };
