@@ -897,3 +897,121 @@ Current behavior:
 - session/config errors -> login screen is shown with the error message
 
 This removes the misleading login-then-auto-login flicker without changing cookie/session behavior.
+
+
+## Atlas Cloud image generation — 2026-10-05
+
+Mehroz AI now supports customer-facing **image generation** alongside the existing video workflow.
+
+### Customer UX
+
+A new **Images** navigation item opens a dedicated image-generation studio with:
+
+- text-to-image generation
+- optional 1–6 reference images for reference-guided generation/editing
+- drag/drop reference upload
+- thumbnail removal and drag reordering
+- model selection
+- aspect-ratio selection
+- customer credit cost display
+- asynchronous generation status
+- generated-image gallery
+- image download
+- deletion of terminal image generations
+
+Image generation is separate from the video Create workspace, while sharing the same customer account and credit balance.
+
+### Atlas Cloud integration
+
+Image generation uses Atlas Cloud's asynchronous generation API:
+
+- submit: `POST /api/v1/model/generateImage`
+- poll: `GET /api/v1/model/prediction/:predictionId`
+
+Internal model mappings:
+
+- `seedream_v5_lite`
+  - text: `bytedance/seedream-v5.0-lite`
+  - references/edit: `bytedance/seedream-v5.0-lite/edit`
+- `nano_banana_2`
+  - text: `google/nano-banana-2/text-to-image`
+  - references: `google/nano-banana-2/reference-to-image`
+
+Public image aspect ratios:
+
+- 1:1
+- 4:3
+- 16:9
+- 9:16
+
+Seedream ratios are translated to supported pixel-size presets. Nano Banana receives the aspect ratio directly.
+
+### Image data and provider access
+
+Image jobs reuse the existing `generations` and `generation_images` tables.
+
+A new `generations.media_type` column distinguishes:
+
+- `video`
+- `image`
+
+Existing rows migrate safely to `video`.
+
+For reference-guided Atlas Cloud requests, the worker exposes stored reference images using the existing HMAC-signed `/provider-assets/:generationId/:position` URLs. These are provider-accessible without exposing customer sessions.
+
+### Customer APIs
+
+- `GET /api/image-generations`
+- `POST /api/image-generations`
+- `GET /api/image-generations/:id`
+- `DELETE /api/image-generations/:id`
+- `GET /api/image-generations/:id/media`
+
+Video APIs are now explicitly scoped to `media_type='video'`, so image jobs do not appear in the video gallery/Library.
+
+### Worker behavior
+
+The active `src/worker_admin_settings.js` worker now:
+
+- creates/reloads an Atlas Cloud client from Admin-managed settings
+- submits queued image jobs independently from video-provider capacity
+- limits Atlas concurrency with `atlascloud_max_inflight`
+- polls Atlas predictions
+- stores the first completed output URL in `generations.output_url`
+- refunds customer credits on submit/process failure
+
+### Admin settings
+
+Atlas Cloud is configured under:
+
+`/admin-console` -> **Provider**
+
+Admin-managed Atlas settings:
+
+- Base URL (default `https://api.atlascloud.ai`)
+- API key (encrypted in `app_settings`)
+- Max inflight image jobs
+
+Secrets are never returned to the browser after storage; the Admin UI only shows configured/not-configured state.
+
+Legacy ENV migration is supported for:
+
+- `ATLASCLOUD_BASE_URL`
+- `ATLASCLOUD_API_KEY`
+- `ATLASCLOUD_MAX_INFLIGHT`
+
+New deployments should configure provider credentials in Admin rather than hPanel ENV.
+
+### Customer image pricing
+
+Current defaults:
+
+- Seedream 5.0 Lite: 2 credits/image
+- Nano Banana 2: 3 credits/image
+
+Optional ENV overrides:
+
+- `PRICE_IMAGE_SEEDREAM_50_LITE`
+- `PRICE_IMAGE_NANO_BANANA_2`
+
+These are customer-facing credit prices, not Atlas Cloud billing values.
