@@ -877,3 +877,23 @@ Current behavior:
 The chosen order is now preserved end-to-end. The frontend sends a `referenceOrder` manifest with the multipart generation request, and `src/generations.js` validates it and stores `generation_images.position_index` in that exact visual order. This means provider submission receives reference images in the same order the customer arranged them.
 
 The browser file input is no longer treated as the source of truth after selection. The frontend keeps an explicit reference-item list so fresh uploads can be removed/reordered and can coexist cleanly with reused stored images.
+
+
+## Session-check splash prevents login flash — 2026-10-05
+
+Page refresh no longer briefly shows the login screen before restoring an existing authenticated session.
+
+Previous behavior:
+- the login/auth shell was visible in the initial HTML
+- JavaScript then called `/api/me`
+- valid sessions were switched into the dashboard only after that request completed
+- this caused a visible login-screen flash on every refresh
+
+Current behavior:
+- a minimal Mehroz AI boot screen is shown first
+- both the auth screen and application shell stay hidden while the existing session is checked
+- valid session -> dashboard is shown directly
+- HTTP 401/no session -> login screen is shown
+- session/config errors -> login screen is shown with the error message
+
+This removes the misleading login-then-auto-login flicker without changing cookie/session behavior.
