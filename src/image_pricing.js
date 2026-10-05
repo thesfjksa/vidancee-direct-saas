@@ -1,9 +1,7 @@
-function optionalPositiveInt(name, fallback = null) {
-  const raw = process.env[name];
-  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value <= 0) return fallback;
-  return value;
+const { positiveNumber, sourceToCustomerCredits } = require('./billing.js');
+
+function sourceCost(name, fallback = null) {
+  return positiveNumber(process.env[name], fallback);
 }
 
 const IMAGE_ASPECT_RATIOS = ['1:1', '4:3', '16:9', '9:16'];
@@ -19,7 +17,7 @@ function imagePricingMap() {
   return {
     seedream_v5_lite: {
       label: 'Seedream 5.0 Lite',
-      cost: optionalPositiveInt('PRICE_IMAGE_SEEDREAM_50_LITE', 2),
+      cost: sourceToCustomerCredits(sourceCost('PRICE_IMAGE_SEEDREAM_50_LITE', 2)),
       textModel: 'bytedance/seedream-v5.0-lite',
       referenceModel: 'bytedance/seedream-v5.0-lite/edit',
       buildPayload({ prompt, aspectRatio, imageUrls = [] }) {
@@ -35,7 +33,7 @@ function imagePricingMap() {
     },
     nano_banana_2: {
       label: 'Nano Banana 2',
-      cost: optionalPositiveInt('PRICE_IMAGE_NANO_BANANA_2', 3),
+      cost: sourceToCustomerCredits(sourceCost('PRICE_IMAGE_NANO_BANANA_2', 3)),
       textModel: 'google/nano-banana-2/text-to-image',
       referenceModel: 'google/nano-banana-2/reference-to-image',
       buildPayload({ prompt, aspectRatio, imageUrls = [] }) {
@@ -54,7 +52,7 @@ function imagePricingMap() {
 
 function getImageModelSpec(model) {
   const spec = imagePricingMap()[String(model || '')];
-  if (!spec || !Number.isInteger(spec.cost) || spec.cost <= 0) {
+  if (!spec || !Number.isFinite(Number(spec.cost)) || Number(spec.cost) <= 0) {
     const error = new Error('This image model is not enabled.');
     error.statusCode = 400;
     throw error;
@@ -63,7 +61,7 @@ function getImageModelSpec(model) {
 }
 
 function getImageCost(model) {
-  return getImageModelSpec(model).cost;
+  return Number(getImageModelSpec(model).cost);
 }
 
 function validateImageAspectRatio(value) {
@@ -76,8 +74,8 @@ function validateImageAspectRatio(value) {
 
 function publicImagePricing() {
   return Object.entries(imagePricingMap())
-    .filter(([, spec]) => Number.isInteger(spec.cost) && spec.cost > 0)
-    .map(([id, spec]) => ({ id, label: spec.label, cost: spec.cost }));
+    .filter(([, spec]) => Number.isFinite(Number(spec.cost)) && Number(spec.cost) > 0)
+    .map(([id, spec]) => ({ id, label: spec.label, cost: Number(spec.cost) }));
 }
 
 module.exports = {
