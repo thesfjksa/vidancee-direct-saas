@@ -12,7 +12,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const {
-  createGenerationForUser, listUserGenerations, getUserGeneration, serializeGeneration,
+  createGenerationForUser, listUserGenerations, getUserGeneration, deleteUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const {
@@ -626,11 +626,22 @@ const server=http.createServer(async (req,res)=>{
         if (q) { clauses.push('(u.email LIKE ? OR g.id=? OR CAST(g.provider_job_id AS CHAR)=?)'); params.push('%'+q+'%',q,q); }
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
-          `SELECT g.*,u.email FROM generations g JOIN users u ON u.id=g.user_id`+where+`
+          `SELECT
+             g.id,g.user_id,g.provider,g.provider_job_id,g.mode,g.model,g.duration,g.aspect_ratio,
+             g.prompt,g.status,g.credits_cost,g.provider_cost,g.provider_cost_unit,g.output_url,g.poster_url,
+             g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,
+             u.email
+           FROM generations g
+           JOIN users u ON u.id=g.user_id`+where+`
            ORDER BY g.created_at DESC LIMIT 200`,
           params,
         );
-        return sendJson(res,200,{ok:true,generations:rows.map(row=>({...serializeGeneration(row),user_email:row.email,provider:row.provider,provider_job_id:row.provider_job_id}))});
+        return sendJson(res,200,{ok:true,generations:rows.map(row=>({
+          ...serializeGeneration(row),
+          user_email:row.email,
+          provider:row.provider,
+          provider_job_id:row.provider_job_id,
+        }))});
       }
 
       return sendJson(res,404,{ok:false,error:'Admin route not found.'});
