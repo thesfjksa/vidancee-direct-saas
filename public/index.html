@@ -383,6 +383,35 @@ textarea::placeholder,input::placeholder{color:#555860}
 .card{
   background:#111214;border:1px solid #25272d;border-radius:14px;padding:16px
 }
+.plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+.plan-card{
+  position:relative;display:flex;flex-direction:column;min-height:380px;padding:20px;
+  border:1px solid #292c32;border-radius:16px;background:
+    radial-gradient(440px 180px at 90% -20%,rgba(215,255,63,.055),transparent 70%),#111214
+}
+.plan-card.featured{border-color:#596431;box-shadow:0 18px 60px rgba(0,0,0,.22),0 0 0 1px rgba(215,255,63,.06) inset}
+.plan-badge{
+  position:absolute;right:14px;top:14px;padding:4px 7px;border-radius:999px;
+  background:rgba(215,255,63,.09);border:1px solid rgba(215,255,63,.18);
+  color:var(--accent);font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em
+}
+.plan-name{font-size:15px;font-weight:760;margin-bottom:5px}
+.plan-desc{font-size:10px;line-height:1.5;color:#757881;min-height:45px}
+.plan-price{font-size:27px;font-weight:800;letter-spacing:-1px;margin-top:18px}
+.plan-price small{font-size:10px;font-weight:550;color:#747780;letter-spacing:0}
+.plan-credits{font-size:11px;color:#b5b8c0;margin:6px 0 15px}
+.plan-features{list-style:none;padding:0;margin:0 0 18px;display:grid;gap:9px}
+.plan-features li{font-size:10px;color:#a6a9b1;display:flex;gap:8px;line-height:1.4}
+.plan-features li:before{content:"✓";color:var(--accent);font-weight:800}
+.plan-card .plan-action{margin-top:auto;width:100%}
+.plan-current{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;
+  padding:11px 13px;border:1px solid #272a30;border-radius:11px;background:#0f1012
+}
+.plan-current strong{font-size:11px}
+.plan-current span{font-size:10px;color:#777a83}
+@media(max-width:900px){.plan-grid{grid-template-columns:1fr}}
+
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
 .stat{padding:14px}
 .stat .label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#6b6e77}
@@ -524,6 +553,7 @@ textarea::placeholder,input::placeholder{color:#555860}
       <button class="create-tab active" data-section="create" onclick="go('create')">Create</button>
       <button data-section="images" onclick="go('images')">Images</button>
       <button data-section="library" onclick="go('library')">Library</button>
+      <button data-section="plans" onclick="go('plans')">Plans</button>
       <button data-section="credits" onclick="go('credits')">Credits</button>
       <button data-section="account" onclick="go('account')">Account</button>
     </nav>
@@ -670,6 +700,24 @@ textarea::placeholder,input::placeholder{color:#555860}
       </div>
     </section>
 
+    <section id="plans" class="section">
+      <div class="page">
+        <div class="page-head">
+          <div><h1>Plans</h1><p>Choose the credit package and queue priority that fits your workload.</p></div>
+        </div>
+        <div id="planCurrent" class="plan-current">
+          <div><strong>Current plan</strong><div><span id="planCurrentText">Checking...</span></div></div>
+          <span id="planPendingText"></span>
+        </div>
+        <div id="planGrid" class="plan-grid"></div>
+        <div class="card" style="margin-top:12px">
+          <div class="panel-title">How plan activation works</div>
+          <div class="panel-sub" style="margin-bottom:0">Choose a plan to send a purchase request. After payment is verified by the admin, the included credits and plan limits are applied to your account.</div>
+        </div>
+        <div id="planMsg" class="msg muted"></div>
+      </div>
+    </section>
+
     <section id="credits" class="section">
       <div class="page">
         <div class="page-head"><div><h1>Credits</h1><p>Balance, usage and account adjustments.</p></div></div>
@@ -704,6 +752,7 @@ textarea::placeholder,input::placeholder{color:#555860}
             <div class="panel-sub">Your account information.</div>
             <div class="field"><label>Email</label><input id="accountEmail" disabled></div>
             <div class="field"><label>Status</label><input id="accountStatus" disabled></div>
+            <div class="field"><label>Plan</label><input id="accountPlan" disabled></div>
             <div class="field"><label>Member since</label><input id="accountCreated" disabled></div>
           </div>
           <div class="card">
@@ -723,6 +772,7 @@ textarea::placeholder,input::placeholder{color:#555860}
     <button class="active" data-section="create" onclick="go('create')">Create</button>
     <button data-section="images" onclick="go('images')">Images</button>
     <button data-section="library" onclick="go('library')">Library</button>
+    <button data-section="plans" onclick="go('plans')">Plans</button>
     <button data-section="credits" onclick="go('credits')">Credits</button>
     <button data-section="account" onclick="go('account')">Account</button>
   </nav>
@@ -730,7 +780,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
-let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false;
+let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
 const $=id=>document.getElementById(id);
@@ -773,6 +823,7 @@ function syncUser(){
   $('creditBalance').textContent=Number(me?.credits||0);
   $('accountEmail').value=me?.email||'';
   $('accountStatus').value=me?.status||'';
+  $('accountPlan').value=planName(me?.plan_code);
   $('accountCreated').value=me?.created_at?new Date(me.created_at).toLocaleString():'';
   $('avatar').textContent=(me?.email||'M').charAt(0).toUpperCase();
 }
@@ -803,6 +854,7 @@ function go(name){
   document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
   if(name==='images')renderImageGallery();
   if(name==='library')renderLibrary();
+  if(name==='plans')loadPlanStatus();
   if(name==='credits')loadCredits();
 }
 
@@ -1196,7 +1248,7 @@ function setFilter(filter,button){
 }
 
 async function loadAll(){
-  await Promise.all([loadGenerations(),loadImageGenerations(),loadDashboard(),loadCredits()]);
+  await Promise.all([loadGenerations(),loadImageGenerations(),loadDashboard(),loadCredits(),loadPlanStatus()]);
 }
 
 async function loadDashboard(){
@@ -1524,6 +1576,77 @@ async function deleteImageGeneration(id){
     renderImageGallery();
     await loadDashboard();
   }catch(e){window.alert(e.message)}
+}
+
+function planName(code){
+  const plan=(config?.plans||[]).find(item=>item.code===code);
+  return plan?.name||'No paid plan';
+}
+
+function formatPkr(value){
+  return 'PKR '+Number(value||0).toLocaleString('en-PK');
+}
+
+function renderPlans(){
+  const grid=$('planGrid');
+  if(!grid||!config)return;
+  const pending=planStatus?.pendingRequest||null;
+  const current=planStatus?.currentPlan||null;
+
+  $('planCurrentText').textContent=current
+    ? current.name+' · '+current.concurrency+' simultaneous generations'
+    : 'No paid plan';
+  $('planPendingText').textContent=pending
+    ? 'Pending: '+planName(pending.plan_code)
+    : '';
+
+  grid.innerHTML=(config.plans||[]).map(plan=>{
+    const isCurrent=current?.code===plan.code;
+    const isPending=pending?.plan_code===plan.code;
+    const featured=plan.code==='pro'?' featured':'';
+    const badge=plan.badge?'<div class="plan-badge">'+escapeHtml(plan.badge)+'</div>':'';
+    const buttonLabel=isPending?'Request pending':(isCurrent?'Renew '+plan.name:'Choose '+plan.name);
+    const disabled=pending?' disabled':'';
+    return '<article class="plan-card'+featured+'">'+badge+
+      '<div class="plan-name">'+escapeHtml(plan.name)+'</div>'+
+      '<div class="plan-desc">'+escapeHtml(plan.description||'')+'</div>'+
+      '<div class="plan-price">'+formatPkr(plan.pricePkr)+' <small>/ month</small></div>'+
+      '<div class="plan-credits">'+Number(plan.credits).toLocaleString()+' AI credits</div>'+
+      '<ul class="plan-features">'+(plan.features||[]).map(feature=>'<li>'+escapeHtml(feature)+'</li>').join('')+'</ul>'+
+      '<button class="btn '+(plan.code==='pro'?'primary':'secondary')+' plan-action"'+disabled+' onclick="requestPlan(\''+escapeHtml(plan.code)+'\')">'+escapeHtml(buttonLabel)+'</button>'+
+    '</article>';
+  }).join('');
+}
+
+async function loadPlanStatus(){
+  if(!me||!config)return;
+  try{
+    const d=await api('/api/plan-status');
+    planStatus=d;
+    renderPlans();
+    if(d.currentPlan && me.plan_code!==d.currentPlan.code){
+      me.plan_code=d.currentPlan.code;
+      syncUser();
+    }
+  }catch(e){
+    const m=$('planMsg');
+    if(m){m.className='msg err';m.textContent=e.message}
+  }
+}
+
+async function requestPlan(planCode){
+  const plan=(config.plans||[]).find(item=>item.code===planCode);
+  if(!plan)return;
+  const m=$('planMsg');
+  if(!window.confirm('Request '+plan.name+' for '+formatPkr(plan.pricePkr)+'?'))return;
+  m.className='msg muted';m.textContent='Sending plan request...';
+  try{
+    await api('/api/plan-requests',{method:'POST',body:JSON.stringify({planCode})});
+    m.className='msg ok';m.textContent=plan.name+' request sent. Credits are added after payment is verified.';
+    await loadPlanStatus();
+  }catch(e){
+    m.className='msg err';m.textContent=e.message;
+  }
 }
 
 async function loadCredits(){
