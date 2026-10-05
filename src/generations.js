@@ -51,6 +51,53 @@ function normalizeReuseImageIds(value) {
   return ids;
 }
 
+function normalizeReferenceOrder(value) {
+  if (value == null || value === '') return [];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); }
+    catch {
+      const error = new Error('Invalid reference image order.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length > 6) {
+    const error = new Error('Invalid reference image order.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return parsed.map(item => {
+    if (!item || typeof item !== 'object') {
+      const error = new Error('Invalid reference image order.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (item.kind === 'reused') {
+      const id = Number(item.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        const error = new Error('Invalid reused reference image order.');
+        error.statusCode = 400;
+        throw error;
+      }
+      return { kind: 'reused', id };
+    }
+    if (item.kind === 'fresh') {
+      const index = Number(item.index);
+      if (!Number.isInteger(index) || index < 0) {
+        const error = new Error('Invalid uploaded reference image order.');
+        error.statusCode = 400;
+        throw error;
+      }
+      return { kind: 'fresh', index };
+    }
+    const error = new Error('Invalid reference image order.');
+    error.statusCode = 400;
+    throw error;
+  });
+}
+
 async function createGenerationForUser(userId, input) {
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
@@ -59,6 +106,7 @@ async function createGenerationForUser(userId, input) {
   const freshImages = Array.isArray(input.images) ? input.images : [];
   const reuseGenerationId = String(input.reuseGenerationId || input.reuse_generation_id || '').trim();
   const reuseImageIds = normalizeReuseImageIds(input.reuseImageIds || input.reuse_image_ids || '');
+  const referenceOrder = normalizeReferenceOrder(input.referenceOrder || input.reference_order || '');
 
   if (freshImages.length + reuseImageIds.length > 6) {
     const error = new Error('A maximum of 6 reference images is allowed in total.');
@@ -138,7 +186,52 @@ async function createGenerationForUser(userId, input) {
       }
     }
 
-    const allImageCount = reusedImages.length + freshImages.length;
+    let orderedImages = [
+      ...reusedImages.map(image => ({ kind: 'reused', image })),
+      ...freshImages.map(image => ({ kind: 'fresh', image })),
+    ];
+
+    if (referenceOrder.length) {
+      if (referenceOrder.length !== reusedImages.length + freshImages.length) {
+        const error = new Error('Reference image order does not match the selected images.');
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const reusedById = new Map(reusedImages.map(image => [Number(image.id), image]));
+      const seenReused = new Set();
+      const seenFresh = new Set();
+
+      orderedImages = referenceOrder.map(item => {
+        if (item.kind === 'reused') {
+          const image = reusedById.get(item.id);
+          if (!image || seenReused.has(item.id)) {
+            const error = new Error('Invalid reused reference image order.');
+            error.statusCode = 400;
+            throw error;
+          }
+          seenReused.add(item.id);
+          return { kind: 'reused', image };
+        }
+
+        const image = freshImages[item.index];
+        if (!image || seenFresh.has(item.index)) {
+          const error = new Error('Invalid uploaded reference image order.');
+          error.statusCode = 400;
+          throw error;
+        }
+        seenFresh.add(item.index);
+        return { kind: 'fresh', image };
+      });
+
+      if (seenReused.size !== reusedImages.length || seenFresh.size !== freshImages.length) {
+        const error = new Error('Reference image order is incomplete.');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const allImageCount = orderedImages.length;
     const mode = allImageCount > 0 ? 'image-to-video' : 'text-to-video';
 
     await conn.execute(
@@ -149,22 +242,15 @@ async function createGenerationForUser(userId, input) {
     );
 
     let position = 0;
-    for (const image of reusedImages) {
+    for (const entry of orderedImages) {
+      const image = entry.image;
+      const mimeType = entry.kind === 'reused' ? image.mime_type : image.mimeType;
+      const imageData = entry.kind === 'reused' ? image.image_data : image.data;
       await conn.execute(
         `INSERT INTO generation_images
          (generation_id, position_index, filename, mime_type, image_data)
          VALUES (?, ?, ?, ?, ?)`,
-        [id, position, image.filename, image.mime_type, image.image_data],
-      );
-      position += 1;
-    }
-
-    for (const image of freshImages) {
-      await conn.execute(
-        `INSERT INTO generation_images
-         (generation_id, position_index, filename, mime_type, image_data)
-         VALUES (?, ?, ?, ?, ?)`,
-        [id, position, image.filename, image.mimeType, image.data],
+        [id, position, image.filename, mimeType, imageData],
       );
       position += 1;
     }
