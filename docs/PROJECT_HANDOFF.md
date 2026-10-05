@@ -820,3 +820,20 @@ Implementation:
 - when a model has only one available duration, the custom Duration control is rendered as a locked single-option field: the chevron is hidden and clicking it does not open a one-item dropdown.
 
 Seedance 2.5 keeps its separately configured duration options.
+
+
+## Generation deletion compatibility fix — 2026-10-05
+
+Generation deletion now explicitly cleans related database rows before removing the generation.
+
+Reason: some production databases were created during earlier milestones. `CREATE TABLE IF NOT EXISTS` does not replace an existing foreign-key definition, so an older `generation_images` or `credit_transactions` constraint could block deletion even though the current schema declares CASCADE / SET NULL behavior.
+
+Current deletion transaction:
+1. verify the generation belongs to the signed-in user
+2. allow deletion only for terminal statuses
+3. set matching `credit_transactions.generation_id` to NULL so credit history remains intact
+4. delete stored `generation_images`
+5. delete the generation record
+6. commit atomically
+
+Deleting a generation still does not refund credits.
