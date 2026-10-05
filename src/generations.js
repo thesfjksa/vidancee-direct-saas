@@ -158,10 +158,28 @@ async function deleteUserGeneration(userId, generationId) {
       throw error;
     }
 
+    // Do the child cleanup explicitly instead of relying only on FK actions.
+    // Older deployments may have been created before ON DELETE CASCADE / SET NULL
+    // was added, because CREATE TABLE IF NOT EXISTS does not rewrite existing FKs.
     await conn.execute(
+      'UPDATE credit_transactions SET generation_id = NULL WHERE generation_id = ? AND user_id = ?',
+      [generationId, userId],
+    );
+    await conn.execute(
+      'DELETE FROM generation_images WHERE generation_id = ?',
+      [generationId],
+    );
+
+    const [deleted] = await conn.execute(
       'DELETE FROM generations WHERE id = ? AND user_id = ?',
       [generationId, userId],
     );
+
+    if (!deleted.affectedRows) {
+      const error = new Error('Generation could not be deleted.');
+      error.statusCode = 409;
+      throw error;
+    }
 
     await conn.commit();
     return true;
