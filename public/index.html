@@ -180,6 +180,12 @@ textarea:focus,input:focus,select:focus{
   border-color:#666d35;
   box-shadow:0 0 0 3px rgba(215,255,63,.055);
 }
+.custom-select.single-option .custom-select-trigger{
+  cursor:default;
+}
+.custom-select.single-option .custom-select-chevron{
+  display:none;
+}
 .custom-select-chevron{
   width:14px;height:14px;flex:0 0 auto;color:#8b8e96;
   transition:transform .15s;
@@ -732,6 +738,10 @@ function ensureCustomSelect(id){
 
     trigger.addEventListener('click',e=>{
       e.stopPropagation();
+      if(select.options.length<=1){
+        closeCustomSelects();
+        return;
+      }
       const willOpen=!wrap.classList.contains('open');
       closeCustomSelects(wrap);
       wrap.classList.toggle('open',willOpen);
@@ -768,6 +778,14 @@ function rebuildCustomSelect(id){
   menu.innerHTML=[...select.options].map((o,i)=>
     '<button type="button" class="custom-select-option'+(i===select.selectedIndex?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(i===select.selectedIndex?'true':'false')+'">'+escapeHtml(o.textContent)+'</button>'
   ).join('');
+  const single=select.options.length<=1;
+  wrap.classList.toggle('single-option',single);
+  const trigger=wrap.querySelector('.custom-select-trigger');
+  if(trigger){
+    trigger.setAttribute('aria-disabled',single?'true':'false');
+    trigger.setAttribute('aria-expanded','false');
+  }
+  if(single)wrap.classList.remove('open','drop-up');
   syncCustomSelect(id);
 }
 
