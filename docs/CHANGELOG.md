@@ -209,3 +209,16 @@
 - Auth and dashboard remain hidden until /api/me resolves.
 - Valid sessions now open directly into the dashboard without flashing the login form.
 - Unauthenticated users see the login screen only after the session check returns 401.
+
+## 2026-10-05 — Add Atlas Cloud image generation
+
+- Added a dedicated customer Images workspace.
+- Added text-to-image and reference-guided image generation.
+- Added Seedream 5.0 Lite and Nano Banana 2 model mappings.
+- Added Atlas Cloud asynchronous submit/poll adapter.
+- Added Admin-managed encrypted Atlas Cloud API key/base URL/max-inflight settings.
+- Added media_type migration so video and image jobs share the generation/credit system safely.
+- Added image generation APIs, gallery, download and delete controls.
+- Added reference upload/remove/reorder support for image generation.
+- Scoped existing video APIs/worker queries to video jobs.
+- Added customer image credit pricing overrides.
