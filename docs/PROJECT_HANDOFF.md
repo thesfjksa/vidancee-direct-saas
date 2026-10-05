@@ -1231,3 +1231,15 @@ Plan definitions live in `src/plans.js`.
 ### Billing relationship
 
 The plan prices sell the customer credit pool. Model generation costs still use the existing universal source-cost × 2.5 customer-credit rule. The plan layer does not apply a second markup to model consumption.
+
+
+## Admin provider settings 403 / edge-challenge compatibility fix — 2026-10-05
+
+The Provider page previously saved credentials with an HTTP `PUT /admin/provider-settings` request. On the production edge, this could be intercepted by the hosting/CDN security layer and return an HTML browser-challenge page with HTTP 403 instead of reaching the Node app.
+
+Current behavior:
+- the Admin UI now saves provider settings using `POST /admin/provider-settings`
+- the server accepts both POST and PUT for backward compatibility
+- the Admin API helper recognizes common edge/browser-challenge HTML and shows a clear hosting-security message instead of dumping HTML/CSS into the Provider page
+
+This change does not alter provider secret storage or encryption.
