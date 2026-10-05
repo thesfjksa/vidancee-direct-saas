@@ -12,6 +12,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
+const { creditMultiplier } = require('./src/billing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
@@ -233,7 +234,12 @@ const server=http.createServer(async (req,res)=>{
       let generationEnabled=false;
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
-        generationBackendReady=Boolean(providerSettings.vidancee.configured || providerSettings.createpulse.configured || providerSettings.atlascloud.configured);
+        generationBackendReady=Boolean(
+          providerSettings.vidancee.configured ||
+          providerSettings.createpulse.configured ||
+          providerSettings.vgenv.configured ||
+          providerSettings.atlascloud.configured
+        );
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -577,10 +583,13 @@ const server=http.createServer(async (req,res)=>{
             vidancee:providerSettings.vidancee.configured,
             createpulse:providerSettings.createpulse.configured,
             atlascloud:providerSettings.atlascloud.configured,
+            vgenv:providerSettings.vgenv.configured,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
+          vgenvMaxInflight:providerSettings.vgenv.maxInflight,
+          customerCreditMultiplier:creditMultiplier(),
           generationEnabled:providerSettings.allowProviderCharges,
         });
       }
