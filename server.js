@@ -583,7 +583,7 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,settings:await getAdminProviderSettings()});
       }
 
-      if (req.method==='PUT' && routePath==='/admin/provider-settings') {
+      if ((req.method==='POST' || req.method==='PUT') && routePath==='/admin/provider-settings') {
         requireDatabase();
         const body=await readJson(req);
         const settings=await updateProviderSettings(body);
