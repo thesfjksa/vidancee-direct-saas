@@ -139,11 +139,22 @@ button{cursor:pointer}
 .ref-drop strong{display:block;font-size:11px}
 .ref-drop span{font-size:9px;color:#6f727b}
 .image-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
-.image-chip{min-width:0}
+.image-chip{min-width:0;position:relative}
 .image-chip img{
   width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid #2a2d33
 }
-.image-chip div{font-size:8px;color:#6c6f77;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.image-chip .image-name{font-size:8px;color:#6c6f77;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.image-chip .reused-tag{
+  position:absolute;left:5px;top:5px;padding:3px 5px;border-radius:999px;
+  background:rgba(10,10,11,.82);border:1px solid rgba(215,255,63,.28);
+  color:var(--accent);font-size:7px;font-weight:750;text-transform:uppercase;letter-spacing:.04em
+}
+.image-chip .remove-reference{
+  position:absolute;right:5px;top:5px;width:20px;height:20px;padding:0;border:1px solid #44474f;
+  border-radius:50%;background:rgba(10,10,11,.86);color:#fff;display:grid;place-items:center;
+  font-size:12px;line-height:1
+}
+.image-chip .remove-reference:hover{border-color:#6b3439;color:#ff929c;background:#211316}
 
 label.meta{
   display:block;font-size:9px;color:#6c6f78;text-transform:uppercase;letter-spacing:.08em;
@@ -609,6 +620,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
+let reusedReferenceGenerationId=null,reusedReferenceImages=[];
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -839,16 +851,43 @@ function updateCost(){
   syncCustomSelect('duration');
 }
 
-function previewImages(){
-  const all=[...$('imageInput').files];
-  const files=all.slice(0,6);
-  $('imagePreview').innerHTML=files.map(file=>
-    '<div class="image-chip"><img src="'+URL.createObjectURL(file)+'"><div>'+escapeHtml(file.name)+'</div></div>'
+function renderReferencePreview(){
+  const fresh=[...$('imageInput').files];
+  const reusedHtml=reusedReferenceImages.map(image=>
+    '<div class="image-chip">'+
+      '<img src="'+escapeHtml(image.url)+'" alt="'+escapeHtml(image.filename||'Reference image')+'">'+
+      '<span class="reused-tag">Reused</span>'+
+      '<button type="button" class="remove-reference" onclick="removeReusedReference('+Number(image.id)+',event)" title="Remove reference image">×</button>'+
+      '<div class="image-name">'+escapeHtml(image.filename||'Reference image')+'</div>'+
+    '</div>'
   ).join('');
-  if(all.length>6){
+
+  const freshHtml=fresh.map(file=>
+    '<div class="image-chip"><img src="'+URL.createObjectURL(file)+'" alt="'+escapeHtml(file.name)+'"><div class="image-name">'+escapeHtml(file.name)+'</div></div>'
+  ).join('');
+
+  $('imagePreview').innerHTML=reusedHtml+freshHtml;
+  const total=reusedReferenceImages.length+fresh.length;
+  if(total>6){
     $('genMsg').className='msg err';
-    $('genMsg').textContent='Maximum 6 images are allowed.';
-  }else{
+    $('genMsg').textContent='Maximum 6 reference images are allowed in total.';
+  }
+}
+
+function removeReusedReference(imageId,event){
+  if(event)event.stopPropagation();
+  reusedReferenceImages=reusedReferenceImages.filter(image=>Number(image.id)!==Number(imageId));
+  if(!reusedReferenceImages.length)reusedReferenceGenerationId=null;
+  renderReferencePreview();
+  if(reusedReferenceImages.length+[...$('imageInput').files].length<=6){
+    $('genMsg').textContent='';
+  }
+}
+
+function previewImages(){
+  renderReferencePreview();
+  const total=reusedReferenceImages.length+[...$('imageInput').files].length;
+  if(total<=6 && !reusedReferenceImages.length){
     $('genMsg').textContent='';
   }
 }
@@ -991,17 +1030,24 @@ async function createGeneration(){
   m.textContent='Submitting generation...';
   try{
     const files=[...$('imageInput').files];
-    if(files.length>6)throw new Error('Choose no more than 6 reference images.');
+    const totalReferences=reusedReferenceImages.length+files.length;
+    if(totalReferences>6)throw new Error('Choose no more than 6 reference images in total.');
     const form=new FormData();
     form.append('prompt',$('prompt').value);
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     form.append('aspectRatio',$('ratio').value);
+    if(reusedReferenceImages.length && reusedReferenceGenerationId){
+      form.append('reuseGenerationId',reusedReferenceGenerationId);
+      form.append('reuseImageIds',JSON.stringify(reusedReferenceImages.map(image=>Number(image.id))));
+    }
     for(const file of files)form.append('images',file,file.name);
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
     $('prompt').value='';
     $('imageInput').value='';
+    reusedReferenceGenerationId=null;
+    reusedReferenceImages=[];
     $('imagePreview').innerHTML='';
     m.className='msg ok';
     m.textContent='Generation queued.';
@@ -1021,42 +1067,62 @@ function findGeneration(id){
   return generations.find(g=>String(g.id)===String(id))||null;
 }
 
-function reuseGeneration(id){
-  const g=findGeneration(id);
-  if(!g)return;
+async function reuseGeneration(id){
+  const fallback=findGeneration(id);
+  if(!fallback)return;
 
-  go('create');
-  $('prompt').value=g.prompt||'';
-
-  const modelExists=[...$('model').options].some(o=>o.value===g.model);
-  if(modelExists){
-    $('model').value=g.model;
-    renderDurations();
-  }
-
-  const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
-  if(durationExists){
-    $('duration').value=String(g.duration);
-    updateCost();
-  }
-
-  const ratioExists=[...$('ratio').options].some(o=>o.value===g.aspect_ratio||o.textContent===g.aspect_ratio);
-  if(ratioExists){
-    $('ratio').value=g.aspect_ratio;
-    syncCustomSelect('ratio');
-  }
-
-  syncCustomSelect('model');
-  syncCustomSelect('duration');
-
-  $('imageInput').value='';
-  $('imagePreview').innerHTML='';
   $('genMsg').className='msg muted';
-  $('genMsg').textContent='Prompt and generation settings reused. Add reference images again if needed.';
+  $('genMsg').textContent='Restoring prompt and reference images...';
 
-  const promptBox=$('prompt');
-  promptBox.focus();
-  promptBox.scrollIntoView({behavior:'smooth',block:'center'});
+  try{
+    const d=await api('/api/generations/'+encodeURIComponent(id));
+    const g=d.generation||fallback;
+
+    go('create');
+    $('prompt').value=g.prompt||'';
+
+    const modelExists=[...$('model').options].some(o=>o.value===g.model);
+    if(modelExists){
+      $('model').value=g.model;
+      renderDurations();
+    }
+
+    const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
+    if(durationExists){
+      $('duration').value=String(g.duration);
+      updateCost();
+    }
+
+    const ratioExists=[...$('ratio').options].some(o=>o.value===g.aspect_ratio||o.textContent===g.aspect_ratio);
+    if(ratioExists){
+      $('ratio').value=g.aspect_ratio;
+      syncCustomSelect('ratio');
+    }
+
+    syncCustomSelect('model');
+    syncCustomSelect('duration');
+
+    $('imageInput').value='';
+    reusedReferenceImages=Array.isArray(g.reference_images)?g.reference_images.slice(0,6):[];
+    reusedReferenceGenerationId=reusedReferenceImages.length?String(g.id):null;
+    renderReferencePreview();
+
+    $('genMsg').className='msg muted';
+    if(reusedReferenceImages.length){
+      $('genMsg').textContent='Prompt, settings, and '+reusedReferenceImages.length+' reference image'+(reusedReferenceImages.length===1?'':'s')+' reused.';
+    }else if(g.mode==='image-to-video'){
+      $('genMsg').textContent='Prompt and settings reused. The reference images for this older generation are no longer stored, so upload them again if needed.';
+    }else{
+      $('genMsg').textContent='Prompt and generation settings reused.';
+    }
+
+    const promptBox=$('prompt');
+    promptBox.focus();
+    promptBox.scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent=e.message;
+  }
 }
 
 function downloadGeneration(id){
