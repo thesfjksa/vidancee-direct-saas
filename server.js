@@ -12,7 +12,9 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const {
-  createGenerationForUser, listUserGenerations, getUserGeneration, deleteUserGeneration, serializeGeneration,
+  createGenerationForUser, listUserGenerations, getUserGeneration,
+  listUserGenerationReferenceImages, getUserGenerationReferenceImage,
+  deleteUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const {
@@ -380,7 +382,8 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       const row=await getUserGeneration(user.id,genMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Generation not found.'});
-      return sendJson(res,200,{ok:true,generation:serializeGeneration(row)});
+      const referenceImages=await listUserGenerationReferenceImages(user.id,genMatch[1]);
+      return sendJson(res,200,{ok:true,generation:{...serializeGeneration(row),reference_images:referenceImages}});
     }
 
     if (req.method==='DELETE' && genMatch) {
@@ -388,6 +391,20 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       await deleteUserGeneration(user.id,genMatch[1]);
       return sendJson(res,200,{ok:true,deleted:true,id:genMatch[1]});
+    }
+
+    const referenceImageMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/reference-images\/(\d+)$/i);
+    if (req.method==='GET' && referenceImageMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      const image=await getUserGenerationReferenceImage(user.id,referenceImageMatch[1],Number(referenceImageMatch[2]));
+      if (!image) return sendJson(res,404,{ok:false,error:'Reference image not found.'});
+      res.statusCode=200;
+      res.setHeader('content-type',image.mime_type);
+      res.setHeader('content-length',image.image_data.length);
+      res.setHeader('cache-control','private, max-age=3600');
+      res.setHeader('x-content-type-options','nosniff');
+      return res.end(image.image_data);
     }
 
     const mediaMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/media$/i);
