@@ -808,3 +808,15 @@ Hardening added:
 - fixed the server import for `deleteUserGeneration` used by the customer generation delete route.
 
 This makes schema upgrades from earlier project milestones safer and makes future Hostinger/Node errors visible in the Admin UI instead of the generic "Invalid server response" message.
+
+
+## Seedance 2.0 Fast duration lock — 2026-10-05
+
+The customer-facing Seedance 2.0 Fast model is now hard-locked to **10 seconds only**.
+
+Implementation:
+- `src/pricing.js` exposes only the 10s duration for `seedance_2.0_fast`.
+- legacy optional 15s/30s environment pricing no longer exposes those durations in the customer UI.
+- when a model has only one available duration, the custom Duration control is rendered as a locked single-option field: the chevron is hidden and clicking it does not open a one-item dropdown.
+
+Seedance 2.5 keeps its separately configured duration options.
