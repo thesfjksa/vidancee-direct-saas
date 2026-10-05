@@ -837,3 +837,26 @@ Current deletion transaction:
 6. commit atomically
 
 Deleting a generation still does not refund credits.
+
+
+## Reuse prompt now restores reference images — 2026-10-05
+
+The customer **Reuse prompt** action now restores the original reference images when those image blobs are still stored.
+
+Current behavior:
+- clicking Reuse prompt fetches the owned generation detail
+- prompt, model, duration and aspect ratio are restored
+- saved reference images are loaded back into the reference-image preview with a Reused badge
+- reused images can be individually removed before the next generation
+- fresh uploads can be combined with reused images up to the existing 6-image total limit
+- the next generation securely copies the selected stored image blobs into its own generation_images rows
+- reference-image bytes are served only through an authenticated user-owned route
+
+New authenticated image route:
+`GET /api/generations/:generationId/reference-images/:imageId`
+
+Generation detail now includes `reference_images` metadata for images owned by that user.
+
+The active worker no longer deletes reference-image blobs after provider submission/completion/failure. Images are retained until the customer deletes the generation, enabling later prompt+image reuse.
+
+Important historical limitation: generations completed before this change may have had their reference-image blobs deleted by the previous worker behavior. Those old images cannot be reconstructed from the database; for such older generations the UI restores the prompt/settings and tells the user to upload the references again.
