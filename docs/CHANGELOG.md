@@ -254,3 +254,9 @@
 - Added plan queue priorities and priority-aware worker ordering.
 - Unsubscribed users retain a one-generation concurrency limit.
 - Kept the existing universal 2.5× model-cost rule separate from plan pricing.
+
+## 2026-10-05 — Fix Provider settings save 403
+
+- Switched Admin provider-settings save requests from PUT to POST to avoid production edge/WAF browser challenges.
+- Kept PUT support server-side for backward compatibility.
+- Added friendly detection of Cloudflare/edge HTML challenge responses in the Admin API helper.
