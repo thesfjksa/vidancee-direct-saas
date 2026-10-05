@@ -24,6 +24,7 @@ class VgenvClient {
   constructor({ baseUrl = 'https://api.vgenv.com', apiKey }) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = String(apiKey || '').trim();
+    this.videoApiPrefix = '/v1';
   }
 
   async request(path, options = {}) {
@@ -62,6 +63,22 @@ class VgenvClient {
     return payload;
   }
 
+  async videoRequest(path, options = {}) {
+    const prefixes = this.videoApiPrefix === '/v2' ? ['/v2','/v1'] : ['/v1','/v2'];
+    let lastError = null;
+    for (const prefix of prefixes) {
+      try {
+        const payload = await this.request(prefix + path, options);
+        this.videoApiPrefix = prefix;
+        return payload;
+      } catch (error) {
+        lastError = error;
+        if (Number(error.statusCode) !== 404) throw error;
+      }
+    }
+    throw lastError || new Error('vgenv video API endpoint was not found.');
+  }
+
   async generateVideo({
     prompt,
     duration,
@@ -85,7 +102,7 @@ class VgenvClient {
       }));
     }
 
-    const payload = await this.request('/v1/videos', {
+    const payload = await this.videoRequest('/videos', {
       method: 'POST',
       headers: {
         'Idempotency-Key': String(idempotencyKey || ('mehroz-' + crypto.randomUUID())),
@@ -103,7 +120,7 @@ class VgenvClient {
   }
 
   async getVideo(videoId) {
-    const payload = await this.request('/v1/videos/' + encodeURIComponent(videoId));
+    const payload = await this.videoRequest('/videos/' + encodeURIComponent(videoId));
     return {
       id: String(payload.id || videoId),
       status: String(payload.status || 'queued').toLowerCase(),
