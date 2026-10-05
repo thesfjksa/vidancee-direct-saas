@@ -594,7 +594,7 @@ textarea::placeholder,input::placeholder{color:#555860}
               <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
 
               <label class="meta">Model</label>
-              <select id="model" onchange="renderDurations()"></select>
+              <select id="model" onchange="renderDurations(true)"></select>
 
               <div class="control-grid">
                 <div>
@@ -604,6 +604,10 @@ textarea::placeholder,input::placeholder{color:#555860}
                 <div>
                   <label class="meta">Aspect ratio</label>
                   <select id="ratio"></select>
+                </div>
+                <div id="resolutionControl" class="wide hide">
+                  <label class="meta">Resolution</label>
+                  <select id="resolution" onchange="renderDurations(false)"></select>
                 </div>
               </div>
             </div>
@@ -1004,14 +1008,45 @@ function renderConfig(){
   $('ratio').innerHTML=config.aspectRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
-  renderDurations();
+  renderDurations(true);
 }
 
-function renderDurations(){
+function renderDurations(resetResolution=false){
   const m=config.pricing.find(x=>x.id===$('model').value)||config.pricing[0];
-  $('duration').innerHTML=m.durations.map(d=>'<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>').join('');
+  const resolutionOptions=Array.isArray(m?.resolutions)?m.resolutions:[];
+  const previousResolution=$('resolution').value;
+  const previousDuration=Number($('duration').value);
+
+  if(resolutionOptions.length){
+    $('resolutionControl').classList.remove('hide');
+    $('resolution').innerHTML=resolutionOptions.map(r=>
+      '<option value="'+escapeHtml(r.id)+'">'+escapeHtml(r.label||r.id)+'</option>'
+    ).join('');
+
+    const preferred=resetResolution
+      ?(m.defaultResolution||resolutionOptions[0].id)
+      :(resolutionOptions.some(r=>r.id===previousResolution)?previousResolution:(m.defaultResolution||resolutionOptions[0].id));
+    $('resolution').value=preferred;
+    ensureCustomSelect('resolution');
+    syncCustomSelect('resolution');
+  }else{
+    $('resolutionControl').classList.add('hide');
+    $('resolution').innerHTML='<option value="">Default</option>';
+  }
+
+  const selectedResolution=resolutionOptions.find(r=>r.id===$('resolution').value);
+  const durations=selectedResolution?.durations||m?.durations||[];
+  $('duration').innerHTML=durations.map(d=>
+    '<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>'
+  ).join('');
+
+  if(!resetResolution && Number.isFinite(previousDuration) && durations.some(d=>Number(d.seconds)===previousDuration)){
+    $('duration').value=String(previousDuration);
+  }
+
   ensureCustomSelect('duration');
   syncCustomSelect('model');
+  syncCustomSelect('duration');
   updateCost();
 }
 
@@ -1285,7 +1320,7 @@ function filteredGenerations(){
 function generationFingerprint(g){
   return JSON.stringify([
     g.id,g.status,g.has_video,g.video_url,g.has_poster,g.poster_url,
-    g.credits_cost,g.model,g.duration,g.aspect_ratio,g.prompt,g.error_message
+    g.credits_cost,g.model,g.duration,g.resolution,g.aspect_ratio,g.prompt,g.error_message
   ]);
 }
 
@@ -1670,6 +1705,7 @@ async function createGeneration(){
     form.append('prompt',$('prompt').value);
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
+    if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
     form.append('aspectRatio',$('ratio').value);
 
     const reused=referenceItems.filter(item=>item.kind==='reused');
@@ -1730,7 +1766,16 @@ async function reuseGeneration(id){
     const modelExists=[...$('model').options].some(o=>o.value===g.model);
     if(modelExists){
       $('model').value=g.model;
-      renderDurations();
+      renderDurations(true);
+    }
+
+    if(g.resolution && !$('resolutionControl').classList.contains('hide')){
+      const resolutionExists=[...$('resolution').options].some(o=>o.value===g.resolution);
+      if(resolutionExists){
+        $('resolution').value=g.resolution;
+        syncCustomSelect('resolution');
+        renderDurations(false);
+      }
     }
 
     const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
@@ -1746,6 +1791,7 @@ async function reuseGeneration(id){
     }
 
     syncCustomSelect('model');
+    syncCustomSelect('resolution');
     syncCustomSelect('duration');
 
     clearReferenceItems();
@@ -1833,7 +1879,7 @@ function jobCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+escapeHtml(g.model)+' · '+g.duration+'s · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<div class="job-title">'+escapeHtml(g.model)+' · '+g.duration+'s'+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
