@@ -860,3 +860,20 @@ Generation detail now includes `reference_images` metadata for images owned by t
 The active worker no longer deletes reference-image blobs after provider submission/completion/failure. Images are retained until the customer deletes the generation, enabling later prompt+image reuse.
 
 Important historical limitation: generations completed before this change may have had their reference-image blobs deleted by the previous worker behavior. Those old images cannot be reconstructed from the database; for such older generations the UI restores the prompt/settings and tells the user to upload the references again.
+
+
+## Reference image removal + drag/drop ordering — 2026-10-05
+
+Reference-image handling in the Create composer is now fully interactive.
+
+Current behavior:
+- every reference-image thumbnail has a small **× remove** control
+- remove works for both freshly uploaded images and images restored through Reuse prompt
+- desktop users can drag thumbnails to reorder them
+- touch/pointer users can drag from the small grip control to reorder
+- users can also drag JPEG/PNG/WebP files directly onto the reference upload drop-zone
+- reused and fresh images can be mixed in any order, up to the existing 6-image limit
+
+The chosen order is now preserved end-to-end. The frontend sends a `referenceOrder` manifest with the multipart generation request, and `src/generations.js` validates it and stores `generation_images.position_index` in that exact visual order. This means provider submission receives reference images in the same order the customer arranged them.
+
+The browser file input is no longer treated as the source of truth after selection. The frontend keeps an explicit reference-item list so fresh uploads can be removed/reordered and can coexist cleanly with reused stored images.
