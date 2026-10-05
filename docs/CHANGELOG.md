@@ -202,3 +202,10 @@
 - Added direct file drag/drop onto the reference upload area.
 - Added backend referenceOrder validation and exact position persistence.
 - Mixed reused + fresh reference images now retain the user-selected order through provider submission.
+
+## 2026-10-05 — Remove login flash on refresh
+
+- Added a lightweight boot/session-check screen.
+- Auth and dashboard remain hidden until /api/me resolves.
+- Valid sessions now open directly into the dashboard without flashing the login form.
+- Unauthenticated users see the login screen only after the session check returns 401.
