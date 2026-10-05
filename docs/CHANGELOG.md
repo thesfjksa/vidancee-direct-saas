@@ -176,3 +176,10 @@
 
 - Removed 15s and 30s customer duration exposure for Seedance 2.0 Fast.
 - Added single-option dropdown behavior so a one-value Duration control no longer opens an unnecessary menu.
+
+## 2026-10-05 — Fix generation deletion on older databases
+
+- Explicitly detach credit-ledger rows before deleting a generation.
+- Explicitly delete stored generation image rows.
+- No longer relies solely on historical foreign-key ON DELETE definitions.
+- Keeps credit history while allowing terminal generations to be removed reliably.
