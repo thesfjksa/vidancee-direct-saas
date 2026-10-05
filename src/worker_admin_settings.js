@@ -260,7 +260,7 @@ class GenerationWorker {
     if (slots <= 0) return;
 
     const [queued] = await db.query(
-      "SELECT * FROM generations WHERE media_type='image' AND status='queued' ORDER BY created_at ASC LIMIT 25"
+      "SELECT * FROM generations WHERE media_type='image' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25"
     );
 
     for (const job of queued) {
@@ -470,7 +470,7 @@ class GenerationWorker {
     }
 
     if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) return;
-    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND status='queued' ORDER BY created_at ASC LIMIT 25");
+    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
 
     for (const job of queued) {
       if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) break;
