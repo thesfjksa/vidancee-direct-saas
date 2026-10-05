@@ -238,3 +238,5 @@
 - Applied the 2.5× pricing rule to all existing video and image models.
 - Migrated credit balances, generation costs, and ledger amounts to DECIMAL(12,2).
 - Enabled decimal Admin credit adjustments.
+
+- Added v1/v2 endpoint compatibility fallback for the vgenv Video resource.
