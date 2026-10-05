@@ -132,11 +132,9 @@ class GenerationWorker {
             "UPDATE generations SET status='completed', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
             [status.url, row.id]
           );
-          await db.execute('DELETE FROM generation_images WHERE generation_id=?', [row.id]);
         } else if (status.status === 'failed') {
           await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.', status.amount);
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
-          await db.execute('DELETE FROM generation_images WHERE generation_id=?', [row.id]);
         } else {
           await db.execute(
             "UPDATE generations SET status='processing', started_at=COALESCE(started_at, UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
@@ -213,7 +211,6 @@ class GenerationWorker {
       "UPDATE generations SET provider='vidancee', status='submitted', provider_job_id=?, submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
       [String(providerJobId), job.id]
     );
-    if (job.mode === 'image-to-video') await db.execute('DELETE FROM generation_images WHERE generation_id=?', [job.id]);
   }
 
   async submitCreatePulse(db, job, imageCount) {
@@ -299,7 +296,6 @@ class GenerationWorker {
       } catch (error) {
         console.error('Generation submission failed for', job.id, error);
         await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
-        await db.execute('DELETE FROM generation_images WHERE generation_id=?', [job.id]);
       }
     }
   }
