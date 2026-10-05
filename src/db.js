@@ -74,6 +74,7 @@ async function initDb() {
       id CHAR(36) NOT NULL,
       user_id BIGINT UNSIGNED NOT NULL,
       provider VARCHAR(40) NOT NULL DEFAULT 'vidancee',
+      media_type VARCHAR(20) NOT NULL DEFAULT 'video',
       provider_job_id VARCHAR(191) NULL,
       mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video',
       model VARCHAR(80) NOT NULL,
@@ -142,7 +143,8 @@ async function initDb() {
   }
 
   await ensureGenerationColumn('provider', "provider VARCHAR(40) NOT NULL DEFAULT 'vidancee' AFTER user_id");
-  const providerJobColumn = await ensureGenerationColumn('provider_job_id', "provider_job_id VARCHAR(191) NULL AFTER provider");
+  await ensureGenerationColumn('media_type', "media_type VARCHAR(20) NOT NULL DEFAULT 'video' AFTER provider");
+  const providerJobColumn = await ensureGenerationColumn('provider_job_id', "provider_job_id VARCHAR(191) NULL AFTER media_type");
   if (providerJobColumn && !/varchar/i.test(String(providerJobColumn.Type || ''))) {
     await db.query("ALTER TABLE generations MODIFY provider_job_id VARCHAR(191) NULL");
   }
