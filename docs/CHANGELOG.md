@@ -260,3 +260,14 @@
 - Switched Admin provider-settings save requests from PUT to POST to avoid production edge/WAF browser challenges.
 - Kept PUT support server-side for backward compatibility.
 - Added friendly detection of Cloudflare/edge HTML challenge responses in the Admin API helper.
+
+## 2026-10-05 — Add video resolution selection
+
+- Added model-specific Resolution control to the video composer.
+- Added MiniMax H3 480p and 768p options, with 768p as default.
+- Added resolution-aware H3 credit pricing under the universal 2.5× rule.
+- Added generations.resolution persistence and migration.
+- Reuse prompt now restores the selected resolution.
+- Generation cards and Admin monitoring now show resolution.
+- vgenv requests now receive the customer's selected H3 resolution.
+- Seedance keeps its provider-defined resolution without showing a redundant selector.
