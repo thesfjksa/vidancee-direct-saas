@@ -310,6 +310,7 @@ class GenerationWorker {
     const cpEligible = this.createPulse && cpSlots > 0 && this.createPulse.supports({
       model: job.model,
       duration: Number(job.duration),
+      resolution: job.resolution || '768p',
       aspectRatio: job.aspect_ratio,
       mode: job.mode,
       imageCount,
