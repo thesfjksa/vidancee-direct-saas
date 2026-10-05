@@ -222,3 +222,19 @@
 - Added reference upload/remove/reorder support for image generation.
 - Scoped existing video APIs/worker queries to video jobs.
 - Added customer image credit pricing overrides.
+
+## 2026-10-05 — Add vgenv MiniMax H3 and universal 2.5× markup
+
+- Added vgenv REST client for MiniMax H3.
+- Added MiniMax H3 to the customer video model selector.
+- Added H3 durations from 4–15 seconds.
+- Added H3 text-to-video and ordered reference-image video generation.
+- Added H3-specific 5 MB reference-image validation.
+- Added Admin-managed encrypted vgenv API key/base URL/max-inflight settings.
+- Added dedicated worker routing so MiniMax H3 goes only to vgenv.
+- Added vgenv polling, provider cost capture, success output handling, and failure refunds.
+- Hid H3 from customer config until vgenv is configured.
+- Added central CUSTOMER_CREDIT_MULTIPLIER with default 2.5.
+- Applied the 2.5× pricing rule to all existing video and image models.
+- Migrated credit balances, generation costs, and ledger amounts to DECIMAL(12,2).
+- Enabled decimal Admin credit adjustments.
