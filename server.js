@@ -11,11 +11,19 @@ const {
   createSession, destroySession, userFromRequest, requireUser,
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
+const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
   deleteUserGeneration, serializeGeneration,
 } = require('./src/generations.js');
+const {
+  createImageGenerationForUser,
+  listUserImageGenerations,
+  getUserImageGeneration,
+  deleteUserImageGeneration,
+  serializeImageGeneration,
+} = require('./src/image_generations.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const {
   getProviderSettings,
@@ -225,7 +233,7 @@ const server=http.createServer(async (req,res)=>{
       let generationEnabled=false;
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
-        generationBackendReady=Boolean(providerSettings.vidancee.configured || providerSettings.createpulse.configured);
+        generationBackendReady=Boolean(providerSettings.vidancee.configured || providerSettings.createpulse.configured || providerSettings.atlascloud.configured);
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -236,6 +244,7 @@ const server=http.createServer(async (req,res)=>{
         database,
         services:{
           generationBackendReady,
+          imageGenerationReady: Boolean(database.connected && (await getAdminProviderSettings()).atlascloud.configured),
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           generationEnabled,
         },
@@ -248,7 +257,12 @@ const server=http.createServer(async (req,res)=>{
 
     if (req.method==='GET' && routePath==='/api/config') {
       return sendJson(res,200,{
-        ok:true, signupsEnabled:allowSignups, pricing:publicPricing(), aspectRatios:ASPECT_RATIOS,
+        ok:true,
+        signupsEnabled:allowSignups,
+        pricing:publicPricing(),
+        aspectRatios:ASPECT_RATIOS,
+        imagePricing:publicImagePricing(),
+        imageAspectRatios:IMAGE_ASPECT_RATIOS,
       });
     }
 
@@ -358,6 +372,47 @@ const server=http.createServer(async (req,res)=>{
       await db.execute('DELETE FROM sessions WHERE user_id=?',[user.id]);
       await createSession(res,user.id);
       return sendJson(res,200,{ok:true});
+    }
+
+    if (req.method==='GET' && routePath==='/api/image-generations') {
+      requireDatabase();
+      const user=await requireUser(req);
+      return sendJson(res,200,{ok:true,generations:await listUserImageGenerations(user.id,60)});
+    }
+
+    if (req.method==='POST' && routePath==='/api/image-generations') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const body=await readGenerationRequest(req);
+      const generation=await createImageGenerationForUser(user.id,body);
+      const db=getPool();
+      const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
+      return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
+    }
+
+    const imageGenMatch=routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})$/i);
+    if (req.method==='GET' && imageGenMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      const row=await getUserImageGeneration(user.id,imageGenMatch[1]);
+      if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
+      return sendJson(res,200,{ok:true,generation:serializeImageGeneration(row)});
+    }
+
+    if (req.method==='DELETE' && imageGenMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      await deleteUserImageGeneration(user.id,imageGenMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:imageGenMatch[1]});
+    }
+
+    const imageMediaMatch=routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})\/media$/i);
+    if (req.method==='GET' && imageMediaMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      const row=await getUserImageGeneration(user.id,imageMediaMatch[1]);
+      if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
+      return proxyMedia(req,res,row,'video');
     }
 
     if (req.method==='GET' && routePath==='/api/generations') {
@@ -507,14 +562,18 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,
           pricing:publicPricing(),
           aspectRatios:ASPECT_RATIOS,
+          imagePricing:publicImagePricing(),
+          imageAspectRatios:IMAGE_ASPECT_RATIOS,
           signupsEnabled:allowSignups,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           providers:{
             vidancee:providerSettings.vidancee.configured,
             createpulse:providerSettings.createpulse.configured,
+            atlascloud:providerSettings.atlascloud.configured,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
+          atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           generationEnabled:providerSettings.allowProviderCharges,
         });
       }
@@ -644,7 +703,7 @@ const server=http.createServer(async (req,res)=>{
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
           `SELECT
-             g.id,g.user_id,g.provider,g.provider_job_id,g.mode,g.model,g.duration,g.aspect_ratio,
+             g.id,g.user_id,g.provider,g.media_type,g.provider_job_id,g.mode,g.model,g.duration,g.aspect_ratio,
              g.prompt,g.status,g.credits_cost,g.provider_cost,g.provider_cost_unit,g.output_url,g.poster_url,
              g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,
              u.email
@@ -657,6 +716,7 @@ const server=http.createServer(async (req,res)=>{
           ...serializeGeneration(row),
           user_email:row.email,
           provider:row.provider,
+          media_type:row.media_type || 'video',
           provider_job_id:row.provider_job_id,
         }))});
       }
