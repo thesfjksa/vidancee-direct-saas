@@ -82,6 +82,7 @@ class VgenvClient {
   async generateVideo({
     prompt,
     duration,
+    resolution = '768p',
     aspectRatio,
     referenceImageUrls = [],
     idempotencyKey = null,
@@ -91,7 +92,7 @@ class VgenvClient {
       tier: 'fast',
       prompt,
       duration: Number(duration),
-      resolution: '768p',
+      resolution: String(resolution || '768p'),
       aspect_ratio: aspectRatio,
     };
 
