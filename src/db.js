@@ -117,6 +117,22 @@ async function initDb() {
       CONSTRAINT fk_generation_images_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS generation_media (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      generation_id CHAR(36) NOT NULL,
+      position_index SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+      media_kind VARCHAR(20) NOT NULL,
+      media_role VARCHAR(50) NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(100) NOT NULL,
+      media_data LONGBLOB NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_generation_media_generation (generation_id, position_index),
+      KEY idx_generation_media_kind (generation_id, media_kind),
+      CONSTRAINT fk_generation_media_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS credit_transactions (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       user_id BIGINT UNSIGNED NOT NULL,
