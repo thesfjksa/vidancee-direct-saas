@@ -300,3 +300,12 @@
 - Added source-credit tracking and existing atomic refunds for failed Higgsfield generations.
 - Made Higgsfield primary for overlapping synced models while retaining existing sources as fallback when Higgsfield is disabled.
 - Added deployment documentation for `APP_URL`, MCP endpoint, provider switch, and initial account authorization.
+
+
+## 2026-10-06 — Fix Higgsfield live MCP model discovery
+
+- Confirmed the paid account OAuth connection works from the deployed Admin UI.
+- Fixed dynamic model discovery when the MCP `model` field is a plain string rather than a JSON-Schema enum.
+- Added discovery from schema examples, defaults, descriptions, and model-specific tool names.
+- Improved the sync failure message to report the returned MCP tool count.
+- Added **Inspect MCP tools** in Admin for sanitized live-schema troubleshooting without exposing OAuth tokens or passwords.
