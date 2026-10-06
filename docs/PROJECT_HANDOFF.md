@@ -1290,13 +1290,15 @@ The switches are stored in `app_settings` and default to enabled so an existing 
 
 A source must be both **configured** and **enabled** before its models are exposed by `GET /api/config`.
 
-Current model-source mapping:
+Current model-source behavior:
 
-- `seedance_2.5` and `seedance_2.0_fast`: visible when either Vidancee or CreatePulse is active
-- `minimax_h3`: visible only when vgenv is active
-- Atlas image models: visible only when Atlas Cloud is active
+- static `seedance_2.5` and `seedance_2.0_fast` remain available from Vidancee/CreatePulse when those sources are active
+- static `minimax_h3` remains available from vgenv when that source is active
+- static Atlas image models remain available when Atlas Cloud is active
+- when Higgsfield MCP is active, any enabled/available synced Higgsfield image/video model is merged into the same customer catalog
+- when a synced Higgsfield model uses the same public model ID as a static model, the Higgsfield definition is primary while Higgsfield is active; the static source becomes the fallback when Higgsfield is switched off
 
-Because Seedance has two possible backend sources, turning off only one of them does **not** remove Seedance from customers if the other source remains active. Turning off both removes the Seedance models.
+A customer model disappears only when no active enabled backend still exposes that public model.
 
 Provider identities remain private; customers only see the resulting model catalog.
 
