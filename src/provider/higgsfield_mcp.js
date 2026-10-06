@@ -628,12 +628,23 @@ function mediaReferencesForModel(model, mediaIds) {
 
 function extractCost(result) {
   const objects = resultObjects(result);
+
   const direct = firstByKeys(objects, [
-    'cost_credits', 'credit_cost', 'credits_cost', 'estimated_credits',
-    'estimated_cost', 'cost', 'credits', 'price',
+    'credits_exact', 'cost_credits', 'credit_cost', 'credits_cost',
+    'estimated_credits', 'estimated_cost', 'credits', 'price',
   ]);
-  const n = Number(direct);
-  if (Number.isFinite(n) && n > 0) return n;
+  const directNumber = Number(direct);
+  if (Number.isFinite(directNumber) && directNumber > 0) return directNumber;
+
+  const costValue = firstByKeys(objects, ['cost']);
+  if (costValue && typeof costValue === 'object') {
+    const nested = firstByKeys([costValue], ['credits_exact', 'credits', 'amount', 'value', 'price']);
+    const nestedNumber = Number(nested);
+    if (Number.isFinite(nestedNumber) && nestedNumber > 0) return nestedNumber;
+  } else {
+    const costNumber = Number(costValue);
+    if (Number.isFinite(costNumber) && costNumber > 0) return costNumber;
+  }
 
   for (const obj of objects) {
     const text = String(obj?.__text || '');
@@ -646,7 +657,7 @@ function extractCost(result) {
 
 function extractJobId(result) {
   const objects = resultObjects(result);
-  const direct = firstByKeys(objects, ['job_id', 'jobId', 'request_id', 'requestId', 'task_id', 'taskId']);
+  const direct = firstByKeys(objects, ['job_id', 'jobId', 'request_id', 'requestId', 'task_id', 'taskId', 'id']);
   if (direct !== null && String(direct).trim()) return String(direct);
 
   for (const obj of objects) {
@@ -1165,10 +1176,13 @@ async function submitHiggsfieldGeneration(model, input = {}, mediaReferences = [
   const { tool, args } = buildToolArguments(model, input, mediaReferences, { getCost: false });
   return withAuthenticatedClient(async client => {
     const result = await client.callTool({ name: tool.name, arguments: args }, { timeout: 60000 });
+    const outputUrl = extractOutputUrl(result);
+    let status = extractStatus(result);
+    if (outputUrl && status === 'processing') status = 'completed';
     return {
       jobId: extractJobId(result),
-      status: extractStatus(result),
-      outputUrl: extractOutputUrl(result),
+      status,
+      outputUrl,
       cost: extractCost(result),
     };
   });
