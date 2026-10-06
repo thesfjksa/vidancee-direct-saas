@@ -41,7 +41,27 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     error.statusCode = 400;
     throw error;
   }
-  if (images.length > 6) {
+  if (options.dynamicModel) {
+    const imageCapability=options.referenceCapabilities?.image || {};
+    const supported=imageCapability.supported===true || Number(imageCapability.max||0)>0;
+    const max=Math.max(0,Number(imageCapability.max||0));
+    const min=Math.max(0,Number(imageCapability.min||0));
+    if(images.length && !supported){
+      const error=new Error('This image model does not accept reference images.');
+      error.statusCode=400;
+      throw error;
+    }
+    if(max>0 && images.length>max){
+      const error=new Error('This image model accepts at most '+max+' reference image'+(max===1?'':'s')+'.');
+      error.statusCode=400;
+      throw error;
+    }
+    if(min>0 && images.length<min){
+      const error=new Error('This image model requires at least '+min+' reference image'+(min===1?'':'s')+'.');
+      error.statusCode=400;
+      throw error;
+    }
+  } else if (images.length > 6) {
     const error = new Error('A maximum of 6 reference images is allowed.');
     error.statusCode = 400;
     throw error;
