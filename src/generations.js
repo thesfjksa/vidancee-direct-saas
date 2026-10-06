@@ -414,7 +414,10 @@ async function createGenerationForUser(userId, input, options = {}) {
     }
 
     const allImageCount = orderedImages.length;
-    const mode = (allImageCount > 0 || freshVideos.length > 0) ? 'reference-to-video' : 'text-to-video';
+    const hasReferences = allImageCount > 0 || freshVideos.length > 0;
+    const mode = hasReferences
+      ? (options.dynamicModel ? 'reference-to-video' : 'image-to-video')
+      : 'text-to-video';
 
     await conn.execute(
       `INSERT INTO generations
