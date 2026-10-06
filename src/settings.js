@@ -18,6 +18,9 @@ const DEFAULTS = {
   vgenv_api_key: '',
   vgenv_max_inflight: '4',
   vgenv_enabled: 'true',
+  higgsfield_mcp_url: 'https://mcp.higgsfield.ai/mcp',
+  higgsfield_max_inflight: '4',
+  higgsfield_enabled: 'true',
   provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
@@ -80,10 +83,32 @@ async function del(key) {
   await db.execute('DELETE FROM app_settings WHERE setting_key=?', [key]);
 }
 
+async function getSettingValue(key, fallback = '') {
+  const rows = await rowsMap();
+  const row = rows.get(String(key));
+  if (!row) return fallback;
+  return Number(row.is_secret) ? decrypt(row.setting_value) : String(row.setting_value || '');
+}
+
+async function setSettingValue(key, value, { secret = false } = {}) {
+  await put(String(key), value == null ? '' : String(value), secret);
+}
+
+async function deleteSettingValue(key) {
+  await del(String(key));
+}
+
 function normalizeUrl(value, fallback) {
   const parsed = new URL(String(value || fallback));
   if (parsed.protocol !== 'https:') throw new Error('Provider URLs must use HTTPS.');
   return parsed.origin;
+}
+
+function normalizeEndpoint(value, fallback) {
+  const parsed = new URL(String(value || fallback));
+  if (parsed.protocol !== 'https:') throw new Error('Provider URLs must use HTTPS.');
+  parsed.hash = '';
+  return parsed.toString().replace(/\/$/, '');
 }
 
 function asBool(value) {
@@ -115,6 +140,10 @@ async function getProviderSettings() {
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
     vgenvMaxInflight: Math.max(1, Math.min(50, Number(read('vgenv_max_inflight') || 4))),
     vgenvEnabled: asBool(read('vgenv_enabled')),
+    higgsfieldMcpUrl: normalizeEndpoint(read('higgsfield_mcp_url'), DEFAULTS.higgsfield_mcp_url),
+    higgsfieldMaxInflight: Math.max(1, Math.min(50, Number(read('higgsfield_max_inflight') || 4))),
+    higgsfieldEnabled: asBool(read('higgsfield_enabled')),
+    higgsfieldOauthTokens: String(read('higgsfield_oauth_tokens') || ''),
     routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
@@ -154,6 +183,14 @@ async function getAdminProviderSettings() {
       configured: Boolean(s.vgenvApiKey),
       enabled: Boolean(s.vgenvEnabled),
       active: Boolean(s.vgenvEnabled && s.vgenvApiKey),
+    },
+    higgsfield: {
+      mcpUrl: s.higgsfieldMcpUrl,
+      maxInflight: s.higgsfieldMaxInflight,
+      connected: Boolean(s.higgsfieldOauthTokens),
+      configured: Boolean(s.higgsfieldOauthTokens),
+      enabled: Boolean(s.higgsfieldEnabled),
+      active: Boolean(s.higgsfieldEnabled && s.higgsfieldOauthTokens),
     },
     routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
@@ -199,6 +236,14 @@ async function updateProviderSettings(input = {}) {
     await put('vgenv_max_inflight', String(n));
   }
 
+  if ('higgsfieldMcpUrl' in input) await put('higgsfield_mcp_url', normalizeEndpoint(input.higgsfieldMcpUrl, DEFAULTS.higgsfield_mcp_url));
+  if ('higgsfieldEnabled' in input) await put('higgsfield_enabled', input.higgsfieldEnabled ? 'true' : 'false');
+  if ('higgsfieldMaxInflight' in input) {
+    const n = Number(input.higgsfieldMaxInflight);
+    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Higgsfield max inflight must be 1 to 50.');
+    await put('higgsfield_max_inflight', String(n));
+  }
+
   if ('routing' in input) {
     const routing = String(input.routing || '');
     if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
@@ -235,10 +280,21 @@ async function migrateLegacyProviderEnvSettings() {
   secret('vgenv_api_key', 'VGENV_API_KEY');
   plain('vgenv_max_inflight', 'VGENV_MAX_INFLIGHT');
   plain('vgenv_enabled', 'VGENV_ENABLED');
+  plain('higgsfield_mcp_url', 'HIGGSFIELD_MCP_URL');
+  plain('higgsfield_max_inflight', 'HIGGSFIELD_MAX_INFLIGHT');
+  plain('higgsfield_enabled', 'HIGGSFIELD_ENABLED');
   plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
   return tasks.length;
 }
 
-module.exports = { getProviderSettings, getAdminProviderSettings, updateProviderSettings, migrateLegacyProviderEnvSettings };
+module.exports = {
+  getProviderSettings,
+  getAdminProviderSettings,
+  updateProviderSettings,
+  migrateLegacyProviderEnvSettings,
+  getSettingValue,
+  setSettingValue,
+  deleteSettingValue,
+};
