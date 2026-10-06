@@ -29,12 +29,13 @@ function slug(value) {
 }
 
 function canonicalPublicModelId(providerModelId, label = '', mediaType = 'video') {
-  const hay = (String(providerModelId || '') + ' ' + String(label || '')).toLowerCase();
-  if (/seedance[^\n]*2[._ -]?5/.test(hay)) return 'seedance_2.5';
-  if (/seedance[^\n]*2[._ -]?0/.test(hay) && /fast|mini/.test(hay)) return 'seedance_2.0_fast';
-  if (/minimax[^\n]*(h3|hailuo[^\n]*3)/.test(hay)) return 'minimax_h3';
-
   const base = slug(providerModelId || label);
+  // Reuse existing public IDs only for the plain/base product. Variants keep
+  // distinct neutral IDs so a provider catalog with Fast/Pro/etc. does not
+  // collapse multiple sellable models into one customer option.
+  if (/^(?:bytedance_)?seedance_2_5$/.test(base)) return 'seedance_2.5';
+  if (/^(?:bytedance_)?seedance_2_0_(?:fast|mini)$/.test(base)) return 'seedance_2.0_fast';
+  if (/^(?:minimax_)?(?:h3|hailuo_?3)$/.test(base)) return 'minimax_h3';
   return 'ai_' + (base || mediaType + '_model');
 }
 
