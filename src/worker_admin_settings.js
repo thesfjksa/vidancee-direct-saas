@@ -466,11 +466,12 @@ class GenerationWorker {
     return Number(row?.total || 0);
   }
 
-  chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots) {
+  chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots, access = {}) {
+    const allowed = key => access[key] !== false;
     if (job.model === 'minimax_h3') {
-      return this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
+      return allowed('vgenv') && this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
     }
-    const cpEligible = this.createPulseEnabled && this.createPulse && cpSlots > 0 && this.createPulse.supports({
+    const cpEligible = allowed('createpulse') && this.createPulseEnabled && this.createPulse && cpSlots > 0 && this.createPulse.supports({
       model: job.model,
       duration: Number(job.duration),
       resolution: job.resolution || '768p',
@@ -478,7 +479,7 @@ class GenerationWorker {
       mode: job.mode,
       imageCount,
     });
-    const vidEligible = this.vidanceeEnabled && this.vidancee && vidSlots > 0;
+    const vidEligible = allowed('vidancee') && this.vidanceeEnabled && this.vidancee && vidSlots > 0;
 
     if (this.routing === 'createpulse-first') {
       if (cpEligible) return 'createpulse';
@@ -650,10 +651,25 @@ class GenerationWorker {
     if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) return;
     const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND provider<>'higgsfield' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
 
+    const queuedUserIds=[...new Set(queued.map(job=>Number(job.user_id)).filter(Boolean))];
+    const accessByUser=new Map();
+    if(queuedUserIds.length){
+      const [accessRows]=await db.query(
+        'SELECT user_id,provider,enabled FROM user_provider_access WHERE user_id IN ('+
+        queuedUserIds.map(()=>'?').join(',')+')',
+        queuedUserIds
+      );
+      for(const row of accessRows){
+        const userId=Number(row.user_id);
+        if(!accessByUser.has(userId))accessByUser.set(userId,{});
+        accessByUser.get(userId)[String(row.provider)]=Boolean(row.enabled);
+      }
+    }
+
     for (const job of queued) {
       if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) break;
       const count = job.mode === 'image-to-video' ? await this.imageCount(db, job.id) : 0;
-      const chosen = this.chooseProvider(job, count, vidSlots, cpSlots, vgenvSlots);
+      const chosen = this.chooseProvider(job, count, vidSlots, cpSlots, vgenvSlots, accessByUser.get(Number(job.user_id))||{});
       if (!chosen) continue;
 
       const [claim] = await db.execute(
