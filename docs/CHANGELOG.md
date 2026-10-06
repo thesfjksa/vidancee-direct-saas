@@ -329,3 +329,11 @@
 - Added model-specific media-role validation before reserving customer credits.
 - Added support for nested `cost.credits_exact` pricing and top-level generation job `id`.
 - Admin now shows only authoritative/current Higgsfield catalog rows.
+
+
+## 2026-10-06 — Map Higgsfield generation modes
+
+- Preserved provider-declared model mode options/defaults from `models_explore`.
+- Automatically selects `omni_reference` for reference-driven models when supported.
+- Automatically selects `t2v` for prompt-only generation when supported.
+- Falls back to the provider-declared default mode for other models.
