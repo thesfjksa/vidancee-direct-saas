@@ -35,8 +35,8 @@ function pricingMap() {
       label: 'Seedance 2.0 Fast',
       resolutions: [],
       durations: {
-        // Customer-facing product rule: Seedance 2.0 Fast is locked to 10 seconds.
         10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_10', 5)),
+        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_15', 7.5)),
       },
     },
     'minimax_h3': {
