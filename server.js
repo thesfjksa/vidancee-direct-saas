@@ -243,10 +243,10 @@ const server=http.createServer(async (req,res)=>{
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
-          providerSettings.vidancee.configured ||
-          providerSettings.createpulse.configured ||
-          providerSettings.vgenv.configured ||
-          providerSettings.atlascloud.configured
+          providerSettings.vidancee.active ||
+          providerSettings.createpulse.active ||
+          providerSettings.vgenv.active ||
+          providerSettings.atlascloud.active
         );
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
@@ -258,7 +258,7 @@ const server=http.createServer(async (req,res)=>{
         database,
         services:{
           generationBackendReady,
-          imageGenerationReady: Boolean(database.connected && (await getAdminProviderSettings()).atlascloud.configured),
+          imageGenerationReady: Boolean(database.connected && (await getAdminProviderSettings()).atlascloud.active),
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           generationEnabled,
         },
@@ -276,10 +276,16 @@ const server=http.createServer(async (req,res)=>{
       if (dbConfigured()) {
         try {
           const providerSettings=await getAdminProviderSettings();
-          if (!providerSettings.vgenv.configured) {
-            videoPricing=videoPricing.filter(model=>model.id!=='minimax_h3');
-          }
-          if (!providerSettings.atlascloud.configured) {
+          const seedanceActive=Boolean(providerSettings.vidancee.active || providerSettings.createpulse.active);
+          const h3Active=Boolean(providerSettings.vgenv.active);
+
+          videoPricing=videoPricing.filter(model=>{
+            if (model.id==='minimax_h3') return h3Active;
+            if (model.id==='seedance_2.5' || model.id==='seedance_2.0_fast') return seedanceActive;
+            return true;
+          });
+
+          if (!providerSettings.atlascloud.active) {
             imagePricing=[];
           }
         } catch {
@@ -433,8 +439,8 @@ const server=http.createServer(async (req,res)=>{
       if (!providerSettings.allowProviderCharges) {
         return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
       }
-      if (!providerSettings.atlasCloudApiKey) {
-        return sendJson(res,503,{ok:false,error:'Image generation is not configured yet.'});
+      if (!providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
+        return sendJson(res,503,{ok:false,error:'Image generation is currently unavailable.'});
       }
       const body=await readGenerationRequest(req);
       const generation=await createImageGenerationForUser(user.id,body);
@@ -478,15 +484,31 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const user=await requireUser(req);
       const body=await readGenerationRequest(req);
-      if (String(body.model||'')==='minimax_h3') {
-        const providerSettings=await getProviderSettings();
-        if (!providerSettings.allowProviderCharges) {
-          return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+      const providerSettings=await getProviderSettings();
+      if (!providerSettings.allowProviderCharges) {
+        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+      }
+
+      const requestedModel=String(body.model||'');
+      if (requestedModel==='minimax_h3') {
+        if (!providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
+          return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
         }
-        if (!providerSettings.vgenvApiKey) {
-          return sendJson(res,503,{ok:false,error:'This model is not configured yet.'});
+      } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
+        const vidanceeActive=Boolean(
+          providerSettings.vidanceeEnabled &&
+          providerSettings.vidanceeEmail &&
+          providerSettings.vidanceePassword
+        );
+        const createPulseActive=Boolean(
+          providerSettings.createPulseEnabled &&
+          providerSettings.createPulseApiKey
+        );
+        if (!vidanceeActive && !createPulseActive) {
+          return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
         }
       }
+
       const generation=await createGenerationForUser(user.id,body);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
@@ -633,6 +655,18 @@ const server=http.createServer(async (req,res)=>{
             createpulse:providerSettings.createpulse.configured,
             atlascloud:providerSettings.atlascloud.configured,
             vgenv:providerSettings.vgenv.configured,
+          },
+          providerEnabled:{
+            vidancee:providerSettings.vidancee.enabled,
+            createpulse:providerSettings.createpulse.enabled,
+            atlascloud:providerSettings.atlascloud.enabled,
+            vgenv:providerSettings.vgenv.enabled,
+          },
+          providerActive:{
+            vidancee:providerSettings.vidancee.active,
+            createpulse:providerSettings.createpulse.active,
+            atlascloud:providerSettings.atlascloud.active,
+            vgenv:providerSettings.vgenv.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
