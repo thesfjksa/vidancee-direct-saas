@@ -199,6 +199,30 @@ button{cursor:pointer}
   grid-column:1/-1;font-size:8px;color:#61646d;margin-top:1px;
 }
 
+.reference-capability-note{font-size:9px;line-height:1.45;color:#777b85;margin:-2px 0 8px}
+.reference-role{
+  width:100%;margin-top:4px;padding:5px 6px;border-radius:6px;
+  font-size:8px;background:#0d0e11;border:1px solid #2b2e34;color:#cfd2d8
+}
+.reference-role-label{
+  display:block;margin-top:4px;padding:4px 6px;border-radius:6px;
+  font-size:8px;background:#191b20;border:1px solid #292c33;color:#b7bbc4;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.video-reference-list{display:grid;gap:7px;margin-top:8px}
+.video-reference-item{
+  display:grid;grid-template-columns:76px minmax(0,1fr) 24px;gap:8px;align-items:center;
+  border:1px solid #292c33;border-radius:9px;background:#0f1012;padding:6px
+}
+.video-reference-item video{width:76px;height:52px;object-fit:cover;border-radius:6px;background:#050506}
+.video-reference-meta{min-width:0}
+.video-reference-name{font-size:9px;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.video-reference-size{font-size:8px;color:#686c75;margin-top:2px}
+.video-reference-remove{
+  width:24px;height:24px;border-radius:50%;border:1px solid #44474f;background:#17191d;color:#ddd;padding:0
+}
+.video-reference-remove:hover{border-color:#6b3439;color:#ff929c;background:#211316}
+
 label.meta{
   display:block;font-size:9px;color:#6c6f78;text-transform:uppercase;letter-spacing:.08em;
   margin:10px 0 5px
@@ -574,19 +598,36 @@ textarea::placeholder,input::placeholder{color:#555860}
           </div>
 
           <div class="creator-scroll">
-            <div class="block">
-              <div class="block-title">Reference images</div>
+            <div id="videoImageReferenceBlock" class="block">
+              <div id="videoImageReferenceTitle" class="block-title">Reference images</div>
+              <div id="videoImageReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
               <input id="imageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="previewImages()">
               <label id="refDrop" class="ref-drop" for="imageInput">
                 <div>
                   <div class="ref-icon">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
                   </div>
-                  <strong>Add visual references</strong>
-                  <span>Optional · up to 6 images · drag files here</span>
+                  <strong id="videoImageReferenceAction">Add visual references</strong>
+                  <span id="videoImageReferenceDropHelp">Optional · drag files here</span>
                 </div>
               </label>
               <div id="imagePreview" class="image-preview"></div>
+            </div>
+
+            <div id="videoVideoReferenceBlock" class="block hide">
+              <div class="block-title">Video references</div>
+              <div id="videoVideoReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
+              <input id="videoReferenceInput" class="hide" type="file" accept="video/mp4,video/webm,video/quicktime" multiple onchange="addVideoReferenceFiles(this.files)">
+              <label id="videoRefDrop" class="ref-drop" for="videoReferenceInput">
+                <div>
+                  <div class="ref-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>
+                  </div>
+                  <strong>Add video references</strong>
+                  <span id="videoVideoReferenceDropHelp">MP4, WebM or MOV</span>
+                </div>
+              </label>
+              <div id="videoReferenceList" class="video-reference-list"></div>
             </div>
 
             <div class="block">
@@ -594,7 +635,7 @@ textarea::placeholder,input::placeholder{color:#555860}
               <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
 
               <label class="meta">Model</label>
-              <select id="model" onchange="renderDurations(true)"></select>
+              <select id="model" onchange="handleVideoModelChange()"></select>
 
               <div class="control-grid">
                 <div>
@@ -646,8 +687,9 @@ textarea::placeholder,input::placeholder{color:#555860}
           </div>
 
           <div class="creator-scroll">
-            <div class="block">
+            <div id="imageReferenceBlock" class="block">
               <div class="block-title">Reference images</div>
+              <div id="imageReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
               <input id="imageGenInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addImageGenerationFiles(this.files)">
               <label id="imageGenDrop" class="ref-drop" for="imageGenInput">
                 <div>
@@ -655,7 +697,7 @@ textarea::placeholder,input::placeholder{color:#555860}
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
                   </div>
                   <strong>Add image references</strong>
-                  <span>Optional · up to 6 images · drag files here</span>
+                  <span id="imageReferenceDropHelp">Optional · drag files here</span>
                 </div>
               </label>
               <div id="imageGenPreview" class="image-preview"></div>
@@ -666,7 +708,7 @@ textarea::placeholder,input::placeholder{color:#555860}
               <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details..."></textarea>
 
               <label class="meta">Model</label>
-              <select id="imageModel" onchange="renderImageRatios()"></select>
+              <select id="imageModel" onchange="handleImageModelChange()"></select>
 
               <label class="meta">Aspect ratio</label>
               <select id="imageRatio" onchange="updateImageCost()"></select>
@@ -786,6 +828,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
+let videoReferenceItems=[],videoReferenceSeq=0;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
 let videoCostRequestSeq=0,imageCostRequestSeq=0;
 const $=id=>document.getElementById(id);
@@ -841,6 +884,7 @@ function enterApp(){
   renderConfig();
   renderImageConfig();
   setupReferenceDrop();
+  setupVideoReferenceDrop();
   setupImageGenerationDrop();
   go('create');
   loadAll();
