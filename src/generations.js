@@ -262,7 +262,7 @@ async function createGenerationForUser(userId, input, options = {}) {
   }
 
   const dynamicCost = Number(options.costOverride);
-  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
+  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost >= 0;
   const resolution = options.dynamicModel
     ? (requestedResolution || String(options.defaultResolution || '').trim() || null)
     : normalizeResolution(model, requestedResolution);
@@ -271,7 +271,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     : getCost(model, duration, resolution);
   const provider = String(options.provider || 'vidancee').slice(0, 40);
   const providerCost = Number(options.providerCost);
-  const providerCostValue = Number.isFinite(providerCost) && providerCost > 0 ? providerCost : null;
+  const providerCostValue = Number.isFinite(providerCost) && providerCost >= 0 ? providerCost : null;
   const providerCostUnit = providerCostValue == null ? null : String(options.providerCostUnit || 'credits').slice(0, 20);
   const id = crypto.randomUUID();
 
