@@ -257,6 +257,16 @@ function buildToolArguments(model, input = {}, mediaReferences = [], { getCost =
   if (ratio) params.aspect_ratio = String(ratio);
 
   appendMediaReferences(params, mediaReferences);
+
+  const modes = Array.isArray(model.modes) ? model.modes : [];
+  if (mediaReferences.length && modes.includes('omni_reference')) {
+    params.mode = 'omni_reference';
+  } else if (!mediaReferences.length && modes.includes('t2v')) {
+    params.mode = 't2v';
+  } else if (model.defaultMode) {
+    params.mode = model.defaultMode;
+  }
+
   params.count = 1;
   if (getCost) params.get_cost = true;
 
@@ -454,6 +464,7 @@ function catalogModelFromItem(item, mediaType, generationTool) {
   const durationParam = parameterByName(parameters, ['duration', 'seconds', 'length']);
   const resolutionParam = parameterByName(parameters, ['resolution']);
   const aspectParam = parameterByName(parameters, ['aspect_ratio', 'aspectRatio', 'ratio']);
+  const modeParam = parameterByName(parameters, ['mode']);
 
   let durations = Array.isArray(item.durations)
     ? item.durations.map(Number).filter(Number.isFinite)
@@ -486,6 +497,8 @@ function catalogModelFromItem(item, mediaType, generationTool) {
       defaultResolution: parameterDefault(resolutionParam) == null ? null : String(parameterDefault(resolutionParam)),
       defaultAspectRatio: parameterDefault(aspectParam) == null ? null : String(parameterDefault(aspectParam)),
       mediaRoles: catalogMediaRoles(item.medias),
+      modes: parameterChoices(modeParam).map(String).filter(Boolean),
+      defaultMode: parameterDefault(modeParam) == null ? null : String(parameterDefault(modeParam)),
       tools: [{
         name: generationTool.name,
         mode,
