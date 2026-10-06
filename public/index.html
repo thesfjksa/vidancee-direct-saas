@@ -1611,6 +1611,122 @@ function previewImages(){
   addReferenceFiles($('imageInput').files);
 }
 
+function videoReferenceItem(file,role){
+  return {
+    key:'video-ref-'+(++videoReferenceSeq),
+    file,
+    filename:file.name||'reference-video',
+    url:URL.createObjectURL(file),
+    role,
+  };
+}
+
+function clearVideoReferenceItems(){
+  for(const item of videoReferenceItems){
+    if(item.url)URL.revokeObjectURL(item.url);
+  }
+  videoReferenceItems=[];
+  if($('videoReferenceInput'))$('videoReferenceInput').value='';
+  if($('videoReferenceList'))$('videoReferenceList').innerHTML='';
+}
+
+function renderVideoReferenceList(){
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').video;
+  const roles=cap.roles||[];
+  $('videoReferenceList').innerHTML=videoReferenceItems.map(item=>{
+    const roleControl=roles.length>1
+      ?'<select class="reference-role" onchange="setVideoReferenceRole(\''+escapeHtml(item.key)+'\',this.value)">'+roles.map(role=>
+          '<option value="'+escapeHtml(role)+'" '+(role===item.role?'selected':'')+'>'+escapeHtml(roleLabel(role))+'</option>'
+        ).join('')+'</select>'
+      :'<span class="reference-role-label">'+escapeHtml(roleLabel(item.role||roles[0]||'video_references'))+'</span>';
+    return '<div class="video-reference-item">'+
+      '<video src="'+escapeHtml(item.url)+'" muted preload="metadata"></video>'+
+      '<div class="video-reference-meta">'+
+        '<div class="video-reference-name">'+escapeHtml(item.filename)+'</div>'+
+        '<div class="video-reference-size">'+Math.max(.1,item.file.size/1024/1024).toFixed(1)+' MB</div>'+
+        roleControl+
+      '</div>'+
+      '<button type="button" class="video-reference-remove" onclick="removeVideoReference(\''+escapeHtml(item.key)+'\')" title="Remove video">×</button>'+
+    '</div>';
+  }).join('');
+}
+
+function setVideoReferenceRole(key,role){
+  const item=videoReferenceItems.find(x=>x.key===key);
+  if(!item)return;
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').video;
+  if(!cap.roles.includes(role))return;
+  item.role=role;
+  renderVideoReferenceList();
+  updateCost();
+}
+
+function addVideoReferenceFiles(fileList){
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').video;
+  if(!cap.supported){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='The selected model does not accept video references.';
+    $('videoReferenceInput').value='';
+    return;
+  }
+  const all=[...fileList];
+  const valid=all.filter(file=>['video/mp4','video/webm','video/quicktime'].includes(String(file.type||'').toLowerCase())&&file.size<=25*1024*1024);
+  const max=cap.max||1;
+  const slots=Math.max(0,max-videoReferenceItems.length);
+  for(const file of valid.slice(0,slots)){
+    videoReferenceItems.push(videoReferenceItem(file,defaultVideoRole(cap)));
+  }
+  $('videoReferenceInput').value='';
+  renderVideoReferenceList();
+
+  if(valid.length!==all.length){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='Video references must be MP4, WebM or MOV and 25 MB or smaller.';
+  }else if(valid.length>slots){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='This model accepts at most '+max+' video reference'+(max===1?'':'s')+'.';
+  }else{
+    $('genMsg').className='msg muted';
+    $('genMsg').textContent='';
+  }
+  updateCost();
+}
+
+function removeVideoReference(key){
+  const index=videoReferenceItems.findIndex(item=>item.key===key);
+  if(index<0)return;
+  const [item]=videoReferenceItems.splice(index,1);
+  if(item.url)URL.revokeObjectURL(item.url);
+  renderVideoReferenceList();
+  updateCost();
+}
+
+let videoReferenceDropReady=false;
+function setupVideoReferenceDrop(){
+  if(videoReferenceDropReady)return;
+  videoReferenceDropReady=true;
+  const drop=$('videoRefDrop');
+  if(!drop)return;
+  for(const type of ['dragenter','dragover']){
+    drop.addEventListener(type,event=>{
+      if(!event.dataTransfer?.types?.includes('Files'))return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect='copy';
+      drop.classList.add('drag-over');
+    });
+  }
+  for(const type of ['dragleave','drop']){
+    drop.addEventListener(type,event=>{
+      if(type==='drop'&&event.dataTransfer?.files?.length){
+        event.preventDefault();
+        event.stopPropagation();
+        addVideoReferenceFiles(event.dataTransfer.files);
+      }
+      drop.classList.remove('drag-over');
+    });
+  }
+}
+
 let referenceDropReady=false;
 function setupReferenceDrop(){
   if(referenceDropReady)return;
