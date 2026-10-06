@@ -77,11 +77,11 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     validateImageAspectRatio(aspectRatio);
   }
   const dynamicCost = Number(options.costOverride);
-  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
+  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost >= 0;
   const cost = hasDynamicCost ? roundCredits(dynamicCost) : getImageCost(model);
   const provider = String(options.provider || 'atlascloud').slice(0, 40);
   const providerCost = Number(options.providerCost);
-  const providerCostValue = Number.isFinite(providerCost) && providerCost > 0 ? providerCost : null;
+  const providerCostValue = Number.isFinite(providerCost) && providerCost >= 0 ? providerCost : null;
   const providerCostUnit = providerCostValue == null ? null : String(options.providerCostUnit || 'credits').slice(0, 20);
   const id = crypto.randomUUID();
   const mode = images.length ? 'reference-to-image' : 'text-to-image';
