@@ -2291,6 +2291,7 @@ async function reuseGeneration(id){
     if(modelExists){
       $('model').value=g.model;
       renderDurations(true);
+      renderVideoReferenceControls(true);
     }
 
     if(g.resolution && !$('resolutionControl').classList.contains('hide')){
@@ -2319,8 +2320,11 @@ async function reuseGeneration(id){
     syncCustomSelect('duration');
 
     clearReferenceItems();
-    const restored=Array.isArray(g.reference_images)?g.reference_images.slice(0,6):[];
-    referenceItems=restored.map(reusedReferenceItem);
+    clearVideoReferenceItems();
+    const reuseCap=normalizedClientCapabilities(currentVideoModel(),'video').image;
+    const reuseMax=reuseCap.supported?(reuseCap.max||6):0;
+    const restored=Array.isArray(g.reference_images)?g.reference_images.slice(0,reuseMax):[];
+    referenceItems=restored.map((image,index)=>reusedReferenceItem(image,defaultImageRole(reuseCap,index)));
     reusedReferenceGenerationId=referenceItems.length?String(g.id):null;
     renderReferencePreview();
 
