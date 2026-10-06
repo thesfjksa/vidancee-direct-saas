@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
+const { roundCredits } = require('./billing.js');
 
 function serializeGeneration(row) {
   return {
@@ -100,7 +101,7 @@ function normalizeReferenceOrder(value) {
   });
 }
 
-async function createGenerationForUser(userId, input) {
+async function createGenerationForUser(userId, input, options = {}) {
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const duration = Number(input.duration);
@@ -135,8 +136,19 @@ async function createGenerationForUser(userId, input) {
   }
 
   validateAspectRatio(aspectRatio);
-  const resolution = normalizeResolution(model, requestedResolution);
-  const cost = getCost(model, duration, resolution);
+
+  const dynamicCost = Number(options.costOverride);
+  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
+  const resolution = options.dynamicModel
+    ? (requestedResolution || String(options.defaultResolution || '').trim() || null)
+    : normalizeResolution(model, requestedResolution);
+  const cost = hasDynamicCost
+    ? roundCredits(dynamicCost)
+    : getCost(model, duration, resolution);
+  const provider = String(options.provider || 'vidancee').slice(0, 40);
+  const providerCost = Number(options.providerCost);
+  const providerCostValue = Number.isFinite(providerCost) && providerCost > 0 ? providerCost : null;
+  const providerCostUnit = providerCostValue == null ? null : String(options.providerCostUnit || 'credits').slice(0, 20);
   const id = crypto.randomUUID();
 
   const db = getPool();
@@ -265,9 +277,12 @@ async function createGenerationForUser(userId, input) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost)
-       VALUES (?, ?, 'vidancee', ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
-      [id, userId, planProfile.queuePriority, mode, model, duration, resolution, aspectRatio, prompt, cost],
+       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+      [
+        id, userId, provider, planProfile.queuePriority, mode, model, duration,
+        resolution, aspectRatio, prompt, cost, providerCostValue, providerCostUnit,
+      ],
     );
 
     let position = 0;
