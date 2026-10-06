@@ -135,6 +135,7 @@ function readGenerationRequest(req) {
   return new Promise((resolve,reject)=>{
     const fields={};
     const images=[];
+    const videos=[];
     let totalBytes=0;
     let settled=false;
 
@@ -148,7 +149,7 @@ function readGenerationRequest(req) {
     try {
       bb=Busboy({
         headers:req.headers,
-        limits:{files:6,fileSize:10*1024*1024,fields:20,parts:30},
+        limits:{files:24,fileSize:25*1024*1024,fields:40,parts:70},
       });
     } catch(error) {
       error.statusCode=400; return reject(error);
@@ -156,34 +157,44 @@ function readGenerationRequest(req) {
 
     bb.on('field',(name,value)=>{fields[name]=value;});
     bb.on('file',(name,file,info)=>{
-      if(name!=='images' && name!=='images[]'){ file.resume(); return; }
+      const isImage=name==='images' || name==='images[]';
+      const isVideo=name==='videos' || name==='videos[]';
+      if(!isImage && !isVideo){ file.resume(); return; }
+
       const mimeType=String(info.mimeType||'').toLowerCase();
-      if(!['image/jpeg','image/png','image/webp'].includes(mimeType)){
+      if(isImage && !['image/jpeg','image/png','image/webp'].includes(mimeType)){
         file.resume(); return fail('Images must be JPEG, PNG, or WebP.');
       }
+      if(isVideo && !['video/mp4','video/webm','video/quicktime'].includes(mimeType)){
+        file.resume(); return fail('Video references must be MP4, WebM, or MOV.');
+      }
+
       const chunks=[]; let bytes=0;
       file.on('data',(chunk)=>{
         bytes+=chunk.length; totalBytes+=chunk.length;
-        if(totalBytes>30*1024*1024) fail('Combined image upload is too large.',413);
+        if(totalBytes>100*1024*1024) fail('Combined reference upload is too large.',413);
+        if(isImage && bytes>10*1024*1024) fail('Each image must be 10 MB or smaller.',413);
         if(!settled) chunks.push(chunk);
       });
-      file.on('limit',()=>fail('Each image must be 10 MB or smaller.',413));
+      file.on('limit',()=>fail(isVideo?'Each video reference must be 25 MB or smaller.':'Each image must be 10 MB or smaller.',413));
       file.on('end',()=>{
-        if(!settled && bytes>0){
-          images.push({
-            filename:String(info.filename||'reference-image').slice(0,255),
-            mimeType,
-            data:Buffer.concat(chunks),
-          });
-        }
+        if(settled || bytes<=0)return;
+        const item={
+          filename:String(info.filename||(isVideo?'reference-video':'reference-image')).slice(0,255),
+          mimeType,
+          data:Buffer.concat(chunks),
+        };
+        if(isImage)images.push(item);
+        else videos.push(item);
       });
     });
-    bb.on('filesLimit',()=>fail('A maximum of 6 images is allowed.'));
+    bb.on('filesLimit',()=>fail('Too many reference files were uploaded.'));
     bb.on('error',(error)=>{if(!settled){settled=true;reject(error);}});
     bb.on('close',()=>{
       if(settled)return;
       settled=true;
       fields.images=images;
+      fields.videos=videos;
       resolve(fields);
     });
     req.pipe(bb);
