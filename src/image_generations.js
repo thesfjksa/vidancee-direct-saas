@@ -47,7 +47,15 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     throw error;
   }
 
-  validateImageAspectRatio(aspectRatio);
+  if (options.dynamicModel) {
+    if (!aspectRatio || aspectRatio.length > 30) {
+      const error = new Error('Unsupported image aspect ratio.');
+      error.statusCode = 400;
+      throw error;
+    }
+  } else {
+    validateImageAspectRatio(aspectRatio);
+  }
   const dynamicCost = Number(options.costOverride);
   const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
   const cost = hasDynamicCost ? roundCredits(dynamicCost) : getImageCost(model);
