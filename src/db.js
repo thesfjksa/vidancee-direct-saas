@@ -165,6 +165,17 @@ async function initDb() {
       CONSTRAINT fk_plan_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS user_provider_access (
+      user_id BIGINT UNSIGNED NOT NULL,
+      provider VARCHAR(40) NOT NULL,
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, provider),
+      KEY idx_user_provider_access_provider (provider, enabled),
+      CONSTRAINT fk_user_provider_access_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS provider_models (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       provider VARCHAR(40) NOT NULL,
