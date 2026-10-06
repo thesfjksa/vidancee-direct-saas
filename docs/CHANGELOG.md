@@ -362,3 +362,12 @@
 - Excluded analysis/background-removal utility job types from the customer generation selectors.
 - Added current main image/video families including Seedance 2.5, Seedance 2.0, Kling 3, Veo 3.1, Wan, MiniMax/Hailuo, Grok Video, Cinema Studio, GPT Image, Nano Banana, Seedream, Soul, Flux, Recraft, and Marketing Studio.
 - Sync now reports `official-cli-fallback` when the live MCP catalog does not provide a list response.
+
+
+## 2026-10-06 — Document current Higgsfield production state
+
+- Recorded that OAuth is successfully connected in the live deployment.
+- Recorded that the attempted `models_explore` list flow returned no usable full catalog.
+- Documented the official CLI/Skills model-catalog fallback as the current model-list source when live discovery is empty.
+- Clarified that real generation, cost checks, media uploads, polling, and credit consumption still use the connected Higgsfield MCP account.
+- Added the current post-deploy verification sequence and noted that catalog-sync failures do not require OAuth reconnection.
