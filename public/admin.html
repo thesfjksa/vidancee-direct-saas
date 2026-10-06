@@ -245,6 +245,34 @@ pre{
 #generations td:last-child{color:#888b94;line-height:1.45}
 #higgsfieldModelSummary{font-size:10px;margin-top:4px}
 
+
+.provider-pills{display:flex;flex-wrap:wrap;gap:4px;max-width:260px}
+.provider-pill{
+  display:inline-flex;align-items:center;padding:3px 6px;border-radius:999px;
+  border:1px solid #2c2f35;background:#17191c;color:#777b84;
+  font-size:8px;font-weight:700;letter-spacing:.02em
+}
+.provider-pill.on{color:#d7ff3f;border-color:#3e4821;background:rgba(215,255,63,.055)}
+.modal-backdrop{
+  position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:18px;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(8px)
+}
+.modal-card{
+  width:min(520px,100%);background:#111214;border:1px solid #2b2d33;
+  border-radius:16px;padding:18px;box-shadow:0 30px 100px rgba(0,0,0,.6)
+}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.modal-head h2{margin:0 0 4px;font-size:15px}
+.modal-close{min-width:34px;width:34px;height:34px;padding:0;border-radius:9px}
+.provider-access-list{display:grid;gap:8px;margin:14px 0}
+.provider-access-item{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px;border:1px solid #26282e;border-radius:11px;background:#0d0e10
+}
+.provider-access-item strong{display:block;font-size:11px;margin-bottom:3px}
+.provider-access-item .muted{font-size:9px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+
 /* Responsive */
 @media(max-width:1000px){
   .grid{grid-template-columns:1fr 1fr}
@@ -268,7 +296,7 @@ pre{
 
   <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
-  <section id="users" class="section"><div class="card"><div class="top"><h2>Customer users</h2><button class="secondary" onclick="loadUsers()">Refresh</button></div><div class="row"><input id="userSearch" placeholder="Search email or ID"><select id="userStatus"><option value="">All statuses</option><option>active</option><option>disabled</option></select><button class="btn" onclick="loadUsers()">Search</button></div><div class="tablewrap"><table><thead><tr><th>ID</th><th>Email</th><th>Plan</th><th>Credits</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h3>Adjust credits</h3><div class="row"><input id="creditIdentifier" placeholder="User ID or email"><input id="creditAmount" type="number" step="0.01" placeholder="Amount (+100 or -25.5)"><input id="creditNote" placeholder="Reason"><button class="btn" onclick="adjustCredits()">Apply</button></div><div id="creditMsg" class="muted" style="margin-top:8px"></div></div></section>
+  <section id="users" class="section"><div class="card"><div class="top"><div><h2>Customer users</h2><div class="muted">Assign backend sources per customer. Their model list updates automatically from the sources you allow.</div></div><button class="secondary" onclick="loadUsers()">Refresh</button></div><div class="row"><input id="userSearch" placeholder="Search email or ID"><select id="userStatus"><option value="">All statuses</option><option>active</option><option>disabled</option></select><button class="btn" onclick="loadUsers()">Search</button></div><div class="tablewrap"><table><thead><tr><th>ID</th><th>Email</th><th>Plan</th><th>Credits</th><th>Assigned sources</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h3>Adjust credits</h3><div class="row"><input id="creditIdentifier" placeholder="User ID or email"><input id="creditAmount" type="number" step="0.01" placeholder="Amount (+100 or -25.5)"><input id="creditNote" placeholder="Reason"><button class="btn" onclick="adjustCredits()">Apply</button></div><div id="creditMsg" class="muted" style="margin-top:8px"></div></div></section>
 
   <section id="plans" class="section">
     <div class="card">
@@ -413,9 +441,28 @@ pre{
       <div class="card"><h2>Primary engine jobs</h2><button class="secondary" onclick="providerJobs()">Refresh jobs</button><pre id="providerJobsOut">Not loaded.</pre></div>
     </div>
   </section>
-</div></div>
+</div>
+<div id="providerAccessModal" class="modal-backdrop hide" onclick="if(event.target===this)closeProviderAccess()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2>Customer source access</h2><div id="providerAccessUser" class="muted">Customer</div></div>
+      <button class="secondary modal-close" onclick="closeProviderAccess()" aria-label="Close">×</button>
+    </div>
+    <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
+    <div class="provider-access-list">
+      <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Higgsfield MCP models and your connected subscription</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Primary Seedance generation source</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Overflow Seedance generation source</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">MiniMax H3 generation source</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Atlas Cloud</strong><span class="muted">Image generation source</span></div><span class="source-switch"><input id="accessAtlascloud" type="checkbox"><span class="source-switch-track"></span></span></label>
+    </div>
+    <div id="providerAccessMsg" class="muted"></div>
+    <div class="modal-actions"><button class="secondary" onclick="closeProviderAccess()">Cancel</button><button class="btn" onclick="saveProviderAccess()">Save access</button></div>
+  </div>
+</div>
+</div>
 <script>
-const $=id=>document.getElementById(id);let token=sessionStorage.getItem('mehroz_admin_token')||'';
+const $=id=>document.getElementById(id);let token=sessionStorage.getItem('mehroz_admin_token')||'';let adminUsersById=new Map();let providerAccessUserId=null;
 async function api(path,options={}){
   const headers=Object.assign({'x-admin-token':token},options.headers||{});
   if(options.body&&!headers['content-type'])headers['content-type']='application/json';
@@ -437,7 +484,52 @@ async function adminLogin(){token=$('tokenInput').value.trim();try{await api('/a
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
 function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderSettings();loadProviderConfig()}}
 async function loadOverview(){try{const d=await api('/admin/stats');$('sUsers').textContent=d.stats.users;$('sGen').textContent=d.stats.generations;$('sActive').textContent=d.stats.active;$('sCompleted').textContent=d.stats.completed;const c=await api('/admin/config');$('systemInfo').textContent=JSON.stringify({stats:d.stats,config:c},null,2)}catch(e){$('systemInfo').textContent='ERROR: '+e.message}}
-async function loadUsers(){try{const q=encodeURIComponent($('userSearch').value.trim()),st=encodeURIComponent($('userStatus').value);const d=await api('/admin/users?q='+q+'&status='+st);$('userRows').innerHTML=d.users.length?d.users.map(u=>'<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></td></tr>').join(''):'<tr><td colspan="8" class="muted">No users found.</td></tr>'}catch(e){$('userRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>'}}
+async function loadUsers(){
+  try{
+    const q=encodeURIComponent($('userSearch').value.trim()),st=encodeURIComponent($('userStatus').value);
+    const d=await api('/admin/users?q='+q+'&status='+st);
+    adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
+    $('userRows').innerHTML=d.users.length?d.users.map(u=>{
+      const a=u.provider_access||{};
+      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas']];
+      const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
+      return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
+    }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
+  }catch(e){
+    $('userRows').innerHTML='<tr><td colspan="9" class="err">'+esc(e.message)+'</td></tr>';
+  }
+}
+function openProviderAccess(id){
+  const user=adminUsersById.get(Number(id));if(!user)return;
+  providerAccessUserId=Number(id);
+  const a=user.provider_access||{};
+  $('providerAccessUser').textContent=user.email+' · User #'+user.id;
+  $('accessHiggsfield').checked=a.higgsfield!==false;
+  $('accessVidancee').checked=a.vidancee!==false;
+  $('accessCreatepulse').checked=a.createpulse!==false;
+  $('accessVgenv').checked=a.vgenv!==false;
+  $('accessAtlascloud').checked=a.atlascloud!==false;
+  $('providerAccessMsg').className='muted';$('providerAccessMsg').textContent='';
+  $('providerAccessModal').classList.remove('hide');
+}
+function closeProviderAccess(){$('providerAccessModal').classList.add('hide');providerAccessUserId=null}
+async function saveProviderAccess(){
+  if(!providerAccessUserId)return;
+  const m=$('providerAccessMsg');m.className='muted';m.textContent='Saving access...';
+  const providers={
+    higgsfield:$('accessHiggsfield').checked,
+    vidancee:$('accessVidancee').checked,
+    createpulse:$('accessCreatepulse').checked,
+    vgenv:$('accessVgenv').checked,
+    atlascloud:$('accessAtlascloud').checked,
+  };
+  try{
+    await api('/admin/users/'+providerAccessUserId+'/providers',{method:'PUT',body:JSON.stringify({providers})});
+    m.className='ok';m.textContent='Source access saved.';
+    await loadUsers();
+    setTimeout(closeProviderAccess,450);
+  }catch(e){m.className='err';m.textContent=e.message}
+}
 async function toggleUser(id,status){try{await api('/admin/users/'+id,{method:'PATCH',body:JSON.stringify({status})});loadUsers()}catch(e){alert(e.message)}}
 async function adjustCredits(){const m=$('creditMsg');try{const d=await api('/admin/users/credits',{method:'POST',body:JSON.stringify({identifier:$('creditIdentifier').value.trim(),amount:Number($('creditAmount').value),note:$('creditNote').value.trim()||'Admin credit adjustment'})});m.className='ok';m.textContent='Updated '+d.user.email+' to '+d.user.credits+' credits.';loadUsers();loadOverview()}catch(e){m.className='err';m.textContent=e.message}}
 async function loadPlanRequests(){
