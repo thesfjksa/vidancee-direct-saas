@@ -52,6 +52,7 @@ const {
   clearHiggsfieldAuth,
   syncHiggsfieldModels,
   getHiggsfieldConnectionStatus,
+  getHiggsfieldToolDiagnostics,
   estimateHiggsfieldCost,
 } = require('./src/provider/higgsfield_mcp.js');
 
@@ -792,6 +793,12 @@ const server=http.createServer(async (req,res)=>{
           toolCount:result.toolCount,
           jobsWaitConfigured:result.jobsWaitConfigured,
         });
+      }
+
+      if (req.method==='GET' && routePath==='/admin/higgsfield/tools') {
+        requireDatabase();
+        const tools=await getHiggsfieldToolDiagnostics();
+        return sendJson(res,200,{ok:true,tools});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-models') {
