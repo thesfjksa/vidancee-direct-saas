@@ -1499,3 +1499,14 @@ Cost parsing also supports Higgsfield's nested `cost.credits_exact` response and
 ### Higgsfield generation mode mapping — 2026-10-06
 
 Live catalog sync also preserves model `mode` options/defaults. When a model exposes `omni_reference` and reference media is present, the MCP payload automatically selects `omni_reference`; when prompt-only generation exposes `t2v`, it selects `t2v`. Otherwise the provider-declared default mode is used. This is important for models such as Seedance 2.5 and Cinema Studio that use different generation modes for prompt-only versus reference-driven requests.
+
+
+### Hostinger/VPS MCP network compatibility — 2026-10-06
+
+A deployed Hostinger test showed the browser-side Admin inspector returning `ERROR: Failed to fetch` while the Higgsfield account still appeared connected. This indicates a transport/network failure rather than an OAuth failure.
+
+The Higgsfield MCP client now prefers IPv4 DNS resolution using Node's `dns.setDefaultResultOrder('ipv4first')`. This addresses a common Linux/VPS failure mode where Cloudflare-backed hosts resolve IPv6 first but the server has no working outbound IPv6 path, causing Node fetch to surface only `TypeError: fetch failed`.
+
+Authenticated MCP requests also retry transient network failures up to three times with short backoff. Retry detection covers common socket/DNS timeout/reset/unreachable conditions and preserves OAuth errors separately.
+
+If all retries fail, Admin receives a more useful MCP network error containing the safe cause/code chain instead of only the generic `Failed to fetch` string.
