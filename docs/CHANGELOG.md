@@ -309,3 +309,11 @@
 - Added discovery from schema examples, defaults, descriptions, and model-specific tool names.
 - Improved the sync failure message to report the returned MCP tool count.
 - Added **Inspect MCP tools** in Admin for sanitized live-schema troubleshooting without exposing OAuth tokens or passwords.
+
+
+## 2026-10-06 — Remove MCP utility tools from customer model selector
+
+- Fixed incorrect Higgsfield model discovery that surfaced workflow utilities such as Video Analysis Jobs and Virality Predictor as customer models.
+- Tightened generation-tool detection and model-family recognition.
+- Added customer-side catalog filtering for previously stored bad rows.
+- Added automatic quarantine of old utility-tool rows during the next Higgsfield sync.
