@@ -150,6 +150,9 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     mediaRoles: Array.isArray(options.mediaRoles) ? options.mediaRoles : [],
     modes: Array.isArray(options.modes) ? options.modes : [],
     defaultMode: options.defaultMode ? String(options.defaultMode) : null,
+    referenceCapabilities: options.referenceCapabilities && typeof options.referenceCapabilities === 'object'
+      ? options.referenceCapabilities
+      : {},
     catalogVerified: options.catalogVerified === true,
     lastSeenAt: row.last_seen_at,
   };
@@ -248,6 +251,47 @@ function isPlausibleCustomerModel(model) {
   return false;
 }
 
+function normalizedReferenceCapabilities(model) {
+  const raw = model.referenceCapabilities && typeof model.referenceCapabilities === 'object'
+    ? model.referenceCapabilities
+    : {};
+  const roles = Array.isArray(model.mediaRoles) ? model.mediaRoles.map(String) : [];
+
+  const imageRoles = roles.filter(role => ['image','image_references','input_images','start_image','end_image','reference_image'].includes(role));
+  const videoRoles = roles.filter(role => ['video','video_references','input_videos','reference_video'].includes(role));
+  const audioRoles = roles.filter(role => ['audio','audio_references','input_audio','reference_audio'].includes(role));
+
+  const normalizeKind = (kind, inferredRoles) => {
+    const source = raw[kind] && typeof raw[kind] === 'object' ? raw[kind] : {};
+    const kindRoles = Array.isArray(source.roles) && source.roles.length
+      ? source.roles.map(String)
+      : inferredRoles;
+    const max = Math.max(0, Number(source.max || 0));
+    const min = Math.max(0, Number(source.min || 0));
+    const requiredRoles = Array.isArray(source.requiredRoles) ? source.requiredRoles.map(String) : [];
+    return {
+      supported: source.supported === true || kindRoles.length > 0 || max > 0,
+      max,
+      min,
+      roles: [...new Set(kindRoles)],
+      requiredRoles: [...new Set(requiredRoles)],
+    };
+  };
+
+  const image = normalizeKind('image', imageRoles);
+  const video = normalizeKind('video', videoRoles);
+  const audio = normalizeKind('audio', audioRoles);
+  const totalMax = Math.max(0, Number(raw.totalMax || 0));
+
+  return {
+    textOnly: Boolean(raw.textOnly) || (!image.supported && !video.supported && !audio.supported),
+    totalMax,
+    image,
+    video,
+    audio,
+  };
+}
+
 function publicVideoModel(model) {
   const durations = model.durations.length ? model.durations : [0];
   const durationEntries = durations.map(seconds => ({
@@ -271,6 +315,7 @@ function publicVideoModel(model) {
     durations: durationEntries,
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
+    capabilities: normalizedReferenceCapabilities(model),
   };
 }
 
@@ -282,6 +327,7 @@ function publicImageModel(model) {
     dynamicCost: true,
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
+    capabilities: normalizedReferenceCapabilities(model),
   };
 }
 
