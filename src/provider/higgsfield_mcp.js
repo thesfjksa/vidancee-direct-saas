@@ -201,61 +201,66 @@ function appendIfSupported(args, props, names, value) {
   return false;
 }
 
-function appendReferenceImages(args, props, urls) {
-  const list = Array.isArray(urls) ? urls.filter(Boolean) : [];
-  if (!list.length) return;
-
-  const arrayNames = [
-    'reference_images', 'reference_image_urls', 'image_urls', 'images',
-    'input_images', 'referenceImages', 'imageUrls',
-  ];
-  for (const name of arrayNames) {
-    if (!props[name]) continue;
-    const type = props[name].type;
-    args[name] = type === 'string' ? list[0] : list;
-    return;
-  }
-
-  const scalarNames = [
-    'image_url', 'start_image_url', 'first_frame_url', 'input_image',
-    'reference_image', 'image', 'startImageUrl',
-  ];
-  for (const name of scalarNames) {
-    if (!props[name]) continue;
-    args[name] = list[0];
-    return;
-  }
+function canonicalToolName(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
-function buildToolArguments(model, input = {}, referenceImageUrls = [], { getCost = false } = {}) {
+function findTool(tools, name) {
+  const wanted = canonicalToolName(name);
+  return (Array.isArray(tools) ? tools : []).find(tool => {
+    const current = canonicalToolName(tool?.name);
+    return current === wanted || current.endsWith('_' + wanted);
+  }) || null;
+}
+
+function wrapToolPayload(tool, payload) {
+  const schema = tool?.inputSchema || {};
+  const props = schemaProperties(schema);
+
+  // Higgsfield's generation tools expose one params object. Some MCP clients
+  // render that object as one JSON field, so support object and JSON-string forms.
+  for (const name of ['params', 'arguments', 'input']) {
+    if (!props[name]) continue;
+    if (props[name].type === 'string') return { [name]: JSON.stringify(payload) };
+    return { [name]: payload };
+  }
+
+  return payload;
+}
+
+function appendMediaReferences(params, mediaReferences) {
+  const medias = (Array.isArray(mediaReferences) ? mediaReferences : [])
+    .filter(item => item && item.value)
+    .map(item => ({
+      value: String(item.value),
+      role: String(item.role || 'image'),
+    }));
+  if (medias.length) params.medias = medias;
+}
+
+function buildToolArguments(model, input = {}, mediaReferences = [], { getCost = false } = {}) {
   const tool = selectTool(model, input.mode);
   if (!tool?.name) throw new Error('This model does not have a generation tool.');
 
-  const schema = tool.schema || {};
-  const props = schemaProperties(schema);
-  const args = {};
+  const params = {
+    model: model.providerModelId,
+  };
 
-  appendIfSupported(args, props, ['model', 'model_id', 'modelId'], model.providerModelId);
-  appendIfSupported(args, props, ['prompt', 'text', 'description'], String(input.prompt || '').trim());
+  const prompt = String(input.prompt || '').trim();
+  if (prompt) params.prompt = prompt;
 
   const duration = Number(input.duration);
-  if (Number.isFinite(duration) && duration > 0) {
-    appendIfSupported(args, props, ['duration', 'seconds', 'length'], duration);
-  }
+  if (Number.isFinite(duration) && duration > 0) params.duration = duration;
 
-  appendIfSupported(args, props, ['resolution', 'quality'], input.resolution || '');
-  appendIfSupported(args, props, ['aspect_ratio', 'aspectRatio', 'ratio'], input.aspectRatio || input.aspect_ratio || '');
-  appendReferenceImages(args, props, referenceImageUrls);
+  if (input.resolution) params.resolution = String(input.resolution);
+  const ratio = input.aspectRatio || input.aspect_ratio;
+  if (ratio) params.aspect_ratio = String(ratio);
 
-  if (getCost) {
-    if (!props.get_cost) {
-      const error = new Error('Live cost estimation is not exposed for this model.');
-      error.statusCode = 503;
-      throw error;
-    }
-    args.get_cost = true;
-  }
+  appendMediaReferences(params, mediaReferences);
+  params.count = 1;
+  if (getCost) params.get_cost = true;
 
+  const args = wrapToolPayload(tool, params);
   return { tool, args };
 }
 
