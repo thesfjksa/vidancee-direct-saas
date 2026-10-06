@@ -1,4 +1,13 @@
 const crypto = require('node:crypto');
+const dns = require('node:dns');
+
+// Hostinger/Linux VPS environments can resolve Cloudflare-fronted MCP hosts to
+// IPv6 first even when outbound IPv6 is unavailable. In Node this surfaces only
+// as "TypeError: fetch failed". Prefer IPv4 for the Higgsfield MCP transport.
+// This affects lookup order only; HTTPS/TLS and OAuth validation remain intact.
+try {
+  if (typeof dns.setDefaultResultOrder === 'function') dns.setDefaultResultOrder('ipv4first');
+} catch {}
 const {
   Client,
   StreamableHTTPClientTransport,
@@ -861,25 +870,67 @@ async function finishHiggsfieldAuthorization({ params, redirectUrl } = {}) {
   }
 }
 
+function networkErrorDetails(error) {
+  const parts = [];
+  const seen = new Set();
+  let current = error;
+  while (current && !seen.has(current) && parts.length < 6) {
+    seen.add(current);
+    const code = current.code || current.errno;
+    const message = current.message;
+    if (code && !parts.includes(String(code))) parts.push(String(code));
+    if (message && !parts.includes(String(message))) parts.push(String(message));
+    current = current.cause;
+  }
+  return parts.join(' · ');
+}
+
+function isRetryableNetworkError(error) {
+  const text = networkErrorDetails(error).toLowerCase();
+  return /fetch failed|econnreset|econnrefused|etimedout|enetwork|ehostunreach|enetunreach|socket|network|other side closed|headers timeout/.test(text);
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function withAuthenticatedClient(callback) {
   const settings = await getProviderSettings();
   const redirectUrl = await storedRedirectUrl();
-  const provider = new HiggsfieldOAuthProvider({ redirectUrl });
-  const { client, transport } = makeClient(provider, settings.higgsfieldMcpUrl);
+  let lastError = null;
 
-  try {
-    await client.connect(transport);
-    return await callback(client);
-  } catch (error) {
-    if (error instanceof UnauthorizedError || provider.authorizationUrl) {
-      const authError = new Error('Higgsfield connection needs to be authorized again in Admin.');
-      authError.code = 'HIGGSFIELD_AUTH_REQUIRED';
-      throw authError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const provider = new HiggsfieldOAuthProvider({ redirectUrl });
+    const { client, transport } = makeClient(provider, settings.higgsfieldMcpUrl);
+
+    try {
+      await client.connect(transport);
+      return await callback(client);
+    } catch (error) {
+      if (error instanceof UnauthorizedError || provider.authorizationUrl) {
+        const authError = new Error('Higgsfield connection needs to be authorized again in Admin.');
+        authError.code = 'HIGGSFIELD_AUTH_REQUIRED';
+        throw authError;
+      }
+
+      lastError = error;
+      if (!isRetryableNetworkError(error) || attempt >= 3) {
+        const details = networkErrorDetails(error);
+        if (isRetryableNetworkError(error) && details) {
+          const networkError = new Error('Higgsfield MCP network request failed after retries: ' + details);
+          networkError.code = 'HIGGSFIELD_NETWORK';
+          throw networkError;
+        }
+        throw error;
+      }
+
+      await delay(attempt === 1 ? 350 : 900);
+    } finally {
+      try { await client.close(); } catch {}
     }
-    throw error;
-  } finally {
-    try { await client.close(); } catch {}
   }
+
+  throw lastError || new Error('Higgsfield MCP request failed.');
 }
 
 function likelyModelToken(value) {
