@@ -186,6 +186,29 @@ async function getProviderModelByPublicId(provider, publicModelId, mediaType) {
   return rows[0] ? serializeProviderModel(rows[0]) : null;
 }
 
+async function quarantineProviderUtilityModels(provider) {
+  const models = await listProviderModels(provider);
+  const bad = models.filter(model => {
+    const hay = [
+      model?.providerModelId,
+      model?.label,
+      model?.toolName,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return /\b(analysis|analy[sz]e|predictor|virality|preset|presets|action|actions|jobs?|history|balance|credits?|status|workflow|template|templates)\b/.test(hay)
+      && !/\b(seedance|kling|veo|sora|wan|hailuo|minimax|grok|omni|nano banana|seedream|flux|recraft|ideogram|gpt image|imagen|soul|qwen|pixverse|runway|luma|pika)\b/.test(hay.replace(/[._/-]+/g, ' '));
+  });
+  if (!bad.length) return 0;
+
+  const db = getPool();
+  for (const model of bad) {
+    await db.execute(
+      'UPDATE provider_models SET available=0, updated_at=UTC_TIMESTAMP() WHERE id=? AND provider=?',
+      [Number(model.id), String(provider)],
+    );
+  }
+  return bad.length;
+}
+
 async function setProviderModelEnabled(provider, id, enabled) {
   const db = getPool();
   const [result] = await db.execute(
@@ -273,5 +296,6 @@ module.exports = {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
+  quarantineProviderUtilityModels,
   publicProviderCatalog,
 };
