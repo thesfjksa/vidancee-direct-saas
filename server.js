@@ -194,6 +194,12 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
+function dynamicModelSupportsImageReferences(model) {
+  const roles=Array.isArray(model?.mediaRoles)?model.mediaRoles:[];
+  if(model?.mediaType==='image') return roles.some(role=>['image','input_images','image_references'].includes(String(role)));
+  return roles.some(role=>['image','start_image','end_image','input_images','image_references'].includes(String(role)));
+}
+
 function userPayload(user) {
   return {
     id:Number(user.id), email:user.email, credits:Number(user.credits),
@@ -543,6 +549,9 @@ const server=http.createServer(async (req,res)=>{
       if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'image');
         if (dynamicModel) {
+          if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
+            return sendJson(res,400,{ok:false,error:'This image model does not accept reference images.'});
+          }
           const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'image',{
             prompt:String(body.prompt||''),
             aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
@@ -617,6 +626,9 @@ const server=http.createServer(async (req,res)=>{
       if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
         if (dynamicModel) {
+          if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
+            return sendJson(res,400,{ok:false,error:'This video model does not accept image references.'});
+          }
           const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'video',{
             prompt:String(body.prompt||''),
             duration:Number(body.duration||0),
@@ -791,6 +803,7 @@ const server=http.createServer(async (req,res)=>{
           videoCount:result.videoCount,
           imageCount:result.imageCount,
           toolCount:result.toolCount,
+          catalogSource:result.catalogSource,
           jobsWaitConfigured:result.jobsWaitConfigured,
         });
       }
