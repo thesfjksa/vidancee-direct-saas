@@ -348,9 +348,8 @@ class HiggsfieldOAuthProvider {
 
   async clientInformation(ctx) {
     const stored = parseJson(await getSettingValue(AUTH_KEYS.clientInfo, ''), {});
-    if (ctx?.issuer && stored[ctx.issuer]) return stored[ctx.issuer];
-    const values = Object.values(stored);
-    return values[0];
+    if (!ctx?.issuer) return undefined;
+    return stored[ctx.issuer];
   }
 
   async saveClientInformation(info, ctx) {
