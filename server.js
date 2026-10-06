@@ -550,6 +550,7 @@ const server=http.createServer(async (req,res)=>{
           const customerCost=sourceToCustomerCredits(sourceCost);
           generation=await createImageGenerationForUser(user.id,body,{
             provider:'higgsfield',
+            dynamicModel:true,
             costOverride:customerCost,
             providerCost:sourceCost,
             providerCostUnit:'credits',
