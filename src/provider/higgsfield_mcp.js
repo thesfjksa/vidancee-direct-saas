@@ -513,6 +513,7 @@ function catalogModelFromItem(item, mediaType, generationTool) {
       defaultResolution: parameterDefault(resolutionParam) == null ? null : String(parameterDefault(resolutionParam)),
       defaultAspectRatio: parameterDefault(aspectParam) == null ? null : String(parameterDefault(aspectParam)),
       mediaRoles: catalogMediaRoles(item.medias),
+      referenceCapabilities: catalogReferenceCapabilities(item, mediaType, catalogMediaRoles(item.medias)),
       modes: parameterChoices(modeParam).map(String).filter(Boolean),
       defaultMode: parameterDefault(modeParam) == null ? null : String(parameterDefault(modeParam)),
       tools: [{
@@ -593,6 +594,171 @@ const OFFICIAL_VIDEO_MODELS = [
   ['flux_3_video','FLUX.3 Video',[5,10],[],['16:9','9:16','1:1'],['start_image'],[],null],
 ];
 
+
+const OFFICIAL_REFERENCE_LIMITS = {
+  // Image models
+  cinematic_studio_2_5:{image:{max:14,roles:['image_references']},totalMax:14},
+  flux_2:{image:{max:8,roles:['image_references']},totalMax:8},
+  flux_kontext:{image:{max:4,roles:['image_references']},totalMax:4},
+  gpt_image_2:{image:{max:16,roles:['image_references']},totalMax:16},
+  gpt_image_2_5:{image:{max:16,roles:['image_references']},totalMax:16},
+  grok_image:{image:{max:8,roles:['image_references']},totalMax:8},
+  image_auto:{image:{max:14,roles:['image_references']},totalMax:14},
+  kling_omni_image:{image:{max:10,roles:['image_references']},totalMax:10},
+  marketing_studio_image:{image:{max:14,roles:['image_references']},totalMax:14},
+  nano_banana:{image:{max:8,roles:['image_references']},totalMax:8},
+  nano_banana_2:{image:{max:14,roles:['image_references']},totalMax:14},
+  nano_banana_2_lite:{image:{max:14,roles:['image_references']},totalMax:14},
+  nano_banana_flash:{image:{max:14,roles:['image_references']},totalMax:14},
+  openai_hazel:{image:{max:16,roles:['image_references']},totalMax:16},
+  seedream_v4_5:{image:{max:14,roles:['image_references']},totalMax:14},
+  seedream_v5_lite:{image:{max:14,roles:['image_references']},totalMax:14},
+  seedream_v5_pro:{image:{max:14,roles:['image_references']},totalMax:14},
+  soul_cinematic:{image:{max:1,roles:['image_references']},totalMax:1},
+  soul_cinema_studio:{image:{max:1,roles:['image_references']},totalMax:1},
+  text2image_soul_v2:{image:{max:1,roles:['image_references']},totalMax:1},
+
+  // Video models
+  seedance_2_5:{
+    image:{max:9,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:12,
+  },
+  seedance_2_0:{
+    image:{max:9,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:12,
+  },
+  seedance_2_0_mini:{
+    image:{max:9,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:12,
+  },
+  seedance1_5:{image:{max:2,roles:['start_image','end_image']},totalMax:2},
+  kling3_0:{image:{max:2,roles:['start_image','end_image']},totalMax:2},
+  kling3_0_turbo:{image:{max:1,roles:['start_image']},totalMax:1},
+  kling2_6:{image:{max:1,roles:['start_image']},totalMax:1},
+  veo3_1:{image:{max:1,roles:['start_image']},totalMax:1},
+  veo3_1_lite:{image:{max:2,roles:['start_image','end_image']},totalMax:2},
+  veo3:{image:{max:1,min:1,roles:['start_image'],requiredRoles:['start_image']},totalMax:1},
+  gemini_omni:{
+    image:{max:7,roles:['image_references']},
+    video:{max:1,roles:['video_references']},
+    totalMax:8,
+  },
+  wan2_7:{
+    image:{max:2,roles:['start_image','end_image']},
+    audio:{max:1,roles:['audio_references']},
+    totalMax:3,
+  },
+  wan2_6:{
+    image:{max:6,roles:['image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:8,
+  },
+  minimax_hailuo:{image:{max:2,roles:['start_image','end_image']},totalMax:2},
+  minimax_h3:{image:{max:1,roles:['start_image']},totalMax:1},
+  minimax_h3_max:{image:{max:1,roles:['start_image']},totalMax:1},
+  grok_video:{image:{max:1,roles:['start_image']},totalMax:1},
+  grok_video_v15:{image:{max:1,min:1,roles:['start_image'],requiredRoles:['start_image']},totalMax:1},
+  cinematic_studio_video_4_0:{
+    image:{max:9,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:15,
+  },
+  cinematic_studio_video_3_5:{
+    image:{max:15,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:15,
+  },
+  cinematic_studio_3_0:{
+    image:{max:15,roles:['start_image','end_image','image_references']},
+    video:{max:3,roles:['video_references']},
+    audio:{max:3,roles:['audio_references']},
+    totalMax:15,
+  },
+  cinematic_studio_video:{image:{max:2,roles:['start_image','end_image']},totalMax:2},
+  cinematic_studio_video_v2:{image:{max:6,roles:['start_image','end_image','image_references']},totalMax:6},
+  marketing_studio_video:{image:{max:6,roles:['start_image','end_image','image_references']},totalMax:6},
+  wan3_0:{image:{max:6,roles:['image_references']},video:{max:2,roles:['video_references']},totalMax:8},
+  wan3_0_prime:{image:{max:6,roles:['image_references']},video:{max:2,roles:['video_references']},totalMax:8},
+  flux_3_video:{image:{max:1,roles:['start_image']},totalMax:1},
+};
+
+function normalizeReferenceCapabilities(source, mediaType, fallbackRoles = []) {
+  const raw = source && typeof source === 'object' ? source : {};
+  const normalize = (kind, roles) => {
+    const spec = raw[kind] && typeof raw[kind] === 'object' ? raw[kind] : {};
+    const normalizedRoles = Array.isArray(spec.roles) && spec.roles.length ? spec.roles.map(String) : roles;
+    return {
+      supported: normalizedRoles.length > 0 || Number(spec.max || 0) > 0,
+      max: Math.max(0, Number(spec.max || 0)),
+      min: Math.max(0, Number(spec.min || 0)),
+      roles: [...new Set(normalizedRoles)],
+      requiredRoles: Array.isArray(spec.requiredRoles) ? [...new Set(spec.requiredRoles.map(String))] : [],
+    };
+  };
+
+  const fallbackImageRoles = fallbackRoles.filter(role => ['image','image_references','input_images','start_image','end_image','reference_image'].includes(role));
+  const fallbackVideoRoles = fallbackRoles.filter(role => ['video','video_references','input_videos','reference_video'].includes(role));
+  const fallbackAudioRoles = fallbackRoles.filter(role => ['audio','audio_references','input_audio','reference_audio'].includes(role));
+
+  const image = normalize('image', fallbackImageRoles);
+  const video = normalize('video', fallbackVideoRoles);
+  const audio = normalize('audio', fallbackAudioRoles);
+  const totalMax = Math.max(0, Number(raw.totalMax || 0));
+
+  return {
+    textOnly: !image.supported && !video.supported && !audio.supported,
+    totalMax,
+    image,
+    video,
+    audio,
+  };
+}
+
+function catalogReferenceCapabilities(item, mediaType, mediaRoles) {
+  const caps = { image:{}, video:{}, audio:{} };
+  const inspect = value => {
+    if (!value || typeof value !== 'object') return;
+    const role = String(value.role || value.name || '').trim();
+    if (role) {
+      let kind = '';
+      if (/video/i.test(role)) kind = 'video';
+      else if (/audio/i.test(role)) kind = 'audio';
+      else if (/image|frame/i.test(role)) kind = 'image';
+      if (kind) {
+        const spec = caps[kind];
+        const max = Number(value.max ?? value.max_count ?? value.maximum ?? value.limit);
+        const min = Number(value.min ?? value.min_count ?? value.minimum ?? (value.required ? 1 : 0));
+        if (Number.isFinite(max) && max > 0) spec.max = Math.max(Number(spec.max || 0), max);
+        if (Number.isFinite(min) && min > 0) spec.min = Math.max(Number(spec.min || 0), min);
+        spec.roles = [...new Set([...(spec.roles || []), role])];
+        if (value.required === true) spec.requiredRoles = [...new Set([...(spec.requiredRoles || []), role])];
+      }
+    }
+    for (const child of Object.values(value)) {
+      if (child && typeof child === 'object') inspect(child);
+    }
+  };
+  inspect(item?.medias);
+
+  const official = OFFICIAL_REFERENCE_LIMITS[String(item?.id ?? item?.model_id ?? item?.modelId ?? '')] || {};
+  const merged = {
+    totalMax: Number(caps.totalMax || official.totalMax || 0),
+    image: {...(official.image || {}), ...(caps.image || {})},
+    video: {...(official.video || {}), ...(caps.video || {})},
+    audio: {...(official.audio || {}), ...(caps.audio || {})},
+  };
+  return normalizeReferenceCapabilities(merged, mediaType, mediaRoles);
+}
+
 function officialFallbackModels(tools) {
   const imageTool = findTool(tools, 'generate_image');
   const videoTool = findTool(tools, 'generate_video');
@@ -617,6 +783,7 @@ function officialFallbackModels(tools) {
           defaultResolution:resolutions[0]||null,
           defaultAspectRatio:aspectRatios.includes('1:1')?'1:1':(aspectRatios[0]||null),
           mediaRoles,
+          referenceCapabilities:normalizeReferenceCapabilities(OFFICIAL_REFERENCE_LIMITS[providerModelId], 'image', mediaRoles),
           modes:[],
           defaultMode:null,
           tools:[{name:imageTool.name,mode:'image',schema:imageTool.inputSchema||{},description:imageTool.description||''}],
@@ -644,6 +811,7 @@ function officialFallbackModels(tools) {
           defaultResolution:resolutions[0]||null,
           defaultAspectRatio:aspectRatios.includes('16:9')?'16:9':(aspectRatios[0]||null),
           mediaRoles,
+          referenceCapabilities:normalizeReferenceCapabilities(OFFICIAL_REFERENCE_LIMITS[providerModelId], 'video', mediaRoles),
           modes,
           defaultMode,
           tools:[{name:videoTool.name,mode:'video',schema:videoTool.inputSchema||{},description:videoTool.description||''}],
