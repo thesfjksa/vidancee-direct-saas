@@ -1321,3 +1321,109 @@ This avoids abandoning already-running provider jobs while still preventing new 
 - `active`: configured + enabled
 
 `/admin/config` exposes private `providerEnabled` and `providerActive` maps for operations/debugging.
+
+
+## Higgsfield MCP primary catalog integration — 2026-10-06
+
+Higgsfield MCP is now implemented as a full image/video backend source rather than a single-model adapter.
+
+### Authentication
+
+- Official MCP endpoint default: \`https://mcp.higgsfield.ai/mcp\`
+- Admin connects the paid Higgsfield account with OAuth from **Admin → Provider → Higgsfield MCP → Connect / Reconnect**.
+- No Higgsfield password or API key is entered into Mehroz AI.
+- OAuth tokens, dynamic client registration information, PKCE verifier, discovery state, and OAuth state are persisted through the encrypted \`app_settings\` store.
+- The public callback is \`\${APP_URL}/admin/higgsfield/oauth/callback\`; \`APP_URL\` must therefore be the real public HTTPS application origin.
+- The OAuth callback is intentionally not protected by the Admin header token because the external authorization server redirects the browser to it. It is protected by stored OAuth \`state\` comparison and the MCP SDK issuer/discovery validation.
+
+### Dynamic model sync
+
+A new \`provider_models\` table stores the live model catalog discovered from the authenticated MCP tool schemas.
+
+After OAuth succeeds, the server automatically attempts a model sync. Admin can also press **Sync models** at any time.
+
+For each discovered image/video model the app stores:
+
+- provider model ID
+- neutral customer-facing model ID
+- label
+- media type
+- generation tool(s)
+- input schema
+- supported duration values when exposed
+- supported resolutions when exposed
+- supported aspect ratios when exposed
+- default values when exposed
+- Admin enabled/disabled state
+- whether the model appeared in the latest sync
+
+Models missing from the newest sync are marked unavailable rather than deleted. Admin visibility choices are preserved across syncs.
+
+Provider identity is not exposed to customers. Dynamically discovered public IDs use the neutral \`ai_\` prefix, while known overlapping products reuse the existing public IDs such as \`seedance_2.5\`, \`seedance_2.0_fast\`, and \`minimax_h3\`.
+
+### Admin controls
+
+The Higgsfield provider card includes:
+
+- source ON/OFF switch
+- MCP endpoint
+- connected status
+- max inflight jobs
+- Connect / Reconnect
+- Sync models
+- Disconnect
+
+The Higgsfield model catalog below it has a Show/Hide control for every synced model.
+
+Turning the whole Higgsfield source OFF removes its exclusive models from the customer catalog and stops new Higgsfield submissions. Turning an individual model OFF hides only that model. Existing submitted jobs continue to be polled while authorization remains available.
+
+### Customer catalog and routing
+
+When Higgsfield is active, \`GET /api/config\` merges enabled/available synced models into the existing Video and Image model selectors.
+
+If Higgsfield supplies a model that already exists from another backend, the Higgsfield-backed dynamic definition takes precedence while Higgsfield is active. This makes Higgsfield the primary source for overlapping models such as Seedance while preserving the older providers as fallback sources when Higgsfield is switched off.
+
+Customer APIs and UI do not mention Higgsfield.
+
+### Pricing
+
+Synced models use live source pricing rather than hard-coded customer prices:
+
+1. the app calls the model's MCP generation tool with \`get_cost: true\`
+2. it reads the source credit estimate
+3. customer cost = source credits × \`CUSTOMER_CREDIT_MULTIPLIER\` (default 2.5)
+4. the exact customer debit and source credit estimate are saved with the queued generation
+
+The customer UI calls the neutral \`POST /api/model-cost\` endpoint for a live estimate. If the browser estimate cannot be retrieved, the server still calculates the exact cost before accepting a generation.
+
+### Generation and polling
+
+Queued Higgsfield jobs are tagged internally with provider \`higgsfield\` and processed by the active worker.
+
+- reference uploads are exposed to the provider through the existing signed temporary asset URLs
+- the worker selects the synced tool/schema for the requested model and mode
+- async provider job IDs are stored in \`provider_job_id\`
+- the synced \`jobs_wait\` MCP tool is used to poll completion
+- successful result URLs are proxied to customers through the existing authenticated media routes
+- failed provider jobs use the existing atomic credit refund path
+
+Higgsfield image and video jobs share the configured \`HIGGSFIELD_MAX_INFLIGHT\` pool.
+
+### Deployment / first connection
+
+After deployment:
+
+1. confirm \`APP_URL=https://ai.mehroz.online\` (or the actual public HTTPS origin)
+2. open **Admin → Provider**
+3. keep **Higgsfield MCP** enabled
+4. click **Connect / Reconnect**
+5. sign in to the paid Higgsfield account and approve authorization
+6. after returning to Admin, the server attempts an automatic model sync
+7. use **Sync models** manually if needed
+8. review the synced list and hide any models that should not be sold to customers
+
+No Higgsfield account credentials should be pasted into chat, env files, or the Admin secret fields.
+
+### Live-schema validation note
+
+The integration is schema-driven so it can adapt to Higgsfield's current MCP catalog. Static syntax and routing checks are performed before deployment, but the exact live MCP tool schemas can only be validated after the paid Higgsfield account completes OAuth. If a specific reference-image model exposes unusual parameter names or requirements, refine that model's schema mapping after the first real sync rather than hard-coding guessed IDs.
