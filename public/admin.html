@@ -2,6 +2,17 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mehroz AI — Admin</title>
 <style>
 :root{color-scheme:dark;--bg:#090e14;--panel:#111923;--line:#26384d;--muted:#93a6bc;--accent:#e5a66e;--danger:#9b4652;--ok:#73d39a}*{box-sizing:border-box}body{margin:0;background:#090e14;color:#f5f8fb;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}.wrap{max-width:1320px;margin:auto;padding:24px 18px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-size:24px;font-weight:900}.muted{color:var(--muted)}.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:17px;margin-top:15px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.n{font-size:28px;font-weight:900;margin-top:6px}.tabs{display:flex;gap:8px;overflow:auto;margin:18px 0}.tabs button{border:1px solid var(--line);background:#152130;color:white;border-radius:9px;padding:9px 12px;cursor:pointer;white-space:nowrap}.tabs button.active{background:var(--accent);color:#21150c;border-color:transparent}.section{display:none}.section.active{display:block}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}input,select,button{padding:10px 12px;border-radius:9px;border:1px solid #37506a;background:#0c131c;color:white;font:inherit}button{cursor:pointer}.btn{background:var(--accent);color:#1c120b;border:0;font-weight:800}.secondary{background:#273b52;color:white}.danger{background:var(--danger);color:white}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}th{color:#bfd0e3}.badge{padding:4px 8px;border-radius:999px;background:#22344a;font-size:11px}.ok{color:var(--ok)}.err{color:#ff939d}pre{white-space:pre-wrap;word-break:break-word;background:#080c11;border:1px solid #202d3b;border-radius:10px;padding:12px;max-height:430px;overflow:auto}.login{max-width:520px;margin:80px auto}.hide{display:none!important}
+.source-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.source-head h3{margin:0}
+.source-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.source-switch input{position:absolute;opacity:0;pointer-events:none}
+.source-switch-track{width:38px;height:22px;border-radius:999px;background:#253244;border:1px solid #3a4b61;position:relative;transition:.16s}
+.source-switch-track:after{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;border-radius:50%;background:#8fa2b7;transition:.16s}
+.source-switch input:checked+.source-switch-track{background:#d7ff3f;border-color:#d7ff3f}
+.source-switch input:checked+.source-switch-track:after{transform:translateX(16px);background:#182000}
+.source-state{font-size:11px;margin:7px 0 11px}
+.source-state.enabled{color:#86e8b1}
+.source-state.disabled{color:#ffb0b7}
 @media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.grid{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
 <div id="loginBox" class="card login"><div class="brand">Mehroz AI Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
@@ -42,10 +53,17 @@
 
   <section id="provider" class="section">
     <div class="card">
-      <div class="top"><div><h2 style="margin:0">Generation engines</h2><div class="muted">Credentials are saved securely. Leave a secret field blank to keep the existing saved value.</div></div><button class="btn" onclick="saveProviderSettings()">Save settings</button></div>
+      <div class="top"><div><h2 style="margin:0">Generation engines</h2><div class="muted">Credentials are saved securely. Switch a source off to stop new jobs through it. Models supplied only by that source disappear from the customer app.</div></div><button class="btn" onclick="saveProviderSettings()">Save settings</button></div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
         <div class="card">
-          <h3 style="margin-top:0">Primary engine</h3>
+          <div class="source-head">
+            <h3>Primary engine</h3>
+            <label class="source-switch" title="Enable or disable this backend source">
+              <input id="vidEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
+              <span class="source-switch-track"></span>
+            </label>
+          </div>
+          <div id="vidEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="vidBaseUrl" style="width:100%;margin:6px 0 10px">
           <div class="muted">Login email</div><input id="vidEmail" style="width:100%;margin:6px 0 10px">
           <div class="muted">Password</div><input id="vidPassword" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
@@ -55,7 +73,14 @@
           <pre id="providerOut">Ready.</pre>
         </div>
         <div class="card">
-          <h3 style="margin-top:0">Overflow engine</h3>
+          <div class="source-head">
+            <h3>Overflow engine</h3>
+            <label class="source-switch" title="Enable or disable this backend source">
+              <input id="cpEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
+              <span class="source-switch-track"></span>
+            </label>
+          </div>
+          <div id="cpEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="cpBaseUrl" style="width:100%;margin:6px 0 10px">
           <div class="muted">API key</div><input id="cpApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearCpApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
@@ -63,7 +88,14 @@
           <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="cpInflight" type="number" min="1" max="50" value="3" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
-          <h3 style="margin-top:0">Image engine · Atlas Cloud</h3>
+          <div class="source-head">
+            <h3>Image engine · Atlas Cloud</h3>
+            <label class="source-switch" title="Enable or disable this backend source">
+              <input id="atlasEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
+              <span class="source-switch-track"></span>
+            </label>
+          </div>
+          <div id="atlasEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="atlasBaseUrl" style="width:100%;margin:6px 0 10px">
           <div class="muted">API key</div><input id="atlasApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearAtlasApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
@@ -71,7 +103,14 @@
           <div class="muted" style="margin-top:12px">Max inflight image jobs</div><input id="atlasInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
-          <h3 style="margin-top:0">Video engine · MiniMax H3</h3>
+          <div class="source-head">
+            <h3>Video engine · MiniMax H3</h3>
+            <label class="source-switch" title="Enable or disable this backend source">
+              <input id="vgenvEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
+              <span class="source-switch-track"></span>
+            </label>
+          </div>
+          <div id="vgenvEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="vgenvBaseUrl" style="width:100%;margin:6px 0 10px" placeholder="https://api.vgenv.com">
           <div class="muted">API key</div><input id="vgenvApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearVgenvApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
@@ -153,8 +192,23 @@ async function decidePlanRequest(id,action){
 
 async function loadGenerations(){try{const q=encodeURIComponent($('genSearch').value.trim()),st=encodeURIComponent($('genStatus').value);const d=await api('/admin/generations?q='+q+'&status='+st);$('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+esc(g.user_email)+'</td><td>'+esc(g.media_type||'video')+'</td><td><span class="badge">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+(g.resolution?esc(g.resolution):'—')+'</td><td>'+g.credits_cost+'</td><td>'+(g.provider_job_id||'—')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+'</td></tr>').join(''):'<tr><td colspan="11" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="11" class="err">'+esc(e.message)+'</td></tr>'}}
 async function loadCredits(){try{const d=await api('/admin/credits');$('creditRows').innerHTML=d.transactions.length?d.transactions.map(c=>'<tr><td>'+fmt(c.created_at)+'</td><td>'+esc(c.email)+'</td><td>'+(c.generation_id||'—')+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.note||'—')+'</td><td class="'+(c.amount>0?'ok':'err')+'">'+(c.amount>0?'+':'')+c.amount+'</td></tr>').join(''):'<tr><td colspan="6" class="muted">No credit activity.</td></tr>'}catch(e){}}
-async function loadProviderSettings(){try{const d=await api('/admin/provider-settings');const s=d.settings;$('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';$('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;$('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;$('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;$('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false'}catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
-async function saveProviderSettings(){const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';const body={vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'};try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}}
+function updateSourceSwitchLabels(){
+  const items=[
+    ['vidEnabled','vidEnabledText'],
+    ['cpEnabled','cpEnabledText'],
+    ['atlasEnabled','atlasEnabledText'],
+    ['vgenvEnabled','vgenvEnabledText'],
+  ];
+  for(const [inputId,textId] of items){
+    const input=$(inputId),text=$(textId);
+    if(!input||!text)continue;
+    text.textContent=input.checked?'Enabled for new jobs':'Disabled — no new jobs';
+    text.className='source-state '+(input.checked?'enabled':'disabled');
+  }
+}
+
+async function loadProviderSettings(){try{const d=await api('/admin/provider-settings');const s=d.settings;$('vidEnabled').checked=s.vidancee?.enabled!==false;$('cpEnabled').checked=s.createpulse?.enabled!==false;$('atlasEnabled').checked=s.atlascloud?.enabled!==false;$('vgenvEnabled').checked=s.vgenv?.enabled!==false;updateSourceSwitchLabels();$('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';$('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;$('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;$('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;$('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false'}catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
+async function saveProviderSettings(){const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';const body={vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'};try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}}
 async function checkProvider(){const o=$('providerOut');o.textContent='Checking...';try{o.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
 async function providerJobs(){const o=$('providerJobsOut');o.textContent='Loading...';try{o.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
