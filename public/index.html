@@ -199,6 +199,8 @@ button{cursor:pointer}
   grid-column:1/-1;font-size:8px;color:#61646d;margin-top:1px;
 }
 
+.model-capability-summary{font-size:12px;line-height:1.45;color:var(--muted);margin:8px 0 2px}
+.model-capability-summary strong{color:var(--text);font-weight:700}
 .reference-capability-note{font-size:9px;line-height:1.45;color:#777b85;margin:-2px 0 8px}
 .reference-role{
   width:100%;margin-top:4px;padding:5px 6px;border-radius:6px;
@@ -636,6 +638,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
               <label class="meta">Model</label>
               <select id="model" onchange="handleVideoModelChange()"></select>
+              <div id="videoModelCapabilitySummary" class="model-capability-summary"></div>
 
               <div class="control-grid">
                 <div>
@@ -709,6 +712,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 
               <label class="meta">Model</label>
               <select id="imageModel" onchange="handleImageModelChange()"></select>
+              <div id="imageModelCapabilitySummary" class="model-capability-summary"></div>
 
               <label class="meta">Aspect ratio</label>
               <select id="imageRatio" onchange="updateImageCost()"></select>
@@ -1123,14 +1127,45 @@ function defaultVideoRole(cap){
   return cap.roles[0]||'video_references';
 }
 
+function capabilitySummary(model,mediaType){
+  const caps=normalizedClientCapabilities(model,mediaType);
+  const parts=[];
+  if(caps.image.supported){
+    const max=caps.image.max||1;
+    const fixed=caps.image.roles.includes('start_image')||caps.image.roles.includes('end_image');
+    parts.push((fixed?'frame/image':'image')+' refs: '+max);
+  }
+  if(caps.video.supported)parts.push('video refs: '+(caps.video.max||1));
+  if(caps.audio.supported)parts.push('audio refs: '+(caps.audio.max||1));
+
+  const required=[];
+  if(caps.image.min>0||caps.image.requiredRoles.length)required.push('image');
+  if(caps.video.min>0||caps.video.requiredRoles.length)required.push('video');
+  if(caps.audio.min>0||caps.audio.requiredRoles.length)required.push('audio');
+
+  if(!parts.length){
+    return '<strong>'+(mediaType==='video'?'Text to video':'Text to image')+'</strong> · no reference uploads';
+  }
+  return '<strong>'+(required.length?'References required':'References optional')+'</strong> · '+parts.join(' · ');
+}
+
+function refreshModelCapabilitySummaries(){
+  const video=currentVideoModel();
+  const image=currentImageModel();
+  if($('videoModelCapabilitySummary'))$('videoModelCapabilitySummary').innerHTML=video?capabilitySummary(video,'video'):'';
+  if($('imageModelCapabilitySummary'))$('imageModelCapabilitySummary').innerHTML=image?capabilitySummary(image,'image'):'';
+}
+
 function handleVideoModelChange(){
   renderDurations(true);
   renderVideoReferenceControls(true);
+  refreshModelCapabilitySummaries();
 }
 
 function handleImageModelChange(){
   renderImageRatios();
   renderImageReferenceControls(true);
+  refreshModelCapabilitySummaries();
 }
 
 function renderVideoReferenceControls(modelChanged=false){
@@ -1203,6 +1238,8 @@ function renderVideoReferenceControls(modelChanged=false){
     renderVideoReferenceList();
   }
 
+  refreshModelCapabilitySummaries();
+
   if(modelChanged&&changed){
     $('genMsg').className='msg muted';
     $('genMsg').textContent='References were adjusted to match the selected model.';
@@ -1247,6 +1284,7 @@ function renderConfig(){
   ensureCustomSelect('ratio');
   renderDurations(true);
   renderVideoReferenceControls(false);
+  refreshModelCapabilitySummaries();
 }
 
 function renderDurations(resetResolution=false){
