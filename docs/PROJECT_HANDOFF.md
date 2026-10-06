@@ -1463,3 +1463,34 @@ The Higgsfield model sync now:
 - applies an additional customer-catalog safety filter so already-stored utility rows disappear from the customer UI immediately after deployment, even before a successful re-sync
 
 The Admin catalog still retains unavailable rows for diagnostics/history, but customers only receive plausible creative models.
+
+
+### Higgsfield authoritative models_explore sync — 2026-10-06
+
+The deployed Ultra account exposed 146 MCP tools. Tool-schema inference was not reliable because Higgsfield exposes many workflows/utilities alongside creative generation tools.
+
+The integration now uses Higgsfield's dedicated MCP catalog flow as the source of truth:
+
+- locate `models_explore`
+- call `action=list,type=image,limit=100`
+- call `action=list,type=video,limit=100`
+- map returned model fields (`id`, `name`, `provider_name`, `parameters`, `medias`, `aspect_ratios`, `durations`, `duration_range`) into `provider_models`
+- route image models through the generic `generate_image` MCP tool
+- route video models through the generic `generate_video` MCP tool
+- wrap generation parameters inside the MCP `params` object when required by the live schema
+- preserve tool-schema inference only as a backward-compatible fallback
+
+Models imported from `models_explore` are tagged internally as `catalogVerified`. Customer/Admin catalogs trust these authoritative entries even when the model family is new and not present in our static heuristic list.
+
+Old workflow/tool rows from the earlier inference attempt are hidden from Admin/customer catalogs once the new sync succeeds.
+
+Reference images now use Higgsfield's MCP media flow instead of passing Mehroz signed URLs directly:
+
+1. `media_upload` requests a provider upload URL and media ID
+2. the worker PUTs the image bytes to the returned upload URL
+3. `media_confirm` confirms the provider media
+4. generation passes the returned media ID with a model-declared media role
+
+The worker maps image references using the roles supplied by the live model catalog (`image`, `start_image`, `end_image`, `image_references`, or `input_images`). Models that do not declare an image-reference role reject reference uploads before customer credits are reserved.
+
+Cost parsing also supports Higgsfield's nested `cost.credits_exact` response and generation responses that use a top-level `id`.
