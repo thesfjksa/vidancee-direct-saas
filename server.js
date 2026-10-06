@@ -206,9 +206,18 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 function dynamicModelSupportsImageReferences(model) {
+  const cap=model?.referenceCapabilities?.image;
+  if(cap && typeof cap==='object') return cap.supported===true || Number(cap.max||0)>0;
   const roles=Array.isArray(model?.mediaRoles)?model.mediaRoles:[];
   if(model?.mediaType==='image') return roles.some(role=>['image','input_images','image_references'].includes(String(role)));
   return roles.some(role=>['image','start_image','end_image','input_images','image_references'].includes(String(role)));
+}
+
+function dynamicModelSupportsVideoReferences(model) {
+  const cap=model?.referenceCapabilities?.video;
+  if(cap && typeof cap==='object') return cap.supported===true || Number(cap.max||0)>0;
+  const roles=Array.isArray(model?.mediaRoles)?model.mediaRoles:[];
+  return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
 function userPayload(user) {
@@ -572,6 +581,7 @@ const server=http.createServer(async (req,res)=>{
           generation=await createImageGenerationForUser(user.id,body,{
             provider:'higgsfield',
             dynamicModel:true,
+            referenceCapabilities:dynamicModel.referenceCapabilities,
             costOverride:customerCost,
             providerCost:sourceCost,
             providerCostUnit:'credits',
@@ -640,18 +650,23 @@ const server=http.createServer(async (req,res)=>{
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
             return sendJson(res,400,{ok:false,error:'This video model does not accept image references.'});
           }
+          if (Array.isArray(body.videos) && body.videos.length && !dynamicModelSupportsVideoReferences(dynamicModel)) {
+            return sendJson(res,400,{ok:false,error:'This video model does not accept video references.'});
+          }
+          const hasReferences=(Array.isArray(body.images)&&body.images.length)||(Array.isArray(body.videos)&&body.videos.length);
           const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'video',{
             prompt:String(body.prompt||''),
             duration:Number(body.duration||0),
             resolution:String(body.resolution||''),
             aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
-            mode:Array.isArray(body.images)&&body.images.length?'image-to-video':'text-to-video',
+            mode:hasReferences?'reference-to-video':'text-to-video',
           });
           const customerCost=sourceToCustomerCredits(sourceCost);
           generation=await createGenerationForUser(user.id,body,{
             provider:'higgsfield',
             dynamicModel:true,
             defaultResolution:dynamicModel.defaultResolution,
+            referenceCapabilities:dynamicModel.referenceCapabilities,
             costOverride:customerCost,
             providerCost:sourceCost,
             providerCostUnit:'credits',
