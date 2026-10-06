@@ -597,7 +597,10 @@ function mediaReferencesForModel(model, mediaIds) {
   const roles = Array.isArray(model?.mediaRoles) ? model.mediaRoles : [];
 
   if (model.mediaType === 'image') {
-    const role = roles.includes('image') ? 'image' : (roles[0] || 'image');
+    const role = roles.includes('image')
+      ? 'image'
+      : (roles.includes('image_references') ? 'image_references' : (roles.includes('input_images') ? 'input_images' : null));
+    if (!role) throw new Error('This image model does not support reference images.');
     return ids.map(value => ({ value, role }));
   }
 
@@ -612,14 +615,14 @@ function mediaReferencesForModel(model, mediaIds) {
 
   const repeatedRole = roles.includes('image')
     ? 'image'
-    : (roles.includes('image_references') ? 'image_references' : null);
+    : (roles.includes('image_references')
+      ? 'image_references'
+      : (roles.includes('input_images') ? 'input_images' : null));
   while (repeatedRole && ids[index]) {
     refs.push({ value: ids[index++], role: repeatedRole });
   }
 
-  if (!refs.length) {
-    refs.push({ value: ids[0], role: roles[0] || 'start_image' });
-  }
+  if (!refs.length) throw new Error('This video model does not support image references.');
   return refs;
 }
 
