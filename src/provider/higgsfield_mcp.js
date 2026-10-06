@@ -134,6 +134,29 @@ function inferMode(mediaType, toolText) {
   return 'image';
 }
 
+function knownCreativeModelFamily(value) {
+  const hay = String(value || '').toLowerCase().replace(/[._/-]+/g, ' ');
+  return /\b(seedance|kling|veo|sora|wan|hailuo|minimax|grok|omni flash|nano banana|seedream|flux|recraft|ideogram|gpt image|imagen|soul|qwen|pixverse|runway|luma|pika)\b/.test(hay);
+}
+
+function isUtilityTool(tool) {
+  const hay = [tool?.name, tool?.title, tool?.description].filter(Boolean).join(' ').toLowerCase();
+  return /\b(analysis|analy[sz]e|predictor|virality|preset|presets|action|actions|jobs?|history|balance|credits?|status|list|search|upscale|audio|music|speech|voice|marketing|studio|workflow|template|templates)\b/.test(hay)
+    && !/\b(generate|generation|create|render)\b/.test(hay);
+}
+
+function isLikelyGenerationTool(tool) {
+  if (!tool || isUtilityTool(tool)) return false;
+  const hay = [tool?.name, tool?.title, tool?.description].filter(Boolean).join(' ').toLowerCase();
+  const schema = tool?.inputSchema || {};
+  const props = schemaProperties(schema);
+  const directNames = Object.keys(props).map(x => x.toLowerCase());
+  const hasPromptish = directNames.some(name => ['prompt','text','description','params','input','arguments'].includes(name));
+  const hasGenerateVerb = /\b(generate|generation|create|render)\b/.test(hay);
+  const hasCreativeMedia = /\b(video|image|photo|picture|animate|motion)\b/.test(hay);
+  return (hasGenerateVerb && hasCreativeMedia) || hasPromptish;
+}
+
 function selectTool(model, mode) {
   const tools = Array.isArray(model.tools) ? model.tools : [];
   if (!tools.length) {
@@ -591,17 +614,24 @@ function modelEntriesFromTool(tool) {
       tool?.description,
       tool?.title,
     ].filter(Boolean).join('\n'));
-    if (described.length) return described;
+    if (described.length) {
+      const filtered = described.filter(entry => knownCreativeModelFamily(entry.value));
+      if (filtered.length) return filtered;
+    }
   }
 
   // Some MCP servers expose one generation tool per model and therefore do not
-  // need a model parameter at all. In that shape, use the tool metadata itself
-  // only when it clearly looks like an image/video generation tool.
+  // need a model parameter. Only accept that shape when the tool itself names a
+  // recognizable creative model family. Generic workflow/analysis tools must
+  // never become customer-facing model options.
   const toolText = [tool?.name, tool?.title, tool?.description].filter(Boolean).join(' ');
   const mediaHint = inferModelMedia(tool?.name || tool?.title || '', toolText);
-  const generationHint = /generate|create|render|image|video/i.test(toolText)
-    && !/jobs?_?wait|status|history|balance|credits?|upscale|audio|music|voice/i.test(toolText);
-  if (!modelProp && mediaHint && generationHint && likelyModelToken(tool?.name)) {
+  if (
+    !modelProp &&
+    mediaHint &&
+    isLikelyGenerationTool(tool) &&
+    knownCreativeModelFamily(tool?.name || tool?.title || '')
+  ) {
     return [{ value: String(tool.name), label: tool.title || null }];
   }
 
@@ -631,6 +661,7 @@ function discoverModelsFromTools(tools) {
   const grouped = new Map();
 
   for (const tool of Array.isArray(tools) ? tools : []) {
+    if (!isLikelyGenerationTool(tool)) continue;
     const toolText = [tool.name, tool.title, tool.description].filter(Boolean).join(' ');
     const entries = modelEntriesFromTool(tool);
     if (!entries.length) continue;
