@@ -132,9 +132,11 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="secondary" onclick="connectHiggsfield()">Connect / Reconnect</button>
             <button class="secondary" onclick="syncHiggsfieldModels()">Sync models</button>
+            <button class="secondary" onclick="inspectHiggsfieldTools()">Inspect MCP tools</button>
             <button class="danger" onclick="disconnectHiggsfield()">Disconnect</button>
           </div>
           <div id="higgsfieldActionMsg" class="muted" style="margin-top:10px"></div>
+          <pre id="higgsfieldToolsOut" class="hide" style="max-height:260px;overflow:auto;margin-top:10px">Not inspected.</pre>
         </div>
       </div>
       <div class="row" style="margin-top:12px">
@@ -275,6 +277,20 @@ async function syncHiggsfieldModels(){
     m.className='ok';m.textContent='Synced '+d.modelCount+' models ('+d.videoCount+' video, '+d.imageCount+' image).';
     await Promise.all([loadHiggsfieldModels(),loadProviderConfig()]);
   }catch(e){m.className='err';m.textContent=e.message}
+}
+
+async function inspectHiggsfieldTools(){
+  const m=$('higgsfieldActionMsg'),out=$('higgsfieldToolsOut');
+  m.className='muted';m.textContent='Reading live MCP tool schemas...';
+  out.classList.remove('hide');out.textContent='Loading...';
+  try{
+    const d=await api('/admin/higgsfield/tools');
+    out.textContent=JSON.stringify(d.tools||[],null,2);
+    m.className='ok';m.textContent='Loaded '+(d.tools||[]).length+' MCP tool definitions. This output contains schemas, not your password or OAuth token.';
+  }catch(e){
+    out.textContent='ERROR: '+e.message;
+    m.className='err';m.textContent=e.message;
+  }
 }
 
 async function loadHiggsfieldModels(){
