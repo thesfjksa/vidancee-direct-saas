@@ -148,6 +148,8 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     defaultAspectRatio: options.defaultAspectRatio ? String(options.defaultAspectRatio) : null,
     tools: Array.isArray(options.tools) ? options.tools : [],
     mediaRoles: Array.isArray(options.mediaRoles) ? options.mediaRoles : [],
+    modes: Array.isArray(options.modes) ? options.modes : [],
+    defaultMode: options.defaultMode ? String(options.defaultMode) : null,
     catalogVerified: options.catalogVerified === true,
     lastSeenAt: row.last_seen_at,
   };
