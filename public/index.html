@@ -603,7 +603,7 @@ textarea::placeholder,input::placeholder{color:#555860}
                 </div>
                 <div>
                   <label class="meta">Aspect ratio</label>
-                  <select id="ratio"></select>
+                  <select id="ratio" onchange="updateCost()"></select>
                 </div>
                 <div id="resolutionControl" class="wide hide">
                   <label class="meta">Resolution</label>
@@ -666,10 +666,10 @@ textarea::placeholder,input::placeholder{color:#555860}
               <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details..."></textarea>
 
               <label class="meta">Model</label>
-              <select id="imageModel" onchange="updateImageCost()"></select>
+              <select id="imageModel" onchange="renderImageRatios()"></select>
 
               <label class="meta">Aspect ratio</label>
-              <select id="imageRatio"></select>
+              <select id="imageRatio" onchange="updateImageCost()"></select>
             </div>
           </div>
 
@@ -787,6 +787,7 @@ let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter=
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
+let videoCostRequestSeq=0,imageCostRequestSeq=0;
 const $=id=>document.getElementById(id);
 
 async function api(path,options={}){
@@ -1004,16 +1005,28 @@ document.addEventListener('scroll',e=>{
 
 function renderConfig(){
   if(!config)return;
-  $('model').innerHTML=config.pricing.map(m=>'<option value="'+m.id+'">'+escapeHtml(m.label)+'</option>').join('');
-  $('ratio').innerHTML=config.aspectRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
+  $('model').innerHTML=(config.pricing||[]).map(m=>'<option value="'+m.id+'">'+escapeHtml(m.label)+'</option>').join('');
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
   renderDurations(true);
 }
 
 function renderDurations(resetResolution=false){
-  const m=config.pricing.find(x=>x.id===$('model').value)||config.pricing[0];
-  const resolutionOptions=Array.isArray(m?.resolutions)?m.resolutions:[];
+  const m=(config.pricing||[]).find(x=>x.id===$('model').value)||(config.pricing||[])[0];
+  if(!m){
+    $('duration').innerHTML='';
+    $('ratio').innerHTML='';
+    $('cost').textContent='—';
+    return;
+  }
+
+  const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
+  const previousRatio=$('ratio').value;
+  $('ratio').innerHTML=modelRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
+  if(modelRatios.includes(previousRatio))$('ratio').value=previousRatio;
+  else if(m.defaultAspectRatio&&modelRatios.includes(m.defaultAspectRatio))$('ratio').value=m.defaultAspectRatio;
+
+  const resolutionOptions=Array.isArray(m.resolutions)?m.resolutions:[];
   const previousResolution=$('resolution').value;
   const previousDuration=Number($('duration').value);
 
@@ -1036,9 +1049,11 @@ function renderDurations(resetResolution=false){
 
   const selectedResolution=resolutionOptions.find(r=>r.id===$('resolution').value);
   const durations=selectedResolution?.durations||m?.durations||[];
-  $('duration').innerHTML=durations.map(d=>
-    '<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>'
-  ).join('');
+  $('duration').innerHTML=durations.map(d=>{
+    const label=d.label||(Number(d.seconds)>0?d.seconds+' sec':'Default');
+    const cost=d.cost==null?'':d.cost;
+    return '<option value="'+d.seconds+'" data-cost="'+cost+'">'+escapeHtml(label)+'</option>';
+  }).join('');
 
   if(!resetResolution && Number.isFinite(previousDuration) && durations.some(d=>Number(d.seconds)===previousDuration)){
     $('duration').value=String(previousDuration);
@@ -1046,14 +1061,40 @@ function renderDurations(resetResolution=false){
 
   ensureCustomSelect('duration');
   syncCustomSelect('model');
+  syncCustomSelect('ratio');
   syncCustomSelect('duration');
   updateCost();
 }
 
-function updateCost(){
+async function updateCost(){
+  const model=(config.pricing||[]).find(x=>x.id===$('model').value);
   const o=$('duration').options[$('duration').selectedIndex];
-  $('cost').textContent=o?o.dataset.cost:'—';
   syncCustomSelect('duration');
+  syncCustomSelect('ratio');
+
+  if(!model){$('cost').textContent='—';return}
+  if(!model.dynamicCost){
+    $('cost').textContent=o&&o.dataset.cost?o.dataset.cost:'—';
+    return;
+  }
+
+  const seq=++videoCostRequestSeq;
+  $('cost').textContent='…';
+  try{
+    const d=await api('/api/model-cost',{
+      method:'POST',
+      body:JSON.stringify({
+        mediaType:'video',
+        model:model.id,
+        duration:Number($('duration').value||0),
+        resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
+        aspectRatio:$('ratio').value,
+      })
+    });
+    if(seq===videoCostRequestSeq)$('cost').textContent=Number(d.cost);
+  }catch(e){
+    if(seq===videoCostRequestSeq)$('cost').textContent='at submit';
+  }
 }
 
 function clearReferenceItems(){
@@ -1229,19 +1270,51 @@ document.addEventListener('pointerup',event=>{
 function renderImageConfig(){
   if(!config)return;
   $('imageModel').innerHTML=(config.imagePricing||[]).map(m=>
-    '<option value="'+escapeHtml(m.id)+'" data-cost="'+Number(m.cost)+'">'+escapeHtml(m.label)+'</option>'
+    '<option value="'+escapeHtml(m.id)+'">'+escapeHtml(m.label)+'</option>'
   ).join('');
-  $('imageRatio').innerHTML=(config.imageAspectRatios||[]).map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
   ensureCustomSelect('imageModel');
   ensureCustomSelect('imageRatio');
+  renderImageRatios();
+}
+
+function renderImageRatios(){
+  const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value)||(config.imagePricing||[])[0];
+  const ratios=Array.isArray(model?.aspectRatios)&&model.aspectRatios.length?model.aspectRatios:(config.imageAspectRatios||[]);
+  const previous=$('imageRatio').value;
+  $('imageRatio').innerHTML=ratios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
+  if(ratios.includes(previous))$('imageRatio').value=previous;
+  else if(model?.defaultAspectRatio&&ratios.includes(model.defaultAspectRatio))$('imageRatio').value=model.defaultAspectRatio;
+  syncCustomSelect('imageModel');
+  syncCustomSelect('imageRatio');
   updateImageCost();
 }
 
-function updateImageCost(){
-  const selected=$('imageModel').options[$('imageModel').selectedIndex];
-  $('imageCost').textContent=selected?selected.dataset.cost:'—';
+async function updateImageCost(){
+  const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value);
   syncCustomSelect('imageModel');
   syncCustomSelect('imageRatio');
+  if(!model){$('imageCost').textContent='—';return}
+
+  if(!model.dynamicCost){
+    $('imageCost').textContent=Number(model.cost);
+    return;
+  }
+
+  const seq=++imageCostRequestSeq;
+  $('imageCost').textContent='…';
+  try{
+    const d=await api('/api/model-cost',{
+      method:'POST',
+      body:JSON.stringify({
+        mediaType:'image',
+        model:model.id,
+        aspectRatio:$('imageRatio').value,
+      })
+    });
+    if(seq===imageCostRequestSeq)$('imageCost').textContent=Number(d.cost);
+  }catch(e){
+    if(seq===imageCostRequestSeq)$('imageCost').textContent='at submit';
+  }
 }
 
 function previewImages(){
