@@ -12,7 +12,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier, roundCredits } = require('./src/billing.js');
+const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
   publicPlans,
   getPlanStatus,
@@ -40,6 +40,20 @@ const {
   migrateLegacyProviderEnvSettings,
 } = require('./src/settings.js');
 const { verifyAssetSignature } = require('./src/provider/assets.js');
+const {
+  publicProviderCatalog,
+  listProviderModels,
+  getProviderModelByPublicId,
+  setProviderModelEnabled,
+} = require('./src/provider_models.js');
+const {
+  beginHiggsfieldAuthorization,
+  finishHiggsfieldAuthorization,
+  clearHiggsfieldAuth,
+  syncHiggsfieldModels,
+  getHiggsfieldConnectionStatus,
+  estimateHiggsfieldCost,
+} = require('./src/provider/higgsfield_mcp.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const adminPage = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
@@ -85,6 +99,17 @@ function sendHtml(res, status, body) {
   });
   res.end(body);
 }
+function publicOrigin(req) {
+  const configured = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
+  if (configured) return configured;
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = forwardedProto || 'https';
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const requestHost = forwardedHost || String(req.headers.host || '').trim();
+  if (!requestHost) throw new Error('APP_URL is required for OAuth callbacks.');
+  return proto + '://' + requestHost;
+}
+
 function safeError(error) {
   return { ok:false, error:error instanceof Error ? error.message : String(error) };
 }
