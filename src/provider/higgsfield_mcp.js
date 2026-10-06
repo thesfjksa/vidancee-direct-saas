@@ -16,6 +16,7 @@ const {
   canonicalPublicModelId,
   syncProviderModels,
   getProviderModelByPublicId,
+  quarantineProviderUtilityModels,
 } = require('../provider_models.js');
 
 const PROVIDER = 'higgsfield';
@@ -761,6 +762,7 @@ async function syncHiggsfieldModels() {
   return withAuthenticatedClient(async client => {
     const result = await client.listTools();
     const tools = Array.isArray(result?.tools) ? result.tools : [];
+    await quarantineProviderUtilityModels(PROVIDER);
     const models = discoverModelsFromTools(tools);
     if (!models.length) {
       throw new Error('Connected successfully, but model IDs were not exposed as enums/examples/described slugs in the '+tools.length+' MCP tools returned by this account. The existing catalog was left unchanged. Use Inspect MCP tools in Admin so we can map the live schema without guessing.');
