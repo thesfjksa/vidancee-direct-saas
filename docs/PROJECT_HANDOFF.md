@@ -1521,3 +1521,19 @@ The Streamable HTTP MCP transport now sends a browser-like `User-Agent` on every
 The model-catalog response parser now also accepts JSON wrapped in Markdown code fences or surrounding explanatory text, because MCP tool text blocks are not guaranteed to contain raw JSON only.
 
 When `models_explore` fails, Admin now receives the safe underlying cause instead of the previous generic "catalog could not be read" message. The existing catalog is still left unchanged on failure.
+
+
+### Higgsfield official-catalog fallback — 2026-10-06
+
+A deployed Ultra account returned no entries for the attempted `models_explore action=list` call even though OAuth and the MCP tool catalog were available. Higgsfield's current public CLI/Skills documentation treats `models_explore` primarily as a recommend/get discovery surface, while the official CLI repository publishes its generation `job_set_type` catalog generated from `higgsfield model list`.
+
+The sync flow now uses this order:
+
+1. try the live `models_explore` catalog
+2. if it returns no usable entries, populate the current main image/video generation catalog from the official Higgsfield CLI model IDs/names
+3. use the live MCP `generate_image` / `generate_video` tools for actual submissions and `get_cost`
+4. retain tool-schema inference only as a last-resort compatibility fallback
+
+The official fallback intentionally excludes analysis/background-removal-style utilities from the customer generation selector. It includes the main current image/video generation families such as GPT Image, Nano Banana, Seedream, Soul, Flux, Recraft, Kling image, Seedance, Kling video, Veo, Gemini Omni, Wan, MiniMax/Hailuo, Grok video, Cinema Studio, and Marketing Studio.
+
+Fallback models are marked `catalogVerified` because their IDs are sourced from Higgsfield's official CLI/Skills repository rather than inferred from MCP utility tool names. The Admin success message reports `via official-cli-fallback` when this path is used.
