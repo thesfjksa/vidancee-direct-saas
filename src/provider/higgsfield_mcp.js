@@ -856,7 +856,7 @@ function extractUploadInfo(result) {
   };
 }
 
-async function uploadHiggsfieldImages(files) {
+async function uploadHiggsfieldMedia(files) {
   const list = Array.isArray(files) ? files.filter(Boolean) : [];
   if (!list.length) return [];
 
@@ -871,10 +871,15 @@ async function uploadHiggsfieldImages(files) {
 
     const ids = [];
     for (const file of list) {
-      const filename = String(file.filename || 'reference.jpg').slice(0, 255);
-      const mimeType = String(file.mimeType || file.mime_type || 'image/jpeg');
-      const data = file.data || file.image_data;
-      if (!Buffer.isBuffer(data)) throw new Error('Reference image data is missing.');
+      const filename = String(file.filename || 'reference-media').slice(0, 255);
+      const mimeType = String(file.mimeType || file.mime_type || 'application/octet-stream');
+      const mediaKind = String(
+        file.mediaKind ||
+        file.media_kind ||
+        (mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('audio/') ? 'audio' : 'image')
+      );
+      const data = file.data || file.media_data || file.image_data;
+      if (!Buffer.isBuffer(data)) throw new Error('Reference media data is missing.');
 
       const uploadArgs = wrapToolPayload(uploadTool, {
         filename,
@@ -896,7 +901,7 @@ async function uploadHiggsfieldImages(files) {
 
       const confirmArgs = wrapToolPayload(confirmTool, {
         media_id: info.mediaId,
-        type: 'image',
+        type: mediaKind,
       });
       await client.callTool(
         { name: confirmTool.name, arguments: confirmArgs },
@@ -906,6 +911,12 @@ async function uploadHiggsfieldImages(files) {
     }
     return ids;
   });
+}
+
+async function uploadHiggsfieldImages(files) {
+  return uploadHiggsfieldMedia(
+    (Array.isArray(files) ? files : []).map(file => ({...file, mediaKind:'image'}))
+  );
 }
 
 function mediaReferencesForModel(model, mediaIds) {
@@ -1623,6 +1634,7 @@ module.exports = {
   getHiggsfieldToolDiagnostics,
   estimateHiggsfieldCost,
   submitHiggsfieldGeneration,
+  uploadHiggsfieldMedia,
   uploadHiggsfieldImages,
   mediaReferencesForModel,
   waitForHiggsfieldJob,
