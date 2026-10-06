@@ -618,6 +618,9 @@ async function syncHiggsfieldModels() {
     const result = await client.listTools();
     const tools = Array.isArray(result?.tools) ? result.tools : [];
     const models = discoverModelsFromTools(tools);
+    if (!models.length) {
+      throw new Error('No image or video models were discovered from the current MCP tool schemas. The existing catalog was left unchanged.');
+    }
     const jobsWait = tools.find(tool => String(tool.name).toLowerCase() === 'jobs_wait')
       || tools.find(tool => /jobs?.?wait|wait.?jobs?/i.test([tool.name, tool.title, tool.description].filter(Boolean).join(' ')));
 
