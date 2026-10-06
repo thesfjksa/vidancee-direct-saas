@@ -160,13 +160,14 @@ async function initDb() {
       input_schema LONGTEXT NULL,
       options_json LONGTEXT NULL,
       enabled TINYINT(1) NOT NULL DEFAULT 1,
+      available TINYINT(1) NOT NULL DEFAULT 1,
       last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
       UNIQUE KEY uq_provider_models_provider_model_media (provider, provider_model_id, media_type),
       KEY idx_provider_models_public (provider, public_model_id, media_type),
-      KEY idx_provider_models_enabled (provider, media_type, enabled)
+      KEY idx_provider_models_enabled (provider, media_type, enabled, available)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ];
 
@@ -180,6 +181,11 @@ async function initDb() {
       await db.query("ALTER TABLE generations ADD COLUMN " + definition);
     }
     return columns[0] || null;
+  }
+
+  const [providerAvailableColumn] = await db.query("SHOW COLUMNS FROM provider_models LIKE 'available'");
+  if (!providerAvailableColumn.length) {
+    await db.query("ALTER TABLE provider_models ADD COLUMN available TINYINT(1) NOT NULL DEFAULT 1 AFTER enabled");
   }
 
   const [userPlanColumn] = await db.query("SHOW COLUMNS FROM users LIKE 'plan_code'");
