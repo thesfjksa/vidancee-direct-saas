@@ -108,14 +108,17 @@ function defaultValue(prop) {
 }
 
 function inferModelMedia(modelId, toolText) {
-  const toolHay = String(toolText || '').toLowerCase();
-  if (/\baudio\b|music|speech|voice/.test(toolHay) && !/video|image/.test(toolHay)) return null;
-  if (/\bvideo\b|animate|motion/.test(toolHay)) return 'video';
-  if (/\bimage\b|photo|picture/.test(toolHay)) return 'image';
-
   const hay = String(modelId || '').toLowerCase();
+
+  // Prefer recognizable model-family semantics before generic tool wording.
+  // A unified tool description may mention both images and videos.
   if (/seedance|kling|veo|sora|wan|hailuo|video|pixverse|runway|luma|pika/.test(hay)) return 'video';
   if (/nano.?banana|seedream|flux|recraft|ideogram|gpt.?image|imagen|soul|image/.test(hay)) return 'image';
+
+  const toolHay = String(toolText || '').toLowerCase();
+  if (/\baudio\b|music|speech|voice/.test(toolHay) && !/video|image/.test(toolHay)) return null;
+  if (/\bvideo\b|animate|motion/.test(toolHay) && !/\bimage\b|photo|picture/.test(toolHay)) return 'video';
+  if (/\bimage\b|photo|picture/.test(toolHay) && !/\bvideo\b|animate|motion/.test(toolHay)) return 'image';
   return null;
 }
 
