@@ -1447,3 +1447,19 @@ The sync parser now also discovers model IDs from:
 A safe **Inspect MCP tools** action was added to Admin. It shows tool names, descriptions, property names, and sanitized model-field schema information, but never returns OAuth tokens or account passwords. Use this only when a future Higgsfield schema change cannot be auto-discovered.
 
 Official Higgsfield automation documentation shows that MCP generation tools may accept `model` as a normal string (for example `soul_2`) rather than requiring an enum, so the integration must not depend on enum-only discovery.
+
+
+### Higgsfield utility-tool filtering fix — 2026-10-06
+
+A real customer-page test showed MCP utility/workflow tools being misclassified as sellable AI models (examples included Animation Actions, Explainer Presets, Video Analysis Jobs, and Virality Predictor).
+
+The Higgsfield model sync now:
+
+- requires a generation-like tool shape instead of treating any image/video-related tool as a model
+- excludes analysis, predictor, preset, action, jobs, history, balance, status, workflow, and template utilities
+- only uses a tool name as a model fallback when the tool name itself contains a recognized creative model family
+- filters description-derived model IDs to recognized creative model families
+- quarantines previously stored utility-tool rows by marking them unavailable during the next sync
+- applies an additional customer-catalog safety filter so already-stored utility rows disappear from the customer UI immediately after deployment, even before a successful re-sync
+
+The Admin catalog still retains unavailable rows for diagnostics/history, but customers only receive plausible creative models.
