@@ -7,6 +7,7 @@ const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const {
   submitHiggsfieldGeneration,
+  uploadHiggsfieldMedia,
   uploadHiggsfieldImages,
   mediaReferencesForModel,
   waitForHiggsfieldJob,
@@ -367,21 +368,40 @@ class GenerationWorker {
     const model = await getProviderModelByPublicId('higgsfield', job.model, mediaType);
     if (!model) throw new Error('The selected model is no longer available from this source.');
 
-    const [images] = await db.execute(
-      'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
+    const [storedMedia] = await db.execute(
+      'SELECT position_index,media_kind,media_role,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index ASC',
       [job.id]
     );
 
     let mediaReferences = [];
-    if (images.length) {
-      const mediaIds = await uploadHiggsfieldImages(
-        images.map(image => ({
-          filename: image.filename,
-          mimeType: image.mime_type,
-          data: image.image_data,
+    if (storedMedia.length) {
+      const mediaIds = await uploadHiggsfieldMedia(
+        storedMedia.map(item => ({
+          filename:item.filename,
+          mimeType:item.mime_type,
+          mediaKind:item.media_kind,
+          data:item.media_data,
         }))
       );
-      mediaReferences = mediaReferencesForModel(model, mediaIds);
+      mediaReferences = storedMedia.map((item,index) => ({
+        value: mediaIds[index],
+        role: item.media_role,
+      }));
+    } else {
+      const [images] = await db.execute(
+        'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
+        [job.id]
+      );
+      if (images.length) {
+        const mediaIds = await uploadHiggsfieldImages(
+          images.map(image => ({
+            filename: image.filename,
+            mimeType: image.mime_type,
+            data: image.image_data,
+          }))
+        );
+        mediaReferences = mediaReferencesForModel(model, mediaIds);
+      }
     }
 
     const result = await submitHiggsfieldGeneration(
@@ -401,6 +421,7 @@ class GenerationWorker {
         "UPDATE generations SET status='completed', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, poster_url=NULL, submitted_at=COALESCE(submitted_at,UTC_TIMESTAMP()), started_at=COALESCE(started_at,UTC_TIMESTAMP()), completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
         [result.jobId, result.cost, result.outputUrl, job.id]
       );
+      await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
       return;
     }
 
@@ -410,6 +431,7 @@ class GenerationWorker {
       "UPDATE generations SET status='submitted', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
       [result.jobId, result.cost, job.id]
     );
+    await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
   }
 
   async submitHiggsfieldQueued(db, slots) {
