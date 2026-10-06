@@ -353,3 +353,12 @@
 - Kept OAuth and MCP transport headers controlled by the official SDK.
 - Added parsing for fenced/annotated JSON returned inside MCP text blocks.
 - Improved model-sync errors so Admin shows the real safe failure reason from `models_explore`.
+
+
+## 2026-10-06 — Add official Higgsfield catalog fallback
+
+- Added a safe fallback catalog sourced from the current official Higgsfield CLI/Skills model IDs when `models_explore` returns no list entries.
+- Kept live `generate_image`, `generate_video`, pricing, OAuth, job polling, and media upload through MCP.
+- Excluded analysis/background-removal utility job types from the customer generation selectors.
+- Added current main image/video families including Seedance 2.5, Seedance 2.0, Kling 3, Veo 3.1, Wan, MiniMax/Hailuo, Grok Video, Cinema Studio, GPT Image, Nano Banana, Seedream, Soul, Flux, Recraft, and Marketing Studio.
+- Sync now reports `official-cli-fallback` when the live MCP catalog does not provide a list response.
