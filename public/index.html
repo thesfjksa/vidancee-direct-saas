@@ -1952,7 +1952,7 @@ function jobCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+escapeHtml(g.model)+' · '+g.duration+'s'+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<div class="job-title">'+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
