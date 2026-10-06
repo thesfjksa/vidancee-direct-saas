@@ -337,3 +337,11 @@
 - Automatically selects `omni_reference` for reference-driven models when supported.
 - Automatically selects `t2v` for prompt-only generation when supported.
 - Falls back to the provider-declared default mode for other models.
+
+
+## 2026-10-06 — Fix Hostinger MCP fetch failures
+
+- Preferred IPv4 DNS resolution for Higgsfield MCP traffic on Linux/Hostinger deployments.
+- Added bounded retries for transient MCP network failures.
+- Added safe cause-chain reporting for persistent MCP network errors.
+- Kept OAuth authorization errors separate from network retries.
