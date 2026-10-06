@@ -1510,3 +1510,14 @@ The Higgsfield MCP client now prefers IPv4 DNS resolution using Node's `dns.setD
 Authenticated MCP requests also retry transient network failures up to three times with short backoff. Retry detection covers common socket/DNS timeout/reset/unreachable conditions and preserves OAuth errors separately.
 
 If all retries fail, Admin receives a more useful MCP network error containing the safe cause/code chain instead of only the generic `Failed to fetch` string.
+
+
+### Higgsfield Cloudflare/WAF compatibility — 2026-10-06
+
+The official Higgsfield MCP endpoint is Cloudflare-fronted. A connected OAuth session can still fail on individual MCP tool calls if the server-side HTTP client presents a generic/non-browser user agent.
+
+The Streamable HTTP MCP transport now sends a browser-like `User-Agent` on every request while leaving the SDK-managed Authorization, MCP protocol, and session headers intact.
+
+The model-catalog response parser now also accepts JSON wrapped in Markdown code fences or surrounding explanatory text, because MCP tool text blocks are not guaranteed to contain raw JSON only.
+
+When `models_explore` fails, Admin now receives the safe underlying cause instead of the previous generic "catalog could not be read" message. The existing catalog is still left unchanged on failure.
