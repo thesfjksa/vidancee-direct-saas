@@ -526,11 +526,36 @@ const server=http.createServer(async (req,res)=>{
       if (!providerSettings.allowProviderCharges) {
         return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
       }
-      if (!providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
-        return sendJson(res,503,{ok:false,error:'Image generation is currently unavailable.'});
-      }
+
       const body=await readGenerationRequest(req);
-      const generation=await createImageGenerationForUser(user.id,body);
+      const requestedModel=String(body.model||'');
+      let generation=null;
+
+      if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+        const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'image');
+        if (dynamicModel) {
+          const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'image',{
+            prompt:String(body.prompt||''),
+            aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
+            mode:Array.isArray(body.images)&&body.images.length?'reference-to-image':'text-to-image',
+          });
+          const customerCost=sourceToCustomerCredits(sourceCost);
+          generation=await createImageGenerationForUser(user.id,body,{
+            provider:'higgsfield',
+            costOverride:customerCost,
+            providerCost:sourceCost,
+            providerCostUnit:'credits',
+          });
+        }
+      }
+
+      if (!generation) {
+        if (!providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
+          return sendJson(res,503,{ok:false,error:'Image generation is currently unavailable.'});
+        }
+        generation=await createImageGenerationForUser(user.id,body);
+      }
+
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
@@ -577,26 +602,52 @@ const server=http.createServer(async (req,res)=>{
       }
 
       const requestedModel=String(body.model||'');
-      if (requestedModel==='minimax_h3') {
-        if (!providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
-          return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
-        }
-      } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
-        const vidanceeActive=Boolean(
-          providerSettings.vidanceeEnabled &&
-          providerSettings.vidanceeEmail &&
-          providerSettings.vidanceePassword
-        );
-        const createPulseActive=Boolean(
-          providerSettings.createPulseEnabled &&
-          providerSettings.createPulseApiKey
-        );
-        if (!vidanceeActive && !createPulseActive) {
-          return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
+      let generation=null;
+
+      if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+        const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
+        if (dynamicModel) {
+          const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'video',{
+            prompt:String(body.prompt||''),
+            duration:Number(body.duration||0),
+            resolution:String(body.resolution||''),
+            aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
+            mode:Array.isArray(body.images)&&body.images.length?'image-to-video':'text-to-video',
+          });
+          const customerCost=sourceToCustomerCredits(sourceCost);
+          generation=await createGenerationForUser(user.id,body,{
+            provider:'higgsfield',
+            dynamicModel:true,
+            defaultResolution:dynamicModel.defaultResolution,
+            costOverride:customerCost,
+            providerCost:sourceCost,
+            providerCostUnit:'credits',
+          });
         }
       }
 
-      const generation=await createGenerationForUser(user.id,body);
+      if (!generation) {
+        if (requestedModel==='minimax_h3') {
+          if (!providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
+            return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
+          }
+        } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
+          const vidanceeActive=Boolean(
+            providerSettings.vidanceeEnabled &&
+            providerSettings.vidanceeEmail &&
+            providerSettings.vidanceePassword
+          );
+          const createPulseActive=Boolean(
+            providerSettings.createPulseEnabled &&
+            providerSettings.createPulseApiKey
+          );
+          if (!vidanceeActive && !createPulseActive) {
+            return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
+          }
+        }
+        generation=await createGenerationForUser(user.id,body);
+      }
+
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
