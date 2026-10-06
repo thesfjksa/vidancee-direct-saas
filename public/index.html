@@ -1336,6 +1336,8 @@ function renderDurations(resetResolution=false){
   }
 
   ensureCustomSelect('duration');
+  // Aspect-ratio options change per model, so rebuild the custom menu too.
+  ensureCustomSelect('ratio');
   syncCustomSelect('model');
   syncCustomSelect('ratio');
   syncCustomSelect('duration');
@@ -1362,6 +1364,7 @@ async function updateCost(){
       body:JSON.stringify({
         mediaType:'video',
         model:model.id,
+        prompt:String($('prompt').value||'').trim()||'Cost estimate',
         duration:Number($('duration').value||0),
         resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
         aspectRatio:$('ratio').value,
