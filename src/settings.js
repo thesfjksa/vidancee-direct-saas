@@ -5,15 +5,19 @@ const DEFAULTS = {
   vidancee_base_url: 'https://vidancee.com',
   vidancee_email: '',
   vidancee_password: '',
+  vidancee_enabled: 'true',
   createpulse_base_url: 'https://createpulse.online',
   createpulse_api_key: '',
   createpulse_max_inflight: '3',
+  createpulse_enabled: 'true',
   atlascloud_base_url: 'https://api.atlascloud.ai',
   atlascloud_api_key: '',
   atlascloud_max_inflight: '4',
+  atlascloud_enabled: 'true',
   vgenv_base_url: 'https://api.vgenv.com',
   vgenv_api_key: '',
   vgenv_max_inflight: '4',
+  vgenv_enabled: 'true',
   provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
@@ -98,15 +102,19 @@ async function getProviderSettings() {
     vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
     vidanceeEmail: String(read('vidancee_email') || '').trim(),
     vidanceePassword: String(read('vidancee_password') || ''),
+    vidanceeEnabled: asBool(read('vidancee_enabled')),
     createPulseBaseUrl: normalizeUrl(read('createpulse_base_url'), DEFAULTS.createpulse_base_url),
     createPulseApiKey: String(read('createpulse_api_key') || '').trim(),
     createPulseMaxInflight: Math.max(1, Math.min(50, Number(read('createpulse_max_inflight') || 3))),
+    createPulseEnabled: asBool(read('createpulse_enabled')),
     atlasCloudBaseUrl: normalizeUrl(read('atlascloud_base_url'), DEFAULTS.atlascloud_base_url),
     atlasCloudApiKey: String(read('atlascloud_api_key') || '').trim(),
     atlasCloudMaxInflight: Math.max(1, Math.min(50, Number(read('atlascloud_max_inflight') || 4))),
+    atlasCloudEnabled: asBool(read('atlascloud_enabled')),
     vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
     vgenvMaxInflight: Math.max(1, Math.min(50, Number(read('vgenv_max_inflight') || 4))),
+    vgenvEnabled: asBool(read('vgenv_enabled')),
     routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
@@ -120,24 +128,32 @@ async function getAdminProviderSettings() {
       email: s.vidanceeEmail,
       passwordConfigured: Boolean(s.vidanceePassword),
       configured: Boolean(s.vidanceeEmail && s.vidanceePassword),
+      enabled: Boolean(s.vidanceeEnabled),
+      active: Boolean(s.vidanceeEnabled && s.vidanceeEmail && s.vidanceePassword),
     },
     createpulse: {
       baseUrl: s.createPulseBaseUrl,
       apiKeyConfigured: Boolean(s.createPulseApiKey),
       maxInflight: s.createPulseMaxInflight,
       configured: Boolean(s.createPulseApiKey),
+      enabled: Boolean(s.createPulseEnabled),
+      active: Boolean(s.createPulseEnabled && s.createPulseApiKey),
     },
     atlascloud: {
       baseUrl: s.atlasCloudBaseUrl,
       apiKeyConfigured: Boolean(s.atlasCloudApiKey),
       maxInflight: s.atlasCloudMaxInflight,
       configured: Boolean(s.atlasCloudApiKey),
+      enabled: Boolean(s.atlasCloudEnabled),
+      active: Boolean(s.atlasCloudEnabled && s.atlasCloudApiKey),
     },
     vgenv: {
       baseUrl: s.vgenvBaseUrl,
       apiKeyConfigured: Boolean(s.vgenvApiKey),
       maxInflight: s.vgenvMaxInflight,
       configured: Boolean(s.vgenvApiKey),
+      enabled: Boolean(s.vgenvEnabled),
+      active: Boolean(s.vgenvEnabled && s.vgenvApiKey),
     },
     routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
@@ -147,10 +163,12 @@ async function getAdminProviderSettings() {
 async function updateProviderSettings(input = {}) {
   if ('vidanceeBaseUrl' in input) await put('vidancee_base_url', normalizeUrl(input.vidanceeBaseUrl, DEFAULTS.vidancee_base_url));
   if ('vidanceeEmail' in input) await put('vidancee_email', String(input.vidanceeEmail || '').trim());
+  if ('vidanceeEnabled' in input) await put('vidancee_enabled', input.vidanceeEnabled ? 'true' : 'false');
   if (input.clearVidanceePassword === true) await del('vidancee_password');
   else if (String(input.vidanceePassword || '').length) await put('vidancee_password', String(input.vidanceePassword), true);
 
   if ('createPulseBaseUrl' in input) await put('createpulse_base_url', normalizeUrl(input.createPulseBaseUrl, DEFAULTS.createpulse_base_url));
+  if ('createPulseEnabled' in input) await put('createpulse_enabled', input.createPulseEnabled ? 'true' : 'false');
   if (input.clearCreatePulseApiKey === true) await del('createpulse_api_key');
   else if (String(input.createPulseApiKey || '').trim()) await put('createpulse_api_key', String(input.createPulseApiKey).trim(), true);
 
@@ -160,6 +178,7 @@ async function updateProviderSettings(input = {}) {
     await put('createpulse_max_inflight', String(n));
   }
   if ('atlasCloudBaseUrl' in input) await put('atlascloud_base_url', normalizeUrl(input.atlasCloudBaseUrl, DEFAULTS.atlascloud_base_url));
+  if ('atlasCloudEnabled' in input) await put('atlascloud_enabled', input.atlasCloudEnabled ? 'true' : 'false');
   if (input.clearAtlasCloudApiKey === true) await del('atlascloud_api_key');
   else if (String(input.atlasCloudApiKey || '').trim()) await put('atlascloud_api_key', String(input.atlasCloudApiKey).trim(), true);
 
@@ -170,6 +189,7 @@ async function updateProviderSettings(input = {}) {
   }
 
   if ('vgenvBaseUrl' in input) await put('vgenv_base_url', normalizeUrl(input.vgenvBaseUrl, DEFAULTS.vgenv_base_url));
+  if ('vgenvEnabled' in input) await put('vgenv_enabled', input.vgenvEnabled ? 'true' : 'false');
   if (input.clearVgenvApiKey === true) await del('vgenv_api_key');
   else if (String(input.vgenvApiKey || '').trim()) await put('vgenv_api_key', String(input.vgenvApiKey).trim(), true);
 
@@ -202,15 +222,19 @@ async function migrateLegacyProviderEnvSettings() {
   plain('vidancee_base_url', 'VIDANCEE_BASE_URL');
   plain('vidancee_email', 'VIDANCEE_EMAIL');
   secret('vidancee_password', 'VIDANCEE_PASSWORD');
+  plain('vidancee_enabled', 'VIDANCEE_ENABLED');
   plain('createpulse_base_url', 'CREATEPULSE_BASE_URL');
   secret('createpulse_api_key', 'CREATEPULSE_API_KEY');
   plain('createpulse_max_inflight', 'CREATEPULSE_MAX_INFLIGHT');
+  plain('createpulse_enabled', 'CREATEPULSE_ENABLED');
   plain('atlascloud_base_url', 'ATLASCLOUD_BASE_URL');
   secret('atlascloud_api_key', 'ATLASCLOUD_API_KEY');
   plain('atlascloud_max_inflight', 'ATLASCLOUD_MAX_INFLIGHT');
+  plain('atlascloud_enabled', 'ATLASCLOUD_ENABLED');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');
   plain('vgenv_max_inflight', 'VGENV_MAX_INFLIGHT');
+  plain('vgenv_enabled', 'VGENV_ENABLED');
   plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
