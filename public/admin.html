@@ -298,7 +298,7 @@ async function loadHiggsfieldModels(){
   if(!rows)return;
   try{
     const d=await api('/admin/provider-models?provider=higgsfield');
-    const models=(d.models||[]).filter(x=>x.available);
+    const models=(d.models||[]).filter(x=>x.available&&x.catalogVerified===true);
     const videos=models.filter(x=>x.mediaType==='video').length;
     const images=models.filter(x=>x.mediaType==='image').length;
     summary.textContent=models.length+' synced models · '+videos+' video · '+images+' image';
