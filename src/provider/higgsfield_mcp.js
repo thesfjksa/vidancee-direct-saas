@@ -621,9 +621,7 @@ const OFFICIAL_REFERENCE_LIMITS = {
   // Video models
   seedance_2_5:{
     image:{max:9,roles:['start_image','end_image','image_references']},
-    video:{max:3,roles:['video_references']},
-    audio:{max:3,roles:['audio_references']},
-    totalMax:12,
+    totalMax:9,
   },
   seedance_2_0:{
     image:{max:9,roles:['start_image','end_image','image_references']},
@@ -821,6 +819,57 @@ function officialFallbackModels(tools) {
   }
 
   return models;
+}
+
+async function exploreCatalogModel(client, modelsTool, modelId, mediaType, generationTool) {
+  const args = wrapToolPayload(modelsTool, { action:'get', model_id:String(modelId) });
+  const result = await client.callTool({ name:modelsTool.name, arguments:args }, { timeout:30000 });
+  const objects = resultObjects(result);
+  const items = [];
+  for (const obj of objects) collectCatalogItems(obj, mediaType, items);
+  const item = uniqueCatalogItems(items).find(entry =>
+    String(entry.id ?? entry.model_id ?? entry.modelId ?? '') === String(modelId)
+  ) || uniqueCatalogItems(items)[0];
+  return item ? catalogModelFromItem(item, mediaType, generationTool) : null;
+}
+
+async function enrichOfficialFallbackModels(client, tools, models) {
+  const modelsTool = findTool(tools, 'models_explore');
+  const imageTool = findTool(tools, 'generate_image');
+  const videoTool = findTool(tools, 'generate_video');
+  if (!modelsTool || !imageTool || !videoTool || !Array.isArray(models) || !models.length) {
+    return { models, enrichedCount:0 };
+  }
+
+  const output = new Array(models.length);
+  let nextIndex = 0;
+  let enrichedCount = 0;
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= models.length) return;
+      const seed = models[index];
+      try {
+        const generationTool = seed.mediaType === 'image' ? imageTool : videoTool;
+        const live = await exploreCatalogModel(client, modelsTool, seed.providerModelId, seed.mediaType, generationTool);
+        if (live) {
+          // Keep our stable neutral public ID, but prefer the account's live
+          // model name/parameters/media constraints.
+          live.publicModelId = seed.publicModelId;
+          output[index] = live;
+          enrichedCount += 1;
+          continue;
+        }
+      } catch (error) {
+        console.warn('Higgsfield model capability refresh failed for', seed.providerModelId, networkErrorDetails(error) || error?.message || error);
+      }
+      output[index] = seed;
+    }
+  }
+
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  return { models:output.filter(Boolean), enrichedCount };
 }
 
 async function discoverModelsFromCatalog(client, tools) {
@@ -1491,6 +1540,13 @@ async function syncHiggsfieldModels() {
     if (!models.length) {
       catalogSource = 'official-cli-fallback';
       models = officialFallbackModels(tools);
+      if (models.length) {
+        const enriched = await enrichOfficialFallbackModels(client, tools, models);
+        models = enriched.models;
+        if (enriched.enrichedCount > 0) {
+          catalogSource = 'official-cli+live-model-get';
+        }
+      }
     }
 
     // Last-resort compatibility path for an older MCP schema.
