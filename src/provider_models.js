@@ -201,6 +201,24 @@ async function setProviderModelEnabled(provider, id, enabled) {
   return serializeProviderModel(rows[0]);
 }
 
+function isPlausibleCustomerModel(model) {
+  const hay = [
+    model?.providerModelId,
+    model?.publicModelId,
+    model?.label,
+  ].filter(Boolean).join(' ').toLowerCase().replace(/[._/-]+/g, ' ');
+
+  const knownFamily = /\b(seedance|kling|veo|sora|wan|hailuo|minimax|grok|omni flash|nano banana|seedream|flux|recraft|ideogram|gpt image|imagen|soul|qwen|pixverse|runway|luma|pika)\b/.test(hay);
+  if (knownFamily) return true;
+
+  // Never surface MCP workflow/utility tools as sellable creative models.
+  if (/\b(analysis|predictor|virality|preset|presets|action|actions|jobs?|history|balance|credits?|status|workflow|template|templates)\b/.test(hay)) {
+    return false;
+  }
+
+  return false;
+}
+
 function publicVideoModel(model) {
   const durations = model.durations.length ? model.durations : [0];
   const durationEntries = durations.map(seconds => ({
@@ -239,7 +257,8 @@ function publicImageModel(model) {
 }
 
 async function publicProviderCatalog(provider) {
-  const models = await listProviderModels(provider, { enabledOnly: true, availableOnly: true });
+  const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
+    .filter(isPlausibleCustomerModel);
   return {
     video: models.filter(model => model.mediaType === 'video').map(publicVideoModel),
     image: models.filter(model => model.mediaType === 'image').map(publicImageModel),
