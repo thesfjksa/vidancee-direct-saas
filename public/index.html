@@ -1908,21 +1908,29 @@ function renderImageReferencePreview(){
 }
 
 function addImageGenerationFiles(fileList){
+  const cap=normalizedClientCapabilities(currentImageModel(),'image').image;
+  const m=$('imageGenMsg');
+  if(!cap.supported){
+    $('imageGenInput').value='';
+    m.className='msg err';m.textContent='The selected model does not accept reference images.';
+    return;
+  }
   const files=[...fileList];
   const valid=files.filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
-  const slots=Math.max(0,6-imageReferenceItems.length);
+  const max=cap.max||6;
+  const slots=Math.max(0,max-imageReferenceItems.length);
   imageReferenceItems.push(...valid.slice(0,slots).map(imageRefItem));
   $('imageGenInput').value='';
   renderImageReferencePreview();
 
-  const m=$('imageGenMsg');
   if(valid.length!==files.length){
     m.className='msg err';m.textContent='Reference images must be JPEG, PNG, or WebP.';
   }else if(valid.length>slots){
-    m.className='msg err';m.textContent='Maximum 6 reference images are allowed.';
+    m.className='msg err';m.textContent='This model accepts at most '+max+' reference image'+(max===1?'':'s')+'.';
   }else{
     m.className='msg muted';m.textContent=imageReferenceItems.length>1?'Drag thumbnails to change their order.':'';
   }
+  updateImageCost();
 }
 
 function removeImageReference(key,event){
@@ -1994,6 +2002,10 @@ async function createImageGeneration(){
   b.disabled=true;m.className='msg muted';m.textContent='Submitting image generation...';
   try{
     if(!config.imagePricing?.length)throw new Error('Image generation models are not configured.');
+    const imageCap=normalizedClientCapabilities(currentImageModel(),'image').image;
+    if(imageReferenceItems.length&&!imageCap.supported)throw new Error('This model does not accept reference images.');
+    if(imageCap.max>0&&imageReferenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' reference images.');
+    if(imageCap.min>0&&imageReferenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' reference image'+(imageCap.min===1?'':'s')+'.');
     const form=new FormData();
     form.append('prompt',$('imagePrompt').value);
     form.append('model',$('imageModel').value);
@@ -2173,13 +2185,42 @@ async function loadCredits(){
   }catch(e){}
 }
 
+function validateClientReferenceSelection(){
+  const caps=normalizedClientCapabilities(currentVideoModel(),'video');
+  const imageCap=caps.image;
+  const videoCap=caps.video;
+  const imageRoles=referenceItems.map(item=>String(item.role||''));
+  const videoRoles=videoReferenceItems.map(item=>String(item.role||''));
+
+  if(referenceItems.length&&!imageCap.supported)throw new Error('This model does not accept image references.');
+  if(videoReferenceItems.length&&!videoCap.supported)throw new Error('This model does not accept video references.');
+  if(imageCap.max>0&&referenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' image references.');
+  if(videoCap.max>0&&videoReferenceItems.length>videoCap.max)throw new Error('This model accepts at most '+videoCap.max+' video references.');
+  if(imageCap.min>0&&referenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' image reference'+(imageCap.min===1?'':'s')+'.');
+  if(videoCap.min>0&&videoReferenceItems.length<videoCap.min)throw new Error('This model requires at least '+videoCap.min+' video reference'+(videoCap.min===1?'':'s')+'.');
+  if(caps.totalMax>0&&referenceItems.length+videoReferenceItems.length>caps.totalMax)throw new Error('This model accepts at most '+caps.totalMax+' total reference files.');
+
+  for(const role of imageCap.requiredRoles||[]){
+    if(!imageRoles.includes(role))throw new Error('This model requires a '+roleLabel(role).toLowerCase()+'.');
+  }
+  for(const role of videoCap.requiredRoles||[]){
+    if(!videoRoles.includes(role))throw new Error('This model requires a '+roleLabel(role).toLowerCase()+'.');
+  }
+  for(const fixedRole of ['start_image','end_image','reference_image']){
+    if(imageRoles.filter(role=>role===fixedRole).length>1)throw new Error('Only one '+roleLabel(fixedRole).toLowerCase()+' is allowed.');
+  }
+  if(imageRoles.includes('end_image')&&imageCap.roles.includes('start_image')&&!imageRoles.includes('start_image')){
+    throw new Error('End frame requires a start frame for this model.');
+  }
+}
+
 async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
   b.disabled=true;
   m.className='msg muted';
   m.textContent='Submitting generation...';
   try{
-    if(referenceItems.length>6)throw new Error('Choose no more than 6 reference images in total.');
+    validateClientReferenceSelection();
     const form=new FormData();
     form.append('prompt',$('prompt').value);
     form.append('model',$('model').value);
@@ -2202,14 +2243,18 @@ async function createGeneration(){
 
     form.append('referenceOrder',JSON.stringify(referenceItems.map(item=>
       item.kind==='reused'
-        ?{kind:'reused',id:Number(item.id)}
-        :{kind:'fresh',index:freshIndexByKey.get(item.key)}
+        ?{kind:'reused',id:Number(item.id),role:item.role}
+        :{kind:'fresh',index:freshIndexByKey.get(item.key),role:item.role}
     )));
+
+    for(const item of videoReferenceItems)form.append('videos',item.file,item.filename);
+    form.append('videoRoles',JSON.stringify(videoReferenceItems.map(item=>item.role)));
 
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
     $('prompt').value='';
     clearReferenceItems();
+    clearVideoReferenceItems();
     m.className='msg ok';
     m.textContent='Generation queued.';
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
