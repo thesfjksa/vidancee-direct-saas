@@ -271,3 +271,15 @@
 - Generation cards and Admin monitoring now show resolution.
 - vgenv requests now receive the customer's selected H3 resolution.
 - Seedance keeps its provider-defined resolution without showing a redundant selector.
+
+## 2026-10-06 — Add backend source ON/OFF switches
+
+- Added per-provider enable switches in Admin → Provider.
+- Added persisted enable settings for Vidancee, CreatePulse, Atlas Cloud, and vgenv.
+- Customer model catalog now removes models whose backend source is disabled.
+- Seedance stays visible while at least one enabled/configured Seedance source remains.
+- MiniMax H3 disappears when vgenv is disabled.
+- Atlas image models disappear when Atlas Cloud is disabled.
+- Added server-side submission guards so stale customer pages cannot bypass disabled sources.
+- Worker routing now avoids disabled providers for new submissions while continuing to poll already-submitted jobs.
+- Health/Admin runtime state now distinguishes configured, enabled, and active providers.
