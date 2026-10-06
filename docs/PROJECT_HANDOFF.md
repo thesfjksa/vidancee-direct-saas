@@ -1570,3 +1570,53 @@ Current operational next step after deployment:
 6. run one low-cost generation before increasing concurrency
 
 Do not reconnect the account unless OAuth itself stops working; model-catalog sync failures alone do not require reconnecting.
+
+
+### Capability-driven reference composer — 2026-10-06
+
+The customer creation UI is now model-aware instead of assuming every video model accepts the same six images.
+
+Each dynamic provider model exposes normalized reference capabilities through the public catalog:
+
+- image references: supported, max/min count, allowed semantic roles, required roles
+- video references: supported, max/min count, allowed semantic roles, required roles
+- audio capability metadata is retained for future UI expansion
+- total reference-file maximum
+- text-only detection
+
+The customer composer automatically changes when the selected model changes:
+
+- text-only models hide reference upload controls
+- models with one start frame show a single-image capability
+- models with start/end frame support expose semantic roles
+- multi-image models show their model-specific image limit
+- video-reference capable models show a separate video upload block with the model-specific limit
+- unsupported reference types disappear
+- changing models trims/removes incompatible references and remaps roles safely
+- the model selector shows a compact capability summary such as `Text to video · no reference uploads`, `References optional · image refs: 9`, or `References required · frame/image refs: 1`
+
+Reference roles are preserved in multipart submission and stored in `generation_media` for dynamic provider jobs. Supported roles include:
+
+- `start_image`
+- `end_image`
+- `image_references`
+- `video_references`
+- provider-compatible aliases such as `image`, `input_images`, `video`, and `input_videos`
+
+Backend validation mirrors the UI and runs before customer credits are reserved:
+
+- rejects unsupported image/video references
+- enforces per-type maxima/minima
+- enforces total-reference limits
+- rejects duplicate fixed semantic roles
+- enforces required roles
+- enforces `end_image` requiring `start_image` when declared
+- rejects video uploads for legacy/static providers that do not support them
+
+Dynamic video reference files support MP4, WebM, and MOV up to 25 MB each. Dynamic image references support JPEG, PNG, and WebP.
+
+The Higgsfield worker reads `generation_media`, uploads each reference through the provider media-upload/confirm flow, and sends the exact stored semantic role with the provider media ID.
+
+Static legacy video models retain the existing six-image behavior, so the new capability system does not break older Vidancee/CreatePulse/vgenv flows.
+
+Deleting a generation explicitly removes both `generation_images` and `generation_media` before deleting the parent generation. This protects older deployments whose foreign-key cascades may not match the current schema.
