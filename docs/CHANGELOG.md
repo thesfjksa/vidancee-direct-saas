@@ -290,13 +290,13 @@
 - Added OAuth authorization from Admin without storing an account password.
 - Persisted OAuth tokens, DCR client information, PKCE verifier, and discovery state in encrypted app settings.
 - Added automatic model sync after authorization and a manual Sync models action.
-- Added \`provider_models\` for dynamic image/video model discovery, options, availability, and per-model visibility.
+- Added `provider_models` for dynamic image/video model discovery, options, availability, and per-model visibility.
 - Added a Higgsfield Admin source card with ON/OFF, connection status, MCP endpoint, max inflight, reconnect, sync, and disconnect controls.
 - Added per-model Show/Hide controls.
 - Added customer-side dynamic video/image model selectors with model-specific duration, resolution, and aspect-ratio options.
-- Added live cost estimation through MCP \`get_cost\`, followed by the universal 2.5× customer markup.
+- Added live cost estimation through MCP `get_cost`, followed by the universal 2.5× customer markup.
 - Added neutral customer-facing dynamic model IDs so backend provider identity remains hidden.
-- Added worker submission and \`jobs_wait\` polling for both image and video jobs.
+- Added worker submission and `jobs_wait` polling for both image and video jobs.
 - Added source-credit tracking and existing atomic refunds for failed Higgsfield generations.
 - Made Higgsfield primary for overlapping synced models while retaining existing sources as fallback when Higgsfield is disabled.
-- Added deployment documentation for \`APP_URL\`, MCP endpoint, provider switch, and initial account authorization.
+- Added deployment documentation for `APP_URL`, MCP endpoint, provider switch, and initial account authorization.
