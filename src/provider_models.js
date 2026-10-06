@@ -147,6 +147,8 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     defaultResolution: options.defaultResolution ? String(options.defaultResolution) : null,
     defaultAspectRatio: options.defaultAspectRatio ? String(options.defaultAspectRatio) : null,
     tools: Array.isArray(options.tools) ? options.tools : [],
+    mediaRoles: Array.isArray(options.mediaRoles) ? options.mediaRoles : [],
+    catalogVerified: options.catalogVerified === true,
     lastSeenAt: row.last_seen_at,
   };
   if (includeInternal) {
@@ -225,6 +227,8 @@ async function setProviderModelEnabled(provider, id, enabled) {
 }
 
 function isPlausibleCustomerModel(model) {
+  if (model?.catalogVerified === true) return true;
+
   const hay = [
     model?.providerModelId,
     model?.publicModelId,
