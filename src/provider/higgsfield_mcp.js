@@ -513,14 +513,98 @@ async function withAuthenticatedClient(callback) {
   }
 }
 
+function likelyModelToken(value) {
+  const token = String(value == null ? '' : value).trim();
+  if (!token || token.length > 120 || /\s/.test(token)) return false;
+  if (/^https?:\/\//i.test(token)) return false;
+  if (/^(true|false|null|undefined|prompt|model|duration|resolution|aspect_ratio|get_cost|image|video)$/i.test(token)) return false;
+  if (!/[a-z]/i.test(token)) return false;
+  // Higgsfield model IDs shown in their MCP docs use compact slugs such as
+  // soul_2. Accept underscore/hyphen/dot/slash slugs and tokens containing a
+  // version digit, while rejecting ordinary prose words.
+  return /[_./-]/.test(token) || /\d/.test(token);
+}
+
+function entriesFromExamples(schema) {
+  if (!schema || typeof schema !== 'object') return [];
+  const values = [];
+  if (schema.example !== undefined) values.push(schema.example);
+  if (Array.isArray(schema.examples)) values.push(...schema.examples);
+  return values
+    .map(value => typeof value === 'object' && value !== null ? (value.model ?? value.model_id ?? value.modelId) : value)
+    .filter(value => likelyModelToken(value))
+    .map(value => ({ value: String(value), label: null }));
+}
+
+function entriesFromText(text) {
+  const source = String(text || '');
+  if (!source) return [];
+  const values = [];
+
+  // Prefer quoted/backticked values and slug-shaped tokens. This supports MCP
+  // schemas where "model" is a plain string whose valid IDs are documented in
+  // the field/tool description instead of exposed as a JSON-Schema enum.
+  const quoted = /["'`]([A-Za-z0-9][A-Za-z0-9_.\/-]{1,119})["'`]/g;
+  let match;
+  while ((match = quoted.exec(source))) {
+    if (likelyModelToken(match[1])) values.push(match[1]);
+  }
+
+  const slugLike = /\b([A-Za-z][A-Za-z0-9]*(?:[_./-][A-Za-z0-9]+)+)\b/g;
+  while ((match = slugLike.exec(source))) {
+    if (likelyModelToken(match[1])) values.push(match[1]);
+  }
+
+  const seen = new Set();
+  return values
+    .filter(value => {
+      const key = String(value).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(value => ({ value, label: null }));
+}
+
 function modelEntriesFromTool(tool) {
   const schema = tool?.inputSchema || {};
   const modelProp = propertyByNames(schema, ['model', 'model_id', 'modelId']);
   const entries = enumEntries(modelProp?.schema);
 
   if (entries.length) return entries;
+
+  const fromExamples = [
+    ...entriesFromExamples(modelProp?.schema),
+    ...entriesFromExamples(schema),
+  ];
+  if (fromExamples.length) return fromExamples;
+
   const def = modelProp?.schema?.default;
-  if (def !== undefined && def !== null && String(def).trim()) return [{ value: def, label: modelProp.schema.title || null }];
+  if (def !== undefined && def !== null && String(def).trim()) {
+    return [{ value: def, label: modelProp.schema.title || null }];
+  }
+
+  if (modelProp) {
+    const described = entriesFromText([
+      modelProp.schema?.description,
+      modelProp.schema?.title,
+      tool?.description,
+      tool?.title,
+    ].filter(Boolean).join('\n'));
+    if (described.length) return described;
+  }
+
+  // Some MCP servers expose one generation tool per model and therefore do not
+  // need a model parameter at all. In that shape, use the tool metadata itself
+  // only when it clearly looks like an image/video generation tool.
+  const toolText = [tool?.name, tool?.title, tool?.description].filter(Boolean).join(' ');
+  const mediaHint = inferModelMedia(tool?.name || tool?.title || '', toolText);
+  const generationHint = /generate|create|render|image|video/i.test(toolText)
+    && !/jobs?_?wait|status|history|balance|credits?|upscale|audio|music|voice/i.test(toolText);
+  if (!modelProp && mediaHint && generationHint && likelyModelToken(tool?.name)) {
+    return [{ value: String(tool.name), label: tool.title || null }];
+  }
+
   return [];
 }
 
@@ -613,13 +697,42 @@ function discoverModelsFromTools(tools) {
   });
 }
 
+async function getHiggsfieldToolDiagnostics() {
+  return withAuthenticatedClient(async client => {
+    const result = await client.listTools();
+    const tools = Array.isArray(result?.tools) ? result.tools : [];
+    return tools.map(tool => {
+      const schema = tool?.inputSchema || {};
+      const props = schemaProperties(schema);
+      const modelProp = propertyByNames(schema, ['model', 'model_id', 'modelId']);
+      return {
+        name: String(tool?.name || ''),
+        title: String(tool?.title || ''),
+        description: String(tool?.description || '').slice(0, 1200),
+        propertyNames: Object.keys(props),
+        modelField: modelProp ? {
+          name: modelProp.name,
+          type: modelProp.schema?.type || null,
+          default: modelProp.schema?.default ?? null,
+          enum: Array.isArray(modelProp.schema?.enum) ? modelProp.schema.enum.slice(0, 100) : [],
+          examples: Array.isArray(modelProp.schema?.examples)
+            ? modelProp.schema.examples.slice(0, 50)
+            : (modelProp.schema?.example !== undefined ? [modelProp.schema.example] : []),
+          description: String(modelProp.schema?.description || '').slice(0, 2000),
+        } : null,
+        discoveredModels: modelEntriesFromTool(tool).slice(0, 100),
+      };
+    });
+  });
+}
+
 async function syncHiggsfieldModels() {
   return withAuthenticatedClient(async client => {
     const result = await client.listTools();
     const tools = Array.isArray(result?.tools) ? result.tools : [];
     const models = discoverModelsFromTools(tools);
     if (!models.length) {
-      throw new Error('No image or video models were discovered from the current MCP tool schemas. The existing catalog was left unchanged.');
+      throw new Error('Connected successfully, but model IDs were not exposed as enums/examples/described slugs in the '+tools.length+' MCP tools returned by this account. The existing catalog was left unchanged. Use Inspect MCP tools in Admin so we can map the live schema without guessing.');
     }
     const jobsWait = tools.find(tool => String(tool.name).toLowerCase() === 'jobs_wait')
       || tools.find(tool => /jobs?.?wait|wait.?jobs?/i.test([tool.name, tool.title, tool.description].filter(Boolean).join(' ')));
@@ -744,6 +857,7 @@ module.exports = {
   clearHiggsfieldAuth,
   syncHiggsfieldModels,
   getHiggsfieldConnectionStatus,
+  getHiggsfieldToolDiagnostics,
   estimateHiggsfieldCost,
   submitHiggsfieldGeneration,
   waitForHiggsfieldJob,
