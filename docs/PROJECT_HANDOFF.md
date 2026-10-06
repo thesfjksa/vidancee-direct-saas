@@ -1494,3 +1494,8 @@ Reference images now use Higgsfield's MCP media flow instead of passing Mehroz s
 The worker maps image references using the roles supplied by the live model catalog (`image`, `start_image`, `end_image`, `image_references`, or `input_images`). Models that do not declare an image-reference role reject reference uploads before customer credits are reserved.
 
 Cost parsing also supports Higgsfield's nested `cost.credits_exact` response and generation responses that use a top-level `id`.
+
+
+### Higgsfield generation mode mapping — 2026-10-06
+
+Live catalog sync also preserves model `mode` options/defaults. When a model exposes `omni_reference` and reference media is present, the MCP payload automatically selects `omni_reference`; when prompt-only generation exposes `t2v`, it selects `t2v`. Otherwise the provider-declared default mode is used. This is important for models such as Seedance 2.5 and Cinema Studio that use different generation modes for prompt-only versus reference-driven requests.
