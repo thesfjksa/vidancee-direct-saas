@@ -535,6 +535,126 @@ async function exploreCatalogType(client, modelsTool, mediaType) {
   return uniqueCatalogItems(items);
 }
 
+
+const OFFICIAL_IMAGE_MODELS = [
+  ['gpt_image_2_5','GPT Image 2.5',['image_references'],['1:1','3:2','2:3','4:3','3:4','16:9','9:16','21:9','4:5','5:4'],['1k','2k','4k']],
+  ['gpt_image_2','GPT Image 2',['image_references'],['1:1','4:3','3:4','16:9','21:9','9:16','3:2','2:3','4:5','5:4'],['1k','2k','4k']],
+  ['nano_banana_flash','Nano Banana 2',['image_references'],['1:1','3:2','2:3','4:3','3:4','4:5','5:4','9:16','16:9','21:9'],['1k','2k','4k']],
+  ['nano_banana_2','Nano Banana Pro',['image_references'],['1:1','3:2','2:3','4:3','3:4','4:5','5:4','9:16','16:9','21:9'],['1k','2k','4k']],
+  ['nano_banana_2_lite','Nano Banana 2 Lite',['image_references'],['auto','1:1','3:2','2:3','4:3','3:4','4:5','5:4','9:16','16:9','21:9'],['1k']],
+  ['nano_banana','Nano Banana',['image_references'],['1:1','3:2','2:3','4:3','3:4','4:5','5:4','9:16','16:9','21:9'],[]],
+  ['seedream_v5_pro','Seedream 5.0 Pro',['image_references'],['1:1','4:3','3:4','16:9','9:16','3:2','2:3'],['1k','1.5k','2k']],
+  ['seedream_v5_lite','Seedream V5 Lite',['image_references'],['1:1','4:3','3:4','16:9','9:16'],[]],
+  ['seedream_v4_5','Seedream 4.5',['image_references'],['1:1','4:3','16:9','3:2','21:9','3:4','9:16','2:3'],[]],
+  ['text2image_soul_v2','Higgsfield Soul V2',['image_references'],['1:1','16:9','9:16','4:3','3:4','3:2','2:3'],[]],
+  ['soul_cinematic','Soul Cinematic',['image_references'],['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9'],[]],
+  ['soul_cinema_studio','Soul Cinema Studio',['image_references'],['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9'],[]],
+  ['soul_cast','Soul Cast',[],['16:9'],[]],
+  ['soul_location','Soul Location',[],['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9','9:21'],[]],
+  ['flux_2','FLUX.2',['image_references'],['1:1','4:3','3:4','16:9','9:16'],['1k','2k']],
+  ['flux_kontext','Flux Kontext',['image_references'],['1:1','4:3','3:4','16:9','9:16'],[]],
+  ['recraft_v4_1','Recraft V4.1',[],['1:1','3:4','4:3','4:5','5:4','3:2','2:3','16:9','9:16'],['1k','2k']],
+  ['kling_omni_image','Kling O1 Image',['image_references'],['1:1','auto','16:9','9:16','4:3','3:4','3:2','2:3','21:9'],['1k','2k']],
+  ['grok_image','Grok Image',['image_references'],['1:1','auto','1:2','2:1','3:2','2:3','4:3','3:4','16:9','9:16'],['1k','2k']],
+  ['cinematic_studio_2_5','Cinema Studio Image 2.5',['image_references'],['1:1','3:2','2:3','4:3','3:4','4:5','5:4','16:9','9:16','21:9'],['1k','2k','4k']],
+  ['marketing_studio_image','Marketing Studio Image',['image_references'],['auto','1:1','3:2','2:3','4:3','3:4','4:5','5:4','9:16','16:9','21:9'],['1k','2k','4k']],
+  ['image_auto','Image Auto',['image_references'],['1:1','4:3','3:4','16:9','9:16'],[]],
+  ['openai_hazel','OpenAI Hazel',['image_references'],['1:1','3:2','2:3','auto'],[]],
+  ['z_image','Z Image',[],['1:1','4:3','3:4','16:9','9:16'],[]],
+];
+
+const OFFICIAL_VIDEO_MODELS = [
+  ['seedance_2_5','Seedance 2.5',[4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],['480p','720p','1080p'],['auto','21:9','16:9','4:3','1:1','3:4','9:16'],['start_image','end_image','image_references'],['t2v','omni_reference','video_edit','video_extension'],'t2v'],
+  ['seedance_2_0','Seedance 2.0',[4,5,6,7,8,9,10,11,12,13,14,15],['480p','720p','1080p','4k'],['auto','16:9','9:16','4:3','3:4','1:1','21:9'],['image','start_image','end_image'],['std','fast'],'std'],
+  ['seedance_2_0_mini','Seedance 2.0 Mini',[4,5,6,7,8,9,10,11,12,13,14,15],['480p','720p'],['auto','16:9','9:16','4:3','3:4','1:1','21:9'],['image','start_image','end_image'],[],null],
+  ['seedance1_5','Seedance 1.5 Pro',[4,8,12],['480p','720p','1080p'],['auto','16:9','9:16','4:3','3:4','1:1','21:9'],['start_image','end_image'],[],null],
+  ['kling3_0','Kling 3.0',[3,4,5,6,7,8,9,10,11,12,13,14,15],[],['16:9','9:16','1:1'],['start_image','end_image'],['std','pro','4k'],'std'],
+  ['kling3_0_turbo','Kling 3.0 Turbo',[3,4,5,6,7,8,9,10,11,12,13,14,15],['720p','1080p'],['16:9','9:16','1:1'],['start_image'],[],null],
+  ['kling2_6','Kling 2.6 Video',[5,10],[],['16:9','9:16','1:1'],['start_image'],[],null],
+  ['veo3_1','Google Veo 3.1',[4,6,8],[],['16:9','9:16'],['start_image'],[],null],
+  ['veo3_1_lite','Google Veo 3.1 Lite',[4,6,8],[],['16:9','9:16','auto'],['start_image','end_image'],[],null],
+  ['veo3','Google Veo 3',[8],[],['16:9','9:16'],['start_image'],[],null],
+  ['gemini_omni','Gemini Omni Flash',[4,6,8,10],['720p'],['16:9','9:16'],['image_references'],[],null],
+  ['wan2_7','Wan 2.7',[5,6,7,8,9,10,11,12,13,14,15],['720p','1080p'],['16:9','9:16','1:1','4:3','3:4'],['start_image','end_image'],[],null],
+  ['wan2_6','Wan 2.6 Video',[5,10,15],[],['16:9','9:16','1:1'],['image_references'],[],null],
+  ['minimax_hailuo','Minimax Hailuo',[6,10],['512','768','1080'],['16:9','9:16','1:1'],['start_image','end_image'],[],null],
+  ['minimax_h3','MiniMax H3',[4,5,6,7,8,9,10,11,12,13,14,15],['480p','768p'],['16:9','9:16','1:1','4:3'],['start_image'],[],null],
+  ['minimax_h3_max','MiniMax H3 Max',[4,5,6,7,8,9,10,11,12,13,14,15],[],['16:9','9:16','1:1'],['start_image'],[],null],
+  ['grok_video','Grok Video',[5,6,7,8,9,10],[],['16:9','9:16','1:1'],['start_image'],[],null],
+  ['grok_video_v15','Grok Video 1.5',[2,3,4,5,6,7,8,9,10,11,12,13,14,15],['480p','720p'],['16:9','9:16'],['start_image'],[],null],
+  ['cinematic_studio_video_4_0','Cinema Studio 4.0',[5,10,15,20,25,30],['480p','720p','1080p'],['auto','21:9','16:9','4:3','1:1','3:4','9:16'],['start_image','end_image','image_references'],['t2v','omni_reference','video_edit','video_extension'],'t2v'],
+  ['cinematic_studio_video_3_5','Cinema Studio Video 3.5',[5,10,15,20,25,30],['480p','720p','1080p'],['auto','21:9','16:9','4:3','1:1','3:4','9:16'],['start_image','end_image','image_references'],[],null],
+  ['cinematic_studio_3_0','Cinema Studio 3.0',[5,10,15],['480p','720p','1080p','4k'],['auto','21:9','16:9','4:3','1:1','3:4','9:16'],['start_image','end_image','image_references'],[],null],
+  ['cinematic_studio_video','Cinema Studio Video',[5,10],[],['1:1','4:3','3:4','16:9','9:16'],['start_image','end_image'],[],null],
+  ['cinematic_studio_video_v2','Cinema Studio Video V2',[5,10],[],['1:1','4:3','3:4','16:9','9:16'],['start_image','end_image','image_references'],['std','pro'],'std'],
+  ['marketing_studio_video','Marketing Studio Video',[5,10,15,20,25,30],['480p','720p','1080p'],['auto','21:9','16:9','4:3','1:1','3:4','9:16'],['image','start_image','end_image'],[],null],
+  ['wan3_0','Wan 3.0',[5,10],[],['16:9','9:16','1:1'],['image_references'],[],null],
+  ['wan3_0_prime','Wan 3.0 Prime',[5,10],[],['16:9','9:16','1:1'],['image_references'],[],null],
+  ['flux_3_video','FLUX.3 Video',[5,10],[],['16:9','9:16','1:1'],['start_image'],[],null],
+];
+
+function officialFallbackModels(tools) {
+  const imageTool = findTool(tools, 'generate_image');
+  const videoTool = findTool(tools, 'generate_video');
+  const models = [];
+
+  if (imageTool) {
+    for (const [providerModelId,label,mediaRoles,aspectRatios,resolutions] of OFFICIAL_IMAGE_MODELS) {
+      models.push({
+        providerModelId,
+        publicModelId: canonicalPublicModelId(providerModelId,label,'image'),
+        label,
+        mediaType:'image',
+        toolName:imageTool.name,
+        inputSchema:imageTool.inputSchema||{},
+        options:{
+          catalogVerified:true,
+          catalogSource:'official-cli-fallback',
+          durations:[],
+          resolutions,
+          aspectRatios,
+          defaultDuration:null,
+          defaultResolution:resolutions[0]||null,
+          defaultAspectRatio:aspectRatios.includes('1:1')?'1:1':(aspectRatios[0]||null),
+          mediaRoles,
+          modes:[],
+          defaultMode:null,
+          tools:[{name:imageTool.name,mode:'image',schema:imageTool.inputSchema||{},description:imageTool.description||''}],
+        },
+      });
+    }
+  }
+
+  if (videoTool) {
+    for (const [providerModelId,label,durations,resolutions,aspectRatios,mediaRoles,modes,defaultMode] of OFFICIAL_VIDEO_MODELS) {
+      models.push({
+        providerModelId,
+        publicModelId: canonicalPublicModelId(providerModelId,label,'video'),
+        label,
+        mediaType:'video',
+        toolName:videoTool.name,
+        inputSchema:videoTool.inputSchema||{},
+        options:{
+          catalogVerified:true,
+          catalogSource:'official-cli-fallback',
+          durations,
+          resolutions,
+          aspectRatios,
+          defaultDuration:durations[0]||null,
+          defaultResolution:resolutions[0]||null,
+          defaultAspectRatio:aspectRatios.includes('16:9')?'16:9':(aspectRatios[0]||null),
+          mediaRoles,
+          modes,
+          defaultMode,
+          tools:[{name:videoTool.name,mode:'video',schema:videoTool.inputSchema||{},description:videoTool.description||''}],
+        },
+      });
+    }
+  }
+
+  return models;
+}
+
 async function discoverModelsFromCatalog(client, tools) {
   const modelsTool = findTool(tools, 'models_explore');
   const imageTool = findTool(tools, 'generate_image');
@@ -1184,7 +1304,17 @@ async function syncHiggsfieldModels() {
       console.error('Higgsfield models_explore sync failed:', networkErrorDetails(error) || error?.message || error);
     }
 
-    // Backward-compatible fallback for older MCP schemas.
+    // Higgsfield's public CLI/Skills repository is generated from the live
+    // model list and documents the current image/video job_set_type IDs. Some
+    // MCP deployments expose models_explore as recommend/get only and return no
+    // entries for list, so use the current official generation catalog as a
+    // safe fallback rather than turning unrelated MCP utility tools into models.
+    if (!models.length) {
+      catalogSource = 'official-cli-fallback';
+      models = officialFallbackModels(tools);
+    }
+
+    // Last-resort compatibility path for an older MCP schema.
     if (!models.length) {
       catalogSource = 'tool-schema-fallback';
       models = discoverModelsFromTools(tools);
