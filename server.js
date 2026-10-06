@@ -750,6 +750,57 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,settings});
       }
 
+      if (req.method==='POST' && routePath==='/admin/higgsfield/oauth/start') {
+        requireDatabase();
+        const body=await readJson(req);
+        const redirectUrl=publicOrigin(req)+'/admin/higgsfield/oauth/callback';
+        const result=await beginHiggsfieldAuthorization({
+          redirectUrl,
+          force:body.force===true,
+        });
+        return sendJson(res,200,{ok:true,...result});
+      }
+
+      if (req.method==='POST' && routePath==='/admin/higgsfield/disconnect') {
+        requireDatabase();
+        await clearHiggsfieldAuth({keepClientRegistration:true});
+        return sendJson(res,200,{ok:true,connected:false});
+      }
+
+      if (req.method==='GET' && routePath==='/admin/higgsfield/status') {
+        requireDatabase();
+        return sendJson(res,200,{ok:true,status:await getHiggsfieldConnectionStatus()});
+      }
+
+      if (req.method==='POST' && routePath==='/admin/higgsfield/sync') {
+        requireDatabase();
+        const result=await syncHiggsfieldModels();
+        return sendJson(res,200,{
+          ok:true,
+          modelCount:result.modelCount,
+          videoCount:result.videoCount,
+          imageCount:result.imageCount,
+          toolCount:result.toolCount,
+          jobsWaitConfigured:result.jobsWaitConfigured,
+        });
+      }
+
+      if (req.method==='GET' && routePath==='/admin/provider-models') {
+        requireDatabase();
+        const provider=String(url.searchParams.get('provider')||'higgsfield');
+        if (provider!=='higgsfield') return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        const models=await listProviderModels(provider);
+        return sendJson(res,200,{ok:true,models});
+      }
+
+      const providerModelMatch=routePath.match(/^\/admin\/provider-models\/(\d+)$/);
+      if (req.method==='POST' && providerModelMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const model=await setProviderModelEnabled('higgsfield',Number(providerModelMatch[1]),body.enabled===true);
+        return sendJson(res,200,{ok:true,model});
+      }
+
       if (req.method==='GET' && routePath==='/admin/stats') {
         requireDatabase();
         const db=getPool();
@@ -793,23 +844,27 @@ const server=http.createServer(async (req,res)=>{
             createpulse:providerSettings.createpulse.configured,
             atlascloud:providerSettings.atlascloud.configured,
             vgenv:providerSettings.vgenv.configured,
+            higgsfield:providerSettings.higgsfield.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
             createpulse:providerSettings.createpulse.enabled,
             atlascloud:providerSettings.atlascloud.enabled,
             vgenv:providerSettings.vgenv.enabled,
+            higgsfield:providerSettings.higgsfield.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
             createpulse:providerSettings.createpulse.active,
             atlascloud:providerSettings.atlascloud.active,
             vgenv:providerSettings.vgenv.active,
+            higgsfield:providerSettings.higgsfield.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
+          higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
