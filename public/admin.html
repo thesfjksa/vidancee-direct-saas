@@ -274,7 +274,7 @@ async function syncHiggsfieldModels(){
   const m=$('higgsfieldActionMsg');m.className='muted';m.textContent='Syncing live model catalog...';
   try{
     const d=await api('/admin/higgsfield/sync',{method:'POST',body:'{}'});
-    m.className='ok';m.textContent='Synced '+d.modelCount+' models ('+d.videoCount+' video, '+d.imageCount+' image).';
+    m.className='ok';m.textContent='Synced '+d.modelCount+' models ('+d.videoCount+' video, '+d.imageCount+' image)'+(d.catalogSource?' via '+d.catalogSource:'')+'.';
     await Promise.all([loadHiggsfieldModels(),loadProviderConfig()]);
   }catch(e){m.className='err';m.textContent=e.message}
 }
@@ -298,11 +298,10 @@ async function loadHiggsfieldModels(){
   if(!rows)return;
   try{
     const d=await api('/admin/provider-models?provider=higgsfield');
-    const models=d.models||[];
-    const available=models.filter(x=>x.available);
-    const videos=available.filter(x=>x.mediaType==='video').length;
-    const images=available.filter(x=>x.mediaType==='image').length;
-    summary.textContent=available.length+' synced models · '+videos+' video · '+images+' image';
+    const models=(d.models||[]).filter(x=>x.available);
+    const videos=models.filter(x=>x.mediaType==='video').length;
+    const images=models.filter(x=>x.mediaType==='image').length;
+    summary.textContent=models.length+' synced models · '+videos+' video · '+images+' image';
     rows.innerHTML=models.length?models.map(model=>
       '<tr>'+
         '<td><strong>'+esc(model.label)+'</strong><div class="muted">'+esc(model.providerModelId||'')+'</div></td>'+
