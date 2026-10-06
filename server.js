@@ -220,6 +220,43 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield'];
+function defaultCustomerProviderAccess(){
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+}
+async function getUserProviderAccess(userId){
+  const access=defaultCustomerProviderAccess();
+  if(!userId||!dbConfigured())return access;
+  const db=getPool();
+  const [rows]=await db.execute(
+    'SELECT provider,enabled FROM user_provider_access WHERE user_id=?',
+    [Number(userId)]
+  );
+  for(const row of rows){
+    const key=String(row.provider||'');
+    if(CUSTOMER_PROVIDER_KEYS.includes(key))access[key]=Boolean(row.enabled);
+  }
+  return access;
+}
+async function setUserProviderAccess(userId,providers){
+  const db=getPool();
+  const [users]=await db.execute('SELECT id FROM users WHERE id=? LIMIT 1',[Number(userId)]);
+  if(!users[0]){
+    const error=new Error('User not found.');error.statusCode=404;throw error;
+  }
+  const next=providers&&typeof providers==='object'?providers:{};
+  for(const key of CUSTOMER_PROVIDER_KEYS){
+    if(next[key]===undefined)continue;
+    await db.execute(
+      `INSERT INTO user_provider_access (user_id,provider,enabled)
+       VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),updated_at=UTC_TIMESTAMP()`,
+      [Number(userId),key,next[key]?1:0]
+    );
+  }
+  return getUserProviderAccess(userId);
+}
+
 function userPayload(user) {
   return {
     id:Number(user.id), email:user.email, credits:Number(user.credits),
@@ -354,12 +391,18 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/config') {
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
+      let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {
         try {
+          const currentUser=await userFromRequest(req);
+          if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
-          const seedanceFallbackActive=Boolean(providerSettings.vidancee.active || providerSettings.createpulse.active);
-          const h3FallbackActive=Boolean(providerSettings.vgenv.active);
+          const seedanceFallbackActive=Boolean(
+            (customerProviderAccess.vidancee && providerSettings.vidancee.active) ||
+            (customerProviderAccess.createpulse && providerSettings.createpulse.active)
+          );
+          const h3FallbackActive=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
 
           videoPricing=videoPricing.filter(model=>{
             if (model.id==='minimax_h3') return h3FallbackActive;
@@ -367,9 +410,9 @@ const server=http.createServer(async (req,res)=>{
             return true;
           });
 
-          if (!providerSettings.atlascloud.active) imagePricing=[];
+          if (!customerProviderAccess.atlascloud || !providerSettings.atlascloud.active) imagePricing=[];
 
-          if (providerSettings.higgsfield.active) {
+          if (customerProviderAccess.higgsfield && providerSettings.higgsfield.active) {
             const catalog=await publicProviderCatalog('higgsfield');
             const mergeById=(base,extra)=>{
               const out=[...base];
@@ -395,18 +438,20 @@ const server=http.createServer(async (req,res)=>{
         aspectRatios:ASPECT_RATIOS,
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
+        providerAccess:customerProviderAccess,
         plans:publicPlans(),
       });
     }
 
     if (req.method==='POST' && routePath==='/api/model-cost') {
       requireDatabase();
-      await requireUser(req);
+      const costUser=await requireUser(req);
+      const costAccess=await getUserProviderAccess(costUser.id);
       const body=await readJson(req);
       const mediaType=body.mediaType==='image'?'image':'video';
       const providerSettings=await getAdminProviderSettings();
-      if (!providerSettings.higgsfield.active) {
-        return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
+      if (!costAccess.higgsfield || !providerSettings.higgsfield.active) {
+        return sendJson(res,403,{ok:false,error:'This model source is not assigned to your account.'});
       }
 
       const model=await getProviderModelByPublicId('higgsfield',String(body.model||''),mediaType);
@@ -564,9 +609,10 @@ const server=http.createServer(async (req,res)=>{
 
       const body=await readGenerationRequest(req);
       const requestedModel=String(body.model||'');
+      const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
 
-      if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+      if (customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'image');
         if (dynamicModel) {
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
@@ -590,7 +636,7 @@ const server=http.createServer(async (req,res)=>{
       }
 
       if (!generation) {
-        if (!providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
+        if (!customerAccess.atlascloud || !providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
           return sendJson(res,503,{ok:false,error:'Image generation is currently unavailable.'});
         }
         generation=await createImageGenerationForUser(user.id,body);
@@ -642,9 +688,10 @@ const server=http.createServer(async (req,res)=>{
       }
 
       const requestedModel=String(body.model||'');
+      const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
 
-      if (providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+      if (customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
         if (dynamicModel) {
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
@@ -676,16 +723,18 @@ const server=http.createServer(async (req,res)=>{
 
       if (!generation) {
         if (requestedModel==='minimax_h3') {
-          if (!providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
+          if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
             return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
           }
         } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
           const vidanceeActive=Boolean(
+            customerAccess.vidancee &&
             providerSettings.vidanceeEnabled &&
             providerSettings.vidanceeEmail &&
             providerSettings.vidanceePassword
           );
           const createPulseActive=Boolean(
+            customerAccess.createpulse &&
             providerSettings.createPulseEnabled &&
             providerSettings.createPulseApiKey
           );
@@ -942,7 +991,29 @@ const server=http.createServer(async (req,res)=>{
           'SELECT id,email,credits,plan_code,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
           params,
         );
-        return sendJson(res,200,{ok:true,users:rows.map(userPayload)});
+        const accessRows=await db.query(
+          'SELECT user_id,provider,enabled FROM user_provider_access WHERE user_id IN ('+
+          (rows.length?rows.map(()=>'?').join(','):'NULL')+')',
+          rows.map(row=>Number(row.id))
+        );
+        const accessByUser=new Map();
+        for(const row of accessRows[0]||[]){
+          const id=Number(row.user_id);
+          if(!accessByUser.has(id))accessByUser.set(id,defaultCustomerProviderAccess());
+          accessByUser.get(id)[String(row.provider)]=Boolean(row.enabled);
+        }
+        return sendJson(res,200,{ok:true,users:rows.map(row=>({
+          ...userPayload(row),
+          provider_access:accessByUser.get(Number(row.id))||defaultCustomerProviderAccess(),
+        }))});
+      }
+
+      const userProviderMatch=routePath.match(/^\/admin\/users\/(\d+)\/providers$/);
+      if ((req.method==='POST'||req.method==='PUT') && userProviderMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const access=await setUserProviderAccess(Number(userProviderMatch[1]),body.providers||body);
+        return sendJson(res,200,{ok:true,provider_access:access});
       }
 
       const userPatchMatch=routePath.match(/^\/admin\/users\/(\d+)$/);
