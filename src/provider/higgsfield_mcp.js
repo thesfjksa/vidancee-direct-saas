@@ -310,6 +310,319 @@ function firstByKeys(objects, keys) {
   return found;
 }
 
+
+function collectCatalogItems(value, expectedType, out = [], depth = 0) {
+  if (depth > 7 || value == null) return out;
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectCatalogItems(item, expectedType, out, depth + 1);
+    return out;
+  }
+
+  if (typeof value !== 'object') return out;
+
+  const id = value.id ?? value.model_id ?? value.modelId;
+  const outputType = String(value.output_type || value.type || '').toLowerCase();
+  const looksLikeModel = id != null && (
+    value.name != null ||
+    value.provider_name != null ||
+    value.parameters != null ||
+    value.aspect_ratios != null ||
+    value.durations != null ||
+    value.duration_range != null
+  );
+  const typeOkay = !expectedType || !outputType || outputType === expectedType;
+
+  if (looksLikeModel && typeOkay) {
+    out.push(value);
+    return out;
+  }
+
+  for (const child of Object.values(value)) collectCatalogItems(child, expectedType, out, depth + 1);
+  return out;
+}
+
+function uniqueCatalogItems(items) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items || []) {
+    const id = String(item?.id ?? item?.model_id ?? item?.modelId ?? '').trim();
+    if (!id) continue;
+    const key = id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function parameterEntries(parameters) {
+  if (!parameters) return [];
+  if (Array.isArray(parameters)) {
+    return parameters
+      .filter(item => item && typeof item === 'object')
+      .map(item => ({
+        name: String(item.name || item.id || item.key || '').trim(),
+        ...item,
+      }))
+      .filter(item => item.name);
+  }
+  if (typeof parameters === 'object') {
+    return Object.entries(parameters).map(([name, spec]) => ({
+      name,
+      ...(spec && typeof spec === 'object' ? spec : { value: spec }),
+    }));
+  }
+  return [];
+}
+
+function parameterByName(parameters, names) {
+  const wanted = new Set(names.map(name => String(name).toLowerCase()));
+  return parameterEntries(parameters).find(item => wanted.has(String(item.name).toLowerCase())) || null;
+}
+
+function parameterChoices(parameter) {
+  if (!parameter || typeof parameter !== 'object') return [];
+  const candidates = [];
+  for (const key of ['enum', 'values', 'options', 'choices', 'allowed_values']) {
+    const value = parameter[key];
+    if (Array.isArray(value)) candidates.push(...value);
+  }
+  return candidates
+    .map(value => {
+      if (value && typeof value === 'object') return value.value ?? value.id ?? value.name;
+      return value;
+    })
+    .filter(value => value !== undefined && value !== null && String(value).trim() !== '');
+}
+
+function parameterDefault(parameter) {
+  if (!parameter || typeof parameter !== 'object') return null;
+  for (const key of ['default', 'default_value', 'value']) {
+    if (parameter[key] !== undefined && parameter[key] !== null && parameter[key] !== '') return parameter[key];
+  }
+  return null;
+}
+
+function continuousDurationRange(range) {
+  if (!range || typeof range !== 'object') return [];
+  const min = Number(range.min ?? range.minimum ?? range.from);
+  const max = Number(range.max ?? range.maximum ?? range.to);
+  if (!Number.isInteger(min) || !Number.isInteger(max) || min <= 0 || max < min || max - min > 60) return [];
+  const out = [];
+  for (let n = min; n <= max; n += 1) out.push(n);
+  return out;
+}
+
+function catalogMediaRoles(medias) {
+  const out = [];
+  const push = value => {
+    const role = String(value || '').trim();
+    if (role && !out.includes(role)) out.push(role);
+  };
+
+  const walk = value => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+    if (typeof value === 'string') {
+      push(value);
+      return;
+    }
+    if (typeof value !== 'object') return;
+    if (value.role) push(value.role);
+    if (Array.isArray(value.roles)) value.roles.forEach(push);
+    for (const child of Object.values(value)) {
+      if (child !== value.role && child !== value.roles && (Array.isArray(child) || (child && typeof child === 'object'))) {
+        walk(child);
+      }
+    }
+  };
+
+  walk(medias);
+  return out;
+}
+
+function catalogModelFromItem(item, mediaType, generationTool) {
+  const providerModelId = String(item.id ?? item.model_id ?? item.modelId ?? '').trim();
+  if (!providerModelId) return null;
+
+  const label = String(item.name || humanizeModelId(providerModelId)).trim();
+  const parameters = item.parameters || {};
+  const durationParam = parameterByName(parameters, ['duration', 'seconds', 'length']);
+  const resolutionParam = parameterByName(parameters, ['resolution']);
+  const aspectParam = parameterByName(parameters, ['aspect_ratio', 'aspectRatio', 'ratio']);
+
+  let durations = Array.isArray(item.durations)
+    ? item.durations.map(Number).filter(Number.isFinite)
+    : parameterChoices(durationParam).map(Number).filter(Number.isFinite);
+  if (!durations.length) durations = continuousDurationRange(item.duration_range);
+
+  const resolutions = parameterChoices(resolutionParam).map(String).filter(Boolean);
+  const aspectRatios = (
+    Array.isArray(item.aspect_ratios) && item.aspect_ratios.length
+      ? item.aspect_ratios
+      : parameterChoices(aspectParam)
+  ).map(String).filter(Boolean);
+
+  const mode = mediaType === 'video' ? 'video' : 'image';
+
+  return {
+    providerModelId,
+    publicModelId: canonicalPublicModelId(providerModelId, label, mediaType),
+    label,
+    mediaType,
+    toolName: generationTool.name,
+    inputSchema: generationTool.inputSchema || {},
+    options: {
+      catalogVerified: true,
+      providerName: item.provider_name ? String(item.provider_name) : null,
+      durations: [...new Set(durations)].sort((a, b) => a - b),
+      resolutions: [...new Set(resolutions)],
+      aspectRatios: [...new Set(aspectRatios)],
+      defaultDuration: Number(parameterDefault(durationParam)) || null,
+      defaultResolution: parameterDefault(resolutionParam) == null ? null : String(parameterDefault(resolutionParam)),
+      defaultAspectRatio: parameterDefault(aspectParam) == null ? null : String(parameterDefault(aspectParam)),
+      mediaRoles: catalogMediaRoles(item.medias),
+      tools: [{
+        name: generationTool.name,
+        mode,
+        schema: generationTool.inputSchema || {},
+        description: generationTool.description || '',
+      }],
+    },
+  };
+}
+
+async function exploreCatalogType(client, modelsTool, mediaType) {
+  const payload = { action: 'list', type: mediaType, limit: 100 };
+  const args = wrapToolPayload(modelsTool, payload);
+  const result = await client.callTool({ name: modelsTool.name, arguments: args }, { timeout: 30000 });
+  const objects = resultObjects(result);
+  const items = [];
+  for (const obj of objects) collectCatalogItems(obj, mediaType, items);
+  return uniqueCatalogItems(items);
+}
+
+async function discoverModelsFromCatalog(client, tools) {
+  const modelsTool = findTool(tools, 'models_explore');
+  const imageTool = findTool(tools, 'generate_image');
+  const videoTool = findTool(tools, 'generate_video');
+  if (!modelsTool || !imageTool || !videoTool) return [];
+
+  const [imageItems, videoItems] = await Promise.all([
+    exploreCatalogType(client, modelsTool, 'image'),
+    exploreCatalogType(client, modelsTool, 'video'),
+  ]);
+
+  const models = [];
+  for (const item of imageItems) {
+    const model = catalogModelFromItem(item, 'image', imageTool);
+    if (model) models.push(model);
+  }
+  for (const item of videoItems) {
+    const model = catalogModelFromItem(item, 'video', videoTool);
+    if (model) models.push(model);
+  }
+  return models;
+}
+
+function extractUploadInfo(result) {
+  const objects = resultObjects(result);
+  const mediaId = firstByKeys(objects, ['media_id', 'mediaId', 'id']);
+  const uploadUrl = firstByKeys(objects, ['upload_url', 'uploadUrl', 'presigned_url', 'presignedUrl']);
+  return {
+    mediaId: mediaId == null ? null : String(mediaId),
+    uploadUrl: typeof uploadUrl === 'string' ? uploadUrl : null,
+  };
+}
+
+async function uploadHiggsfieldImages(files) {
+  const list = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!list.length) return [];
+
+  return withAuthenticatedClient(async client => {
+    const listed = await client.listTools();
+    const tools = Array.isArray(listed?.tools) ? listed.tools : [];
+    const uploadTool = findTool(tools, 'media_upload');
+    const confirmTool = findTool(tools, 'media_confirm');
+    if (!uploadTool || !confirmTool) {
+      throw new Error('Reference upload tools are unavailable from this account.');
+    }
+
+    const ids = [];
+    for (const file of list) {
+      const filename = String(file.filename || 'reference.jpg').slice(0, 255);
+      const mimeType = String(file.mimeType || file.mime_type || 'image/jpeg');
+      const data = file.data || file.image_data;
+      if (!Buffer.isBuffer(data)) throw new Error('Reference image data is missing.');
+
+      const uploadArgs = wrapToolPayload(uploadTool, {
+        filename,
+        content_type: mimeType,
+      });
+      const uploadResult = await client.callTool(
+        { name: uploadTool.name, arguments: uploadArgs },
+        { timeout: 30000 },
+      );
+      const info = extractUploadInfo(uploadResult);
+      if (!info.mediaId || !info.uploadUrl) throw new Error('Reference upload did not return a media ID and upload URL.');
+
+      const response = await fetch(info.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': mimeType },
+        body: data,
+      });
+      if (!response.ok) throw new Error('Reference upload failed with HTTP ' + response.status + '.');
+
+      const confirmArgs = wrapToolPayload(confirmTool, {
+        media_id: info.mediaId,
+        type: 'image',
+      });
+      await client.callTool(
+        { name: confirmTool.name, arguments: confirmArgs },
+        { timeout: 30000 },
+      );
+      ids.push(info.mediaId);
+    }
+    return ids;
+  });
+}
+
+function mediaReferencesForModel(model, mediaIds) {
+  const ids = Array.isArray(mediaIds) ? mediaIds.filter(Boolean) : [];
+  if (!ids.length) return [];
+  const roles = Array.isArray(model?.mediaRoles) ? model.mediaRoles : [];
+
+  if (model.mediaType === 'image') {
+    const role = roles.includes('image') ? 'image' : (roles[0] || 'image');
+    return ids.map(value => ({ value, role }));
+  }
+
+  const refs = [];
+  let index = 0;
+  if (roles.includes('start_image') && ids[index]) {
+    refs.push({ value: ids[index++], role: 'start_image' });
+  }
+  if (roles.includes('end_image') && ids[index]) {
+    refs.push({ value: ids[index++], role: 'end_image' });
+  }
+
+  const repeatedRole = roles.includes('image')
+    ? 'image'
+    : (roles.includes('image_references') ? 'image_references' : null);
+  while (repeatedRole && ids[index]) {
+    refs.push({ value: ids[index++], role: repeatedRole });
+  }
+
+  if (!refs.length) {
+    refs.push({ value: ids[0], role: roles[0] || 'start_image' });
+  }
+  return refs;
+}
+
 function extractCost(result) {
   const objects = resultObjects(result);
   const direct = firstByKeys(objects, [
