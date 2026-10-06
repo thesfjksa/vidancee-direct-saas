@@ -28,6 +28,10 @@ class GenerationWorker {
     this.createPulseMaxInflight = 3;
     this.atlasCloudMaxInflight = 4;
     this.vgenvMaxInflight = 4;
+    this.vidanceeEnabled = true;
+    this.createPulseEnabled = true;
+    this.atlasCloudEnabled = true;
+    this.vgenvEnabled = true;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
   }
@@ -62,6 +66,10 @@ class GenerationWorker {
     this.createPulseMaxInflight = settings.createPulseMaxInflight;
     this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
     this.vgenvMaxInflight = settings.vgenvMaxInflight;
+    this.vidanceeEnabled = Boolean(settings.vidanceeEnabled);
+    this.createPulseEnabled = Boolean(settings.createPulseEnabled);
+    this.atlasCloudEnabled = Boolean(settings.atlasCloudEnabled);
+    this.vgenvEnabled = Boolean(settings.vgenvEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
@@ -251,7 +259,7 @@ class GenerationWorker {
   }
 
   async submitAtlasImages(db) {
-    if (!this.atlasCloud) return;
+    if (!this.atlasCloud || !this.atlasCloudEnabled) return;
 
     const [[activeRow]] = await db.query(
       "SELECT COUNT(*) AS total FROM generations WHERE media_type='image' AND provider='atlascloud' AND status IN ('submitting','submitted','processing')"
@@ -305,9 +313,9 @@ class GenerationWorker {
 
   chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots) {
     if (job.model === 'minimax_h3') {
-      return this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
+      return this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
     }
-    const cpEligible = this.createPulse && cpSlots > 0 && this.createPulse.supports({
+    const cpEligible = this.createPulseEnabled && this.createPulse && cpSlots > 0 && this.createPulse.supports({
       model: job.model,
       duration: Number(job.duration),
       resolution: job.resolution || '768p',
@@ -315,7 +323,7 @@ class GenerationWorker {
       mode: job.mode,
       imageCount,
     });
-    const vidEligible = this.vidancee && vidSlots > 0;
+    const vidEligible = this.vidanceeEnabled && this.vidancee && vidSlots > 0;
 
     if (this.routing === 'createpulse-first') {
       if (cpEligible) return 'createpulse';
@@ -442,10 +450,14 @@ class GenerationWorker {
 
     await this.submitAtlasImages(db);
 
-    if (!this.vidancee && !this.createPulse && !this.vgenv) return;
+    if (
+      !(this.vidanceeEnabled && this.vidancee) &&
+      !(this.createPulseEnabled && this.createPulse) &&
+      !(this.vgenvEnabled && this.vgenv)
+    ) return;
 
     let vidSlots = 0;
-    if (this.vidancee && vidSnapshot) {
+    if (this.vidanceeEnabled && this.vidancee && vidSnapshot) {
       const concurrency = Math.max(1, Number(vidSnapshot.concurrency || 1));
       const activeCount = Math.max(
         Number(vidSnapshot.processing || 0),
@@ -455,7 +467,7 @@ class GenerationWorker {
     }
 
     let cpSlots = 0;
-    if (this.createPulse) {
+    if (this.createPulseEnabled && this.createPulse) {
       const [[row]] = await db.query(
         "SELECT COUNT(*) AS total FROM generations WHERE media_type='video' AND provider='createpulse' AND status IN ('submitting','submitted','processing')"
       );
@@ -463,7 +475,7 @@ class GenerationWorker {
     }
 
     let vgenvSlots = 0;
-    if (this.vgenv) {
+    if (this.vgenvEnabled && this.vgenv) {
       const [[row]] = await db.query(
         "SELECT COUNT(*) AS total FROM generations WHERE media_type='video' AND provider='vgenv' AND status IN ('submitting','submitted','processing')"
       );
