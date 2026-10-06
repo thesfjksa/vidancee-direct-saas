@@ -1273,3 +1273,51 @@ At the current 2.5× multiplier this yields:
 - 768p: 0.75 customer credits/sec
 
 The public pricing payload now includes per-resolution duration/cost entries for models that expose customer-selectable resolutions.
+
+
+## Per-provider backend switches — 2026-10-06
+
+Admin → Provider now has an independent ON/OFF switch for every configured backend source:
+
+- Primary video engine (Vidancee)
+- Overflow video engine (CreatePulse)
+- Image engine (Atlas Cloud)
+- MiniMax H3 engine (vgenv)
+
+The switches are stored in `app_settings` and default to enabled so an existing deployment does not unexpectedly lose models after upgrading.
+
+### Customer catalog behavior
+
+A source must be both **configured** and **enabled** before its models are exposed by `GET /api/config`.
+
+Current model-source mapping:
+
+- `seedance_2.5` and `seedance_2.0_fast`: visible when either Vidancee or CreatePulse is active
+- `minimax_h3`: visible only when vgenv is active
+- Atlas image models: visible only when Atlas Cloud is active
+
+Because Seedance has two possible backend sources, turning off only one of them does **not** remove Seedance from customers if the other source remains active. Turning off both removes the Seedance models.
+
+Provider identities remain private; customers only see the resulting model catalog.
+
+The backend also enforces the switches server-side, so a customer with a stale browser page cannot submit a hidden/disabled model.
+
+### Worker behavior
+
+Provider switches affect **new submissions** only.
+
+- queued work that has no active eligible source waits until an eligible source is enabled again
+- jobs already submitted/processing continue to be polled to completion even if that source is switched off
+- provider clients remain available internally for status synchronization of existing jobs
+
+This avoids abandoning already-running provider jobs while still preventing new charges through a disabled source.
+
+### Admin data
+
+`getAdminProviderSettings()` now returns `enabled` and `active` for each provider:
+
+- `configured`: credentials/config exist
+- `enabled`: Admin switch is on
+- `active`: configured + enabled
+
+`/admin/config` exposes private `providerEnabled` and `providerActive` maps for operations/debugging.
