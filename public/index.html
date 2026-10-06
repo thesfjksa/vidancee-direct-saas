@@ -1047,12 +1047,206 @@ document.addEventListener('scroll',e=>{
   positionCustomSelect(open);
 },true);
 
+function currentVideoModel(){
+  return (config?.pricing||[]).find(x=>x.id===$('model')?.value)||(config?.pricing||[])[0]||null;
+}
+
+function currentImageModel(){
+  return (config?.imagePricing||[]).find(x=>x.id===$('imageModel')?.value)||(config?.imagePricing||[])[0]||null;
+}
+
+function normalizedClientCapabilities(model,mediaType){
+  const raw=model?.capabilities&&typeof model.capabilities==='object'?model.capabilities:null;
+  const normalize=(kind,fallbackSupported,fallbackMax,fallbackRoles)=>{
+    const source=raw?.[kind]&&typeof raw[kind]==='object'?raw[kind]:{};
+    const roles=Array.isArray(source.roles)&&source.roles.length?source.roles.map(String):fallbackRoles;
+    const max=Number.isFinite(Number(source.max))&&Number(source.max)>=0?Number(source.max):fallbackMax;
+    const min=Math.max(0,Number(source.min||0));
+    const requiredRoles=Array.isArray(source.requiredRoles)?source.requiredRoles.map(String):[];
+    return {
+      supported:source.supported===true||(!raw&&fallbackSupported),
+      max,
+      min,
+      roles:[...new Set(roles)],
+      requiredRoles:[...new Set(requiredRoles)],
+    };
+  };
+
+  if(mediaType==='image'){
+    return {
+      totalMax:Number(raw?.totalMax||0),
+      image:normalize('image',true,6,['image_references']),
+      video:normalize('video',false,0,[]),
+      audio:normalize('audio',false,0,[]),
+    };
+  }
+
+  return {
+    totalMax:Number(raw?.totalMax||0),
+    image:normalize('image',true,6,['image_references']),
+    video:normalize('video',false,0,[]),
+    audio:normalize('audio',false,0,[]),
+  };
+}
+
+function roleLabel(role){
+  const labels={
+    start_image:'Start frame',
+    end_image:'End frame',
+    image_references:'Reference image',
+    input_images:'Reference image',
+    image:'Reference image',
+    reference_image:'Reference image',
+    video_references:'Reference video',
+    input_videos:'Reference video',
+    video:'Reference video',
+    reference_video:'Reference video',
+  };
+  return labels[role]||String(role||'Reference').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+}
+
+function defaultImageRole(cap,index=0){
+  const required=(cap.requiredRoles||[]).find(role=>!(referenceItems||[]).some(item=>item.role===role));
+  if(required)return required;
+  if(cap.roles.includes('image_references'))return 'image_references';
+  if(cap.roles.includes('image'))return 'image';
+  if(cap.roles.includes('input_images'))return 'input_images';
+  if(cap.roles.includes('start_image') && index===0)return 'start_image';
+  if(cap.roles.includes('end_image') && index===1)return 'end_image';
+  return cap.roles[0]||'image_references';
+}
+
+function defaultVideoRole(cap){
+  if(cap.roles.includes('video_references'))return 'video_references';
+  if(cap.roles.includes('video'))return 'video';
+  if(cap.roles.includes('input_videos'))return 'input_videos';
+  return cap.roles[0]||'video_references';
+}
+
+function handleVideoModelChange(){
+  renderDurations(true);
+  renderVideoReferenceControls(true);
+}
+
+function handleImageModelChange(){
+  renderImageRatios();
+  renderImageReferenceControls(true);
+}
+
+function renderVideoReferenceControls(modelChanged=false){
+  const model=currentVideoModel();
+  if(!model)return;
+  const caps=normalizedClientCapabilities(model,'video');
+  const imageCap=caps.image;
+  const videoCap=caps.video;
+
+  const imageBlock=$('videoImageReferenceBlock');
+  const videoBlock=$('videoVideoReferenceBlock');
+
+  imageBlock.classList.toggle('hide',!imageCap.supported);
+  videoBlock.classList.toggle('hide',!videoCap.supported);
+
+  if(imageCap.supported){
+    const max=imageCap.max||6;
+    const required=imageCap.min>0||imageCap.requiredRoles.length>0;
+    $('videoImageReferenceTitle').textContent=
+      imageCap.roles.length===1&&imageCap.roles[0]==='start_image'?'Start frame':
+      imageCap.roles.length===2&&imageCap.roles.includes('start_image')&&imageCap.roles.includes('end_image')?'Start / end frames':
+      'Reference images';
+    $('videoImageReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' image'+(max===1?'':'s');
+    $('videoImageReferenceDropHelp').textContent='JPEG, PNG or WebP · max '+max;
+  }
+
+  if(videoCap.supported){
+    const max=videoCap.max||1;
+    const required=videoCap.min>0||videoCap.requiredRoles.length>0;
+    $('videoVideoReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' video'+(max===1?'':'s');
+    $('videoVideoReferenceDropHelp').textContent='MP4, WebM or MOV · max '+max+' · 25 MB each';
+  }
+
+  let changed=false;
+  if(!imageCap.supported && referenceItems.length){
+    clearReferenceItems();
+    changed=true;
+  }else if(imageCap.supported){
+    const max=imageCap.max||6;
+    while(referenceItems.length>max){
+      const item=referenceItems.pop();
+      if(item?.kind==='fresh'&&item.url)URL.revokeObjectURL(item.url);
+      changed=true;
+    }
+    referenceItems.forEach((item,index)=>{
+      if(!imageCap.roles.includes(item.role)){
+        item.role=defaultImageRole(imageCap,index);
+        changed=true;
+      }
+    });
+    renderReferencePreview();
+  }
+
+  if(!videoCap.supported && videoReferenceItems.length){
+    clearVideoReferenceItems();
+    changed=true;
+  }else if(videoCap.supported){
+    const max=videoCap.max||1;
+    while(videoReferenceItems.length>max){
+      const item=videoReferenceItems.pop();
+      if(item?.url)URL.revokeObjectURL(item.url);
+      changed=true;
+    }
+    videoReferenceItems.forEach(item=>{
+      if(!videoCap.roles.includes(item.role)){
+        item.role=defaultVideoRole(videoCap);
+        changed=true;
+      }
+    });
+    renderVideoReferenceList();
+  }
+
+  if(modelChanged&&changed){
+    $('genMsg').className='msg muted';
+    $('genMsg').textContent='References were adjusted to match the selected model.';
+  }
+}
+
+function renderImageReferenceControls(modelChanged=false){
+  const model=currentImageModel();
+  if(!model)return;
+  const cap=normalizedClientCapabilities(model,'image').image;
+  $('imageReferenceBlock').classList.toggle('hide',!cap.supported);
+
+  if(cap.supported){
+    const max=cap.max||6;
+    const required=cap.min>0||cap.requiredRoles.length>0;
+    $('imageReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' image'+(max===1?'':'s');
+    $('imageReferenceDropHelp').textContent='JPEG, PNG or WebP · max '+max;
+    if(imageReferenceItems.length>max){
+      while(imageReferenceItems.length>max){
+        const item=imageReferenceItems.pop();
+        if(item?.url)URL.revokeObjectURL(item.url);
+      }
+      renderImageReferencePreview();
+      if(modelChanged){
+        $('imageGenMsg').className='msg muted';
+        $('imageGenMsg').textContent='References were adjusted to match the selected model.';
+      }
+    }
+  }else if(imageReferenceItems.length){
+    clearImageReferenceItems();
+    if(modelChanged){
+      $('imageGenMsg').className='msg muted';
+      $('imageGenMsg').textContent='This model uses text only, so reference images were removed.';
+    }
+  }
+}
+
 function renderConfig(){
   if(!config)return;
   $('model').innerHTML=(config.pricing||[]).map(m=>'<option value="'+m.id+'">'+escapeHtml(m.label)+'</option>').join('');
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
   renderDurations(true);
+  renderVideoReferenceControls(false);
 }
 
 function renderDurations(resetResolution=false){
@@ -1319,6 +1513,7 @@ function renderImageConfig(){
   ensureCustomSelect('imageModel');
   ensureCustomSelect('imageRatio');
   renderImageRatios();
+  renderImageReferenceControls(false);
 }
 
 function renderImageRatios(){
