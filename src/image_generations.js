@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
+const { roundCredits } = require('./billing.js');
 
 function serializeImageGeneration(row) {
   return {
@@ -24,7 +25,7 @@ function serializeImageGeneration(row) {
   };
 }
 
-async function createImageGenerationForUser(userId, input) {
+async function createImageGenerationForUser(userId, input, options = {}) {
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
@@ -47,7 +48,13 @@ async function createImageGenerationForUser(userId, input) {
   }
 
   validateImageAspectRatio(aspectRatio);
-  const cost = getImageCost(model);
+  const dynamicCost = Number(options.costOverride);
+  const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
+  const cost = hasDynamicCost ? roundCredits(dynamicCost) : getImageCost(model);
+  const provider = String(options.provider || 'atlascloud').slice(0, 40);
+  const providerCost = Number(options.providerCost);
+  const providerCostValue = Number.isFinite(providerCost) && providerCost > 0 ? providerCost : null;
+  const providerCostUnit = providerCostValue == null ? null : String(options.providerCostUnit || 'credits').slice(0, 20);
   const id = crypto.randomUUID();
   const mode = images.length ? 'reference-to-image' : 'text-to-image';
 
@@ -89,9 +96,12 @@ async function createImageGenerationForUser(userId, input) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id,user_id,provider,media_type,queue_priority,mode,model,duration,aspect_ratio,prompt,status,credits_cost)
-       VALUES (?,?,'atlascloud','image',?,?,?,0,?,?,'queued',?)`,
-      [id, userId, planProfile.queuePriority, mode, model, aspectRatio, prompt, cost],
+       (id,user_id,provider,media_type,queue_priority,mode,model,duration,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit)
+       VALUES (?,?,?,'image',?,?,?,0,?,?,'queued',?,?,?)`,
+      [
+        id, userId, provider, planProfile.queuePriority, mode, model, aspectRatio,
+        prompt, cost, providerCostValue, providerCostUnit,
+      ],
     );
 
     for (let i = 0; i < images.length; i += 1) {
