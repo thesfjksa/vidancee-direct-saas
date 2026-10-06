@@ -1081,11 +1081,26 @@ async function syncHiggsfieldModels() {
     const result = await client.listTools();
     const tools = Array.isArray(result?.tools) ? result.tools : [];
     await quarantineProviderUtilityModels(PROVIDER);
-    const models = discoverModelsFromTools(tools);
-    if (!models.length) {
-      throw new Error('Connected successfully, but model IDs were not exposed as enums/examples/described slugs in the '+tools.length+' MCP tools returned by this account. The existing catalog was left unchanged. Use Inspect MCP tools in Admin so we can map the live schema without guessing.');
+
+    let models = [];
+    let catalogSource = 'models_explore';
+    try {
+      models = await discoverModelsFromCatalog(client, tools);
+    } catch (error) {
+      console.error('Higgsfield models_explore sync failed:', error?.message || error);
     }
-    const jobsWait = tools.find(tool => String(tool.name).toLowerCase() === 'jobs_wait')
+
+    // Backward-compatible fallback for older MCP schemas.
+    if (!models.length) {
+      catalogSource = 'tool-schema-fallback';
+      models = discoverModelsFromTools(tools);
+    }
+
+    if (!models.length) {
+      throw new Error('Connected successfully, but the Higgsfield model catalog could not be read from models_explore or the generation tool schemas. The existing catalog was left unchanged. Use Inspect MCP tools only if this persists after deployment.');
+    }
+
+    const jobsWait = findTool(tools, 'jobs_wait')
       || tools.find(tool => /jobs?.?wait|wait.?jobs?/i.test([tool.name, tool.title, tool.description].filter(Boolean).join(' ')));
 
     if (jobsWait) {
@@ -1102,6 +1117,7 @@ async function syncHiggsfieldModels() {
       videoCount: synced.filter(model => model.available && model.mediaType === 'video').length,
       imageCount: synced.filter(model => model.available && model.mediaType === 'image').length,
       toolCount: tools.length,
+      catalogSource,
       jobsWaitConfigured: Boolean(jobsWait),
       models: synced,
     };
@@ -1142,8 +1158,8 @@ async function estimateHiggsfieldCost(publicModelId, mediaType, input = {}) {
   });
 }
 
-async function submitHiggsfieldGeneration(model, input = {}, referenceImageUrls = []) {
-  const { tool, args } = buildToolArguments(model, input, referenceImageUrls, { getCost: false });
+async function submitHiggsfieldGeneration(model, input = {}, mediaReferences = []) {
+  const { tool, args } = buildToolArguments(model, input, mediaReferences, { getCost: false });
   return withAuthenticatedClient(async client => {
     const result = await client.callTool({ name: tool.name, arguments: args }, { timeout: 60000 });
     return {
@@ -1211,6 +1227,8 @@ module.exports = {
   getHiggsfieldToolDiagnostics,
   estimateHiggsfieldCost,
   submitHiggsfieldGeneration,
+  uploadHiggsfieldImages,
+  mediaReferencesForModel,
   waitForHiggsfieldJob,
   buildToolArguments,
 };
