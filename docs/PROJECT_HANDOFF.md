@@ -1429,3 +1429,21 @@ No Higgsfield account credentials should be pasted into chat, env files, or the 
 ### Live-schema validation note
 
 The integration is schema-driven so it can adapt to Higgsfield's current MCP catalog. Static syntax and routing checks are performed before deployment, but the exact live MCP tool schemas can only be validated after the paid Higgsfield account completes OAuth. If a specific reference-image model exposes unusual parameter names or requirements, refine that model's schema mapping after the first real sync rather than hard-coding guessed IDs.
+
+
+### Higgsfield live-schema sync compatibility patch — 2026-10-06
+
+The first real Ultra-account connection confirmed OAuth works, but the live MCP tool schemas did not expose model IDs as JSON-Schema `enum` values. The original sync logic was too strict and returned:
+
+`No image or video models were discovered from the current MCP tool schemas.`
+
+The sync parser now also discovers model IDs from:
+
+- JSON-Schema `example` / `examples`
+- model-field defaults
+- model-field descriptions and tool descriptions containing slug-style IDs
+- model-specific generation tool names when no model parameter exists
+
+A safe **Inspect MCP tools** action was added to Admin. It shows tool names, descriptions, property names, and sanitized model-field schema information, but never returns OAuth tokens or account passwords. Use this only when a future Higgsfield schema change cannot be auto-discovered.
+
+Official Higgsfield automation documentation shows that MCP generation tools may accept `model` as a normal string (for example `soul_2`) rather than requiring an enum, so the integration must not depend on enum-only discovery.
