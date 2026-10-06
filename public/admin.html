@@ -156,8 +156,8 @@
       </div>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Model</th><th>Type</th><th>Available</th><th>Customer visibility</th><th>Action</th></tr></thead>
-          <tbody id="higgsfieldModelRows"><tr><td colspan="5" class="muted">No synced models yet.</td></tr></tbody>
+          <thead><tr><th>Model</th><th>Type</th><th>References</th><th>Available</th><th>Customer visibility</th><th>Action</th></tr></thead>
+          <tbody id="higgsfieldModelRows"><tr><td colspan="6" class="muted">No synced models yet.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -302,15 +302,23 @@ async function loadHiggsfieldModels(){
     const videos=models.filter(x=>x.mediaType==='video').length;
     const images=models.filter(x=>x.mediaType==='image').length;
     summary.textContent=models.length+' synced models · '+videos+' video · '+images+' image';
-    rows.innerHTML=models.length?models.map(model=>
-      '<tr>'+
+    rows.innerHTML=models.length?models.map(model=>{
+      const caps=model.referenceCapabilities||{};
+      const refs=[];
+      const image=caps.image||{},video=caps.video||{},audio=caps.audio||{};
+      if(image.supported||Number(image.max||0)>0)refs.push('Images ≤ '+(image.max||'?'));
+      if(video.supported||Number(video.max||0)>0)refs.push('Videos ≤ '+(video.max||'?'));
+      if(audio.supported||Number(audio.max||0)>0)refs.push('Audio ≤ '+(audio.max||'?'));
+      if(!refs.length)refs.push('Text only');
+      return '<tr>'+
         '<td><strong>'+esc(model.label)+'</strong><div class="muted">'+esc(model.providerModelId||'')+'</div></td>'+
         '<td>'+esc(model.mediaType)+'</td>'+
+        '<td>'+esc(refs.join(' · '))+'</td>'+
         '<td><span class="badge">'+(model.available?'yes':'not in latest sync')+'</span></td>'+
         '<td class="'+(model.enabled&&model.available?'ok':'muted')+'">'+(model.enabled&&model.available?'Visible when source is ON':'Hidden')+'</td>'+
         '<td><button class="'+(model.enabled?'danger':'secondary')+'" onclick="toggleHiggsfieldModel('+model.id+','+(!model.enabled)+')">'+(model.enabled?'Hide':'Show')+'</button></td>'+
-      '</tr>'
-    ).join(''):'<tr><td colspan="5" class="muted">No synced models yet. Connect the account and click Sync models.</td></tr>';
+      '</tr>';
+    }).join(''):'<tr><td colspan="6" class="muted">No synced models yet. Connect the account and click Sync models.</td></tr>';
   }catch(e){
     summary.textContent='Could not load model catalog.';
     rows.innerHTML='<tr><td colspan="5" class="err">'+esc(e.message)+'</td></tr>';
