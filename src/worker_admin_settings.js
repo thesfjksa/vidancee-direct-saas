@@ -5,7 +5,12 @@ const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
-const { submitHiggsfieldGeneration, waitForHiggsfieldJob } = require('./provider/higgsfield_mcp.js');
+const {
+  submitHiggsfieldGeneration,
+  uploadHiggsfieldImages,
+  mediaReferencesForModel,
+  waitForHiggsfieldJob,
+} = require('./provider/higgsfield_mcp.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
 
@@ -363,10 +368,21 @@ class GenerationWorker {
     if (!model) throw new Error('The selected model is no longer available from this source.');
 
     const [images] = await db.execute(
-      'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
+      'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
       [job.id]
     );
-    const referenceImageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
+
+    let mediaReferences = [];
+    if (images.length) {
+      const mediaIds = await uploadHiggsfieldImages(
+        images.map(image => ({
+          filename: image.filename,
+          mimeType: image.mime_type,
+          data: image.image_data,
+        }))
+      );
+      mediaReferences = mediaReferencesForModel(model, mediaIds);
+    }
 
     const result = await submitHiggsfieldGeneration(
       model,
@@ -377,7 +393,7 @@ class GenerationWorker {
         aspectRatio: job.aspect_ratio,
         mode: job.mode,
       },
-      referenceImageUrls,
+      mediaReferences,
     );
 
     if (result.outputUrl && ['completed','succeeded','success','done'].includes(String(result.status || '').toLowerCase())) {
