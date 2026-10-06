@@ -295,7 +295,14 @@ function resultObjects(result) {
       const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') out.push(parsed);
     } catch {
-      out.push({ __text: text });
+      let parsedEmbedded = null;
+      const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+      const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+      if (candidate && candidate.trim()) {
+        try { parsedEmbedded = JSON.parse(candidate); } catch {}
+      }
+      if (parsedEmbedded && typeof parsedEmbedded === 'object') out.push(parsedEmbedded);
+      else out.push({ __text: text });
     }
   }
   return out;
@@ -785,7 +792,14 @@ function makeClient(provider, mcpUrl) {
     { name: 'mehroz-ai', version: '1.0.0' },
     { versionNegotiation: { mode: 'auto' } },
   );
-  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), { authProvider: provider });
+  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
+    authProvider: provider,
+    requestInit: {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 MehrozAI/1.0',
+      },
+    },
+  });
   return { client, transport };
 }
 
@@ -1162,10 +1176,12 @@ async function syncHiggsfieldModels() {
 
     let models = [];
     let catalogSource = 'models_explore';
+    let catalogError = null;
     try {
       models = await discoverModelsFromCatalog(client, tools);
     } catch (error) {
-      console.error('Higgsfield models_explore sync failed:', error?.message || error);
+      catalogError = error;
+      console.error('Higgsfield models_explore sync failed:', networkErrorDetails(error) || error?.message || error);
     }
 
     // Backward-compatible fallback for older MCP schemas.
@@ -1175,7 +1191,8 @@ async function syncHiggsfieldModels() {
     }
 
     if (!models.length) {
-      throw new Error('Connected successfully, but the Higgsfield model catalog could not be read from models_explore or the generation tool schemas. The existing catalog was left unchanged. Use Inspect MCP tools only if this persists after deployment.');
+      const reason = catalogError ? (networkErrorDetails(catalogError) || catalogError.message) : 'No catalog entries were returned.';
+      throw new Error('Higgsfield model catalog sync failed: ' + reason + ' The existing catalog was left unchanged.');
     }
 
     const jobsWait = findTool(tools, 'jobs_wait')
