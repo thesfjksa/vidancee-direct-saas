@@ -371,3 +371,18 @@
 - Documented the official CLI/Skills model-catalog fallback as the current model-list source when live discovery is empty.
 - Clarified that real generation, cost checks, media uploads, polling, and credit consumption still use the connected Higgsfield MCP account.
 - Added the current post-deploy verification sequence and noted that catalog-sync failures do not require OAuth reconnection.
+
+
+## 2026-10-06 — Add per-model reference capability composer
+
+- Added model-specific image/video reference capabilities to the customer catalog.
+- Added capability-aware Create Video and Create Image controls.
+- Text-only models now hide reference uploads.
+- Added model-specific image/video reference limits and semantic roles.
+- Added separate customer upload support for video references.
+- Added start-frame/end-frame/reference-image role handling.
+- Added client- and server-side validation for required roles, maxima, minima, total limits, and unsupported reference types.
+- Added `generation_media` storage for dynamic provider reference files and roles.
+- Higgsfield worker now uploads stored reference media and forwards exact provider roles.
+- Added compact model capability summaries under customer model selectors.
+- Added explicit dynamic-media cleanup when deleting image/video generations.
