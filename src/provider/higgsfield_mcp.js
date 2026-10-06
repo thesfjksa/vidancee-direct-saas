@@ -1012,7 +1012,7 @@ function extractCost(result) {
     'credits', 'price',
   ]);
   const directNumber = Number(direct);
-  if (Number.isFinite(directNumber) && directNumber > 0) return directNumber;
+  if (Number.isFinite(directNumber) && directNumber >= 0) return directNumber;
 
   const costValue = firstByKeys(objects, ['cost']);
   if (costValue && typeof costValue === 'object') {
@@ -1021,10 +1021,10 @@ function extractCost(result) {
       'amount', 'value', 'price',
     ]);
     const nestedNumber = Number(nested);
-    if (Number.isFinite(nestedNumber) && nestedNumber > 0) return nestedNumber;
+    if (Number.isFinite(nestedNumber) && nestedNumber >= 0) return nestedNumber;
   } else {
     const costNumber = Number(costValue);
-    if (Number.isFinite(costNumber) && costNumber > 0) return costNumber;
+    if (Number.isFinite(costNumber) && costNumber >= 0) return costNumber;
   }
 
   // MCP implementations sometimes wrap their JSON result in a nested string.
@@ -1049,11 +1049,11 @@ function extractCost(result) {
   for (const textValue of strings) {
     const text = String(textValue || '');
     const keyed = text.match(/["']?(?:credits_exact|cost_credits|credit_cost|credits_cost|estimated_credits|estimated_cost|total_credits|credits_required|credits|price)["']?\s*[:=]\s*["']?([0-9]+(?:\.[0-9]+)?)/i);
-    if (keyed && Number(keyed[1]) > 0) return Number(keyed[1]);
+    if (keyed && Number(keyed[1]) >= 0) return Number(keyed[1]);
 
     const match = text.match(/(?:cost|price)\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:credits?)?/i)
       || text.match(/([0-9]+(?:\.[0-9]+)?)\s*credits?/i);
-    if (match && Number(match[1]) > 0) return Number(match[1]);
+    if (match && Number(match[1]) >= 0) return Number(match[1]);
   }
   return null;
 }
@@ -1635,7 +1635,7 @@ async function estimateHiggsfieldCost(publicModelId, mediaType, input = {}) {
   return withAuthenticatedClient(async client => {
     const result = await client.callTool({ name: tool.name, arguments: args }, { timeout: 30000 });
     const cost = extractCost(result);
-    if (!Number.isFinite(Number(cost)) || Number(cost) <= 0) {
+    if (!Number.isFinite(Number(cost)) || Number(cost) < 0) {
       const error = new Error('The generation cost could not be read from the model provider.');
       error.statusCode = 502;
       throw error;
