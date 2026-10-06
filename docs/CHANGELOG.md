@@ -317,3 +317,15 @@
 - Tightened generation-tool detection and model-family recognition.
 - Added customer-side catalog filtering for previously stored bad rows.
 - Added automatic quarantine of old utility-tool rows during the next Higgsfield sync.
+
+
+## 2026-10-06 — Switch Higgsfield sync to models_explore
+
+- Replaced heuristic MCP-tool-as-model discovery with the authoritative `models_explore` image/video catalog.
+- Mapped live model durations, duration ranges, resolutions, aspect ratios, media roles, provider labels, and defaults into the dynamic provider catalog.
+- Added `catalogVerified` provenance so new Higgsfield model families can appear without static code changes.
+- Routed synced image/video models through the generic `generate_image` and `generate_video` MCP tools using their `params` payload contract.
+- Added Higgsfield `media_upload` → PUT → `media_confirm` handling for reference images.
+- Added model-specific media-role validation before reserving customer credits.
+- Added support for nested `cost.credits_exact` pricing and top-level generation job `id`.
+- Admin now shows only authoritative/current Higgsfield catalog rows.
