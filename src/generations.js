@@ -577,6 +577,10 @@ async function deleteUserGeneration(userId, generationId) {
       'DELETE FROM generation_images WHERE generation_id = ?',
       [generationId],
     );
+    await conn.execute(
+      'DELETE FROM generation_media WHERE generation_id = ?',
+      [generationId],
+    );
 
     const [deleted] = await conn.execute(
       'DELETE FROM generations WHERE id = ? AND user_id = ?',
