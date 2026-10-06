@@ -420,7 +420,7 @@ const server=http.createServer(async (req,res)=>{
         mode:mediaType==='image'?'text-to-image':'text-to-video',
       });
       const customerCost=roundCredits(sourceCost);
-      if (!Number.isFinite(Number(customerCost)) || Number(customerCost)<=0) {
+      if (!Number.isFinite(Number(customerCost)) || Number(customerCost)<0) {
         return sendJson(res,502,{ok:false,error:'The model cost could not be calculated.'});
       }
       return sendJson(res,200,{ok:true,cost:Number(customerCost)});
