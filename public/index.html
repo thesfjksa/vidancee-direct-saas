@@ -1346,33 +1346,49 @@ function clearReferenceItems(){
   $('imagePreview').innerHTML='';
 }
 
-function freshReferenceItem(file){
+function freshReferenceItem(file,role=''){
   return {
     key:'fresh-'+(++referenceItemSeq),
     kind:'fresh',
     file,
     filename:file.name||'reference-image',
     url:URL.createObjectURL(file),
+    role,
   };
 }
 
-function reusedReferenceItem(image){
+function reusedReferenceItem(image,role=''){
   return {
     key:'reused-'+Number(image.id),
     kind:'reused',
     id:Number(image.id),
     filename:image.filename||'Reference image',
     url:image.url,
+    role,
   };
 }
 
 function addReferenceFiles(fileList){
-  const incoming=[...fileList].filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
-  const invalid=[...fileList].length-incoming.length;
-  const slots=Math.max(0,6-referenceItems.length);
+  const model=currentVideoModel();
+  const cap=normalizedClientCapabilities(model,'video').image;
+  if(!cap.supported){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='The selected model does not accept image references.';
+    $('imageInput').value='';
+    return;
+  }
+
+  const all=[...fileList];
+  const incoming=all.filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
+  const invalid=all.length-incoming.length;
+  const max=cap.max||6;
+  const slots=Math.max(0,max-referenceItems.length);
   const accepted=incoming.slice(0,slots);
 
-  referenceItems.push(...accepted.map(freshReferenceItem));
+  for(const file of accepted){
+    const role=defaultImageRole(cap,referenceItems.length);
+    referenceItems.push(freshReferenceItem(file,role));
+  }
   $('imageInput').value='';
   renderReferencePreview();
 
@@ -1381,16 +1397,24 @@ function addReferenceFiles(fileList){
     $('genMsg').textContent='Reference images must be JPEG, PNG, or WebP.';
   }else if(incoming.length>slots){
     $('genMsg').className='msg err';
-    $('genMsg').textContent='Maximum 6 reference images are allowed.';
+    $('genMsg').textContent='This model accepts at most '+max+' reference image'+(max===1?'':'s')+'.';
   }else{
     $('genMsg').className='msg muted';
     $('genMsg').textContent=referenceItems.length>1?'Drag thumbnails to change their order.':'';
   }
+  updateCost();
 }
 
 function renderReferencePreview(){
-  $('imagePreview').innerHTML=referenceItems.map(item=>
-    '<div class="image-chip" draggable="true" data-reference-key="'+escapeHtml(item.key)+'" '+
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').image;
+  const roles=cap.roles||[];
+  $('imagePreview').innerHTML=referenceItems.map(item=>{
+    const roleControl=roles.length>1
+      ?'<select class="reference-role" onchange="setReferenceRole(\''+escapeHtml(item.key)+'\',this.value,event)">'+roles.map(role=>
+          '<option value="'+escapeHtml(role)+'" '+(role===item.role?'selected':'')+'>'+escapeHtml(roleLabel(role))+'</option>'
+        ).join('')+'</select>'
+      :'<span class="reference-role-label">'+escapeHtml(roleLabel(item.role||roles[0]||'image_references'))+'</span>';
+    return '<div class="image-chip" draggable="true" data-reference-key="'+escapeHtml(item.key)+'" '+
       'ondragstart="referenceDragStart(event,\''+escapeHtml(item.key)+'\')" '+
       'ondragover="referenceDragOver(event,\''+escapeHtml(item.key)+'\')" '+
       'ondragleave="referenceDragLeave(event)" '+
@@ -1401,10 +1425,36 @@ function renderReferencePreview(){
       '<button type="button" class="remove-reference" onclick="removeReferenceItem(\''+escapeHtml(item.key)+'\',event)" title="Remove reference image" aria-label="Remove reference image">×</button>'+
       '<button type="button" class="drag-reference" onpointerdown="referencePointerStart(event,\''+escapeHtml(item.key)+'\')" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</button>'+
       '<div class="image-name">'+escapeHtml(item.filename)+'</div>'+
-    '</div>'
-  ).join('')+(referenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to set the reference-image order.</div>':'');
+      roleControl+
+    '</div>';
+  }).join('')+(referenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to set their provider order. Use the role selector when the model supports start/end frames.</div>':'');
 
   if(!referenceItems.some(item=>item.kind==='reused'))reusedReferenceGenerationId=null;
+}
+
+function setReferenceRole(key,role,event){
+  if(event){event.preventDefault();event.stopPropagation()}
+  const item=referenceItems.find(x=>x.key===key);
+  if(!item)return;
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').image;
+  if(!cap.roles.includes(role))return;
+
+  if(['start_image','end_image','reference_image'].includes(role)){
+    const existing=referenceItems.find(x=>x.key!==key&&x.role===role);
+    if(existing){
+      const fallback=cap.roles.includes('image_references')?'image_references':cap.roles.find(r=>r!==role&&!['start_image','end_image','reference_image'].includes(r));
+      if(fallback)existing.role=fallback;
+      else {
+        $('genMsg').className='msg err';
+        $('genMsg').textContent='Only one '+roleLabel(role).toLowerCase()+' is allowed.';
+        renderReferencePreview();
+        return;
+      }
+    }
+  }
+  item.role=role;
+  renderReferencePreview();
+  updateCost();
 }
 
 function removeReferenceItem(key,event){
@@ -1419,6 +1469,7 @@ function removeReferenceItem(key,event){
   renderReferencePreview();
   $('genMsg').className='msg muted';
   $('genMsg').textContent=referenceItems.length>1?'Drag thumbnails to change their order.':'';
+  updateCost();
 }
 
 function moveReferenceItem(sourceKey,targetKey,after=false){
