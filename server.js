@@ -237,6 +237,18 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
 
+    if (req.method==='GET' && routePath==='/admin/higgsfield/oauth/callback') {
+      requireDatabase();
+      try {
+        const callbackUrl=publicOrigin(req)+'/admin/higgsfield/oauth/callback';
+        await finishHiggsfieldAuthorization({params:url.searchParams,redirectUrl:callbackUrl});
+        return sendHtml(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1;url=/admin-console?higgsfield=connected"><title>Connected</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Account connected</h2><p>You can return to Admin. Sync Models will load the available catalog.</p></body></html>`);
+      } catch(error) {
+        console.error('Higgsfield OAuth callback failed:',error?.message||error);
+        return sendHtml(res,400,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=/admin-console?higgsfield=failed"><title>Connection failed</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Connection failed</h2><p>Return to Admin and start the connection again.</p></body></html>`);
+      }
+    }
+
     const providerAssetMatch=routePath.match(/^\/provider-assets\/([0-9a-f-]{36})\/(\d+)$/i);
     if (req.method==='GET' && providerAssetMatch) {
       requireDatabase();
@@ -265,25 +277,35 @@ const server=http.createServer(async (req,res)=>{
       const database=await dbHealth();
       let generationBackendReady=false;
       let generationEnabled=false;
+      let imageGenerationReady=false;
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
+        let higgsfieldImageReady=false;
+        if (providerSettings.higgsfield.active) {
+          try {
+            const catalog=await publicProviderCatalog('higgsfield');
+            higgsfieldImageReady=catalog.image.length>0;
+          } catch {}
+        }
         generationBackendReady=Boolean(
           providerSettings.vidancee.active ||
           providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
-          providerSettings.atlascloud.active
+          providerSettings.atlascloud.active ||
+          providerSettings.higgsfield.active
         );
+        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady);
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
         ok:true,
         app:'mehroz-ai',
-        milestone:4,
+        milestone:5,
         node:process.version,
         database,
         services:{
           generationBackendReady,
-          imageGenerationReady: Boolean(database.connected && (await getAdminProviderSettings()).atlascloud.active),
+          imageGenerationReady,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           generationEnabled,
         },
@@ -301,17 +323,30 @@ const server=http.createServer(async (req,res)=>{
       if (dbConfigured()) {
         try {
           const providerSettings=await getAdminProviderSettings();
-          const seedanceActive=Boolean(providerSettings.vidancee.active || providerSettings.createpulse.active);
-          const h3Active=Boolean(providerSettings.vgenv.active);
+          const seedanceFallbackActive=Boolean(providerSettings.vidancee.active || providerSettings.createpulse.active);
+          const h3FallbackActive=Boolean(providerSettings.vgenv.active);
 
           videoPricing=videoPricing.filter(model=>{
-            if (model.id==='minimax_h3') return h3Active;
-            if (model.id==='seedance_2.5' || model.id==='seedance_2.0_fast') return seedanceActive;
+            if (model.id==='minimax_h3') return h3FallbackActive;
+            if (model.id==='seedance_2.5' || model.id==='seedance_2.0_fast') return seedanceFallbackActive;
             return true;
           });
 
-          if (!providerSettings.atlascloud.active) {
-            imagePricing=[];
+          if (!providerSettings.atlascloud.active) imagePricing=[];
+
+          if (providerSettings.higgsfield.active) {
+            const catalog=await publicProviderCatalog('higgsfield');
+            const mergeById=(base,extra)=>{
+              const out=[...base];
+              for(const item of extra){
+                const index=out.findIndex(existing=>existing.id===item.id);
+                if(index>=0)out[index]=item;
+                else out.push(item);
+              }
+              return out;
+            };
+            videoPricing=mergeById(videoPricing,catalog.video);
+            imagePricing=mergeById(imagePricing,catalog.image);
           }
         } catch {
           // Keep public config usable during transient database/provider-setting issues.
@@ -327,6 +362,33 @@ const server=http.createServer(async (req,res)=>{
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
         plans:publicPlans(),
       });
+    }
+
+    if (req.method==='POST' && routePath==='/api/model-cost') {
+      requireDatabase();
+      await requireUser(req);
+      const body=await readJson(req);
+      const mediaType=body.mediaType==='image'?'image':'video';
+      const providerSettings=await getAdminProviderSettings();
+      if (!providerSettings.higgsfield.active) {
+        return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
+      }
+
+      const model=await getProviderModelByPublicId('higgsfield',String(body.model||''),mediaType);
+      if (!model) return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
+
+      const sourceCost=await estimateHiggsfieldCost(model.publicModelId,mediaType,{
+        prompt:String(body.prompt||'Cost estimate'),
+        duration:Number(body.duration||0),
+        resolution:String(body.resolution||''),
+        aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
+        mode:mediaType==='image'?'text-to-image':'text-to-video',
+      });
+      const customerCost=sourceToCustomerCredits(sourceCost);
+      if (!Number.isFinite(Number(customerCost)) || Number(customerCost)<=0) {
+        return sendJson(res,502,{ok:false,error:'The model cost could not be calculated.'});
+      }
+      return sendJson(res,200,{ok:true,cost:Number(customerCost)});
     }
 
     if (req.method==='POST' && routePath==='/api/auth/register') {
