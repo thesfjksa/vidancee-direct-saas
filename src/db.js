@@ -147,6 +147,26 @@ async function initDb() {
       KEY idx_plan_requests_user_created (user_id, created_at),
       KEY idx_plan_requests_status_created (status, created_at),
       CONSTRAINT fk_plan_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS provider_models (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      provider VARCHAR(40) NOT NULL,
+      provider_model_id VARCHAR(191) NOT NULL,
+      public_model_id VARCHAR(100) NOT NULL,
+      label VARCHAR(191) NOT NULL,
+      media_type VARCHAR(20) NOT NULL,
+      tool_name VARCHAR(191) NOT NULL,
+      input_schema LONGTEXT NULL,
+      options_json LONGTEXT NULL,
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
+      last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_provider_models_provider_model_media (provider, provider_model_id, media_type),
+      KEY idx_provider_models_public (provider, public_model_id, media_type),
+      KEY idx_provider_models_enabled (provider, media_type, enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ];
 
