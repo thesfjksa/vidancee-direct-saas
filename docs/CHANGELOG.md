@@ -345,3 +345,11 @@
 - Added bounded retries for transient MCP network failures.
 - Added safe cause-chain reporting for persistent MCP network errors.
 - Kept OAuth authorization errors separate from network retries.
+
+
+## 2026-10-06 — Improve Higgsfield MCP transport compatibility
+
+- Added a browser-like User-Agent to all Higgsfield MCP Streamable HTTP requests for Cloudflare/WAF compatibility.
+- Kept OAuth and MCP transport headers controlled by the official SDK.
+- Added parsing for fenced/annotated JSON returned inside MCP text blocks.
+- Improved model-sync errors so Admin shows the real safe failure reason from `models_explore`.
