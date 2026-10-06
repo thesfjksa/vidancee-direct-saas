@@ -135,7 +135,15 @@ async function createGenerationForUser(userId, input, options = {}) {
     throw error;
   }
 
-  validateAspectRatio(aspectRatio);
+  if (options.dynamicModel) {
+    if (!aspectRatio || aspectRatio.length > 30) {
+      const error = new Error('Unsupported aspect ratio.');
+      error.statusCode = 400;
+      throw error;
+    }
+  } else {
+    validateAspectRatio(aspectRatio);
+  }
 
   const dynamicCost = Number(options.costOverride);
   const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost > 0;
