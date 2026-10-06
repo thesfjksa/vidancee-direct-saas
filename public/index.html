@@ -861,7 +861,10 @@ async function submitAuth(){
   m.textContent='Please wait...';
   try{
     const d=await api('/api/auth/'+authMode,{method:'POST',body:JSON.stringify({email:$('email').value,password:$('password').value})});
-    me=d.user;enterApp();
+    me=d.user;
+    // Reload config after authentication so per-customer source/model assignments apply immediately.
+    config=await api('/api/config');
+    enterApp();
   }catch(e){m.className='msg err';m.textContent=e.message}
 }
 
