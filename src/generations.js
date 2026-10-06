@@ -29,7 +29,7 @@ function serializeGeneration(row) {
   };
 }
 
-function normalizeReuseImageIds(value) {
+function normalizeReuseImageIds(value, maxImages = 6) {
   if (value == null || value === '') return [];
   let parsed = value;
   if (typeof value === 'string') {
@@ -46,15 +46,15 @@ function normalizeReuseImageIds(value) {
     throw error;
   }
   const ids = [...new Set(parsed.map(Number).filter(id => Number.isInteger(id) && id > 0))];
-  if (ids.length > 6) {
-    const error = new Error('A maximum of 6 reference images is allowed.');
+  if (ids.length > maxImages) {
+    const error = new Error('A maximum of ' + maxImages + ' reference images is allowed.');
     error.statusCode = 400;
     throw error;
   }
   return ids;
 }
 
-function normalizeReferenceOrder(value) {
+function normalizeReferenceOrder(value, maxImages = 6) {
   if (value == null || value === '') return [];
   let parsed = value;
   if (typeof value === 'string') {
@@ -65,7 +65,7 @@ function normalizeReferenceOrder(value) {
       throw error;
     }
   }
-  if (!Array.isArray(parsed) || parsed.length > 6) {
+  if (!Array.isArray(parsed) || parsed.length > maxImages) {
     const error = new Error('Invalid reference image order.');
     error.statusCode = 400;
     throw error;
@@ -84,7 +84,7 @@ function normalizeReferenceOrder(value) {
         error.statusCode = 400;
         throw error;
       }
-      return { kind: 'reused', id };
+      return { kind: 'reused', id, role: String(item.role || '').trim() };
     }
     if (item.kind === 'fresh') {
       const index = Number(item.index);
@@ -93,12 +93,112 @@ function normalizeReferenceOrder(value) {
         error.statusCode = 400;
         throw error;
       }
-      return { kind: 'fresh', index };
+      return { kind: 'fresh', index, role: String(item.role || '').trim() };
     }
     const error = new Error('Invalid reference image order.');
     error.statusCode = 400;
     throw error;
   });
+}
+
+function parseRoleList(value, maxItems = 24) {
+  if (value == null || value === '') return [];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); }
+    catch {
+      const error = new Error('Invalid reference-role selection.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length > maxItems) {
+    const error = new Error('Invalid reference-role selection.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return parsed.map(role => String(role || '').trim());
+}
+
+function normalizeReferenceCapabilities(options = {}) {
+  const raw = options.referenceCapabilities && typeof options.referenceCapabilities === 'object'
+    ? options.referenceCapabilities
+    : {};
+  const normalizeKind = kind => {
+    const source = raw[kind] && typeof raw[kind] === 'object' ? raw[kind] : {};
+    return {
+      supported: source.supported === true,
+      max: Math.max(0, Number(source.max || 0)),
+      min: Math.max(0, Number(source.min || 0)),
+      roles: Array.isArray(source.roles) ? source.roles.map(String) : [],
+      requiredRoles: Array.isArray(source.requiredRoles) ? source.requiredRoles.map(String) : [],
+    };
+  };
+  return {
+    totalMax: Math.max(0, Number(raw.totalMax || 0)),
+    image: normalizeKind('image'),
+    video: normalizeKind('video'),
+    audio: normalizeKind('audio'),
+  };
+}
+
+function validateAssignedRoles(kind, assignedRoles, capability) {
+  const count = assignedRoles.length;
+  if (!count) {
+    if (capability.min > 0 || capability.requiredRoles.length) {
+      const error = new Error('This model requires a ' + kind + ' reference.');
+      error.statusCode = 400;
+      throw error;
+    }
+    return;
+  }
+
+  if (!capability.supported) {
+    const error = new Error('This model does not accept ' + kind + ' references.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (capability.max > 0 && count > capability.max) {
+    const error = new Error('This model accepts at most ' + capability.max + ' ' + kind + ' reference' + (capability.max === 1 ? '' : 's') + '.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (capability.min > 0 && count < capability.min) {
+    const error = new Error('This model requires at least ' + capability.min + ' ' + kind + ' reference' + (capability.min === 1 ? '' : 's') + '.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const allowed = new Set(capability.roles);
+  const seenFixed = new Set();
+  for (const role of assignedRoles) {
+    if (!role || (allowed.size && !allowed.has(role))) {
+      const error = new Error('Unsupported ' + kind + ' reference role.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (['start_image','end_image','reference_image','reference_video'].includes(role)) {
+      if (seenFixed.has(role)) {
+        const error = new Error('Only one ' + role.replace(/_/g,' ') + ' is allowed.');
+        error.statusCode = 400;
+        throw error;
+      }
+      seenFixed.add(role);
+    }
+  }
+
+  for (const required of capability.requiredRoles) {
+    if (!assignedRoles.includes(required)) {
+      const error = new Error('This model requires a ' + required.replace(/_/g,' ') + '.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (assignedRoles.includes('end_image') && capability.roles.includes('start_image') && !assignedRoles.includes('start_image')) {
+    const error = new Error('End image requires a start image for this model.');
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 async function createGenerationForUser(userId, input, options = {}) {
@@ -108,12 +208,28 @@ async function createGenerationForUser(userId, input, options = {}) {
   const requestedResolution = String(input.resolution || '').trim();
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
   const freshImages = Array.isArray(input.images) ? input.images : [];
+  const freshVideos = Array.isArray(input.videos) ? input.videos : [];
+  const capabilities = normalizeReferenceCapabilities(options);
+  const maxImages = options.dynamicModel
+    ? Math.max(capabilities.image.max || 0, freshImages.length, 1)
+    : 6;
   const reuseGenerationId = String(input.reuseGenerationId || input.reuse_generation_id || '').trim();
-  const reuseImageIds = normalizeReuseImageIds(input.reuseImageIds || input.reuse_image_ids || '');
-  const referenceOrder = normalizeReferenceOrder(input.referenceOrder || input.reference_order || '');
+  const reuseImageIds = normalizeReuseImageIds(input.reuseImageIds || input.reuse_image_ids || '', maxImages);
+  const referenceOrder = normalizeReferenceOrder(input.referenceOrder || input.reference_order || '', maxImages);
+  const videoRoles = parseRoleList(input.videoRoles || input.video_roles || '', 24);
 
-  if (freshImages.length + reuseImageIds.length > 6) {
+  if (!options.dynamicModel && freshImages.length + reuseImageIds.length > 6) {
     const error = new Error('A maximum of 6 reference images is allowed in total.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!options.dynamicModel && freshVideos.length) {
+    const error = new Error('This model does not accept video references.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (options.dynamicModel && videoRoles.length !== freshVideos.length) {
+    const error = new Error('Video reference roles do not match the uploaded videos.');
     error.statusCode = 400;
     throw error;
   }
@@ -260,7 +376,7 @@ async function createGenerationForUser(userId, input, options = {}) {
             throw error;
           }
           seenReused.add(item.id);
-          return { kind: 'reused', image };
+          return { kind: 'reused', image, role: item.role };
         }
 
         const image = freshImages[item.index];
@@ -270,7 +386,7 @@ async function createGenerationForUser(userId, input, options = {}) {
           throw error;
         }
         seenFresh.add(item.index);
-        return { kind: 'fresh', image };
+        return { kind: 'fresh', image, role: item.role };
       });
 
       if (seenReused.size !== reusedImages.length || seenFresh.size !== freshImages.length) {
@@ -280,8 +396,25 @@ async function createGenerationForUser(userId, input, options = {}) {
       }
     }
 
+    if (options.dynamicModel && orderedImages.length && !referenceOrder.length) {
+      const fallbackRole = capabilities.image.roles[0] || '';
+      orderedImages = orderedImages.map(entry => ({...entry, role:fallbackRole}));
+    }
+
+    if (options.dynamicModel) {
+      const imageRoles = orderedImages.map(entry => String(entry.role || ''));
+      validateAssignedRoles('image', imageRoles, capabilities.image);
+      validateAssignedRoles('video', videoRoles, capabilities.video);
+      const totalRefs = orderedImages.length + freshVideos.length;
+      if (capabilities.totalMax > 0 && totalRefs > capabilities.totalMax) {
+        const error = new Error('This model accepts at most ' + capabilities.totalMax + ' total reference files.');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
     const allImageCount = orderedImages.length;
-    const mode = allImageCount > 0 ? 'image-to-video' : 'text-to-video';
+    const mode = (allImageCount > 0 || freshVideos.length > 0) ? 'reference-to-video' : 'text-to-video';
 
     await conn.execute(
       `INSERT INTO generations
@@ -305,6 +438,32 @@ async function createGenerationForUser(userId, input, options = {}) {
         [id, position, image.filename, mimeType, imageData],
       );
       position += 1;
+    }
+
+    if (options.dynamicModel) {
+      let mediaPosition = 0;
+      for (const entry of orderedImages) {
+        const image = entry.image;
+        const mimeType = entry.kind === 'reused' ? image.mime_type : image.mimeType;
+        const imageData = entry.kind === 'reused' ? image.image_data : image.data;
+        await conn.execute(
+          `INSERT INTO generation_media
+           (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
+           VALUES (?,?,?,?,?,?,?)`,
+          [id, mediaPosition, 'image', String(entry.role || ''), image.filename, mimeType, imageData],
+        );
+        mediaPosition += 1;
+      }
+      for (let i = 0; i < freshVideos.length; i += 1) {
+        const video = freshVideos[i];
+        await conn.execute(
+          `INSERT INTO generation_media
+           (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
+           VALUES (?,?,?,?,?,?,?)`,
+          [id, mediaPosition, 'video', String(videoRoles[i] || ''), video.filename, video.mimeType, video.data],
+        );
+        mediaPosition += 1;
+      }
     }
 
     await conn.execute('UPDATE users SET credits = credits - ? WHERE id = ?', [cost, userId]);
