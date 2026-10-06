@@ -419,7 +419,7 @@ const server=http.createServer(async (req,res)=>{
         aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
         mode:mediaType==='image'?'text-to-image':'text-to-video',
       });
-      const customerCost=sourceToCustomerCredits(sourceCost);
+      const customerCost=roundCredits(sourceCost);
       if (!Number.isFinite(Number(customerCost)) || Number(customerCost)<=0) {
         return sendJson(res,502,{ok:false,error:'The model cost could not be calculated.'});
       }
@@ -577,7 +577,7 @@ const server=http.createServer(async (req,res)=>{
             aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
             mode:Array.isArray(body.images)&&body.images.length?'reference-to-image':'text-to-image',
           });
-          const customerCost=sourceToCustomerCredits(sourceCost);
+          const customerCost=roundCredits(sourceCost);
           generation=await createImageGenerationForUser(user.id,body,{
             provider:'higgsfield',
             dynamicModel:true,
@@ -661,7 +661,7 @@ const server=http.createServer(async (req,res)=>{
             aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
             mode:hasReferences?'reference-to-video':'text-to-video',
           });
-          const customerCost=sourceToCustomerCredits(sourceCost);
+          const customerCost=roundCredits(sourceCost);
           generation=await createGenerationForUser(user.id,body,{
             provider:'higgsfield',
             dynamicModel:true,
