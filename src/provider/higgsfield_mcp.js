@@ -1008,14 +1008,18 @@ function extractCost(result) {
 
   const direct = firstByKeys(objects, [
     'credits_exact', 'cost_credits', 'credit_cost', 'credits_cost',
-    'estimated_credits', 'estimated_cost', 'credits', 'price',
+    'estimated_credits', 'estimated_cost', 'total_credits', 'credits_required',
+    'credits', 'price',
   ]);
   const directNumber = Number(direct);
   if (Number.isFinite(directNumber) && directNumber > 0) return directNumber;
 
   const costValue = firstByKeys(objects, ['cost']);
   if (costValue && typeof costValue === 'object') {
-    const nested = firstByKeys([costValue], ['credits_exact', 'credits', 'amount', 'value', 'price']);
+    const nested = firstByKeys([costValue], [
+      'credits_exact', 'credits', 'total_credits', 'credits_required',
+      'amount', 'value', 'price',
+    ]);
     const nestedNumber = Number(nested);
     if (Number.isFinite(nestedNumber) && nestedNumber > 0) return nestedNumber;
   } else {
@@ -1023,8 +1027,30 @@ function extractCost(result) {
     if (Number.isFinite(costNumber) && costNumber > 0) return costNumber;
   }
 
-  for (const obj of objects) {
-    const text = String(obj?.__text || '');
+  // MCP implementations sometimes wrap their JSON result in a nested string.
+  // Inspect all strings, not only top-level text blocks.
+  const strings = [];
+  const collectStrings = (value, depth = 0) => {
+    if (depth > 8 || value == null) return;
+    if (typeof value === 'string') {
+      strings.push(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) collectStrings(item, depth + 1);
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const child of Object.values(value)) collectStrings(child, depth + 1);
+    }
+  };
+  collectStrings(result);
+
+  for (const textValue of strings) {
+    const text = String(textValue || '');
+    const keyed = text.match(/["']?(?:credits_exact|cost_credits|credit_cost|credits_cost|estimated_credits|estimated_cost|total_credits|credits_required|credits|price)["']?\s*[:=]\s*["']?([0-9]+(?:\.[0-9]+)?)/i);
+    if (keyed && Number(keyed[1]) > 0) return Number(keyed[1]);
+
     const match = text.match(/(?:cost|price)\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:credits?)?/i)
       || text.match(/([0-9]+(?:\.[0-9]+)?)\s*credits?/i);
     if (match && Number(match[1]) > 0) return Number(match[1]);
