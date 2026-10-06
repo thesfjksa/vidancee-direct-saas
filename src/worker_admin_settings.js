@@ -315,6 +315,7 @@ class GenerationWorker {
   }
 
   async syncHiggsfield(db) {
+    if (!this.higgsfieldConnected) return;
     const [rows] = await db.query(
       "SELECT * FROM generations WHERE provider='higgsfield' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY updated_at ASC LIMIT 12"
     );
