@@ -1537,3 +1537,36 @@ The sync flow now uses this order:
 The official fallback intentionally excludes analysis/background-removal-style utilities from the customer generation selector. It includes the main current image/video generation families such as GPT Image, Nano Banana, Seedream, Soul, Flux, Recraft, Kling image, Seedance, Kling video, Veo, Gemini Omni, Wan, MiniMax/Hailuo, Grok video, Cinema Studio, and Marketing Studio.
 
 Fallback models are marked `catalogVerified` because their IDs are sourced from Higgsfield's official CLI/Skills repository rather than inferred from MCP utility tool names. The Admin success message reports `via official-cli-fallback` when this path is used.
+
+
+### Current Higgsfield deployment status — 2026-10-06
+
+Latest live test status:
+
+- Higgsfield OAuth connection is successful; Admin shows `Account: connected`.
+- The connected account exposes a large MCP tool surface, but `models_explore` did not return a usable full catalog for the attempted list flow.
+- Previous heuristic discovery incorrectly surfaced workflow/utility tools as sellable models; those paths are now filtered/quarantined.
+- The current implementation therefore uses the official Higgsfield CLI/Skills generation catalog as the model-list fallback while keeping all real generation activity on the authenticated MCP account.
+- Actual image/video generation, live cost checks, reference-media upload/confirmation, and job polling still go through Higgsfield MCP and consume the connected account's credits.
+- The provider-wide Admin ON/OFF switch and per-model Show/Hide controls remain authoritative for customer visibility.
+- Higgsfield stays primary for overlapping synced/fallback models while enabled; existing sources remain fallback when Higgsfield is switched off.
+
+Current sync order:
+
+1. attempt live `models_explore`
+2. if it returns no usable catalog, use the current official Higgsfield CLI/Skills generation model IDs and metadata
+3. bind those models to the live MCP `generate_image` / `generate_video` tools
+4. use live MCP `get_cost` before customer debit
+5. apply the universal source-credit × 2.5 customer-credit rule
+6. submit through the authenticated Higgsfield account and poll the returned job
+
+Current operational next step after deployment:
+
+1. hard-refresh Admin
+2. keep Higgsfield connected
+3. press **Sync models**
+4. expect the success message to identify either `models_explore` or `official-cli-fallback`
+5. verify the Admin catalog contains actual generation models such as Seedance/Kling/Veo/Nano Banana rather than MCP workflow utilities
+6. run one low-cost generation before increasing concurrency
+
+Do not reconnect the account unless OAuth itself stops working; model-catalog sync failures alone do not require reconnecting.
