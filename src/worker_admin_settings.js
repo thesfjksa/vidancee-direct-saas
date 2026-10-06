@@ -455,6 +455,7 @@ class GenerationWorker {
       } catch (error) {
         console.error('Higgsfield MCP submission failed for', job.id, error);
         await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
+        await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
       }
     }
     return slots;
