@@ -35,7 +35,7 @@ function canonicalPublicModelId(providerModelId, label = '', mediaType = 'video'
   if (/minimax[^\n]*(h3|hailuo[^\n]*3)/.test(hay)) return 'minimax_h3';
 
   const base = slug(providerModelId || label);
-  return 'hf_' + (base || mediaType + '_model');
+  return 'ai_' + (base || mediaType + '_model');
 }
 
 function normalizeNumberList(values) {
