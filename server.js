@@ -242,7 +242,15 @@ const server=http.createServer(async (req,res)=>{
       try {
         const callbackUrl=publicOrigin(req)+'/admin/higgsfield/oauth/callback';
         await finishHiggsfieldAuthorization({params:url.searchParams,redirectUrl:callbackUrl});
-        return sendHtml(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1;url=/admin-console?higgsfield=connected"><title>Connected</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Account connected</h2><p>You can return to Admin. Sync Models will load the available catalog.</p></body></html>`);
+        let syncMessage='Your account is connected.';
+        try {
+          const synced=await syncHiggsfieldModels();
+          syncMessage='Connected and synced '+synced.modelCount+' available models.';
+        } catch(syncError) {
+          console.error('Initial Higgsfield model sync failed:',syncError?.message||syncError);
+          syncMessage='Connected successfully. If models do not appear yet, use Sync models in Admin.';
+        }
+        return sendHtml(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/admin-console?higgsfield=connected"><title>Connected</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Account connected</h2><p>${syncMessage}</p></body></html>`);
       } catch(error) {
         console.error('Higgsfield OAuth callback failed:',error?.message||error);
         return sendHtml(res,400,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=/admin-console?higgsfield=failed"><title>Connection failed</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Connection failed</h2><p>Return to Admin and start the connection again.</p></body></html>`);
@@ -1043,7 +1051,7 @@ server.on('error',(error)=>{console.error('HTTP server failed:',error);process.e
 function bootstrap() {
   // Start HTTP immediately so Hostinger can route traffic even if MySQL is
   // temporarily unavailable or misconfigured.
-  server.listen(port,host,()=>console.log('mehroz-ai milestone 4 listening on '+host+':'+port));
+  server.listen(port,host,()=>console.log('mehroz-ai milestone 5 listening on '+host+':'+port));
 
   if (!dbConfigured()) {
     console.warn('MySQL not configured yet. Public UI will load, but account/generation APIs are unavailable.');
