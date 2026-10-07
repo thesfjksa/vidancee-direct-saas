@@ -333,15 +333,16 @@ textarea:focus,input:focus,select:focus{
 /* Premium model picker drawer for model selectors. */
 .custom-select.model-picker .custom-select-menu{
   position:fixed;
-  top:18px;right:auto;bottom:18px;left:18px;
+  top:96px;right:auto;bottom:auto;left:340px;
   margin:0;
-  width:min(520px,calc(100vw - 36px));
-  max-height:none;
+  width:min(520px,calc(100vw - 372px));
+  height:min(700px,calc(100vh - 150px));
+  max-height:calc(100vh - 150px);
   padding:10px;
   border:1px solid #30333a;
   border-radius:16px;
   background:#121316;
-  box-shadow:0 22px 70px rgba(0,0,0,.68);
+  box-shadow:0 22px 70px rgba(0,0,0,.58);
   overflow:hidden;
   z-index:520;
   display:none;
@@ -350,10 +351,10 @@ textarea:focus,input:focus,select:focus{
   scrollbar-color:#343740 #121316;
 }
 .custom-select.model-picker .custom-select-menu::backdrop{
-  background:rgba(0,0,0,.56);
-  backdrop-filter:blur(1px);
+  background:rgba(0,0,0,.16);
+  backdrop-filter:none;
 }
-.custom-select.model-picker.drop-up .custom-select-menu{top:18px;bottom:18px}
+.custom-select.model-picker.drop-up .custom-select-menu{top:96px;bottom:auto}
 .custom-select.model-picker.open .custom-select-menu{
   display:flex;
   animation:modelDrawerIn .18s cubic-bezier(.2,.75,.3,1);
@@ -436,26 +437,35 @@ textarea:focus,input:focus,select:focus{
 .custom-select.model-picker .custom-select-empty{padding:30px 10px}
 .model-picker-options{
   min-height:0;flex:1 1 auto;
-  overflow-y:scroll;overflow-x:hidden;
-  padding:0 8px 4px 2px;
+  overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;
+  padding:0 10px 6px 2px;
   scrollbar-width:auto;
-  scrollbar-color:#565b65 #181a1e;
+  scrollbar-color:#7a808b #1a1c20;
   scrollbar-gutter:stable;
 }
-.model-picker-options::-webkit-scrollbar{width:10px}
+.model-picker-options::-webkit-scrollbar{width:12px}
 .model-picker-options::-webkit-scrollbar-track{
-  background:#181a1e;border-radius:999px;
+  background:#1a1c20;border-radius:999px;
 }
 .model-picker-options::-webkit-scrollbar-thumb{
-  background:#565b65;border:2px solid #181a1e;border-radius:999px;
+  background:#6f7580;border:2px solid #1a1c20;border-radius:999px;
+  min-height:44px;
 }
-.model-picker-options::-webkit-scrollbar-thumb:hover{background:#737986}
-@media(max-width:700px){
+.model-picker-options::-webkit-scrollbar-thumb:hover{background:#8b929d}
+@media(max-width:900px){
   .custom-select.model-picker .custom-select-menu{
-    top:8px;right:auto;bottom:8px;left:8px;width:calc(100vw - 16px);
+    top:76px;right:12px;bottom:auto;left:12px;
+    width:auto;height:min(680px,calc(100vh - 100px));max-height:calc(100vh - 100px);
     border-radius:14px;
   }
-  .custom-select.model-picker.drop-up .custom-select-menu{top:8px;bottom:8px}
+  .custom-select.model-picker.drop-up .custom-select-menu{top:76px;bottom:auto}
+}
+@media(max-width:700px){
+  .custom-select.model-picker .custom-select-menu{
+    top:68px;right:8px;left:8px;
+    height:calc(100vh - 84px);max-height:calc(100vh - 84px);
+  }
 }
 
 textarea{resize:vertical;min-height:124px;line-height:1.5}
