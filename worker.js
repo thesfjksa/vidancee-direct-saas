@@ -1,11 +1,15 @@
 'use strict';
 
+const http = require('node:http');
 const { dbConfigured, initDb } = require('./src/db.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
 
 let worker=null;
 let stopping=false;
+let healthServer=null;
+const port=Number(process.env.PORT||3000);
+const host=process.env.HOST||'0.0.0.0';
 
 function logRuntime(prefix){
   const mem=process.memoryUsage();
@@ -32,6 +36,7 @@ function shutdown(signal){
   stopping=true;
   console.warn('[worker] shutdown',signal);
   try{worker?.stop?.()}catch{}
+  try{healthServer?.close?.()}catch{}
   setTimeout(()=>process.exit(0),150).unref();
 }
 process.on('SIGTERM',()=>shutdown('SIGTERM'));
@@ -43,6 +48,29 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
   await migrateLegacyProviderEnvSettings();
   worker=new GenerationWorker();
   worker.start();
+
+  healthServer=http.createServer((req,res)=>{
+    if(req.url==='/health' || req.url==='/live' || req.url==='/'){
+      const body=JSON.stringify({
+        ok:true,
+        service:'mehroz-ai-worker',
+        pid:process.pid,
+        uptimeSeconds:Math.round(process.uptime()),
+      });
+      res.writeHead(200,{
+        'content-type':'application/json',
+        'content-length':Buffer.byteLength(body),
+        'cache-control':'no-store',
+      });
+      return res.end(body);
+    }
+    res.writeHead(404,{'content-type':'application/json'});
+    res.end('{"ok":false,"error":"Not found"}');
+  });
+  healthServer.listen(port,host,()=>{
+    console.log('[worker] health server listening on '+host+':'+port);
+  });
+
   logRuntime('[worker] started');
   if(process.send)process.send({type:'ready',pid:process.pid});
 })().catch(error=>{
