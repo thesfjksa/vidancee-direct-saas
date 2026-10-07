@@ -37,6 +37,7 @@ process.on('beforeExit', (code) => {
 const { URL } = require('node:url');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fork } = require('node:child_process');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
@@ -67,7 +68,6 @@ const {
   deleteUserImageGeneration,
   serializeImageGeneration,
 } = require('./src/image_generations.js');
-const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const {
   getProviderSettings,
   getAdminProviderSettings,
@@ -423,6 +423,8 @@ const server=http.createServer(async (req,res)=>{
           generationBackendReady,
           imageGenerationReady,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
+          workerMode:'isolated-child',
+          workerOnline:Boolean(workerChild && workerChild.exitCode===null),
           generationEnabled,
         },
         config:{
@@ -1218,6 +1220,55 @@ server.on('clientError',(error,socket)=>{
 });
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;});
 
+
+let workerChild=null;
+let workerRestartTimer=null;
+let shuttingDown=false;
+
+function startWorkerChild(){
+  if (!/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true'))) {
+    console.log('[worker-child] disabled by WORKER_ENABLED');
+    return;
+  }
+  if (workerChild || shuttingDown) return;
+
+  const workerPath=path.join(__dirname,'worker.js');
+  console.log('[worker-child] starting',workerPath);
+
+  workerChild=fork(workerPath,[],{
+    env:{...process.env,MEHROZ_WORKER_CHILD:'1'},
+    stdio:['ignore','inherit','inherit','ipc'],
+  });
+
+  workerChild.on('message',msg=>{
+    if(msg && msg.type==='ready') console.log('[worker-child] ready pid='+workerChild.pid);
+  });
+
+  workerChild.on('error',error=>{
+    console.error('[worker-child] process error',error);
+  });
+
+  workerChild.on('exit',(code,signal)=>{
+    console.error('[worker-child] exited',{code,signal});
+    workerChild=null;
+    if(shuttingDown) return;
+    clearTimeout(workerRestartTimer);
+    workerRestartTimer=setTimeout(startWorkerChild,3000);
+    if(workerRestartTimer.unref) workerRestartTimer.unref();
+  });
+}
+
+function stopWorkerChild(){
+  shuttingDown=true;
+  clearTimeout(workerRestartTimer);
+  if(workerChild){
+    try{workerChild.kill('SIGTERM')}catch{}
+  }
+}
+
+process.on('SIGTERM',stopWorkerChild);
+process.on('SIGINT',stopWorkerChild);
+
 function bootstrap() {
   // Start HTTP immediately so Hostinger can route traffic even if MySQL is
   // temporarily unavailable or misconfigured.
@@ -1233,8 +1284,7 @@ function bootstrap() {
       console.log('MySQL schema ready.');
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
-      const worker=new GenerationWorker();
-      worker.start();
+      startWorkerChild();
     })
     .catch((error) => {
       console.error('MySQL initialization failed:',error);
