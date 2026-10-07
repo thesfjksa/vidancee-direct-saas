@@ -372,6 +372,20 @@ const server=http.createServer(async (req,res)=>{
   const routePath = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
 
   try {
+    const studioAssets={
+      '/brand.css':['brand.css','text/css; charset=utf-8'],
+      '/studio.css':['studio.css','text/css; charset=utf-8'],
+      '/admin.css':['admin.css','text/css; charset=utf-8'],
+      '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
+      '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
+      '/favicon.ico':['assets/cmmtools-icon.png','image/png'],
+    };
+    if ((req.method==='GET'||req.method==='HEAD') && studioAssets[routePath]) {
+      const [file,contentType]=studioAssets[routePath];
+      const data=fs.readFileSync(path.join(__dirname,'public',file));
+      res.writeHead(200,{'content-type':contentType,'content-length':data.length,'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'});
+      return res.end(req.method==='HEAD'?undefined:data);
+    }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
 
@@ -1474,3 +1488,4 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+

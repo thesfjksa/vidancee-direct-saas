@@ -1917,3 +1917,10 @@ Vibi's documentation does not define a fixed voice-cloning credit formula, so cl
 ### AI Tools Flow
 
 The unfinished AI Tools Flow integration was intentionally removed after Vibi's official API documentation became available. Vibi is now the supported voice backend.
+
+
+## CMM Tools brand and studio UI — 2026-10-07
+
+Customer-facing presentation now uses CMM Tools branding from the supplied full logo and app icon. The blue/turquoise light visual system covers the customer workspace, sign-in, model modal, plans, credits, voice tools and admin. The creator scrolls independently on desktop, while generation history remains reachable through normal page scrolling. Mobile has a bottom navigation dock and a stacked form/gallery layout.
+
+See [CMM_UI_DESIGN.md](CMM_UI_DESIGN.md) for palette, layout, served assets, deployment notes and verified behavior. Provider/billing behavior is unchanged by this UI redesign. Browser checks used mocked API responses and did not validate live generation providers or spend credits. Deploy the updated web server and public assets together through the existing Hostinger GitHub workflow.

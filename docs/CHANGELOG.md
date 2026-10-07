@@ -477,3 +477,12 @@
 - Added per-user clone ownership so one customer's cloned voices are not exposed to other customers.
 - Added cloned-voice status synchronization from `GET /v1/minimax/voices`.
 - Added customer Voice Studio controls for provider/model/voice selection, TTS history, audio playback/download, and voice-clone creation.
+
+
+## 2026-10-07 — CMM Tools studio redesign
+
+- Applied the supplied blue/turquoise logo and app icon across customer and admin UI.
+- Rebuilt the customer workspace with a navigation rail, scrollable creation panel, readable gallery and responsive mobile dock.
+- Centered model selection in a native modal with independent list scrolling, search and keyboard navigation.
+- Added shared styles, explicit asset routes and a complete design/validation note in `docs/CMM_UI_DESIGN.md`.
+- Passed existing tests and browser checks with mocked APIs; live deployment verification is separate.
