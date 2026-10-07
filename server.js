@@ -41,6 +41,7 @@ const { fork } = require('node:child_process');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
+const { AiToolsFlowClient } = require('./src/provider/aitoolsflow.js');
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
@@ -68,6 +69,13 @@ const {
   deleteUserImageGeneration,
   serializeImageGeneration,
 } = require('./src/image_generations.js');
+const {
+  createVoiceGenerationForUser,
+  listUserVoiceGenerations,
+  getUserVoiceGeneration,
+  deleteUserVoiceGeneration,
+  serializeVoiceGeneration,
+} = require('./src/voice_generations.js');
 const {
   getProviderSettings,
   getAdminProviderSettings,
@@ -101,6 +109,14 @@ const allowSignups = !/^(0|false|no|off)$/i.test(String(process.env.ALLOW_SIGNUP
 const startingCredits = Math.max(0, Number(process.env.STARTING_CREDITS || 0));
 
 if (!adminToken) console.warn('ADMIN_TOKEN is not configured. Admin routes will be unavailable.');
+
+function aiToolsFlowClient(settings) {
+  return new AiToolsFlowClient({
+    baseUrl: settings.aiToolsFlowBaseUrl,
+    email: settings.aiToolsFlowEmail,
+    password: settings.aiToolsFlowPassword,
+  });
+}
 
 async function providerClient() {
   const settings = await getProviderSettings();
@@ -255,7 +271,7 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','aitoolsflow'];
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
 }
@@ -408,7 +424,8 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
           providerSettings.atlascloud.active ||
-          providerSettings.higgsfield.active
+          providerSettings.higgsfield.active ||
+          providerSettings.aitoolsflow.active
         );
         imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady);
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -438,6 +455,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/config') {
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
+      let voiceConfig={enabled:false};
       let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {
@@ -458,6 +476,16 @@ const server=http.createServer(async (req,res)=>{
           });
 
           if (!customerProviderAccess.atlascloud || !providerSettings.atlascloud.active) imagePricing=[];
+
+          if (customerProviderAccess.aitoolsflow && providerSettings.aitoolsflow.active) {
+            voiceConfig={
+              enabled:true,
+              voiceLabel:providerSettings.aitoolsflow.voiceLabel || 'Studio Voice',
+              model:'voice_multilingual',
+              maxTextChars:50000,
+              cloningAvailable:false,
+            };
+          }
 
           if (customerProviderAccess.higgsfield && providerSettings.higgsfield.active) {
             const catalog=await publicProviderCatalog('higgsfield');
@@ -485,6 +513,7 @@ const server=http.createServer(async (req,res)=>{
         aspectRatios:ASPECT_RATIOS,
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
+        voice:voiceConfig,
         providerAccess:customerProviderAccess,
         plans:publicPlans(),
       });
@@ -638,6 +667,81 @@ const server=http.createServer(async (req,res)=>{
       await db.execute('DELETE FROM sessions WHERE user_id=?',[user.id]);
       await createSession(res,user.id);
       return sendJson(res,200,{ok:true});
+    }
+
+    if (req.method==='POST' && routePath==='/api/voice-cost') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const access=await getUserProviderAccess(user.id);
+      const providerSettings=await getProviderSettings();
+      if (!access.aitoolsflow || !providerSettings.aiToolsFlowEnabled || !providerSettings.aiToolsFlowEmail || !providerSettings.aiToolsFlowPassword) {
+        return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
+      }
+      const body=await readJson(req);
+      const text=String(body.text||'').trim();
+      if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
+      const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
+      const customerCost=sourceToCustomerCredits(estimate.cost);
+      return sendJson(res,200,{ok:true,cost:Number(customerCost),characters:estimate.totalChars});
+    }
+
+    if (req.method==='GET' && routePath==='/api/voice-generations') {
+      requireDatabase();
+      const user=await requireUser(req);
+      return sendJson(res,200,{ok:true,generations:await listUserVoiceGenerations(user.id,60)});
+    }
+
+    if (req.method==='POST' && routePath==='/api/voice-generations') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const providerSettings=await getProviderSettings();
+      if (!providerSettings.allowProviderCharges) {
+        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+      }
+      const access=await getUserProviderAccess(user.id);
+      if (!access.aitoolsflow || !providerSettings.aiToolsFlowEnabled || !providerSettings.aiToolsFlowEmail || !providerSettings.aiToolsFlowPassword) {
+        return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
+      }
+      const body=await readJson(req);
+      const text=String(body.text||'').trim();
+      if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
+      const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
+      const customerCost=sourceToCustomerCredits(estimate.cost);
+      const generation=await createVoiceGenerationForUser(user.id,{text,model:'voice_multilingual'},{
+        provider:'aitoolsflow',
+        model:'voice_multilingual',
+        costOverride:customerCost,
+        providerCost:estimate.cost,
+        providerCostUnit:'credits',
+      });
+      const db=getPool();
+      const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
+      return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
+    }
+
+    const voiceGenMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})$/i);
+    if (req.method==='GET' && voiceGenMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      const row=await getUserVoiceGeneration(user.id,voiceGenMatch[1]);
+      if(!row)return sendJson(res,404,{ok:false,error:'Voice generation not found.'});
+      return sendJson(res,200,{ok:true,generation:serializeVoiceGeneration(row)});
+    }
+
+    if (req.method==='DELETE' && voiceGenMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      await deleteUserVoiceGeneration(user.id,voiceGenMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:voiceGenMatch[1]});
+    }
+
+    const voiceMediaMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/media$/i);
+    if (req.method==='GET' && voiceMediaMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      const row=await getUserVoiceGeneration(user.id,voiceMediaMatch[1]);
+      if(!row)return sendJson(res,404,{ok:false,error:'Voice generation not found.'});
+      return proxyMedia(req,res,row,'video');
     }
 
     if (req.method==='GET' && routePath==='/api/image-generations') {
@@ -882,6 +986,18 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,submitted:true,job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
+      if (req.method==='POST' && routePath==='/admin/aitoolsflow/check') {
+        requireDatabase();
+        const settings=await getProviderSettings();
+        if(!settings.aiToolsFlowEmail||!settings.aiToolsFlowPassword){
+          return sendJson(res,400,{ok:false,error:'AI Tools Flow email/password are not configured.'});
+        }
+        const client=aiToolsFlowClient(settings);
+        await client.login();
+        const history=await client.getHistory(1);
+        return sendJson(res,200,{ok:true,login:'OK',historyCount:history.history.length,hasMore:Boolean(history.has_more)});
+      }
+
       if (req.method==='GET' && routePath==='/admin/provider-settings') {
         requireDatabase();
         return sendJson(res,200,{ok:true,settings:await getAdminProviderSettings()});
@@ -996,6 +1112,7 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.configured,
             vgenv:providerSettings.vgenv.configured,
             higgsfield:providerSettings.higgsfield.configured,
+            aitoolsflow:providerSettings.aitoolsflow.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1003,6 +1120,7 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.enabled,
             vgenv:providerSettings.vgenv.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
+            aitoolsflow:providerSettings.aitoolsflow.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1010,12 +1128,14 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.active,
             vgenv:providerSettings.vgenv.active,
             higgsfield:providerSettings.higgsfield.active,
+            aitoolsflow:providerSettings.aitoolsflow.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
+          aiToolsFlowMaxInflight:providerSettings.aitoolsflow.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
