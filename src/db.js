@@ -263,6 +263,7 @@ async function initDb() {
   }
 
   await ensureGenerationColumn('provider_cost_unit', "provider_cost_unit VARCHAR(20) NULL AFTER provider_cost");
+  await ensureGenerationColumn('provider_meta', "provider_meta LONGTEXT NULL AFTER provider_cost_unit");
 
   const [userCreditsColumn] = await db.query("SHOW COLUMNS FROM users LIKE 'credits'");
   if (userCreditsColumn[0] && !/decimal\(12,2\)/i.test(String(userCreditsColumn[0].Type || ''))) {
