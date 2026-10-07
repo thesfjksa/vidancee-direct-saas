@@ -707,6 +707,7 @@ const server=http.createServer(async (req,res)=>{
       const body=await readJson(req);
       const text=String(body.text||'').trim();
       if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
+      if(text.length<200)return sendJson(res,400,{ok:false,error:'Enter at least 200 characters for this voice.'});
       const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
       const customerCost=sourceToCustomerCredits(estimate.cost);
       const generation=await createVoiceGenerationForUser(user.id,{text,model:'voice_multilingual'},{
