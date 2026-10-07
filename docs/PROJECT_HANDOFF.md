@@ -1924,3 +1924,10 @@ The unfinished AI Tools Flow integration was intentionally removed after Vibi's 
 Customer-facing presentation now uses CMM Tools branding from the supplied full logo and app icon. The blue/turquoise light visual system covers the customer workspace, sign-in, model modal, plans, credits, voice tools and admin. The creator scrolls independently on desktop, while generation history remains reachable through normal page scrolling. Mobile has a bottom navigation dock and a stacked form/gallery layout.
 
 See [CMM_UI_DESIGN.md](CMM_UI_DESIGN.md) for palette, layout, served assets, deployment notes and verified behavior. Provider/billing behavior is unchanged by this UI redesign. Browser checks used mocked API responses and did not validate live generation providers or spend credits. Deploy the updated web server and public assets together through the existing Hostinger GitHub workflow.
+
+## 2026-10-08 — Horizontal workspace navigation
+
+- Moved the workspace navigation from the side rail to a sticky horizontal row above the workspace, below the logo header.
+- Expanded the content to use the released space and adjusted the creation panel to clear both header rows.
+- On mobile the same row scrolls horizontally to expose every section; removed the duplicate bottom dock and sidebar plan card.
+- Updated the studio stylesheet cache version. No database or environment changes.

@@ -486,3 +486,10 @@
 - Centered model selection in a native modal with independent list scrolling, search and keyboard navigation.
 - Added shared styles, explicit asset routes and a complete design/validation note in `docs/CMM_UI_DESIGN.md`.
 - Passed existing tests and browser checks with mocked APIs; live deployment verification is separate.
+
+## 2026-10-08 — Horizontal workspace navigation
+
+- Moved the workspace navigation from the side rail to a sticky horizontal row above the workspace, below the logo header.
+- Expanded the content to use the released space and adjusted the creation panel to clear both header rows.
+- On mobile the same row scrolls horizontally to expose every section; removed the duplicate bottom dock and sidebar plan card.
+- Updated the studio stylesheet cache version. No database or environment changes.

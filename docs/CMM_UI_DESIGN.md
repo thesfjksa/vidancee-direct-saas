@@ -13,9 +13,9 @@ Implemented on 2026-10-07 for the existing Hostinger app at `ai.mehroz.online`.
 
 ## Layout and behavior
 
-- Desktop navigation occupies a separate rail. Video/image creation uses a sticky panel with its own scrolling form and an always-visible submission footer.
+- Workspace navigation sits in a sticky horizontal row below the brand header on every screen size. The row scrolls horizontally on narrow screens and the content uses the full available width. Video/image creation uses a sticky panel with its own scrolling form and an always-visible submission footer.
 - The document stays scrollable for long generation histories; the gallery does not sit in a fixed-height, clipped container.
-- Mobile navigation appears in a bottom dock. On narrow screens the creation panel sits above the gallery and both remain reachable through normal page scrolling.
+- Mobile uses the same top navigation row. On narrow screens the creation panel sits above the gallery and both remain reachable through normal page scrolling.
 - Model selection is a centered native modal dialog in the browser top layer. The header and search stay in place while the model list scrolls independently.
 - Search filters the available model catalog. Keyboard arrows navigate results; Enter selects. Escape, the close button and a backdrop click dismiss the modal.
 - Video, image, voice, library, plans, credits, account and admin screens share the same brand palette.
