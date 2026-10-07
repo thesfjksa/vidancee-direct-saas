@@ -482,6 +482,7 @@ const server=http.createServer(async (req,res)=>{
               enabled:true,
               voiceLabel:providerSettings.aitoolsflow.voiceLabel || 'Studio Voice',
               model:'voice_multilingual',
+              minTextChars:200,
               maxTextChars:50000,
               cloningAvailable:false,
             };
@@ -680,6 +681,7 @@ const server=http.createServer(async (req,res)=>{
       const body=await readJson(req);
       const text=String(body.text||'').trim();
       if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
+      if(text.length<200)return sendJson(res,400,{ok:false,error:'Enter at least 200 characters for this voice.'});
       const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
       const customerCost=sourceToCustomerCredits(estimate.cost);
       return sendJson(res,200,{ok:true,cost:Number(customerCost),characters:estimate.totalChars});
