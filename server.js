@@ -1,4 +1,39 @@
 const http = require('node:http');
+const os = require('node:os');
+
+const PROCESS_STARTED_AT = Date.now();
+function runtimeSnapshot() {
+  const mem = process.memoryUsage();
+  return {
+    pid: process.pid,
+    uptimeSeconds: Math.round(process.uptime()),
+    rssMb: Math.round(mem.rss / 1024 / 1024),
+    heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+    heapTotalMb: Math.round(mem.heapTotal / 1024 / 1024),
+    externalMb: Math.round(mem.external / 1024 / 1024),
+    freeSystemMb: Math.round(os.freemem() / 1024 / 1024),
+    load1: Number(os.loadavg()[0].toFixed(2)),
+  };
+}
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  console.error('[runtime] uncaught exception monitor', origin, error);
+  console.error('[runtime] snapshot', runtimeSnapshot());
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[runtime] unhandled rejection', reason);
+  console.error('[runtime] snapshot', runtimeSnapshot());
+});
+process.on('SIGTERM', () => {
+  console.warn('[runtime] SIGTERM received', runtimeSnapshot());
+});
+process.on('SIGINT', () => {
+  console.warn('[runtime] SIGINT received', runtimeSnapshot());
+});
+process.on('beforeExit', (code) => {
+  console.warn('[runtime] beforeExit', code, runtimeSnapshot());
+});
+
 const { URL } = require('node:url');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -345,6 +380,15 @@ const server=http.createServer(async (req,res)=>{
       return res.end(image.image_data);
     }
 
+    if (req.method==='GET' && routePath==='/live') {
+      return sendJson(res,200,{
+        ok:true,
+        app:'mehroz-ai',
+        startedAt:new Date(PROCESS_STARTED_AT).toISOString(),
+        runtime:runtimeSnapshot(),
+      });
+    }
+
     if (req.method==='GET' && routePath==='/health') {
       const database=await dbHealth();
       let generationBackendReady=false;
@@ -384,7 +428,8 @@ const server=http.createServer(async (req,res)=>{
         config:{
           adminTokenConfigured:Boolean(adminToken),
           signupsEnabled:allowSignups,
-        }
+        },
+        runtime:runtimeSnapshot(),
       });
     }
 
@@ -1164,6 +1209,13 @@ const server=http.createServer(async (req,res)=>{
   }
 });
 
+server.requestTimeout=Math.max(30000,Number(process.env.HTTP_REQUEST_TIMEOUT_MS||120000));
+server.headersTimeout=Math.max(15000,Number(process.env.HTTP_HEADERS_TIMEOUT_MS||65000));
+server.keepAliveTimeout=Math.max(5000,Number(process.env.HTTP_KEEPALIVE_TIMEOUT_MS||10000));
+server.on('clientError',(error,socket)=>{
+  console.error('[runtime] HTTP client error',error?.code||'',error?.message||error);
+  if(socket?.writable)socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+});
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;});
 
 function bootstrap() {
