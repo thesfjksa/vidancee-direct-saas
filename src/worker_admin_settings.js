@@ -15,6 +15,7 @@ const {
 } = require('./provider/higgsfield_mcp.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
+const { sourceToCustomerCredits } = require('./billing.js');
 
 function truthy(value, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
@@ -610,7 +611,7 @@ class GenerationWorker {
 
   async reconcileVibiCredits(db,row,sourceCredits){
     const actualSource=Math.max(0,Number(sourceCredits||0));
-    const actualCustomer=Math.round(actualSource*2.5*100)/100;
+    const actualCustomer=Number(sourceToCustomerCredits(actualSource)||0);
     const reserved=Math.max(0,Number(row.credits_cost||0));
     const delta=Math.round((reserved-actualCustomer)*100)/100;
     if(Math.abs(delta)<0.005)return actualCustomer;
