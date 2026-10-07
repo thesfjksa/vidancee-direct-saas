@@ -37,14 +37,36 @@ Current major capabilities include:
 
 Node.js 20+.
 
+Web/API process:
+
 ```bash
 npm start
 ```
 
-Health check:
+Standalone generation worker:
+
+```bash
+npm run worker
+```
+
+### Production Hostinger architecture
+
+Production uses two separate Hostinger Node.js applications:
+
+- `https://ai.mehroz.online` → `server.js` with `WORKER_ENABLED=false`
+- `https://worker.mehroz.online` → `worker.js` with `WORKER_ENABLED=true`
+
+Both applications use the same MySQL database and Admin-managed provider settings.
+
+This separation is production-verified: the worker can process queued generations independently while the customer web application remains isolated from provider/queue workload.
+
+
+Health checks:
 
 ```text
-GET /health
+Main lightweight liveness: GET /live
+Main full health:          GET /health
+Worker health:             GET /health on worker.mehroz.online
 ```
 
 Provider test console:
