@@ -41,7 +41,7 @@ const { fork } = require('node:child_process');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
-const { AiToolsFlowClient } = require('./src/provider/aitoolsflow.js');
+const { VibiClient } = require('./src/provider/vibi.js');
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
@@ -110,12 +110,8 @@ const startingCredits = Math.max(0, Number(process.env.STARTING_CREDITS || 0));
 
 if (!adminToken) console.warn('ADMIN_TOKEN is not configured. Admin routes will be unavailable.');
 
-function aiToolsFlowClient(settings) {
-  return new AiToolsFlowClient({
-    baseUrl: settings.aiToolsFlowBaseUrl,
-    email: settings.aiToolsFlowEmail,
-    password: settings.aiToolsFlowPassword,
-  });
+function vibiClient(settings) {
+  return new VibiClient({baseUrl:settings.vibiBaseUrl,apiKey:settings.vibiApiKey});
 }
 
 async function providerClient() {
@@ -251,6 +247,31 @@ function readGenerationRequest(req) {
     req.pipe(bb);
   });
 }
+function readVoiceCloneRequest(req){
+  return new Promise((resolve,reject)=>{
+    const fields={};let sample=null,settled=false;
+    const fail=(message,statusCode=400)=>{if(settled)return;settled=true;const e=new Error(message);e.statusCode=statusCode;reject(e)};
+    let bb;
+    try{bb=Busboy({headers:req.headers,limits:{files:1,fileSize:20*1024*1024,fields:10,parts:15}})}
+    catch(error){error.statusCode=400;return reject(error)}
+    bb.on('field',(name,value)=>{fields[name]=value});
+    bb.on('file',(name,file,info)=>{
+      if(name!=='file'){file.resume();return}
+      const mime=String(info.mimeType||'').toLowerCase();
+      if(!['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/mp4','audio/m4a','audio/ogg','audio/webm'].includes(mime)){
+        file.resume();return fail('Voice sample must be a supported audio file.')
+      }
+      const chunks=[];let bytes=0;
+      file.on('data',chunk=>{bytes+=chunk.length;if(!settled)chunks.push(chunk)});
+      file.on('limit',()=>fail('Voice sample must be 20 MB or smaller.',413));
+      file.on('end',()=>{if(!settled&&bytes>0)sample={filename:String(info.filename||'voice-sample').slice(0,255),mimeType:mime,data:Buffer.concat(chunks)}})
+    });
+    bb.on('error',error=>{if(!settled){settled=true;reject(error)}});
+    bb.on('close',()=>{if(settled)return;settled=true;if(!sample){const e=new Error('Voice sample is required.');e.statusCode=400;return reject(e)}resolve({...fields,sample})});
+    req.pipe(bb);
+  });
+}
+
 function adminAuthorized(req) {
   const supplied=String(req.headers['x-admin-token']||'');
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
@@ -271,7 +292,7 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','aitoolsflow'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi'];
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
 }
@@ -425,7 +446,7 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vgenv.active ||
           providerSettings.atlascloud.active ||
           providerSettings.higgsfield.active ||
-          providerSettings.aitoolsflow.active
+          providerSettings.vibi.active
         );
         imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady);
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -477,15 +498,8 @@ const server=http.createServer(async (req,res)=>{
 
           if (!customerProviderAccess.atlascloud || !providerSettings.atlascloud.active) imagePricing=[];
 
-          if (customerProviderAccess.aitoolsflow && providerSettings.aitoolsflow.active) {
-            voiceConfig={
-              enabled:true,
-              voiceLabel:providerSettings.aitoolsflow.voiceLabel || 'Studio Voice',
-              model:'voice_multilingual',
-              minTextChars:200,
-              maxTextChars:50000,
-              cloningAvailable:false,
-            };
+          if (customerProviderAccess.vibi && providerSettings.vibi.active) {
+            voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
           }
 
           if (customerProviderAccess.higgsfield && providerSettings.higgsfield.active) {
@@ -670,21 +684,40 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true});
     }
 
+    if (req.method==='GET' && routePath==='/api/voice-options') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const access=await getUserProviderAccess(user.id);
+      const settings=await getProviderSettings();
+      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
+      const provider=String(url.searchParams.get('provider')||'elevenlabs')==='minimax'?'minimax':'elevenlabs';
+      const client=vibiClient(settings);
+      const models=await client.getModels(provider);
+      let voices=[];
+      if(provider==='minimax'){
+        const remote=await client.getMiniMaxSystemVoices({page:1,pageSize:100});
+        voices=(remote.voice_list||[]).map(v=>({id:String(v.voice_id||v.uniq_id||''),name:String(v.voice_name||'Voice'),previewUrl:v.sample_audio||null,cloned:false}));
+        const db=getPool();
+        const [clones]=await db.execute("SELECT id,provider_clone_id,voice_name,sample_audio_url,status FROM user_voice_clones WHERE user_id=? AND provider='vibi' AND status='done' ORDER BY created_at DESC",[user.id]);
+        voices.unshift(...clones.filter(v=>v.provider_clone_id).map(v=>({id:String(v.provider_clone_id),name:String(v.voice_name),previewUrl:v.sample_audio_url||null,cloned:true,localId:Number(v.id)})));
+      }else{
+        const remote=await client.getDefaultVoices({pageSize:100});
+        voices=(remote.voices||[]).map(v=>({id:String(v.voice_id||''),name:String(v.name||'Voice'),previewUrl:v.preview_url||null,cloned:false}));
+      }
+      return sendJson(res,200,{ok:true,provider,models,voices});
+    }
+
     if (req.method==='POST' && routePath==='/api/voice-cost') {
       requireDatabase();
       const user=await requireUser(req);
       const access=await getUserProviderAccess(user.id);
-      const providerSettings=await getProviderSettings();
-      if (!access.aitoolsflow || !providerSettings.aiToolsFlowEnabled || !providerSettings.aiToolsFlowEmail || !providerSettings.aiToolsFlowPassword) {
-        return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
-      }
+      const settings=await getProviderSettings();
+      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
       const body=await readJson(req);
       const text=String(body.text||'').trim();
       if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
-      if(text.length<200)return sendJson(res,400,{ok:false,error:'Enter at least 200 characters for this voice.'});
-      const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
-      const customerCost=sourceToCustomerCredits(estimate.cost);
-      return sendJson(res,200,{ok:true,cost:Number(customerCost),characters:estimate.totalChars});
+      const sourceEstimate=Math.max(1,text.length);
+      return sendJson(res,200,{ok:true,cost:Number(sourceToCustomerCredits(sourceEstimate)),estimated:true});
     }
 
     if (req.method==='GET' && routePath==='/api/voice-generations') {
@@ -696,26 +729,29 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/voice-generations') {
       requireDatabase();
       const user=await requireUser(req);
-      const providerSettings=await getProviderSettings();
-      if (!providerSettings.allowProviderCharges) {
-        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      }
+      const settings=await getProviderSettings();
+      if(!settings.allowProviderCharges)return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
       const access=await getUserProviderAccess(user.id);
-      if (!access.aitoolsflow || !providerSettings.aiToolsFlowEnabled || !providerSettings.aiToolsFlowEmail || !providerSettings.aiToolsFlowPassword) {
-        return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
-      }
+      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
       const body=await readJson(req);
       const text=String(body.text||'').trim();
-      if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
-      if(text.length<200)return sendJson(res,400,{ok:false,error:'Enter at least 200 characters for this voice.'});
-      const estimate=await aiToolsFlowClient(providerSettings).estimateCost(text);
-      const customerCost=sourceToCustomerCredits(estimate.cost);
-      const generation=await createVoiceGenerationForUser(user.id,{text,model:'voice_multilingual'},{
-        provider:'aitoolsflow',
-        model:'voice_multilingual',
-        costOverride:customerCost,
-        providerCost:estimate.cost,
+      const provider=String(body.provider||'elevenlabs')==='minimax'?'minimax':'elevenlabs';
+      const voiceId=String(body.voiceId||'').trim();
+      const modelId=String(body.modelId||'').trim();
+      const languageCode=String(body.languageCode||(provider==='minimax'?'English':'en')).trim();
+      if(!text||!voiceId||!modelId)return sendJson(res,400,{ok:false,error:'Text, voice and model are required.'});
+      if(text.length>10000)return sendJson(res,400,{ok:false,error:'Text is too long for this voice request.'});
+      const voiceSettings=provider==='minimax'
+        ?{speed:Number(body.speed||1),pitch:Number(body.pitch||0),vol:Number(body.volume||1)}
+        :{stability:Number(body.stability??0.5),similarity_boost:Number(body.similarityBoost??0.75),style:Number(body.style||0),use_speaker_boost:body.useSpeakerBoost!==false,speed:Number(body.speed||1)};
+      const sourceEstimate=Math.max(1,text.length);
+      const generation=await createVoiceGenerationForUser(user.id,{text,model:String(body.voiceName||'Voice')},{
+        provider:'vibi',
+        model:String(body.voiceName||'Voice'),
+        costOverride:sourceToCustomerCredits(sourceEstimate),
+        providerCost:sourceEstimate,
         providerCostUnit:'credits',
+        providerParams:{voiceId,modelId,provider,languageCode,voiceSettings}
       });
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
@@ -723,28 +759,51 @@ const server=http.createServer(async (req,res)=>{
     }
 
     const voiceGenMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})$/i);
-    if (req.method==='GET' && voiceGenMatch) {
-      requireDatabase();
-      const user=await requireUser(req);
-      const row=await getUserVoiceGeneration(user.id,voiceGenMatch[1]);
-      if(!row)return sendJson(res,404,{ok:false,error:'Voice generation not found.'});
-      return sendJson(res,200,{ok:true,generation:serializeVoiceGeneration(row)});
-    }
-
     if (req.method==='DELETE' && voiceGenMatch) {
-      requireDatabase();
-      const user=await requireUser(req);
+      requireDatabase();const user=await requireUser(req);
       await deleteUserVoiceGeneration(user.id,voiceGenMatch[1]);
       return sendJson(res,200,{ok:true,deleted:true,id:voiceGenMatch[1]});
     }
 
     const voiceMediaMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/media$/i);
     if (req.method==='GET' && voiceMediaMatch) {
-      requireDatabase();
-      const user=await requireUser(req);
+      requireDatabase();const user=await requireUser(req);
       const row=await getUserVoiceGeneration(user.id,voiceMediaMatch[1]);
       if(!row)return sendJson(res,404,{ok:false,error:'Voice generation not found.'});
       return proxyMedia(req,res,row,'video');
+    }
+
+    if (req.method==='GET' && routePath==='/api/voice-clones') {
+      requireDatabase();const user=await requireUser(req);const db=getPool();
+      const [rows]=await db.execute("SELECT id,voice_name,language_tag,gender,status,sample_audio_url,cover_url,error_message,created_at FROM user_voice_clones WHERE user_id=? AND provider='vibi' ORDER BY created_at DESC",[user.id]);
+      return sendJson(res,200,{ok:true,clones:rows.map(r=>({...r,id:Number(r.id)}))});
+    }
+
+    if (req.method==='POST' && routePath==='/api/voice-clones') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const settings=await getProviderSettings();
+      const access=await getUserProviderAccess(user.id);
+      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice cloning is currently unavailable.'});
+      const body=await readVoiceCloneRequest(req);
+      const name=String(body.voice_name||'').trim();
+      if(!name)return sendJson(res,400,{ok:false,error:'Voice name is required.'});
+      const cloneCost=Number(settings.vibiCloneCustomerCost||0);
+      const db=getPool();
+      const conn=await db.getConnection();
+      try{
+        await conn.beginTransaction();
+        const [users]=await conn.execute('SELECT credits FROM users WHERE id=? FOR UPDATE',[user.id]);
+        if(!users[0]||Number(users[0].credits)<cloneCost){const e=new Error('Not enough credits.');e.statusCode=402;throw e}
+        if(cloneCost>0)await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cloneCost,user.id]);
+        const [result]=await conn.execute(
+          "INSERT INTO user_voice_clones (user_id,provider,voice_name,language_tag,gender,preview_text,status,sample_filename,sample_mime_type,sample_data) VALUES (?,'vibi',?,?,?,?, 'queued',?,?,?)",
+          [user.id,name,String(body.language_tag||'English'),String(body.gender||'Male'),String(body.preview_text||'Hello').slice(0,200),body.sample.filename,body.sample.mimeType,body.sample.data]
+        );
+        if(cloneCost>0)await conn.execute("INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,NULL,?,'voice_clone_debit',?)",[user.id,-cloneCost,'Reserved for voice cloning']);
+        await conn.commit();
+        return sendJson(res,201,{ok:true,clone:{id:Number(result.insertId),voice_name:name,status:'queued'}});
+      }catch(error){await conn.rollback();throw error}finally{conn.release()}
     }
 
     if (req.method==='GET' && routePath==='/api/image-generations') {
@@ -989,16 +1048,12 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,submitted:true,job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
       }
 
-      if (req.method==='POST' && routePath==='/admin/aitoolsflow/check') {
+      if (req.method==='POST' && routePath==='/admin/vibi/check') {
         requireDatabase();
         const settings=await getProviderSettings();
-        if(!settings.aiToolsFlowEmail||!settings.aiToolsFlowPassword){
-          return sendJson(res,400,{ok:false,error:'AI Tools Flow email/password are not configured.'});
-        }
-        const client=aiToolsFlowClient(settings);
-        await client.login();
-        const history=await client.getHistory(1);
-        return sendJson(res,200,{ok:true,login:'OK',historyCount:history.history.length,hasMore:Boolean(history.has_more)});
+        if(!settings.vibiApiKey)return sendJson(res,400,{ok:false,error:'Vibi API key is not configured.'});
+        const me=await vibiClient(settings).getMe();
+        return sendJson(res,200,{ok:true,connected:true,creditBalance:Number(me.credit_balance||0),account:me.email||null});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-settings') {
@@ -1115,7 +1170,7 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.configured,
             vgenv:providerSettings.vgenv.configured,
             higgsfield:providerSettings.higgsfield.configured,
-            aitoolsflow:providerSettings.aitoolsflow.configured,
+            vibi:providerSettings.vibi.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1123,7 +1178,7 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.enabled,
             vgenv:providerSettings.vgenv.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
-            aitoolsflow:providerSettings.aitoolsflow.enabled,
+            vibi:providerSettings.vibi.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1131,14 +1186,14 @@ const server=http.createServer(async (req,res)=>{
             atlascloud:providerSettings.atlascloud.active,
             vgenv:providerSettings.vgenv.active,
             higgsfield:providerSettings.higgsfield.active,
-            aitoolsflow:providerSettings.aitoolsflow.active,
+            vibi:providerSettings.vibi.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
-          aiToolsFlowMaxInflight:providerSettings.aitoolsflow.maxInflight,
+          vibiMaxInflight:providerSettings.vibi.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
