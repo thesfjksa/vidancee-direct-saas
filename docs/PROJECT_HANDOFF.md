@@ -1862,3 +1862,58 @@ Verified on 2026-10-07:
 - completed result appeared back in the customer dashboard
 
 This split web/worker deployment is the current recommended production architecture.
+
+## Vibi voice generation and cloning — 2026-10-07
+
+Voice generation now uses the official Vibi API instead of AI Tools Flow.
+
+### Provider
+
+```text
+Base URL: https://api.vibi.pro
+Authentication: xi-api-key
+Admin source key: vibi
+```
+
+The API key is saved encrypted in Admin provider settings. Do not commit it to the repository.
+
+### Supported voice features
+
+- text-to-speech with Vibi-supported ElevenLabs and MiniMax models
+- Vibi default/system voice browsing
+- customer-owned MiniMax cloned voices
+- async voice generation queue/polling
+- MP3 playback/download through Mehroz AI
+- voice-clone sample upload (maximum 20 MB per Vibi docs)
+- clone status polling
+- per-customer Voice source assignment
+
+### Production flow
+
+```text
+Customer Voice Studio
+  -> Mehroz AI API
+  -> MySQL queue
+  -> standalone worker.mehroz.online
+  -> Vibi API
+  -> Vibi history / clone polling
+  -> Mehroz AI dashboard
+```
+
+Provider API calls and clone uploads are performed by the standalone worker where practical, preserving the split web/worker stability architecture.
+
+### Voice billing
+
+TTS reserves a conservative credit estimate at submission. Once Vibi reports the final `credits_deducted` value, the worker reconciles the customer charge to:
+
+```text
+Vibi source credits × 2.5
+```
+
+Higgsfield remains the existing 1:1 pricing exception.
+
+Vibi's documentation does not define a fixed voice-cloning credit formula, so clone creation uses an Admin-configurable customer cost (`vibi_clone_customer_cost`) rather than inventing a provider cost.
+
+### AI Tools Flow
+
+The unfinished AI Tools Flow integration was intentionally removed after Vibi's official API documentation became available. Vibi is now the supported voice backend.
