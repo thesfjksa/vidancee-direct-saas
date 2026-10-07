@@ -333,7 +333,7 @@ textarea:focus,input:focus,select:focus{
 /* Premium model picker drawer for model selectors. */
 .custom-select.model-picker .custom-select-menu{
   position:fixed;
-  top:18px;right:18px;bottom:18px;left:auto;
+  top:18px;right:auto;bottom:18px;left:18px;
   margin:0;
   width:min(520px,calc(100vw - 36px));
   max-height:none;
@@ -435,16 +435,24 @@ textarea:focus,input:focus,select:focus{
 .custom-select.model-picker .custom-select-option.selected .model-picker-check{color:var(--accent)}
 .custom-select.model-picker .custom-select-empty{padding:30px 10px}
 .model-picker-options{
-  min-height:0;flex:1 1 auto;overflow:auto;
-  padding:0 2px 4px;
-  scrollbar-width:thin;
-  scrollbar-color:#343740 #121316;
+  min-height:0;flex:1 1 auto;
+  overflow-y:scroll;overflow-x:hidden;
+  padding:0 8px 4px 2px;
+  scrollbar-width:auto;
+  scrollbar-color:#565b65 #181a1e;
+  scrollbar-gutter:stable;
 }
-.model-picker-options::-webkit-scrollbar{width:8px}
-.model-picker-options::-webkit-scrollbar-thumb{background:#343740;border-radius:999px}
+.model-picker-options::-webkit-scrollbar{width:10px}
+.model-picker-options::-webkit-scrollbar-track{
+  background:#181a1e;border-radius:999px;
+}
+.model-picker-options::-webkit-scrollbar-thumb{
+  background:#565b65;border:2px solid #181a1e;border-radius:999px;
+}
+.model-picker-options::-webkit-scrollbar-thumb:hover{background:#737986}
 @media(max-width:700px){
   .custom-select.model-picker .custom-select-menu{
-    top:8px;right:8px;bottom:8px;width:calc(100vw - 16px);
+    top:8px;right:auto;bottom:8px;left:8px;width:calc(100vw - 16px);
     border-radius:14px;
   }
   .custom-select.model-picker.drop-up .custom-select-menu{top:8px;bottom:8px}
