@@ -54,6 +54,38 @@ The generation worker reads provider settings from MySQL and refreshes provider 
 
 vgenv settings are stored as `vgenv_base_url`, encrypted `vgenv_api_key`, and `vgenv_max_inflight`. The default API origin is `https://api.vgenv.com`.
 
+## Per-customer source access
+
+Provider-wide switches are the master availability controls.
+
+Admin can additionally assign sources per customer from:
+
+`/admin-console` → **Users** → **Sources**
+
+Assignable sources currently include Higgsfield, Vidancee, CreatePulse, vgenv/MiniMax, and Atlas Cloud.
+
+A customer's model catalog is built only from sources that are both globally available and assigned to that customer. The server also checks the assignment during cost lookup and submission, so this is not only a frontend filter.
+
+Existing users default to source access enabled until an explicit per-user setting is saved.
+
 ## Pricing rule
 
-Provider settings and customer pricing are separate concerns. Customer model costs are calculated through the shared billing helper and currently use a 2.5× multiplier over configured source billing units. Provider secrets remain Admin-managed; the pricing multiplier and source-cost defaults remain server configuration.
+Provider settings and customer pricing are separate concerns.
+
+Legacy/static providers continue to use the shared billing/pricing configuration where applicable.
+
+**Higgsfield is currently an exception:** its provider-reported credit cost is exposed and charged 1:1 with no 2.5× multiplier. A provider-reported cost of 0 is valid for subscription-covered generations and is displayed/charged as 0 credits.
+
+Provider secrets remain Admin-managed.
+
+
+## Current customer visibility hierarchy
+
+For a model to be offered to a customer:
+
+1. the backend source must be configured
+2. the provider-wide source switch must allow it
+3. the customer must have that source assigned
+4. for dynamic Higgsfield models, the model itself must also be enabled/available in the synced catalog
+
+This hierarchy lets Admin disable a provider globally or selectively grant providers to individual customers.
