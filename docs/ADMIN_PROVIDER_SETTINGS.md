@@ -89,3 +89,21 @@ For a model to be offered to a customer:
 4. for dynamic Higgsfield models, the model itself must also be enabled/available in the synced catalog
 
 This hierarchy lets Admin disable a provider globally or selectively grant providers to individual customers.
+
+## Vibi voice provider
+
+Voice generation and cloning use Vibi's official API.
+
+Admin fields:
+
+- Base URL: `https://api.vibi.pro`
+- API key: saved encrypted
+- Global source ON/OFF
+- Max inflight voice jobs
+- Customer clone charge: configurable because the supplied Vibi docs do not define a fixed clone-credit formula
+
+Use **Test connection** to call the Vibi account endpoint and verify the key/remaining provider credits.
+
+Vibi is opt-in per customer. In **Users → Sources**, enable **Voice Studio** for customers who should see the voice workspace.
+
+The customer Voice Studio supports Vibi-backed TTS model/voice selection and customer-owned MiniMax voice clones. The backend source name is not shown in the customer navigation.
