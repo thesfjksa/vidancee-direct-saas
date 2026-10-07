@@ -2304,16 +2304,58 @@ async function refreshVoiceStudio(){
   await Promise.all([loadVoiceOptions(),loadVoiceGenerations(),loadVoiceClones()]);
 }
 
-function renderVoiceHistory(){
-  const box=$('voiceHistory');if(!box)return;
-  if(!voiceGenerations.length){box.innerHTML='<div class="empty">Your generated voices will appear here.</div>';return}
-  box.innerHTML=voiceGenerations.map(g=>{
+function voiceGenerationFingerprint(g){
+  return JSON.stringify([g.id,g.status,g.model,g.prompt,g.credits_cost,g.error_message,g.has_audio,g.audio_url]);
+}
+
+function buildVoiceGenerationNode(g){
     const active=['queued','submitting','submitted','processing'].includes(g.status);
     const audio=g.has_audio?'<audio controls preload="metadata" style="width:100%;margin-top:10px" src="'+escapeHtml(g.audio_url)+'"></audio>':'';
     const download=g.has_audio?'<button type="button" class="job-action download" onclick="downloadVoiceGeneration(\''+escapeHtml(g.id)+'\')">Download</button>':'';
     const del=['completed','failed','submit_error'].includes(g.status)?'<button type="button" class="job-action delete" onclick="deleteVoiceGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>':'';
-    return '<article class="card" style="margin-top:0"><div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div><div class="job-title" style="margin-top:8px">'+escapeHtml(g.model||'Voice')+'</div><p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+(active?'<div class="muted">Generating audio…</div>':'')+(g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+audio+'<div class="job-actions">'+download+del+'</div></article>';
-  }).join('');
+    const tpl=document.createElement('template');
+    tpl.innerHTML='<article class="card" style="margin-top:0"><div class="voice-details"><div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div><div class="job-title" style="margin-top:8px">'+escapeHtml(g.model||'Voice')+'</div><p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+(active?'<div class="muted">Generating audio…</div>':'')+(g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+'</div>'+audio+'<div class="job-actions">'+download+del+'</div></article>';
+    const node=tpl.content.firstElementChild;
+    node.dataset.voiceGenerationId=String(g.id);
+    node.dataset.fingerprint=voiceGenerationFingerprint(g);
+    return node;
+}
+
+function renderVoiceHistory(){
+  const box=$('voiceHistory');if(!box)return;
+  if(!voiceGenerations.length){
+    if(!box.querySelector('.empty')||box.querySelector('[data-voice-generation-id]')){
+      box.innerHTML='<div class="empty">Your generated voices will appear here.</div>';
+    }
+    return;
+  }
+  const existing=new Map([...box.querySelectorAll('[data-voice-generation-id]')]
+    .map(node=>[node.dataset.voiceGenerationId,node]));
+  box.querySelector('.empty')?.remove();
+  voiceGenerations.forEach((g,index)=>{
+    const id=String(g.id),fingerprint=voiceGenerationFingerprint(g);
+    let node=existing.get(id);
+    if(!node){
+      node=buildVoiceGenerationNode(g);
+      box.insertBefore(node,box.children[index]||null);
+    }else if(node.dataset.fingerprint!==fingerprint){
+      const fresh=buildVoiceGenerationNode(g);
+      node.querySelector('.voice-details').replaceWith(fresh.querySelector('.voice-details'));
+      node.querySelector('.job-actions').replaceWith(fresh.querySelector('.job-actions'));
+      const audio=node.querySelector('audio'),nextAudio=fresh.querySelector('audio');
+      // Never detach or reload a player while its source is unchanged, even if metadata changes.
+      if(!nextAudio){audio?.remove();}
+      else if(!audio){node.insertBefore(nextAudio,node.querySelector('.job-actions'));}
+      else if(audio.getAttribute('src')!==nextAudio.getAttribute('src')){audio.replaceWith(nextAudio);}
+      node.dataset.fingerprint=fingerprint;
+    }
+    // moveBefore preserves media state. Keep existing card order on older browsers instead of detaching players.
+    if(box.children[index]!==node&&typeof box.moveBefore==='function'){
+      box.moveBefore(node,box.children[index]||null);
+    }
+    existing.delete(id);
+  });
+  existing.forEach(node=>node.remove());
 }
 
 function downloadVoiceGeneration(id){
