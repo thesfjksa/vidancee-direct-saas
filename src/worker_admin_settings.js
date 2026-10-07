@@ -684,7 +684,7 @@ class GenerationWorker {
       );
       if(!claim.affectedRows)continue;
       try{
-        const params=JSON.parse(job.resolution||'{}');
+        const params=JSON.parse(job.provider_meta||'{}');
         const result=await this.vibi.textToSpeech({
           voiceId:params.voiceId,
           text:job.prompt,
