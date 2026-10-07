@@ -3,6 +3,7 @@ const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
 const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
+const { AiToolsFlowClient } = require('./provider/aitoolsflow.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const {
@@ -28,21 +29,26 @@ class GenerationWorker {
     this.createPulse = null;
     this.atlasCloud = null;
     this.vgenv = null;
+    this.aiToolsFlow = null;
+    this.aiToolsFlowConfig = null;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
     this.atlasCloudFingerprint = '';
     this.vgenvFingerprint = '';
+    this.aiToolsFlowFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
     this.createPulseMaxInflight = 3;
     this.atlasCloudMaxInflight = 4;
     this.vgenvMaxInflight = 4;
     this.higgsfieldMaxInflight = 4;
+    this.aiToolsFlowMaxInflight = 2;
     this.higgsfieldConnected = false;
     this.vidanceeEnabled = true;
     this.createPulseEnabled = true;
     this.atlasCloudEnabled = true;
     this.vgenvEnabled = true;
     this.higgsfieldEnabled = true;
+    this.aiToolsFlowEnabled = true;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
   }
@@ -78,12 +84,14 @@ class GenerationWorker {
     this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
     this.vgenvMaxInflight = settings.vgenvMaxInflight;
     this.higgsfieldMaxInflight = settings.higgsfieldMaxInflight;
+    this.aiToolsFlowMaxInflight = settings.aiToolsFlowMaxInflight;
     this.higgsfieldConnected = Boolean(settings.higgsfieldOauthTokens);
     this.vidanceeEnabled = Boolean(settings.vidanceeEnabled);
     this.createPulseEnabled = Boolean(settings.createPulseEnabled);
     this.atlasCloudEnabled = Boolean(settings.atlasCloudEnabled);
     this.vgenvEnabled = Boolean(settings.vgenvEnabled);
     this.higgsfieldEnabled = Boolean(settings.higgsfieldEnabled);
+    this.aiToolsFlowEnabled = Boolean(settings.aiToolsFlowEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
@@ -130,6 +138,29 @@ class GenerationWorker {
           })
         : null;
     }
+
+    const aiToolsFlowFingerprint = JSON.stringify([
+      settings.aiToolsFlowBaseUrl, settings.aiToolsFlowEmail, settings.aiToolsFlowPassword,
+      settings.aiToolsFlowVoiceId, settings.aiToolsFlowModelId, settings.aiToolsFlowCompany,
+      settings.aiToolsFlowAccountProvider,
+    ]);
+    if (aiToolsFlowFingerprint !== this.aiToolsFlowFingerprint) {
+      this.aiToolsFlowFingerprint = aiToolsFlowFingerprint;
+      this.aiToolsFlow = settings.aiToolsFlowEmail && settings.aiToolsFlowPassword
+        ? new AiToolsFlowClient({
+            baseUrl: settings.aiToolsFlowBaseUrl,
+            email: settings.aiToolsFlowEmail,
+            password: settings.aiToolsFlowPassword,
+          })
+        : null;
+    }
+    this.aiToolsFlowConfig = {
+      voiceId: settings.aiToolsFlowVoiceId,
+      voiceLabel: settings.aiToolsFlowVoiceLabel,
+      company: settings.aiToolsFlowCompany,
+      accountProvider: settings.aiToolsFlowAccountProvider,
+      modelId: settings.aiToolsFlowModelId,
+    };
   }
 
   async syncVidancee(db) {
@@ -593,6 +624,94 @@ class GenerationWorker {
     );
   }
 
+  async syncAiToolsFlow(db) {
+    if (!this.aiToolsFlowEnabled || !this.aiToolsFlow) return;
+    const [rows] = await db.query(
+      "SELECT * FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY updated_at ASC LIMIT 30"
+    );
+    for (const row of rows) {
+      try {
+        const job = await this.aiToolsFlow.getVoiceJob(row.provider_job_id);
+        if (!job) continue;
+        if (job.status === 'completed' && job.outputUrl) {
+          await db.execute(
+            "UPDATE generations SET status='completed', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [job.providerCost, job.outputUrl, row.id]
+          );
+        } else if (['failed','error','cancelled','canceled'].includes(job.status)) {
+          await refundGeneration(
+            row.id,
+            'failed',
+            'Voice generation failed during processing. Credits were refunded.',
+            job.providerCost
+          );
+          await db.execute("UPDATE generations SET provider_cost_unit='credits' WHERE id=?", [row.id]);
+        } else {
+          await db.execute(
+            "UPDATE generations SET status='processing', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [job.providerCost, row.id]
+          );
+        }
+      } catch (error) {
+        console.error('AI Tools Flow voice status sync failed for', row.id, error.message);
+      }
+    }
+  }
+
+  async submitAiToolsFlowQueued(db) {
+    if (!this.aiToolsFlowEnabled || !this.aiToolsFlow) return;
+    const [[active]] = await db.query(
+      "SELECT COUNT(*) AS total FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status IN ('submitting','submitted','processing')"
+    );
+    let slots = Math.max(0, this.aiToolsFlowMaxInflight - Number(active?.total || 0));
+    if (slots <= 0) return;
+
+    const [queued] = await db.query(
+      "SELECT * FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25"
+    );
+
+    for (const job of queued) {
+      if (slots <= 0) break;
+      const [claim] = await db.execute(
+        "UPDATE generations SET status='submitting', error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=? AND media_type='audio' AND provider='aitoolsflow' AND status='queued'",
+        [job.id]
+      );
+      if (!claim.affectedRows) continue;
+
+      try {
+        const cfg=this.aiToolsFlowConfig||{};
+        const result=await this.aiToolsFlow.generateVoice({
+          text:job.prompt,
+          voiceId:cfg.voiceId,
+          company:cfg.company,
+          accountProvider:cfg.accountProvider,
+          modelId:cfg.modelId,
+          speed:1,
+          stability:0.5,
+          similarityBoost:0.75,
+          style:0,
+          useSpeakerBoost:false,
+        });
+
+        if (result.status==='completed' && result.outputUrl) {
+          await db.execute(
+            "UPDATE generations SET status='completed', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, submitted_at=UTC_TIMESTAMP(), started_at=UTC_TIMESTAMP(), completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [result.id,result.providerCost,result.outputUrl,job.id]
+          );
+        } else {
+          await db.execute(
+            "UPDATE generations SET status='submitted', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [result.id,result.providerCost,job.id]
+          );
+        }
+        slots -= 1;
+      } catch (error) {
+        console.error('AI Tools Flow voice submission failed for', job.id, error);
+        await refundGeneration(job.id,'submit_error','Voice generation could not be submitted. Credits were refunded.',null);
+      }
+    }
+  }
+
   async runOnce() {
     const db = getPool();
     await this.refreshProviderSettings();
@@ -602,6 +721,7 @@ class GenerationWorker {
     await this.syncVgenv(db);
     await this.syncAtlasImages(db);
     await this.syncHiggsfield(db);
+    await this.syncAiToolsFlow(db);
 
     if (!this.allowProviderCharges) return;
 
@@ -615,6 +735,7 @@ class GenerationWorker {
     }
 
     await this.submitAtlasImages(db);
+    await this.submitAiToolsFlowQueued(db);
 
     if (
       !(this.vidanceeEnabled && this.vidancee) &&
