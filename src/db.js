@@ -176,6 +176,31 @@ async function initDb() {
       CONSTRAINT fk_user_provider_access_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS user_voice_clones (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      provider VARCHAR(40) NOT NULL DEFAULT 'vibi',
+      provider_clone_id VARCHAR(191) NULL,
+      voice_name VARCHAR(191) NOT NULL,
+      language_tag VARCHAR(80) NOT NULL DEFAULT 'English',
+      gender VARCHAR(40) NOT NULL DEFAULT 'Male',
+      preview_text VARCHAR(220) NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'queued',
+      sample_filename VARCHAR(255) NULL,
+      sample_mime_type VARCHAR(100) NULL,
+      sample_data LONGBLOB NULL,
+      sample_audio_url TEXT NULL,
+      cover_url TEXT NULL,
+      error_message TEXT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_user_voice_clones_user (user_id, created_at),
+      KEY idx_user_voice_clones_status (status, updated_at),
+      UNIQUE KEY uq_user_voice_provider_clone (provider, provider_clone_id),
+      CONSTRAINT fk_user_voice_clones_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS provider_models (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       provider VARCHAR(40) NOT NULL,
