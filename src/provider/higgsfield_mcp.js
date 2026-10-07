@@ -20,6 +20,7 @@ const {
   setSettingValue,
   deleteSettingValue,
 } = require('../settings.js');
+const { getPool, dbConfigured } = require('../db.js');
 const {
   humanizeModelId,
   canonicalPublicModelId,
@@ -1282,7 +1283,38 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function withHiggsfieldOAuthLock(callback) {
+  // Higgsfield rotates refresh tokens. Two app processes (or two concurrent
+  // requests) must never refresh the same token at the same time.
+  if (!dbConfigured()) return callback();
+
+  const db = getPool();
+  const conn = await db.getConnection();
+  let locked = false;
+  try {
+    const [[row]] = await conn.query("SELECT GET_LOCK('mehroz_higgsfield_oauth', 20) AS acquired");
+    locked = Number(row?.acquired) === 1;
+    if (!locked) {
+      const error = new Error('Higgsfield authentication is busy. Please retry in a moment.');
+      error.code = 'HIGGSFIELD_AUTH_BUSY';
+      throw error;
+    }
+    return await callback();
+  } finally {
+    if (locked) {
+      try { await conn.query("SELECT RELEASE_LOCK('mehroz_higgsfield_oauth')"); } catch {}
+    }
+    conn.release();
+  }
+}
+
+function isInvalidGrantError(error) {
+  const text = networkErrorDetails(error).toLowerCase();
+  return /invalid_grant|refresh token was already used|refresh token is invalid|refresh token.*expired|server returned 401 after re-authentication/.test(text);
+}
+
 async function withAuthenticatedClient(callback) {
+  return withHiggsfieldOAuthLock(async () => {
   const settings = await getProviderSettings();
   const redirectUrl = await storedRedirectUrl();
   let lastError = null;
@@ -1295,6 +1327,20 @@ async function withAuthenticatedClient(callback) {
       await client.connect(transport);
       return await callback(client);
     } catch (error) {
+      if (isInvalidGrantError(error)) {
+        // Another process may have rotated the refresh token just before this
+        // lock was acquired. Re-read the stored token set once before requiring
+        // manual authorization.
+        if (attempt < 3) {
+          lastError = error;
+          await delay(250);
+          continue;
+        }
+        const authError = new Error('Higgsfield authorization expired or its refresh token was rotated. Reconnect the account once in Admin.');
+        authError.code = 'HIGGSFIELD_AUTH_REQUIRED';
+        throw authError;
+      }
+
       if (error instanceof UnauthorizedError || provider.authorizationUrl) {
         const authError = new Error('Higgsfield connection needs to be authorized again in Admin.');
         authError.code = 'HIGGSFIELD_AUTH_REQUIRED';
@@ -1319,6 +1365,7 @@ async function withAuthenticatedClient(callback) {
   }
 
   throw lastError || new Error('Higgsfield MCP request failed.');
+  });
 }
 
 function likelyModelToken(value) {
