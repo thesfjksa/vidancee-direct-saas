@@ -21,16 +21,11 @@ const DEFAULTS = {
   higgsfield_mcp_url: 'https://mcp.higgsfield.ai/mcp',
   higgsfield_max_inflight: '4',
   higgsfield_enabled: 'true',
-  aitoolsflow_base_url: 'https://aitoolsflow.com',
-  aitoolsflow_email: '',
-  aitoolsflow_password: '',
-  aitoolsflow_enabled: 'true',
-  aitoolsflow_max_inflight: '2',
-  aitoolsflow_voice_id: 'lOJWQNMBIzoU3N0EnOya',
-  aitoolsflow_voice_label: 'Bismil – Deep, Modulated & Excited',
-  aitoolsflow_company: 'elevenlabs',
-  aitoolsflow_account_provider: 'Provider 3',
-  aitoolsflow_model_id: 'eleven_multilingual_v2',
+  vibi_base_url: 'https://api.vibi.pro',
+  vibi_api_key: '',
+  vibi_enabled: 'true',
+  vibi_max_inflight: '4',
+  vibi_clone_customer_cost: '0',
   provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
@@ -154,16 +149,11 @@ async function getProviderSettings() {
     higgsfieldMaxInflight: Math.max(1, Math.min(50, Number(read('higgsfield_max_inflight') || 4))),
     higgsfieldEnabled: asBool(read('higgsfield_enabled')),
     higgsfieldOauthTokens: String(read('higgsfield_oauth_tokens') || ''),
-    aiToolsFlowBaseUrl: normalizeUrl(read('aitoolsflow_base_url'), DEFAULTS.aitoolsflow_base_url),
-    aiToolsFlowEmail: String(read('aitoolsflow_email') || '').trim(),
-    aiToolsFlowPassword: String(read('aitoolsflow_password') || ''),
-    aiToolsFlowEnabled: asBool(read('aitoolsflow_enabled')),
-    aiToolsFlowMaxInflight: Math.max(1, Math.min(20, Number(read('aitoolsflow_max_inflight') || 2))),
-    aiToolsFlowVoiceId: String(read('aitoolsflow_voice_id') || DEFAULTS.aitoolsflow_voice_id).trim(),
-    aiToolsFlowVoiceLabel: String(read('aitoolsflow_voice_label') || DEFAULTS.aitoolsflow_voice_label).trim(),
-    aiToolsFlowCompany: String(read('aitoolsflow_company') || DEFAULTS.aitoolsflow_company).trim(),
-    aiToolsFlowAccountProvider: String(read('aitoolsflow_account_provider') || DEFAULTS.aitoolsflow_account_provider).trim(),
-    aiToolsFlowModelId: String(read('aitoolsflow_model_id') || DEFAULTS.aitoolsflow_model_id).trim(),
+    vibiBaseUrl: normalizeUrl(read('vibi_base_url'), DEFAULTS.vibi_base_url),
+    vibiApiKey: String(read('vibi_api_key') || '').trim(),
+    vibiEnabled: asBool(read('vibi_enabled')),
+    vibiMaxInflight: Math.max(1, Math.min(20, Number(read('vibi_max_inflight') || 4))),
+    vibiCloneCustomerCost: Math.max(0, Number(read('vibi_clone_customer_cost') || 0)),
     routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
@@ -212,19 +202,14 @@ async function getAdminProviderSettings() {
       enabled: Boolean(s.higgsfieldEnabled),
       active: Boolean(s.higgsfieldEnabled && s.higgsfieldOauthTokens),
     },
-    aitoolsflow: {
-      baseUrl: s.aiToolsFlowBaseUrl,
-      email: s.aiToolsFlowEmail,
-      passwordConfigured: Boolean(s.aiToolsFlowPassword),
-      maxInflight: s.aiToolsFlowMaxInflight,
-      voiceId: s.aiToolsFlowVoiceId,
-      voiceLabel: s.aiToolsFlowVoiceLabel,
-      company: s.aiToolsFlowCompany,
-      accountProvider: s.aiToolsFlowAccountProvider,
-      modelId: s.aiToolsFlowModelId,
-      configured: Boolean(s.aiToolsFlowEmail && s.aiToolsFlowPassword && s.aiToolsFlowVoiceId),
-      enabled: Boolean(s.aiToolsFlowEnabled),
-      active: Boolean(s.aiToolsFlowEnabled && s.aiToolsFlowEmail && s.aiToolsFlowPassword && s.aiToolsFlowVoiceId),
+    vibi: {
+      baseUrl: s.vibiBaseUrl,
+      apiKeyConfigured: Boolean(s.vibiApiKey),
+      maxInflight: s.vibiMaxInflight,
+      cloneCustomerCost: s.vibiCloneCustomerCost,
+      configured: Boolean(s.vibiApiKey),
+      enabled: Boolean(s.vibiEnabled),
+      active: Boolean(s.vibiEnabled && s.vibiApiKey),
     },
     routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
@@ -278,21 +263,20 @@ async function updateProviderSettings(input = {}) {
     await put('higgsfield_max_inflight', String(n));
   }
 
-  if ('aiToolsFlowBaseUrl' in input) await put('aitoolsflow_base_url', normalizeUrl(input.aiToolsFlowBaseUrl, DEFAULTS.aitoolsflow_base_url));
-  if ('aiToolsFlowEmail' in input) await put('aitoolsflow_email', String(input.aiToolsFlowEmail || '').trim());
-  if ('aiToolsFlowEnabled' in input) await put('aitoolsflow_enabled', input.aiToolsFlowEnabled ? 'true' : 'false');
-  if (input.clearAiToolsFlowPassword === true) await del('aitoolsflow_password');
-  else if (String(input.aiToolsFlowPassword || '').length) await put('aitoolsflow_password', String(input.aiToolsFlowPassword), true);
-  if ('aiToolsFlowMaxInflight' in input) {
-    const n = Number(input.aiToolsFlowMaxInflight);
-    if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('AI Tools Flow max inflight must be 1 to 20.');
-    await put('aitoolsflow_max_inflight', String(n));
+  if ('vibiBaseUrl' in input) await put('vibi_base_url', normalizeUrl(input.vibiBaseUrl, DEFAULTS.vibi_base_url));
+  if ('vibiEnabled' in input) await put('vibi_enabled', input.vibiEnabled ? 'true' : 'false');
+  if (input.clearVibiApiKey === true) await del('vibi_api_key');
+  else if (String(input.vibiApiKey || '').trim()) await put('vibi_api_key', String(input.vibiApiKey).trim(), true);
+  if ('vibiMaxInflight' in input) {
+    const n = Number(input.vibiMaxInflight);
+    if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('Vibi max inflight must be 1 to 20.');
+    await put('vibi_max_inflight', String(n));
   }
-  if ('aiToolsFlowVoiceId' in input) await put('aitoolsflow_voice_id', String(input.aiToolsFlowVoiceId || '').trim());
-  if ('aiToolsFlowVoiceLabel' in input) await put('aitoolsflow_voice_label', String(input.aiToolsFlowVoiceLabel || '').trim());
-  if ('aiToolsFlowCompany' in input) await put('aitoolsflow_company', String(input.aiToolsFlowCompany || '').trim());
-  if ('aiToolsFlowAccountProvider' in input) await put('aitoolsflow_account_provider', String(input.aiToolsFlowAccountProvider || '').trim());
-  if ('aiToolsFlowModelId' in input) await put('aitoolsflow_model_id', String(input.aiToolsFlowModelId || '').trim());
+  if ('vibiCloneCustomerCost' in input) {
+    const n = Number(input.vibiCloneCustomerCost);
+    if (!Number.isFinite(n) || n < 0 || n > 1000000) throw new Error('Vibi clone customer cost must be zero or greater.');
+    await put('vibi_clone_customer_cost', String(n));
+  }
 
   if ('routing' in input) {
     const routing = String(input.routing || '');
@@ -333,16 +317,11 @@ async function migrateLegacyProviderEnvSettings() {
   plain('higgsfield_mcp_url', 'HIGGSFIELD_MCP_URL');
   plain('higgsfield_max_inflight', 'HIGGSFIELD_MAX_INFLIGHT');
   plain('higgsfield_enabled', 'HIGGSFIELD_ENABLED');
-  plain('aitoolsflow_base_url', 'AITOOLSFLOW_BASE_URL');
-  plain('aitoolsflow_email', 'AITOOLSFLOW_EMAIL');
-  secret('aitoolsflow_password', 'AITOOLSFLOW_PASSWORD');
-  plain('aitoolsflow_enabled', 'AITOOLSFLOW_ENABLED');
-  plain('aitoolsflow_max_inflight', 'AITOOLSFLOW_MAX_INFLIGHT');
-  plain('aitoolsflow_voice_id', 'AITOOLSFLOW_VOICE_ID');
-  plain('aitoolsflow_voice_label', 'AITOOLSFLOW_VOICE_LABEL');
-  plain('aitoolsflow_company', 'AITOOLSFLOW_COMPANY');
-  plain('aitoolsflow_account_provider', 'AITOOLSFLOW_ACCOUNT_PROVIDER');
-  plain('aitoolsflow_model_id', 'AITOOLSFLOW_MODEL_ID');
+  plain('vibi_base_url', 'VIBI_BASE_URL');
+  secret('vibi_api_key', 'VIBI_API_KEY');
+  plain('vibi_enabled', 'VIBI_ENABLED');
+  plain('vibi_max_inflight', 'VIBI_MAX_INFLIGHT');
+  plain('vibi_clone_customer_cost', 'VIBI_CLONE_CUSTOMER_COST');
   plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
