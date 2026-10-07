@@ -578,6 +578,7 @@ textarea::placeholder,input::placeholder{color:#555860}
     <nav class="main-nav">
       <button class="create-tab active" data-section="create" onclick="go('create')">Create</button>
       <button data-section="images" onclick="go('images')">Images</button>
+      <button id="voiceNav" class="hide" data-section="voices" onclick="go('voices')">Voice</button>
       <button data-section="library" onclick="go('library')">Library</button>
       <button data-section="plans" onclick="go('plans')">Plans</button>
       <button data-section="credits" onclick="go('credits')">Credits</button>
@@ -740,6 +741,37 @@ textarea::placeholder,input::placeholder{color:#555860}
       </div>
     </section>
 
+    <section id="voices" class="section">
+      <div class="page">
+        <div class="page-head">
+          <div><h1>Voice Studio</h1><p>Turn text into natural speech with your assigned studio voice.</p></div>
+          <button class="btn secondary" onclick="loadVoiceGenerations()">Refresh</button>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="panel-title">Generate speech</div>
+            <div class="panel-sub">Enter the script you want spoken. Cost is calculated from the source before submission.</div>
+            <div class="field">
+              <label>Text</label>
+              <textarea id="voiceText" style="min-height:220px" maxlength="50000" placeholder="Type or paste the speech text..." oninput="scheduleVoiceCost()"></textarea>
+            </div>
+            <div class="field">
+              <label>Voice</label>
+              <input id="voiceLabel" disabled value="Studio Voice">
+            </div>
+            <div class="cost-row" style="margin:14px 0 10px"><span>Generation cost</span><strong><span id="voiceCost">—</span> credits</strong></div>
+            <button id="generateVoiceBtn" class="btn primary" style="width:100%" onclick="createVoiceGeneration()">Generate speech</button>
+            <div id="voiceMsg" class="msg muted"></div>
+          </div>
+          <div class="card">
+            <div class="panel-title">Voice history</div>
+            <div class="panel-sub">Completed audio can be played or downloaded here.</div>
+            <div id="voiceHistory" style="display:grid;gap:10px"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="library" class="section">
       <div class="page">
         <div class="page-head">
@@ -821,6 +853,7 @@ textarea::placeholder,input::placeholder{color:#555860}
   <nav class="mobile-dock">
     <button class="active" data-section="create" onclick="go('create')">Create</button>
     <button data-section="images" onclick="go('images')">Images</button>
+    <button id="voiceDock" class="hide" data-section="voices" onclick="go('voices')">Voice</button>
     <button data-section="library" onclick="go('library')">Library</button>
     <button data-section="plans" onclick="go('plans')">Plans</button>
     <button data-section="credits" onclick="go('credits')">Credits</button>
@@ -831,6 +864,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
+let voiceGenerations=[],voiceGenerationLoadPending=false,voiceCostTimer=null,voiceCostRequestSeq=0;
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 let videoReferenceItems=[],videoReferenceSeq=0;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
@@ -890,6 +924,7 @@ function enterApp(){
   syncUser();
   renderConfig();
   renderImageConfig();
+  renderVoiceConfig();
   setupReferenceDrop();
   setupVideoReferenceDrop();
   setupImageGenerationDrop();
@@ -900,6 +935,7 @@ function enterApp(){
     if(document.visibilityState==='visible'){
       loadGenerations();
       loadImageGenerations();
+      loadVoiceGenerations();
       loadDashboard();
     }
   },5000);
@@ -909,6 +945,7 @@ function go(name){
   document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));
   document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
   if(name==='images')renderImageGallery();
+  if(name==='voices')loadVoiceGenerations();
   if(name==='library')renderLibrary();
   if(name==='plans')loadPlanStatus();
   if(name==='credits')loadCredits();
@@ -1163,6 +1200,7 @@ function handleVideoModelChange(){
   renderDurations(true);
   renderVideoReferenceControls(true);
   refreshModelCapabilitySummaries();
+  renderVoiceConfig();
 }
 
 function handleImageModelChange(){
@@ -1806,7 +1844,7 @@ function setFilter(filter,button){
 }
 
 async function loadAll(){
-  await Promise.all([loadGenerations(),loadImageGenerations(),loadDashboard(),loadCredits(),loadPlanStatus()]);
+  await Promise.all([loadGenerations(),loadImageGenerations(),loadVoiceGenerations(),loadDashboard(),loadCredits(),loadPlanStatus()]);
 }
 
 async function loadDashboard(){
@@ -2456,6 +2494,101 @@ function jobCard(g){
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
     '</div></article>';
+}
+
+function renderVoiceConfig(){
+  const enabled=Boolean(config?.voice?.enabled);
+  const nav=$('voiceNav'),dock=$('voiceDock');
+  if(nav)nav.classList.toggle('hide',!enabled);
+  if(dock)dock.classList.toggle('hide',!enabled);
+  if($('voiceLabel'))$('voiceLabel').value=config?.voice?.voiceLabel||'Studio Voice';
+  if(!enabled && $('voices')?.classList.contains('active'))go('create');
+}
+
+function scheduleVoiceCost(){
+  clearTimeout(voiceCostTimer);
+  const text=String($('voiceText')?.value||'').trim();
+  if(!text){$('voiceCost').textContent='—';return}
+  voiceCostTimer=setTimeout(updateVoiceCost,550);
+}
+
+async function updateVoiceCost(){
+  const text=String($('voiceText')?.value||'').trim();
+  if(!text){$('voiceCost').textContent='—';return}
+  const seq=++voiceCostRequestSeq;
+  $('voiceCost').textContent='…';
+  try{
+    const d=await api('/api/voice-cost',{method:'POST',body:JSON.stringify({text})});
+    if(seq===voiceCostRequestSeq)$('voiceCost').textContent=Number(d.cost);
+  }catch(e){
+    if(seq===voiceCostRequestSeq)$('voiceCost').textContent='at submit';
+  }
+}
+
+async function createVoiceGeneration(){
+  const b=$('generateVoiceBtn'),m=$('voiceMsg');
+  if(!config?.voice?.enabled){m.className='msg err';m.textContent='Voice generation is currently unavailable.';return}
+  const text=String($('voiceText').value||'').trim();
+  if(!text){m.className='msg err';m.textContent='Enter some text first.';return}
+  b.disabled=true;m.className='msg muted';m.textContent='Submitting voice generation...';
+  try{
+    const d=await api('/api/voice-generations',{method:'POST',body:JSON.stringify({text})});
+    me=d.user;syncUser();
+    $('voiceText').value='';$('voiceCost').textContent='—';
+    m.className='msg ok';m.textContent='Voice generation queued.';
+    await Promise.all([loadVoiceGenerations(),loadDashboard(),loadCredits()]);
+  }catch(e){
+    m.className='msg err';m.textContent=e.message;
+  }finally{b.disabled=false}
+}
+
+async function loadVoiceGenerations(){
+  if(!config?.voice?.enabled || voiceGenerationLoadPending)return;
+  voiceGenerationLoadPending=true;
+  try{
+    const d=await api('/api/voice-generations');
+    voiceGenerations=d.generations||[];
+    renderVoiceHistory();
+  }catch(e){
+    if(e.status===401)location.reload();
+  }finally{
+    voiceGenerationLoadPending=false;
+  }
+}
+
+function renderVoiceHistory(){
+  const box=$('voiceHistory');if(!box)return;
+  if(!voiceGenerations.length){box.innerHTML='<div class="empty">Your generated voices will appear here.</div>';return}
+  box.innerHTML=voiceGenerations.map(g=>{
+    const active=['queued','submitting','submitted','processing'].includes(g.status);
+    const audio=g.has_audio?'<audio controls preload="metadata" style="width:100%;margin-top:10px" src="'+escapeHtml(g.audio_url)+'"></audio>':'';
+    const download=g.has_audio?'<button type="button" class="job-action download" onclick="downloadVoiceGeneration(\''+escapeHtml(g.id)+'\')">Download</button>':'';
+    const del=['completed','failed','submit_error'].includes(g.status)?'<button type="button" class="job-action delete" onclick="deleteVoiceGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>':'';
+    return '<article class="card" style="margin-top:0">'+
+      '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div>'+
+      '<div class="job-title" style="margin-top:8px">'+escapeHtml(config?.voice?.voiceLabel||'Studio Voice')+'</div>'+
+      '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+
+      (active?'<div class="muted">Generating audio…</div>':'')+
+      (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
+      audio+'<div class="job-actions">'+download+del+'</div>'+
+    '</article>';
+  }).join('');
+}
+
+function downloadVoiceGeneration(id){
+  const g=voiceGenerations.find(item=>String(item.id)===String(id));
+  if(!g?.audio_url)return;
+  const a=document.createElement('a');a.href=g.audio_url;a.download='mehroz-ai-voice-'+String(id).slice(0,8)+'.mp3';
+  a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+}
+
+async function deleteVoiceGeneration(id){
+  if(!window.confirm('Delete this generated audio? This cannot be undone.'))return;
+  try{
+    await api('/api/voice-generations/'+encodeURIComponent(id),{method:'DELETE'});
+    voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));
+    renderVoiceHistory();await loadDashboard();
+  }catch(e){window.alert(e.message)}
 }
 
 async function changePassword(){
