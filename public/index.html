@@ -744,30 +744,47 @@ textarea::placeholder,input::placeholder{color:#555860}
     <section id="voices" class="section">
       <div class="page">
         <div class="page-head">
-          <div><h1>Voice Studio</h1><p>Turn text into natural speech with your assigned studio voice.</p></div>
-          <button class="btn secondary" onclick="loadVoiceGenerations()">Refresh</button>
+          <div><h1>Voice Studio</h1><p>Generate speech, browse voices, or create your own cloned voice.</p></div>
+          <button class="btn secondary" onclick="refreshVoiceStudio()">Refresh</button>
         </div>
         <div class="two-col">
           <div class="card">
             <div class="panel-title">Generate speech</div>
-            <div class="panel-sub">Enter the script you want spoken. Cost is calculated from the source before submission.</div>
-            <div class="field">
-              <label>Text</label>
-              <textarea id="voiceText" style="min-height:220px" maxlength="50000" placeholder="Type or paste the speech text..." oninput="scheduleVoiceCost()"></textarea>
+            <div class="panel-sub">Choose an engine, model and voice, then generate audio from text.</div>
+            <div class="field"><label>Engine</label><select id="voiceProvider" onchange="loadVoiceOptions()"><option value="elevenlabs">Studio voices</option><option value="minimax">MiniMax voices</option></select></div>
+            <div class="field"><label>Model</label><select id="voiceModel"></select></div>
+            <div class="field"><label>Voice</label><select id="voiceSelect"></select></div>
+            <div class="field"><label>Language</label><input id="voiceLanguage" value="en" placeholder="en"></div>
+            <div class="field"><label>Text</label><textarea id="voiceText" style="min-height:190px" maxlength="10000" placeholder="Type or paste your speech text..." oninput="scheduleVoiceCost()"></textarea></div>
+            <div class="control-grid">
+              <div><label class="meta">Speed</label><input id="voiceSpeed" type="number" min="0.5" max="2" step="0.05" value="1"></div>
+              <div id="voicePitchWrap" class="hide"><label class="meta">Pitch</label><input id="voicePitch" type="number" min="-12" max="12" step="1" value="0"></div>
             </div>
-            <div class="field">
-              <label>Voice</label>
-              <input id="voiceLabel" disabled value="Studio Voice">
-            </div>
-            <div class="cost-row" style="margin:14px 0 10px"><span>Generation cost</span><strong><span id="voiceCost">—</span> credits</strong></div>
+            <div class="cost-row" style="margin:14px 0 10px"><span>Estimated cost</span><strong><span id="voiceCost">—</span> credits</strong></div>
             <button id="generateVoiceBtn" class="btn primary" style="width:100%" onclick="createVoiceGeneration()">Generate speech</button>
             <div id="voiceMsg" class="msg muted"></div>
           </div>
+
           <div class="card">
-            <div class="panel-title">Voice history</div>
-            <div class="panel-sub">Completed audio can be played or downloaded here.</div>
-            <div id="voiceHistory" style="display:grid;gap:10px"></div>
+            <div class="panel-title">Clone a voice</div>
+            <div class="panel-sub">Upload an audio sample up to 20 MB. Your clone will appear only in your own voice list.</div>
+            <div class="field"><label>Voice name</label><input id="cloneVoiceName" placeholder="My voice"></div>
+            <div class="field"><label>Audio sample</label><input id="cloneVoiceFile" type="file" accept="audio/*"></div>
+            <div class="control-grid">
+              <div><label class="meta">Language</label><input id="cloneLanguage" value="English"></div>
+              <div><label class="meta">Gender</label><select id="cloneGender"><option>Male</option><option>Female</option></select></div>
+            </div>
+            <div class="field"><label>Preview text</label><input id="clonePreview" maxlength="200" value="Hello, this is my cloned voice."></div>
+            <button id="cloneVoiceBtn" class="btn secondary" style="width:100%;margin-top:10px" onclick="createVoiceClone()">Create cloned voice</button>
+            <div id="cloneVoiceMsg" class="msg muted"></div>
+            <div id="voiceCloneList" style="display:grid;gap:8px;margin-top:12px"></div>
           </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="panel-title">Voice history</div>
+          <div class="panel-sub">Completed audio can be played or downloaded here.</div>
+          <div id="voiceHistory" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px"></div>
         </div>
       </div>
     </section>
@@ -864,7 +881,7 @@ textarea::placeholder,input::placeholder{color:#555860}
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
-let voiceGenerations=[],voiceGenerationLoadPending=false,voiceCostTimer=null,voiceCostRequestSeq=0;
+let voiceGenerations=[],voiceGenerationLoadPending=false,voiceCostTimer=null,voiceCostRequestSeq=0,voiceOptions={models:[],voices:[]},voiceClones=[];
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 let videoReferenceItems=[],videoReferenceSeq=0;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
@@ -936,6 +953,7 @@ function enterApp(){
       loadGenerations();
       loadImageGenerations();
       loadVoiceGenerations();
+      loadVoiceClones();
       loadDashboard();
     }
   },5000);
@@ -1844,7 +1862,7 @@ function setFilter(filter,button){
 }
 
 async function loadAll(){
-  await Promise.all([loadGenerations(),loadImageGenerations(),loadVoiceGenerations(),loadDashboard(),loadCredits(),loadPlanStatus()]);
+  await Promise.all([loadGenerations(),loadImageGenerations(),loadVoiceGenerations(),loadVoiceClones(),loadDashboard(),loadCredits(),loadPlanStatus()]);
 }
 
 async function loadDashboard(){
@@ -2501,59 +2519,112 @@ function renderVoiceConfig(){
   const nav=$('voiceNav'),dock=$('voiceDock');
   if(nav)nav.classList.toggle('hide',!enabled);
   if(dock)dock.classList.toggle('hide',!enabled);
-  if($('voiceLabel'))$('voiceLabel').value=config?.voice?.voiceLabel||'Studio Voice';
   if(!enabled && $('voices')?.classList.contains('active'))go('create');
+  if(enabled)loadVoiceOptions();
+}
+
+async function loadVoiceOptions(){
+  if(!config?.voice?.enabled)return;
+  const provider=$('voiceProvider')?.value||'elevenlabs';
+  $('voicePitchWrap')?.classList.toggle('hide',provider!=='minimax');
+  if($('voiceLanguage'))$('voiceLanguage').value=provider==='minimax'?'English':'en';
+  try{
+    const d=await api('/api/voice-options?provider='+encodeURIComponent(provider));
+    voiceOptions=d;
+    const models=d.models||[],voices=d.voices||[];
+    $('voiceModel').innerHTML=models.map(m=>'<option value="'+escapeHtml(m.model_id||m.id||'')+'">'+escapeHtml(m.name||m.model_id||'Model')+'</option>').join('');
+    $('voiceSelect').innerHTML=voices.map(v=>'<option value="'+escapeHtml(v.id)+'" data-name="'+escapeHtml(v.name)+'">'+escapeHtml(v.name)+(v.cloned?' · My clone':'')+'</option>').join('');
+  }catch(e){
+    $('voiceMsg').className='msg err';$('voiceMsg').textContent=e.message;
+  }
 }
 
 function scheduleVoiceCost(){
   clearTimeout(voiceCostTimer);
   const text=String($('voiceText')?.value||'').trim();
   if(!text){$('voiceCost').textContent='—';return}
-  voiceCostTimer=setTimeout(updateVoiceCost,550);
+  voiceCostTimer=setTimeout(updateVoiceCost,450);
 }
 
 async function updateVoiceCost(){
   const text=String($('voiceText')?.value||'').trim();
   if(!text){$('voiceCost').textContent='—';return}
-  const seq=++voiceCostRequestSeq;
-  $('voiceCost').textContent='…';
+  const seq=++voiceCostRequestSeq;$('voiceCost').textContent='…';
   try{
     const d=await api('/api/voice-cost',{method:'POST',body:JSON.stringify({text})});
     if(seq===voiceCostRequestSeq)$('voiceCost').textContent=Number(d.cost);
-  }catch(e){
-    if(seq===voiceCostRequestSeq)$('voiceCost').textContent='at submit';
-  }
+  }catch(e){if(seq===voiceCostRequestSeq)$('voiceCost').textContent='at submit'}
 }
 
 async function createVoiceGeneration(){
   const b=$('generateVoiceBtn'),m=$('voiceMsg');
-  if(!config?.voice?.enabled){m.className='msg err';m.textContent='Voice generation is currently unavailable.';return}
   const text=String($('voiceText').value||'').trim();
-  if(!text){m.className='msg err';m.textContent='Enter some text first.';return}
+  const selected=$('voiceSelect').options[$('voiceSelect').selectedIndex];
+  if(!text||!$('voiceSelect').value||!$('voiceModel').value){m.className='msg err';m.textContent='Choose a model and voice, then enter text.';return}
   b.disabled=true;m.className='msg muted';m.textContent='Submitting voice generation...';
   try{
-    const d=await api('/api/voice-generations',{method:'POST',body:JSON.stringify({text})});
-    me=d.user;syncUser();
-    $('voiceText').value='';$('voiceCost').textContent='—';
+    const provider=$('voiceProvider').value;
+    const body={
+      text,
+      provider,
+      modelId:$('voiceModel').value,
+      voiceId:$('voiceSelect').value,
+      voiceName:selected?.dataset?.name||selected?.textContent||'Voice',
+      languageCode:$('voiceLanguage').value.trim()||(provider==='minimax'?'English':'en'),
+      speed:Number($('voiceSpeed').value||1),
+      pitch:Number($('voicePitch').value||0),
+      volume:1,
+      stability:.5,
+      similarityBoost:.75,
+      style:0,
+      useSpeakerBoost:true
+    };
+    const d=await api('/api/voice-generations',{method:'POST',body:JSON.stringify(body)});
+    me=d.user;syncUser();$('voiceText').value='';$('voiceCost').textContent='—';
     m.className='msg ok';m.textContent='Voice generation queued.';
     await Promise.all([loadVoiceGenerations(),loadDashboard(),loadCredits()]);
-  }catch(e){
-    m.className='msg err';m.textContent=e.message;
-  }finally{b.disabled=false}
+  }catch(e){m.className='msg err';m.textContent=e.message}
+  finally{b.disabled=false}
 }
 
 async function loadVoiceGenerations(){
-  if(!config?.voice?.enabled || voiceGenerationLoadPending)return;
+  if(!config?.voice?.enabled||voiceGenerationLoadPending)return;
   voiceGenerationLoadPending=true;
+  try{const d=await api('/api/voice-generations');voiceGenerations=d.generations||[];renderVoiceHistory()}
+  catch(e){if(e.status===401)location.reload()}
+  finally{voiceGenerationLoadPending=false}
+}
+
+async function loadVoiceClones(){
+  if(!config?.voice?.enabled)return;
   try{
-    const d=await api('/api/voice-generations');
-    voiceGenerations=d.generations||[];
-    renderVoiceHistory();
-  }catch(e){
-    if(e.status===401)location.reload();
-  }finally{
-    voiceGenerationLoadPending=false;
-  }
+    const d=await api('/api/voice-clones');voiceClones=d.clones||[];
+    const box=$('voiceCloneList');if(!box)return;
+    box.innerHTML=voiceClones.length?voiceClones.map(c=>
+      '<div class="provider-access-item" style="padding:10px"><div><strong>'+escapeHtml(c.voice_name)+'</strong><div class="muted">'+escapeHtml(c.language_tag||'')+' · '+escapeHtml(c.gender||'')+'</div></div><span class="badge '+escapeHtml(c.status)+'">'+escapeHtml(c.status)+'</span></div>'
+    ).join(''):'<div class="muted">No cloned voices yet.</div>';
+    if(voiceClones.some(c=>c.status==='done') && $('voiceProvider')?.value==='minimax')loadVoiceOptions();
+  }catch(e){}
+}
+
+async function createVoiceClone(){
+  const b=$('cloneVoiceBtn'),m=$('cloneVoiceMsg'),file=$('cloneVoiceFile').files[0],name=$('cloneVoiceName').value.trim();
+  if(!file||!name){m.className='msg err';m.textContent='Choose an audio sample and enter a voice name.';return}
+  if(file.size>20*1024*1024){m.className='msg err';m.textContent='Voice sample must be 20 MB or smaller.';return}
+  b.disabled=true;m.className='msg muted';m.textContent='Uploading clone request...';
+  try{
+    const form=new FormData();
+    form.append('file',file,file.name);form.append('voice_name',name);form.append('language_tag',$('cloneLanguage').value||'English');form.append('gender',$('cloneGender').value||'Male');form.append('preview_text',$('clonePreview').value||'Hello');
+    await api('/api/voice-clones',{method:'POST',body:form});
+    $('cloneVoiceName').value='';$('cloneVoiceFile').value='';
+    m.className='msg ok';m.textContent='Voice clone queued.';
+    await loadVoiceClones();
+  }catch(e){m.className='msg err';m.textContent=e.message}
+  finally{b.disabled=false}
+}
+
+async function refreshVoiceStudio(){
+  await Promise.all([loadVoiceOptions(),loadVoiceGenerations(),loadVoiceClones()]);
 }
 
 function renderVoiceHistory(){
@@ -2564,31 +2635,19 @@ function renderVoiceHistory(){
     const audio=g.has_audio?'<audio controls preload="metadata" style="width:100%;margin-top:10px" src="'+escapeHtml(g.audio_url)+'"></audio>':'';
     const download=g.has_audio?'<button type="button" class="job-action download" onclick="downloadVoiceGeneration(\''+escapeHtml(g.id)+'\')">Download</button>':'';
     const del=['completed','failed','submit_error'].includes(g.status)?'<button type="button" class="job-action delete" onclick="deleteVoiceGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>':'';
-    return '<article class="card" style="margin-top:0">'+
-      '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div>'+
-      '<div class="job-title" style="margin-top:8px">'+escapeHtml(config?.voice?.voiceLabel||'Studio Voice')+'</div>'+
-      '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+
-      (active?'<div class="muted">Generating audio…</div>':'')+
-      (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
-      audio+'<div class="job-actions">'+download+del+'</div>'+
-    '</article>';
+    return '<article class="card" style="margin-top:0"><div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div><div class="job-title" style="margin-top:8px">'+escapeHtml(g.model||'Voice')+'</div><p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+(active?'<div class="muted">Generating audio…</div>':'')+(g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+audio+'<div class="job-actions">'+download+del+'</div></article>';
   }).join('');
 }
 
 function downloadVoiceGeneration(id){
-  const g=voiceGenerations.find(item=>String(item.id)===String(id));
-  if(!g?.audio_url)return;
-  const a=document.createElement('a');a.href=g.audio_url;a.download='mehroz-ai-voice-'+String(id).slice(0,8)+'.mp3';
-  a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  const g=voiceGenerations.find(item=>String(item.id)===String(id));if(!g?.audio_url)return;
+  const a=document.createElement('a');a.href=g.audio_url;a.download='mehroz-ai-voice-'+String(id).slice(0,8)+'.mp3';a.style.display='none';document.body.appendChild(a);a.click();a.remove();
 }
 
 async function deleteVoiceGeneration(id){
   if(!window.confirm('Delete this generated audio? This cannot be undone.'))return;
-  try{
-    await api('/api/voice-generations/'+encodeURIComponent(id),{method:'DELETE'});
-    voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));
-    renderVoiceHistory();await loadDashboard();
-  }catch(e){window.alert(e.message)}
+  try{await api('/api/voice-generations/'+encodeURIComponent(id),{method:'DELETE'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
+  catch(e){window.alert(e.message)}
 }
 
 async function changePassword(){
