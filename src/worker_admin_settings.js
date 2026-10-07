@@ -754,10 +754,22 @@ class GenerationWorker {
         );
       }catch(error){
         console.error('Vibi voice clone submission failed for',row.id,error);
-        await db.execute(
-          "UPDATE user_voice_clones SET status='failed',error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",
-          [String(error.message||'Voice clone failed').slice(0,1000),row.id]
-        );
+        const conn=await db.getConnection();
+        try{
+          await conn.beginTransaction();
+          const [freshRows]=await conn.execute('SELECT * FROM user_voice_clones WHERE id=? FOR UPDATE',[row.id]);
+          const fresh=freshRows[0];
+          if(fresh){
+            await conn.execute("UPDATE user_voice_clones SET status='failed',error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",[String(error.message||'Voice clone failed').slice(0,1000),row.id]);
+            if(!fresh.refunded_at && Number(fresh.credits_cost||0)>0){
+              const amount=Number(fresh.credits_cost);
+              await conn.execute('UPDATE users SET credits=credits+? WHERE id=?',[amount,fresh.user_id]);
+              await conn.execute("INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,NULL,?,'voice_clone_refund',?)",[fresh.user_id,amount,'Voice cloning failed. Credits were refunded.']);
+              await conn.execute('UPDATE user_voice_clones SET refunded_at=UTC_TIMESTAMP() WHERE id=?',[row.id]);
+            }
+          }
+          await conn.commit();
+        }catch(refundError){await conn.rollback();throw refundError}finally{conn.release()}
       }
     }
   }
