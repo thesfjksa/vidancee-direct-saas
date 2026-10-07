@@ -87,11 +87,11 @@ class AiToolsFlowClient {
 
   async estimateCost(text){
     const payload={text:String(text||'')};
-    const candidates=['/app/process_api.php','/app/api/process_api.php'];
+    const candidates=['/app/process_api.php','/app/api/process_api.php','/process_api.php'];
     let lastError=null;
     for(const path of candidates){
       try{
-        const response=await this.authed(path,{method:'POST',form:payload,redirect:'follow'});
+        const response=await this.authed(path,{method:'POST',form:payload});
         if(!response.ok)continue;
         const data=await response.json();
         if(data&&data.success===true&&Number.isFinite(Number(data.estimated_cost))){
@@ -110,7 +110,7 @@ class AiToolsFlowClient {
 
   async getHistory(page=1){
     const response=await this.authed('/app/api/api_voice_studio.php?action=get_history&page='+encodeURIComponent(page),{
-      method:'GET',redirect:'follow'
+      method:'GET'
     });
     if(!response.ok)throw new Error('AI Tools Flow history request failed with HTTP '+response.status+'.');
     const data=await response.json();
@@ -119,7 +119,7 @@ class AiToolsFlowClient {
   }
 
   async checkVersion(){
-    const response=await this.authed('/app/api/api_voice_studio.php?action=check_version',{method:'GET',redirect:'follow'});
+    const response=await this.authed('/app/api/api_voice_studio.php?action=check_version',{method:'GET'});
     if(!response.ok)throw new Error('AI Tools Flow version check failed with HTTP '+response.status+'.');
     return response.json().catch(()=>({success:true}));
   }
@@ -143,7 +143,6 @@ class AiToolsFlowClient {
         style:String(style),
         use_speaker_boost:useSpeakerBoost?'true':'false',
       },
-      redirect:'follow',
     });
     if(!response.ok)throw new Error('AI Tools Flow voice submission failed with HTTP '+response.status+'.');
     const data=await response.json();
