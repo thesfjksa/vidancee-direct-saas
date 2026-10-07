@@ -186,6 +186,8 @@ async function initDb() {
       gender VARCHAR(40) NOT NULL DEFAULT 'Male',
       preview_text VARCHAR(220) NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'queued',
+      credits_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      refunded_at DATETIME NULL,
       sample_filename VARCHAR(255) NULL,
       sample_mime_type VARCHAR(100) NULL,
       sample_data LONGBLOB NULL,
@@ -233,6 +235,15 @@ async function initDb() {
       await db.query("ALTER TABLE generations ADD COLUMN " + definition);
     }
     return columns[0] || null;
+  }
+
+  const [voiceCloneCreditsColumn] = await db.query("SHOW COLUMNS FROM user_voice_clones LIKE 'credits_cost'");
+  if (!voiceCloneCreditsColumn.length) {
+    await db.query("ALTER TABLE user_voice_clones ADD COLUMN credits_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER status");
+  }
+  const [voiceCloneRefundColumn] = await db.query("SHOW COLUMNS FROM user_voice_clones LIKE 'refunded_at'");
+  if (!voiceCloneRefundColumn.length) {
+    await db.query("ALTER TABLE user_voice_clones ADD COLUMN refunded_at DATETIME NULL AFTER credits_cost");
   }
 
   const [providerAvailableColumn] = await db.query("SHOW COLUMNS FROM provider_models LIKE 'available'");
