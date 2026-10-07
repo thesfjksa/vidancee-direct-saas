@@ -751,7 +751,7 @@ textarea::placeholder,input::placeholder{color:#555860}
           <div class="card">
             <div class="panel-title">Generate speech</div>
             <div class="panel-sub">Choose an engine, model and voice, then generate audio from text.</div>
-            <div class="field"><label>Engine</label><select id="voiceProvider" onchange="loadVoiceOptions()"><option value="elevenlabs">Studio voices</option><option value="minimax">MiniMax voices</option></select></div>
+            <div class="field"><label>Engine</label><select id="voiceProvider" onchange="loadVoiceOptions()"><option value="elevenlabs">Studio voices</option><option value="minimax">Clone-ready voices</option></select></div>
             <div class="field"><label>Model</label><select id="voiceModel"></select></div>
             <div class="field"><label>Voice</label><select id="voiceSelect"></select></div>
             <div class="field"><label>Language</label><input id="voiceLanguage" value="en" placeholder="en"></div>
@@ -963,7 +963,7 @@ function go(name){
   document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));
   document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===name));
   if(name==='images')renderImageGallery();
-  if(name==='voices')loadVoiceGenerations();
+  if(name==='voices')refreshVoiceStudio();
   if(name==='library')renderLibrary();
   if(name==='plans')loadPlanStatus();
   if(name==='credits')loadCredits();
@@ -2603,7 +2603,6 @@ async function loadVoiceClones(){
     box.innerHTML=voiceClones.length?voiceClones.map(c=>
       '<div class="provider-access-item" style="padding:10px"><div><strong>'+escapeHtml(c.voice_name)+'</strong><div class="muted">'+escapeHtml(c.language_tag||'')+' · '+escapeHtml(c.gender||'')+'</div></div><span class="badge '+escapeHtml(c.status)+'">'+escapeHtml(c.status)+'</span></div>'
     ).join(''):'<div class="muted">No cloned voices yet.</div>';
-    if(voiceClones.some(c=>c.status==='done') && $('voiceProvider')?.value==='minimax')loadVoiceOptions();
   }catch(e){}
 }
 
