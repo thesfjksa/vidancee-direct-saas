@@ -82,3 +82,16 @@ See:
 - `docs/PROJECT_HANDOFF.md`
 - `docs/VIDANCEE_PROTOCOL.md`
 - `docs/HPANEL_DEPLOYMENT.md`
+
+## Voice Studio
+
+Voice generation and voice cloning use Vibi's official API through the standalone worker.
+
+- API base: `https://api.vibi.pro`
+- authentication: encrypted Admin-managed `xi-api-key`
+- TTS: Vibi-supported ElevenLabs and MiniMax models/voices
+- cloning: MiniMax voice cloning with customer-owned clone isolation
+- source access: global Admin switch + per-customer Voice assignment
+- generated audio is served through Mehroz AI rather than exposing the provider URL directly
+
+The previous experimental AI Tools Flow integration is not used.
