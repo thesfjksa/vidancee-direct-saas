@@ -294,7 +294,9 @@ function dynamicModelSupportsVideoReferences(model) {
 
 const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi'];
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+  const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+  access.vibi=false;
+  return access;
 }
 async function getUserProviderAccess(userId){
   const access=defaultCustomerProviderAccess();
