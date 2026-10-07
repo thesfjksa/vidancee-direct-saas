@@ -456,3 +456,24 @@
 - Production verification confirmed the standalone worker stayed alive for more than 2,000 seconds with the same PID.
 - Production verification confirmed a customer generation could be submitted, processed by the standalone worker, completed, and returned to the customer dashboard while the main site remained online.
 - This split deployment is now the recommended production architecture.
+
+## 2026-10-07 — Replace AI Tools Flow voice integration with Vibi API
+
+- Removed the unfinished AI Tools Flow provider integration and its session/login automation path.
+- Added official Vibi API integration using `xi-api-key` authentication against `https://api.vibi.pro`.
+- Added Vibi Admin settings: API key, global ON/OFF, max inflight voice jobs, and configurable customer cost for creating a cloned voice.
+- Added Admin connection test using `GET /v1/auth/me`, including provider credit balance.
+- Added per-customer Vibi/Voice source assignment.
+- Added voice catalog loading from Vibi:
+  - ElevenLabs-compatible default voices
+  - MiniMax system voices
+  - customer-owned cloned voices
+  - Vibi model catalog for both voice engines
+- Added text-to-speech submission through `POST /v1/text-to-speech/{voice_id}`.
+- Added worker polling through `GET /v1/history/{id}` and same-origin audio delivery.
+- Voice jobs reserve a conservative customer-credit estimate and reconcile to Vibi's final `credits_deducted` value at completion using the platform's 2.5× customer multiplier.
+- Added MiniMax voice cloning through `POST /v1/minimax/voices/clone`.
+- Voice samples are queued in MySQL and uploaded by the standalone worker, keeping provider upload work out of the customer-facing web process.
+- Added per-user clone ownership so one customer's cloned voices are not exposed to other customers.
+- Added cloned-voice status synchronization from `GET /v1/minimax/voices`.
+- Added customer Voice Studio controls for provider/model/voice selection, TTS history, audio playback/download, and voice-clone creation.
