@@ -2,7 +2,7 @@
 
 **Repository:** `thesfjksa/vidancee-direct-saas`  
 **Branch:** `main`  
-**Current stage:** Milestone 1 direct provider connector.
+**Current stage:** Production multi-provider SaaS with isolated Hostinger web and worker applications.
 
 ## Project goal
 
@@ -1706,3 +1706,159 @@ Recent customer UI fixes:
 - dynamic cost preflight sends the current prompt and model options
 - Higgsfield cost parsing accepts additional nested/string-wrapped MCP response shapes
 - invalid/missing dynamic costs still fall back to the existing "at submit" presentation, but valid zero-cost responses no longer do
+
+## Production stability architecture — 2026-10-07
+
+The production deployment is now intentionally split into **two Hostinger Node.js applications**.
+
+### Main customer/API application
+
+```text
+Domain: https://ai.mehroz.online
+Entry file: server.js
+WORKER_ENABLED=false
+```
+
+Responsibilities:
+
+- customer UI
+- authentication
+- Admin UI/API
+- generation submission
+- MySQL queue writes
+- credits/plans/account APIs
+- media delivery/proxying
+- provider configuration management
+
+It does **not** run the generation worker.
+
+Lightweight liveness endpoint:
+
+```text
+GET https://ai.mehroz.online/live
+```
+
+Full health endpoint:
+
+```text
+GET https://ai.mehroz.online/health
+```
+
+### Standalone generation worker
+
+```text
+Domain: https://worker.mehroz.online
+Entry file: worker.js
+WORKER_ENABLED=true
+APP_URL=https://ai.mehroz.online
+```
+
+Responsibilities:
+
+- queue polling
+- provider submission
+- provider status polling
+- generation completion/failure updates
+- refunds/failure handling
+- Higgsfield/Vidancee/CreatePulse/vgenv/Atlas provider workload
+
+Worker health endpoint:
+
+```text
+GET https://worker.mehroz.online/health
+```
+
+Verified production response:
+
+```json
+{"ok":true,"service":"mehroz-ai-worker","pid":808232,"uptimeSeconds":2099}
+```
+
+The worker and web app use the **same MySQL database** and the same encryption-compatible provider settings.
+
+### Why this split is required
+
+The original single-app deployment intermittently became unreachable even when no code/deployment changes were made.
+
+The lightweight `/live` endpoint also timed out, proving the outage was not caused only by MySQL or a provider API route.
+
+Runtime logs showed external process termination:
+
+```text
+[runtime] SIGTERM received ...
+```
+
+When the main app worker was disabled:
+
+```env
+WORKER_ENABLED=false
+```
+
+the main site remained live.
+
+A dedicated Hostinger worker application was then deployed and remained stable. A real customer task was submitted, picked up by the standalone worker, completed successfully, and returned to the dashboard.
+
+Therefore:
+
+- **do not enable the worker inside the main web app**
+- keep `WORKER_ENABLED=false` on `ai.mehroz.online`
+- keep `WORKER_ENABLED=true` only on `worker.mehroz.online`
+
+### Hostinger worker settings
+
+```text
+Framework: Other
+Node version: 20.x
+Branch: main
+Root directory: ./
+Package manager: npm
+Build command: npm run build
+Entry file: worker.js
+```
+
+Do not use `npm run worker` as Hostinger's build command. It is a runtime script, not a build step.
+
+### Shared worker environment
+
+At minimum, the worker needs the same database and encryption-compatible settings as the web app:
+
+```env
+NODE_ENV=production
+APP_URL=https://ai.mehroz.online
+WORKER_ENABLED=true
+DB_HOST=
+DB_PORT=3306
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+SETTINGS_ENCRYPTION_KEY=
+ADMIN_TOKEN=
+```
+
+Do not set `APP_URL` to the worker domain.
+
+### Higgsfield OAuth stability
+
+Production logs also exposed rotating refresh-token reuse:
+
+```text
+OAuth "invalid_grant"
+The refresh token was already used.
+```
+
+The MCP integration now serializes authenticated OAuth activity with a MySQL advisory lock so concurrent application processes do not refresh the same token simultaneously.
+
+If the current stored refresh token is already invalid, reconnect Higgsfield once in Admin.
+
+### Current production verification
+
+Verified on 2026-10-07:
+
+- main site remained live with its internal worker disabled
+- standalone worker health endpoint remained online with the same PID for more than 2,000 seconds
+- customer task submission succeeded
+- standalone worker picked up the queued task
+- task completed successfully
+- completed result appeared back in the customer dashboard
+
+This split web/worker deployment is the current recommended production architecture.
