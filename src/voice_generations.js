@@ -79,9 +79,9 @@ async function createVoiceGenerationForUser(userId,input,options={}){
 
     await conn.execute(
       `INSERT INTO generations
-       (id,user_id,provider,media_type,queue_priority,mode,model,duration,resolution,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit)
-       VALUES (?,?,?,'audio',?,'text-to-speech',?,0,?,'audio',?,'queued',?,?,?)`,
-      [id,userId,provider,planProfile.queuePriority,model,providerParams,text,cost,providerCostValue,providerCostUnit]
+       (id,user_id,provider,media_type,queue_priority,mode,model,duration,resolution,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit,provider_meta)
+       VALUES (?,?,?,'audio',?,'text-to-speech',?,0,NULL,'audio',?,'queued',?,?,?,?)`,
+      [id,userId,provider,planProfile.queuePriority,model,text,cost,providerCostValue,providerCostUnit,providerParams]
     );
 
     await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cost,userId]);
