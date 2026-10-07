@@ -41,6 +41,7 @@ async function createVoiceGenerationForUser(userId,input,options={}){
 
   const provider=String(options.provider||'aitoolsflow').slice(0,40);
   const model=String(options.model||input.model||'voice_multilingual').slice(0,80);
+  const providerParams=JSON.stringify(options.providerParams||{});
   const providerCost=Number(options.providerCost);
   const providerCostValue=Number.isFinite(providerCost)&&providerCost>=0?providerCost:null;
   const providerCostUnit=providerCostValue==null?null:String(options.providerCostUnit||'credits').slice(0,20);
@@ -79,8 +80,8 @@ async function createVoiceGenerationForUser(userId,input,options={}){
     await conn.execute(
       `INSERT INTO generations
        (id,user_id,provider,media_type,queue_priority,mode,model,duration,resolution,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit)
-       VALUES (?,?,?,'audio',?,'text-to-speech',?,0,NULL,'audio',?,'queued',?,?,?)`,
-      [id,userId,provider,planProfile.queuePriority,model,text,cost,providerCostValue,providerCostUnit]
+       VALUES (?,?,?,'audio',?,'text-to-speech',?,0,?,'audio',?,'queued',?,?,?)`,
+      [id,userId,provider,planProfile.queuePriority,model,providerParams,text,cost,providerCostValue,providerCostUnit]
     );
 
     await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cost,userId]);
