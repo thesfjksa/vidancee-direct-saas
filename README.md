@@ -4,7 +4,7 @@ Fresh SaaS project for an authorized server-side Vidancee integration.
 
 ## Current milestone
 
-**Milestone 1 — direct provider connector**
+**Production SaaS — multi-provider generation platform**
 
 Implemented:
 
@@ -19,15 +19,19 @@ Implemented:
 - Hostinger/hPanel deployment documentation
 - Project handoff documentation for continuation in another LLM/chat
 
-Not implemented yet:
+Current major capabilities include:
 
-- customer accounts
-- our own credit ledger
-- MySQL
-- production queue/worker
-- image-to-video submission
-- payments
-- customer-facing dashboard
+- customer accounts, plans, credits, and MySQL persistence
+- production generation queue/worker
+- text-to-video and reference-driven video generation
+- image generation workspace
+- Admin-managed provider credentials and global provider switches
+- per-customer provider/source assignments
+- dynamic Higgsfield MCP image/video model catalog and capability-driven inputs
+- Vidancee/CreatePulse Seedance routing
+- MiniMax H3 through vgenv
+- Atlas Cloud image generation
+- customer-facing model filtering based on source assignment
 
 ## Local/production start
 
