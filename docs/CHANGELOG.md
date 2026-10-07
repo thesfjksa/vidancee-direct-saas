@@ -427,3 +427,32 @@
 - Added 15-second duration to the Vidancee-backed Seedance 2.0 Fast model.
 - Added `PRICE_SEEDANCE_20_FAST_15` override support.
 - Kept the existing 10-second option.
+
+## 2026-10-07 — Diagnose Hostinger process recycling
+
+- Added lightweight `GET /live` endpoint that does not depend on MySQL or external AI providers.
+- Added runtime diagnostics for SIGTERM, SIGINT, uncaught exceptions, unhandled rejections, uptime, RSS/heap memory, free system memory, and load.
+- Production logs confirmed Hostinger was sending `SIGTERM` to the main Node process while the customer site was intermittently unreachable.
+- Confirmed `ERR_CONNECTION_TIMED_OUT` also affected `/live`, proving the outage was below individual application/API routes.
+
+## 2026-10-07 — Harden Higgsfield rotating OAuth tokens
+
+- Identified production `invalid_grant` failures caused by reuse of a rotated Higgsfield OAuth refresh token.
+- Added MySQL advisory locking around authenticated Higgsfield MCP operations.
+- Added safe retry handling for refresh-token rotation races.
+- Kept manual Admin reconnect as the recovery path when the stored token is already revoked/expired.
+
+## 2026-10-07 — Split web app and generation worker into separate Hostinger applications
+
+- Removed the production generation worker from the customer-facing Hostinger Node app.
+- Main web application now runs with `WORKER_ENABLED=false`.
+- Added dedicated `worker.js` entry point and `npm run worker` script.
+- Added a lightweight HTTP health server to the standalone worker so Hostinger can supervise it as an independent Node application.
+- Worker production domain: `https://worker.mehroz.online`.
+- Worker Hostinger entry file: `worker.js`.
+- Worker runs with `WORKER_ENABLED=true`.
+- Both apps share the same MySQL database and encrypted Admin-managed provider settings.
+- Worker `APP_URL` intentionally remains `https://ai.mehroz.online`.
+- Production verification confirmed the standalone worker stayed alive for more than 2,000 seconds with the same PID.
+- Production verification confirmed a customer generation could be submitted, processed by the standalone worker, completed, and returned to the customer dashboard while the main site remained online.
+- This split deployment is now the recommended production architecture.
