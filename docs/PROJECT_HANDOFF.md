@@ -1557,7 +1557,7 @@ Current sync order:
 2. if it returns no usable catalog, use the current official Higgsfield CLI/Skills generation model IDs and metadata
 3. bind those models to the live MCP `generate_image` / `generate_video` tools
 4. use live MCP `get_cost` before customer debit
-5. apply the universal source-credit × 2.5 customer-credit rule
+5. use the Higgsfield provider-reported credit cost 1:1 for customer display/debit (including legitimate 0-credit subscription-covered generations)
 6. submit through the authenticated Higgsfield account and poll the returned job
 
 Current operational next step after deployment:
@@ -1620,3 +1620,89 @@ The Higgsfield worker reads `generation_media`, uploads each reference through t
 Static legacy video models retain the existing six-image behavior, so the new capability system does not break older Vidancee/CreatePulse/vgenv flows.
 
 Deleting a generation explicitly removes both `generation_images` and `generation_media` before deleting the parent generation. This protects older deployments whose foreign-key cascades may not match the current schema.
+
+
+### Per-customer provider/source assignments — 2026-10-06
+
+Admin can now control which backend sources are available to each individual customer.
+
+Admin path:
+
+- `/admin-console` → **Users** → **Sources**
+
+Assignable sources:
+
+- Higgsfield
+- Vidancee
+- CreatePulse
+- MiniMax / vgenv
+- Atlas Cloud
+
+The access model is layered:
+
+1. provider credentials/configuration must exist
+2. the provider-wide Admin ON/OFF switch remains the master switch
+3. the customer must be assigned that source
+4. only models backed by allowed/active sources are returned to that customer's `/api/config`
+
+The server enforces source access at submission time as well as in the UI, so a stale page or direct API call cannot bypass the customer's assignment.
+
+A new `user_provider_access` table stores per-user source permissions. Missing rows intentionally default to enabled for backward compatibility with existing customers.
+
+Legacy Seedance routing also respects per-user Vidancee/CreatePulse access. MiniMax H3 respects per-user vgenv access. Atlas image generation respects per-user Atlas access. Higgsfield dynamic image/video models and live cost checks respect per-user Higgsfield access.
+
+The customer app reloads `/api/config` immediately after authentication so newly assigned source/model access takes effect without requiring a second login.
+
+
+### Higgsfield customer pricing rule — 2026-10-06
+
+Higgsfield is an explicit exception to the older universal markup rule.
+
+For Higgsfield-backed models:
+
+- the customer-facing cost uses the provider-returned Higgsfield credit amount 1:1
+- the same value is reserved/deducted at submission
+- no 2.5× multiplier is applied
+- a provider-reported cost of `0` is valid and must display as `0 credits`
+- zero-cost dynamic image/video jobs must not fall back to legacy static pricing
+
+The live cost parser accepts nested/wrapped MCP responses and common credit field names. `/api/model-cost`, dynamic generation creation, and provider-cost persistence all accept zero as a valid non-negative cost.
+
+
+### Admin dashboard visual refresh — 2026-10-06
+
+The Admin console was restyled to match the customer-facing Mehroz AI visual system:
+
+- charcoal/black surfaces
+- lime accent
+- tighter data density
+- cleaner tables/forms/buttons
+- improved Provider cards and switches
+- responsive source-assignment modal in Users
+
+This was a visual refresh only; existing Admin functionality remains intact.
+
+
+### Seedance 2.0 Fast 15-second support — 2026-10-07
+
+The legacy Vidancee-backed `seedance_2.0_fast` model now exposes both:
+
+- 10 seconds
+- 15 seconds
+
+Pricing keys:
+
+- `PRICE_SEEDANCE_20_FAST_10`
+- `PRICE_SEEDANCE_20_FAST_15`
+
+The 15-second default fallback source cost is proportional to the 10-second fallback. Vidancee submission already forwards the selected duration directly to `generate.php`, so no provider-adapter change was required.
+
+
+### Dynamic selector/cost UI fixes — 2026-10-06
+
+Recent customer UI fixes:
+
+- model-specific aspect-ratio options now rebuild the custom dropdown whenever the selected model changes
+- dynamic cost preflight sends the current prompt and model options
+- Higgsfield cost parsing accepts additional nested/string-wrapped MCP response shapes
+- invalid/missing dynamic costs still fall back to the existing "at submit" presentation, but valid zero-cost responses no longer do
