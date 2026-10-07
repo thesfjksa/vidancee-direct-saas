@@ -386,3 +386,44 @@
 - Higgsfield worker now uploads stored reference media and forwards exact provider roles.
 - Added compact model capability summaries under customer model selectors.
 - Added explicit dynamic-media cleanup when deleting image/video generations.
+
+
+## 2026-10-06 — Fix dynamic aspect ratio and Higgsfield cost display
+
+- Rebuilt the styled aspect-ratio dropdown whenever a model changes so stale ratio options are not shown.
+- Included the current prompt in live Higgsfield cost requests.
+- Hardened MCP cost parsing for additional nested/wrapped credit response shapes.
+- Accepted zero-credit Higgsfield costs as valid instead of falling back to "at submit".
+- Allowed zero-cost dynamic image/video generation records without falling back to static pricing.
+
+## 2026-10-06 — Use Higgsfield provider credits 1:1
+
+- Removed the 2.5× customer markup from Higgsfield-backed models.
+- Customer cost display now uses the Higgsfield provider-reported credits directly.
+- Submission debit/reservation uses the same value.
+- Provider cost remains stored separately for accounting.
+- Legitimate 0-credit subscription-covered generations are supported.
+
+## 2026-10-06 — Restyle Admin dashboard
+
+- Reworked Admin UI to match the Mehroz AI customer interface.
+- Switched to black/charcoal surfaces with lime accent.
+- Improved table density, cards, forms, buttons, responsive layout, source cards, and status switches.
+- No Admin business logic was removed.
+
+## 2026-10-06 — Add per-customer provider source assignments
+
+- Added `user_provider_access` persistence.
+- Added Admin → Users → Sources controls for Higgsfield, Vidancee, CreatePulse, vgenv/MiniMax, and Atlas Cloud.
+- Customer `/api/config` now returns only models backed by sources assigned to that user.
+- Added server-side submission enforcement so users cannot bypass assignments with direct API calls.
+- Legacy worker routing respects per-user Vidancee/CreatePulse/vgenv access.
+- Higgsfield live pricing and generation respect per-user Higgsfield access.
+- Existing users default to all sources enabled until explicitly restricted.
+- Customer config is refreshed immediately after authentication.
+
+## 2026-10-07 — Add Seedance 2.0 Fast 15-second option
+
+- Added 15-second duration to the Vidancee-backed Seedance 2.0 Fast model.
+- Added `PRICE_SEEDANCE_20_FAST_15` override support.
+- Kept the existing 10-second option.
