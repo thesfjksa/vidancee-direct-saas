@@ -414,27 +414,22 @@ pre{
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Voice engine</h3>
+            <h3>Voice engine · Vibi</h3>
             <label class="source-switch" title="Enable or disable this backend source">
-              <input id="aitoolsflowEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
+              <input id="vibiEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
               <span class="source-switch-track"></span>
             </label>
           </div>
-          <div id="aitoolsflowEnabledText" class="source-state"></div>
-          <div class="muted">Base URL</div><input id="aitoolsflowBaseUrl" style="width:100%;margin:6px 0 10px" value="https://aitoolsflow.com">
-          <div class="muted">Login email</div><input id="aitoolsflowEmail" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Password</div><input id="aitoolsflowPassword" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearAitoolsflowPassword" type="checkbox" style="width:auto"> Clear saved password</label>
-          <div id="aitoolsflowSecretStatus" class="muted" style="margin-top:8px"></div>
-          <div class="muted" style="margin-top:12px">Voice ID</div><input id="aitoolsflowVoiceId" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Customer voice label</div><input id="aitoolsflowVoiceLabel" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Model ID</div><input id="aitoolsflowModelId" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Company</div><input id="aitoolsflowCompany" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Account provider</div><input id="aitoolsflowAccountProvider" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Max inflight voice jobs</div><input id="aitoolsflowInflight" type="number" min="1" max="20" value="2" style="width:100%;margin:6px 0 10px">
-          <button class="secondary" onclick="checkAiToolsFlow()">Test connection</button>
-          <div id="aitoolsflowActionMsg" class="muted" style="margin-top:8px"></div>
-        </div>
+          <div id="vibiEnabledText" class="source-state"></div>
+          <div class="muted">Base URL</div><input id="vibiBaseUrl" style="width:100%;margin:6px 0 10px" value="https://api.vibi.pro">
+          <div class="muted">API key</div><input id="vibiApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearVibiApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="vibiSecretStatus" class="muted" style="margin-top:8px"></div>
+          <div class="muted" style="margin-top:12px">Max inflight voice jobs</div><input id="vibiInflight" type="number" min="1" max="20" value="4" style="width:100%;margin:6px 0 10px">
+          <div class="muted">Customer cost for creating a cloned voice</div><input id="vibiCloneCost" type="number" min="0" step="0.01" value="0" style="width:100%;margin:6px 0 10px">
+          <button class="secondary" onclick="checkVibi()">Test connection</button>
+          <div id="vibiActionMsg" class="muted" style="margin-top:8px"></div>
+        </div>        </div>
       </div>
       <div class="row" style="margin-top:12px">
         <div><div class="muted">Routing policy</div><select id="providerRouting" style="width:100%;margin-top:6px"><option value="overflow">Primary first, overflow when busy</option><option value="balanced">Balance available capacity</option><option value="createpulse-first">Overflow engine first</option></select></div>
@@ -478,7 +473,7 @@ pre{
       <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Overflow Seedance generation source</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">MiniMax H3 generation source</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Atlas Cloud</strong><span class="muted">Image generation source</span></div><span class="source-switch"><input id="accessAtlascloud" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Voice Studio</strong><span class="muted">Voice generation source</span></div><span class="source-switch"><input id="accessAitoolsflow" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Voice Studio</strong><span class="muted">Voice generation source</span></div><span class="source-switch"><input id="accessVibi" type="checkbox"><span class="source-switch-track"></span></span></label>
     </div>
     <div id="providerAccessMsg" class="muted"></div>
     <div class="modal-actions"><button class="secondary" onclick="closeProviderAccess()">Cancel</button><button class="btn" onclick="saveProviderAccess()">Save access</button></div>
@@ -515,7 +510,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['aitoolsflow','Voice']];
+      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -533,7 +528,7 @@ function openProviderAccess(id){
   $('accessCreatepulse').checked=a.createpulse!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessAtlascloud').checked=a.atlascloud!==false;
-  $('accessAitoolsflow').checked=a.aitoolsflow!==false;
+  $('accessVibi').checked=a.vibi!==false;
   $('providerAccessMsg').className='muted';$('providerAccessMsg').textContent='';
   $('providerAccessModal').classList.remove('hide');
 }
@@ -547,7 +542,7 @@ async function saveProviderAccess(){
     createpulse:$('accessCreatepulse').checked,
     vgenv:$('accessVgenv').checked,
     atlascloud:$('accessAtlascloud').checked,
-    aitoolsflow:$('accessAitoolsflow').checked,
+    vibi:$('accessVibi').checked,
   };
   try{
     await api('/admin/users/'+providerAccessUserId+'/providers',{method:'PUT',body:JSON.stringify({providers})});
@@ -601,7 +596,7 @@ function updateSourceSwitchLabels(){
     ['atlasEnabled','atlasEnabledText'],
     ['vgenvEnabled','vgenvEnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
-    ['aitoolsflowEnabled','aitoolsflowEnabledText'],
+    ['vibiEnabled','vibiEnabledText'],
   ];
   for(const [inputId,textId] of items){
     const input=$(inputId),text=$(textId);
@@ -618,38 +613,38 @@ async function loadProviderSettings(){try{
   $('atlasEnabled').checked=s.atlascloud?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
   $('higgsfieldEnabled').checked=s.higgsfield?.enabled!==false;
-  $('aitoolsflowEnabled').checked=s.aitoolsflow?.enabled!==false;
+  $('vibiEnabled').checked=s.vibi?.enabled!==false;
   updateSourceSwitchLabels();
   $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
   $('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;
   $('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
   $('higgsfieldMcpUrl').value=s.higgsfield?.mcpUrl||'https://mcp.higgsfield.ai/mcp';$('higgsfieldInflight').value=s.higgsfield?.maxInflight||4;$('higgsfieldConnectionStatus').textContent=s.higgsfield?.connected?'Account: connected':'Account: not connected';$('higgsfieldConnectionStatus').className=s.higgsfield?.connected?'ok':'muted';
-  $('aitoolsflowBaseUrl').value=s.aitoolsflow?.baseUrl||'https://aitoolsflow.com';$('aitoolsflowEmail').value=s.aitoolsflow?.email||'';$('aitoolsflowPassword').value='';$('clearAitoolsflowPassword').checked=false;$('aitoolsflowSecretStatus').textContent=s.aitoolsflow?.passwordConfigured?'Saved password: configured':'Saved password: not configured';$('aitoolsflowInflight').value=s.aitoolsflow?.maxInflight||2;$('aitoolsflowVoiceId').value=s.aitoolsflow?.voiceId||'';$('aitoolsflowVoiceLabel').value=s.aitoolsflow?.voiceLabel||'';$('aitoolsflowModelId').value=s.aitoolsflow?.modelId||'';$('aitoolsflowCompany').value=s.aitoolsflow?.company||'';$('aitoolsflowAccountProvider').value=s.aitoolsflow?.accountProvider||'';
+  $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
   $('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false';
   loadHiggsfieldModels();
 }catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
 async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
   const body={
-    vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,higgsfieldEnabled:$('higgsfieldEnabled').checked,aiToolsFlowEnabled:$('aitoolsflowEnabled').checked,
+    vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,higgsfieldEnabled:$('higgsfieldEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
     vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,
     createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),
     atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     higgsfieldMcpUrl:$('higgsfieldMcpUrl').value.trim(),higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
-    aiToolsFlowBaseUrl:$('aitoolsflowBaseUrl').value.trim(),aiToolsFlowEmail:$('aitoolsflowEmail').value.trim(),aiToolsFlowPassword:$('aitoolsflowPassword').value,clearAiToolsFlowPassword:$('clearAitoolsflowPassword').checked,aiToolsFlowMaxInflight:Number($('aitoolsflowInflight').value),aiToolsFlowVoiceId:$('aitoolsflowVoiceId').value.trim(),aiToolsFlowVoiceLabel:$('aitoolsflowVoiceLabel').value.trim(),aiToolsFlowModelId:$('aitoolsflowModelId').value.trim(),aiToolsFlowCompany:$('aitoolsflowCompany').value.trim(),aiToolsFlowAccountProvider:$('aitoolsflowAccountProvider').value.trim(),
+    vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
   try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}
 }
 
-async function checkAiToolsFlow(){
-  const m=$('aitoolsflowActionMsg');m.className='muted';m.textContent='Checking login...';
+async function checkVibi(){
+  const m=$('vibiActionMsg');m.className='muted';m.textContent='Checking API key...';
   try{
     await saveProviderSettings();
-    const d=await api('/admin/aitoolsflow/check',{method:'POST',body:'{}'});
-    m.className='ok';m.textContent='Connected successfully · '+Number(d.historyCount||0)+' recent voice jobs visible.';
+    const d=await api('/admin/vibi/check',{method:'POST',body:'{}'});
+    m.className='ok';m.textContent='Connected'+(d.account?' as '+d.account:'')+' · '+Number(d.creditBalance||0)+' provider credits available.';
   }catch(e){m.className='err';m.textContent=e.message}
 }
 
