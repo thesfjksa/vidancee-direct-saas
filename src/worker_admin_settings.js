@@ -3,7 +3,7 @@ const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
 const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
-const { AiToolsFlowClient } = require('./provider/aitoolsflow.js');
+const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const {
@@ -29,26 +29,25 @@ class GenerationWorker {
     this.createPulse = null;
     this.atlasCloud = null;
     this.vgenv = null;
-    this.aiToolsFlow = null;
-    this.aiToolsFlowConfig = null;
+    this.vibi = null;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
     this.atlasCloudFingerprint = '';
     this.vgenvFingerprint = '';
-    this.aiToolsFlowFingerprint = '';
+    this.vibiFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
     this.createPulseMaxInflight = 3;
     this.atlasCloudMaxInflight = 4;
     this.vgenvMaxInflight = 4;
     this.higgsfieldMaxInflight = 4;
-    this.aiToolsFlowMaxInflight = 2;
+    this.vibiMaxInflight = 4;
     this.higgsfieldConnected = false;
     this.vidanceeEnabled = true;
     this.createPulseEnabled = true;
     this.atlasCloudEnabled = true;
     this.vgenvEnabled = true;
     this.higgsfieldEnabled = true;
-    this.aiToolsFlowEnabled = true;
+    this.vibiEnabled = true;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
   }
@@ -84,14 +83,14 @@ class GenerationWorker {
     this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
     this.vgenvMaxInflight = settings.vgenvMaxInflight;
     this.higgsfieldMaxInflight = settings.higgsfieldMaxInflight;
-    this.aiToolsFlowMaxInflight = settings.aiToolsFlowMaxInflight;
+    this.vibiMaxInflight = settings.vibiMaxInflight;
     this.higgsfieldConnected = Boolean(settings.higgsfieldOauthTokens);
     this.vidanceeEnabled = Boolean(settings.vidanceeEnabled);
     this.createPulseEnabled = Boolean(settings.createPulseEnabled);
     this.atlasCloudEnabled = Boolean(settings.atlasCloudEnabled);
     this.vgenvEnabled = Boolean(settings.vgenvEnabled);
     this.higgsfieldEnabled = Boolean(settings.higgsfieldEnabled);
-    this.aiToolsFlowEnabled = Boolean(settings.aiToolsFlowEnabled);
+    this.vibiEnabled = Boolean(settings.vibiEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
@@ -139,28 +138,13 @@ class GenerationWorker {
         : null;
     }
 
-    const aiToolsFlowFingerprint = JSON.stringify([
-      settings.aiToolsFlowBaseUrl, settings.aiToolsFlowEmail, settings.aiToolsFlowPassword,
-      settings.aiToolsFlowVoiceId, settings.aiToolsFlowModelId, settings.aiToolsFlowCompany,
-      settings.aiToolsFlowAccountProvider,
-    ]);
-    if (aiToolsFlowFingerprint !== this.aiToolsFlowFingerprint) {
-      this.aiToolsFlowFingerprint = aiToolsFlowFingerprint;
-      this.aiToolsFlow = settings.aiToolsFlowEmail && settings.aiToolsFlowPassword
-        ? new AiToolsFlowClient({
-            baseUrl: settings.aiToolsFlowBaseUrl,
-            email: settings.aiToolsFlowEmail,
-            password: settings.aiToolsFlowPassword,
-          })
+    const vibiFingerprint = JSON.stringify([settings.vibiBaseUrl, settings.vibiApiKey]);
+    if (vibiFingerprint !== this.vibiFingerprint) {
+      this.vibiFingerprint = vibiFingerprint;
+      this.vibi = settings.vibiApiKey
+        ? new VibiClient({baseUrl:settings.vibiBaseUrl,apiKey:settings.vibiApiKey})
         : null;
     }
-    this.aiToolsFlowConfig = {
-      voiceId: settings.aiToolsFlowVoiceId,
-      voiceLabel: settings.aiToolsFlowVoiceLabel,
-      company: settings.aiToolsFlowCompany,
-      accountProvider: settings.aiToolsFlowAccountProvider,
-      modelId: settings.aiToolsFlowModelId,
-    };
   }
 
   async syncVidancee(db) {
@@ -624,90 +608,156 @@ class GenerationWorker {
     );
   }
 
-  async syncAiToolsFlow(db) {
-    if (!this.aiToolsFlowEnabled || !this.aiToolsFlow) return;
+  async reconcileVibiCredits(db,row,sourceCredits){
+    const actualSource=Math.max(0,Number(sourceCredits||0));
+    const actualCustomer=Math.round(actualSource*2.5*100)/100;
+    const reserved=Math.max(0,Number(row.credits_cost||0));
+    const delta=Math.round((reserved-actualCustomer)*100)/100;
+    if(Math.abs(delta)<0.005)return actualCustomer;
+
+    const conn=await db.getConnection();
+    try{
+      await conn.beginTransaction();
+      const [freshRows]=await conn.execute('SELECT * FROM generations WHERE id=? FOR UPDATE',[row.id]);
+      const fresh=freshRows[0];
+      if(!fresh){await conn.rollback();return actualCustomer}
+      const currentReserved=Number(fresh.credits_cost||0);
+      const currentDelta=Math.round((currentReserved-actualCustomer)*100)/100;
+      if(Math.abs(currentDelta)>=0.005){
+        await conn.execute('UPDATE users SET credits=credits+? WHERE id=?',[currentDelta,fresh.user_id]);
+        await conn.execute(
+          "INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,?,?,'generation_adjustment',?)",
+          [fresh.user_id,fresh.id,currentDelta,'Adjusted to final Vibi voice cost']
+        );
+        await conn.execute('UPDATE generations SET credits_cost=? WHERE id=?',[actualCustomer,fresh.id]);
+      }
+      await conn.commit();
+    }catch(error){await conn.rollback();throw error}finally{conn.release()}
+    return actualCustomer;
+  }
+
+  async syncVibi(db) {
+    if (!this.vibiEnabled || !this.vibi) return;
     const [rows] = await db.query(
-      "SELECT * FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY updated_at ASC LIMIT 30"
+      "SELECT * FROM generations WHERE media_type='audio' AND provider='vibi' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY updated_at ASC LIMIT 50"
     );
     for (const row of rows) {
       try {
-        const job = await this.aiToolsFlow.getVoiceJob(row.provider_job_id);
-        if (!job) continue;
+        const job = await this.vibi.getHistoryDetail(row.provider_job_id);
         if (job.status === 'completed' && job.outputUrl) {
+          await this.reconcileVibiCredits(db,row,job.creditsDeducted);
           await db.execute(
-            "UPDATE generations SET status='completed', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [job.providerCost, job.outputUrl, row.id]
+            "UPDATE generations SET status='completed', provider_cost=?, provider_cost_unit='credits', output_url=?, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
+            [job.creditsDeducted,job.outputUrl,row.id]
           );
-        } else if (['failed','error','cancelled','canceled'].includes(job.status)) {
-          await refundGeneration(
-            row.id,
-            'failed',
-            'Voice generation failed during processing. Credits were refunded.',
-            job.providerCost
-          );
-          await db.execute("UPDATE generations SET provider_cost_unit='credits' WHERE id=?", [row.id]);
+        } else if (job.status === 'failed') {
+          await refundGeneration(row.id,'failed','Voice generation failed during processing. Credits were refunded.',job.creditsDeducted);
+          await db.execute("UPDATE generations SET provider_cost_unit='credits' WHERE id=?",[row.id]);
         } else {
           await db.execute(
             "UPDATE generations SET status='processing', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [job.providerCost, row.id]
+            [job.creditsDeducted||null,row.id]
           );
         }
       } catch (error) {
-        console.error('AI Tools Flow voice status sync failed for', row.id, error.message);
+        console.error('Vibi voice status sync failed for', row.id, error.message);
       }
     }
   }
 
-  async submitAiToolsFlowQueued(db) {
-    if (!this.aiToolsFlowEnabled || !this.aiToolsFlow) return;
+  async submitVibiQueued(db) {
+    if (!this.vibiEnabled || !this.vibi) return;
     const [[active]] = await db.query(
-      "SELECT COUNT(*) AS total FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status IN ('submitting','submitted','processing')"
+      "SELECT COUNT(*) AS total FROM generations WHERE media_type='audio' AND provider='vibi' AND status IN ('submitting','submitted','processing')"
     );
-    let slots = Math.max(0, this.aiToolsFlowMaxInflight - Number(active?.total || 0));
-    if (slots <= 0) return;
+    let slots=Math.max(0,this.vibiMaxInflight-Number(active?.total||0));
+    if(slots<=0)return;
 
-    const [queued] = await db.query(
-      "SELECT * FROM generations WHERE media_type='audio' AND provider='aitoolsflow' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25"
+    const [queued]=await db.query(
+      "SELECT * FROM generations WHERE media_type='audio' AND provider='vibi' AND status='queued' ORDER BY queue_priority DESC,created_at ASC LIMIT 25"
     );
-
-    for (const job of queued) {
-      if (slots <= 0) break;
-      const [claim] = await db.execute(
-        "UPDATE generations SET status='submitting', error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=? AND media_type='audio' AND provider='aitoolsflow' AND status='queued'",
+    for(const job of queued){
+      if(slots<=0)break;
+      const [claim]=await db.execute(
+        "UPDATE generations SET status='submitting',error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND status='queued'",
         [job.id]
       );
-      if (!claim.affectedRows) continue;
-
-      try {
-        const cfg=this.aiToolsFlowConfig||{};
-        const result=await this.aiToolsFlow.generateVoice({
+      if(!claim.affectedRows)continue;
+      try{
+        const params=JSON.parse(job.resolution||'{}');
+        const result=await this.vibi.textToSpeech({
+          voiceId:params.voiceId,
           text:job.prompt,
-          voiceId:cfg.voiceId,
-          company:cfg.company,
-          accountProvider:cfg.accountProvider,
-          modelId:cfg.modelId,
-          speed:1,
-          stability:0.5,
-          similarityBoost:0.75,
-          style:0,
-          useSpeakerBoost:false,
+          modelId:params.modelId,
+          provider:params.provider,
+          languageCode:params.languageCode,
+          voiceSettings:params.voiceSettings||{},
+          exportTranscript:false,
         });
-
-        if (result.status==='completed' && result.outputUrl) {
-          await db.execute(
-            "UPDATE generations SET status='completed', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, submitted_at=UTC_TIMESTAMP(), started_at=UTC_TIMESTAMP(), completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [result.id,result.providerCost,result.outputUrl,job.id]
-          );
-        } else {
-          await db.execute(
-            "UPDATE generations SET status='submitted', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [result.id,result.providerCost,job.id]
-          );
-        }
-        slots -= 1;
-      } catch (error) {
-        console.error('AI Tools Flow voice submission failed for', job.id, error);
+        if(!result.id)throw new Error('Vibi did not return a task ID.');
+        await db.execute(
+          "UPDATE generations SET status='submitted',provider_job_id=?,submitted_at=UTC_TIMESTAMP(),started_at=COALESCE(started_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP() WHERE id=?",
+          [result.id,job.id]
+        );
+        slots-=1;
+      }catch(error){
+        console.error('Vibi voice submission failed for',job.id,error);
         await refundGeneration(job.id,'submit_error','Voice generation could not be submitted. Credits were refunded.',null);
+      }
+    }
+  }
+
+  async syncVibiClones(db){
+    if(!this.vibiEnabled||!this.vibi)return;
+    const [rows]=await db.query(
+      "SELECT * FROM user_voice_clones WHERE provider='vibi' AND status='processing' AND provider_clone_id IS NOT NULL ORDER BY updated_at ASC LIMIT 50"
+    );
+    if(!rows.length)return;
+    let remote=[];
+    try{remote=await this.vibi.listClonedVoices()}catch(error){console.error('Vibi clone list failed:',error.message);return}
+    const byId=new Map(remote.map(v=>[String(v.id),v]));
+    for(const row of rows){
+      const v=byId.get(String(row.provider_clone_id));if(!v)continue;
+      const status=String(v.status||'processing').toLowerCase();
+      await db.execute(
+        "UPDATE user_voice_clones SET status=?,sample_audio_url=?,cover_url=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",
+        [status==='done'?'done':(status==='failed'?'failed':'processing'),v.sample_audio_url||null,v.cover_url||null,status==='failed'?'Voice cloning failed.':null,row.id]
+      );
+    }
+  }
+
+  async submitVibiCloneQueue(db){
+    if(!this.vibiEnabled||!this.vibi)return;
+    const [rows]=await db.query(
+      "SELECT * FROM user_voice_clones WHERE provider='vibi' AND status='queued' ORDER BY created_at ASC LIMIT 3"
+    );
+    for(const row of rows){
+      const [claim]=await db.execute(
+        "UPDATE user_voice_clones SET status='submitting',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='queued'",
+        [row.id]
+      );
+      if(!claim.affectedRows)continue;
+      try{
+        const result=await this.vibi.cloneVoice({
+          data:row.sample_data,
+          filename:row.sample_filename,
+          mimeType:row.sample_mime_type,
+          voiceName:row.voice_name,
+          languageTag:row.language_tag,
+          gender:row.gender,
+          needNoiseReduction:true,
+          previewText:row.preview_text||'Hello',
+        });
+        await db.execute(
+          "UPDATE user_voice_clones SET provider_clone_id=?,status=?,sample_data=NULL,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=?",
+          [String(result.id||''),String(result.status||'processing').toLowerCase()==='done'?'done':'processing',row.id]
+        );
+      }catch(error){
+        console.error('Vibi voice clone submission failed for',row.id,error);
+        await db.execute(
+          "UPDATE user_voice_clones SET status='failed',error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",
+          [String(error.message||'Voice clone failed').slice(0,1000),row.id]
+        );
       }
     }
   }
@@ -721,7 +771,8 @@ class GenerationWorker {
     await this.syncVgenv(db);
     await this.syncAtlasImages(db);
     await this.syncHiggsfield(db);
-    await this.syncAiToolsFlow(db);
+    await this.syncVibi(db);
+    await this.syncVibiClones(db);
 
     if (!this.allowProviderCharges) return;
 
@@ -735,7 +786,8 @@ class GenerationWorker {
     }
 
     await this.submitAtlasImages(db);
-    await this.submitAiToolsFlowQueued(db);
+    await this.submitVibiQueued(db);
+    await this.submitVibiCloneQueue(db);
 
     if (
       !(this.vidanceeEnabled && this.vidancee) &&
