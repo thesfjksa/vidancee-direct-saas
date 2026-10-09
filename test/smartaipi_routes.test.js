@@ -37,8 +37,22 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   const auth = require('../src/auth.js'); const originalAuth = { ...auth };
   const lookup = req => users.get(Number(req.headers['x-test-user'] || 1));
   auth.requireUser = async req => lookup(req); auth.userFromRequest = async req => lookup(req);
+  const wakeModule = require('../src/worker_wakeup.js'), OriginalWakeup = wakeModule.WorkerWakeup;
+  const originalWakeUrl = process.env.WORKER_WAKE_URL;
+  process.env.WORKER_WAKE_URL = 'https://worker.example.com/live';
+  let wakeCalls = 0, finishWake;
+  wakeModule.WorkerWakeup = class extends OriginalWakeup {
+    constructor(options) { super({ ...options, fetchImpl: async () => {
+      wakeCalls++; return new Promise(resolve => { finishWake = resolve; });
+    }}); }
+  };
   const server = require('../server.js');
-  t.after(async () => { await new Promise(resolve => server.close(resolve)); Object.assign(dbModule, originalDb); Object.assign(auth, originalAuth); });
+  t.after(async () => {
+    finishWake?.(Response.json({ ok: true, service: 'mehroz-ai-worker', workerEnabled: true }));
+    await new Promise(resolve => server.close(resolve)); Object.assign(dbModule, originalDb); Object.assign(auth, originalAuth);
+    wakeModule.WorkerWakeup = OriginalWakeup;
+    if(originalWakeUrl===undefined)delete process.env.WORKER_WAKE_URL;else process.env.WORKER_WAKE_URL=originalWakeUrl;
+  });
   if (!server.listening) await once(server, 'listening');
   const origin = 'http://127.0.0.1:'+server.address().port;
   async function request(path, { admin = false, method = 'GET', body, user = 1 } = {}) {
@@ -76,6 +90,9 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   const squareInput = { ...input, model: SMART_IMAGE_MODELS[2].id, aspectRatio: '1:1', quality: 'medium' };
   const square = await request('/api/image-generations', { method: 'POST', body: squareInput, user: 2 });
   assert.equal(square.status, 201); assert.equal(square.data.generation.credits_cost,160);
+  // Every saved job triggers wake-up, without delaying HTTP 201 for a cold worker.
+  // The pending health request is shared across submissions and cannot bill a model.
+  assert.equal(wakeCalls, 1); assert.equal(typeof finishWake, 'function');
   assert.equal(square.data.user.credits,1840);
   users.get(2).credits = 159;
   const counts = [jobs.size, transactions.length];

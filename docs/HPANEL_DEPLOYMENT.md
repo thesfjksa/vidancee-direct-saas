@@ -37,6 +37,8 @@ The web app and worker use the same database and Admin-managed provider settings
 
 The main app writes queued generations into MySQL. The worker app picks up those jobs, submits them to the configured providers, polls provider status, and writes completion/failure state back into MySQL.
 
+The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 2 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
+
 ---
 
 ## Main web application
@@ -319,3 +321,4 @@ Never commit real values for:
 - payment secrets
 
 Provider credentials are managed through the private Admin UI and encrypted at rest where supported.
+

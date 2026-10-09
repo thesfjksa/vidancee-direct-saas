@@ -56,6 +56,14 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
         service:'mehroz-ai-worker',
         pid:process.pid,
         uptimeSeconds:Math.round(process.uptime()),
+        revision:2,
+        workerEnabled:worker.enabled(),
+        polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
+        imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,
+          lastStartedAt:worker.lastSmartTickStartedAt,lastFinishedAt:worker.lastSmartTickFinishedAt,
+          lastSuccessfulAt:worker.lastSmartTickSucceededAt,
+          sourceReady:Boolean(worker.smartImageAllowCharges&&worker.smartAipiEnabled&&worker.smartAipi),
+          activeTasks:worker.smartImageTasks.size},
       });
       res.writeHead(200,{
         'content-type':'application/json',
@@ -78,3 +86,4 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
   process.exitCode=1;
   setTimeout(()=>process.exit(1),250).unref();
 });
+

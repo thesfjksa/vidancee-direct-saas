@@ -47,6 +47,18 @@ const { VibiClient } = require('./src/provider/vibi.js');
 const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, ENHANCEMENT_TIMEOUT_MS, normalizeEnhancement } = require('./src/prompt_enhancer.js');
 const promptEnhancementGate = new PromptEnhancementGate();
 const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
+const { WorkerWakeup } = require('./src/worker_wakeup.js');
+const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
+function wakeGenerationWorker(req) {
+  const host=String(req.headers.host||'').toLowerCase().split(':')[0];
+  // The default belongs only to this production deployment; other deployments
+  // must explicitly configure their own standalone worker's health endpoint.
+  const origin=String(process.env.APP_URL||'').toLowerCase().replace(/\/$/,'');
+  if(process.env.WORKER_WAKE_URL===undefined && host!=='ai.mehroz.online' && origin!=='https://ai.mehroz.online')return;
+  void workerWakeup.wake().then(result=>{
+    if(!result.ok&&!result.skipped)console.warn('[worker-wakeup]',result.error);
+  });
+}
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
@@ -479,6 +491,8 @@ const server=http.createServer(async (req,res)=>{
         node:process.version,
         database,
         services:{
+          queueRevision:1,
+          workerWakeup:workerWakeup.status(),
           generationBackendReady,
           imageGenerationReady,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
@@ -818,6 +832,7 @@ const server=http.createServer(async (req,res)=>{
         providerCostUnit:'credits',
         providerParams:{voiceId,modelId,provider,languageCode,voiceSettings}
       });
+      wakeGenerationWorker(req);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
@@ -867,6 +882,7 @@ const server=http.createServer(async (req,res)=>{
         );
         if(cloneCost>0)await conn.execute("INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,NULL,?,'voice_clone_debit',?)",[user.id,-cloneCost,'Reserved for voice cloning']);
         await conn.commit();
+        wakeGenerationWorker(req);
         return sendJson(res,201,{ok:true,clone:{id:Number(result.insertId),voice_name:name,status:'queued'}});
       }catch(error){await conn.rollback();throw error}finally{conn.release()}
     }
@@ -874,7 +890,9 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/image-generations') {
       requireDatabase();
       const user=await requireUser(req);
-      return sendJson(res,200,{ok:true,generations:await listUserImageGenerations(user.id,60)});
+      const generations=await listUserImageGenerations(user.id,60);
+      if(generations.some(row=>['queued','submitting','submitted','processing'].includes(row.status)))wakeGenerationWorker(req);
+      return sendJson(res,200,{ok:true,generations});
     }
 
     if (req.method==='POST' && routePath==='/api/image-generations') {
@@ -932,6 +950,7 @@ const server=http.createServer(async (req,res)=>{
         generation=await createImageGenerationForUser(user.id,body);
       }
 
+      wakeGenerationWorker(req);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
@@ -943,6 +962,7 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       const row=await getUserImageGeneration(user.id,imageGenMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
+      if(['queued','submitting','submitted','processing'].includes(row.status))wakeGenerationWorker(req);
       return sendJson(res,200,{ok:true,generation:serializeImageGeneration(row)});
     }
 
@@ -1045,6 +1065,7 @@ const server=http.createServer(async (req,res)=>{
         generation=await createGenerationForUser(user.id,body);
       }
 
+      wakeGenerationWorker(req);
       const db=getPool();
       const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});

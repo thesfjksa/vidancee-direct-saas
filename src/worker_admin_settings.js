@@ -28,6 +28,16 @@ class GenerationWorker {
   constructor() {
     this.running = false;
     this.timer = null;
+    this.stopped = false;
+    this.smartImageLaneActive = false;
+    this.smartImageTimer = null;
+    this.smartImageRunning = false;
+    this.lastTickStartedAt = null;
+    this.lastTickFinishedAt = null;
+    this.lastSmartTickStartedAt = null;
+    this.lastSmartTickFinishedAt = null;
+    this.lastSmartTickSucceededAt = null;
+    this.smartImageAllowCharges = false;
     this.vidancee = null;
     this.createPulse = null;
     this.atlasCloud = null;
@@ -69,10 +79,20 @@ class GenerationWorker {
   start() {
     if (!this.enabled()) return;
     if (!dbConfigured()) return;
+    this.stopped = false;
+    this.smartImageLaneActive = true;
+    this.scheduleSmartImages(500);
     this.schedule(1200);
   }
 
+  stop() {
+    this.stopped = true;
+    clearTimeout(this.timer);
+    clearTimeout(this.smartImageTimer);
+  }
+
   schedule(delay = this.interval) {
+    if (this.stopped) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.tick(), delay);
     if (this.timer.unref) this.timer.unref();
@@ -81,9 +101,49 @@ class GenerationWorker {
   async tick() {
     if (this.running) return this.schedule();
     this.running = true;
+    this.lastTickStartedAt = new Date().toISOString();
     try { await this.runOnce(); }
     catch (error) { console.error('Worker tick failed:', error); }
-    finally { this.running = false; this.schedule(); }
+    finally { this.running = false; this.lastTickFinishedAt = new Date().toISOString(); this.schedule(); }
+  }
+
+  scheduleSmartImages(delay = this.interval) {
+    if (this.stopped) return;
+    clearTimeout(this.smartImageTimer);
+    this.smartImageTimer = setTimeout(() => this.tickSmartImages(), delay);
+    this.smartImageTimer.unref?.();
+  }
+
+  async tickSmartImages() {
+    if (this.smartImageRunning) return this.scheduleSmartImages();
+    this.smartImageRunning = true;
+    this.lastSmartTickStartedAt = new Date().toISOString();
+    try { await this.runSmartImagesOnce(); this.lastSmartTickSucceededAt = new Date().toISOString(); }
+    catch (error) { console.error('Image worker tick failed:', error); }
+    finally {
+      this.smartImageRunning = false;
+      this.lastSmartTickFinishedAt = new Date().toISOString();
+      this.scheduleSmartImages();
+    }
+  }
+
+  async runSmartImagesOnce(db = getPool(), settings = null) {
+    const current = settings || await getProviderSettings();
+    this.applySmartImageSettings(current);
+    await this.syncSmartImages(db);
+    await this.submitSmartImages(db, Boolean(current.allowProviderCharges));
+  }
+
+  applySmartImageSettings(settings) {
+    this.smartImageAllowCharges = Boolean(settings.allowProviderCharges);
+    this.smartAipiEnabled = settings.smartAipiEnabled;
+    this.smartAipiMaxInflight = settings.smartAipiMaxInflight;
+    this.smartAipiModels = settings.smartAipiModels;
+    const fingerprint = JSON.stringify([settings.smartAipiBaseUrl, settings.smartAipiApiKey]);
+    if (fingerprint !== this.smartAipiFingerprint) {
+      this.smartAipiFingerprint = fingerprint;
+      this.smartAipi = settings.smartAipiApiKey ? new SmartAipiClient({baseUrl: settings.smartAipiBaseUrl, apiKey: settings.smartAipiApiKey}) : null;
+    }
   }
 
   async refreshProviderSettings() {
@@ -102,14 +162,7 @@ class GenerationWorker {
     this.higgsfieldEnabled = Boolean(settings.higgsfieldEnabled);
     this.vibiEnabled = Boolean(settings.vibiEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
-    this.smartAipiEnabled = settings.smartAipiEnabled;
-    this.smartAipiMaxInflight = settings.smartAipiMaxInflight;
-    this.smartAipiModels = settings.smartAipiModels;
-    const smartFingerprint = JSON.stringify([settings.smartAipiBaseUrl, settings.smartAipiApiKey]);
-    if (smartFingerprint !== this.smartAipiFingerprint) {
-      this.smartAipiFingerprint = smartFingerprint;
-      this.smartAipi = settings.smartAipiApiKey ? new SmartAipiClient({baseUrl: settings.smartAipiBaseUrl, apiKey: settings.smartAipiApiKey}) : null;
-    }
+    this.applySmartImageSettings(settings);
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
     if (vidFingerprint !== this.vidanceeFingerprint) {
@@ -321,8 +374,8 @@ class GenerationWorker {
     }
   }
 
-  async submitSmartImages(db) {
-    if (!this.allowProviderCharges || !this.smartAipi || !this.smartAipiEnabled) return;
+  async submitSmartImages(db, allowCharges = this.allowProviderCharges) {
+    if (!allowCharges || !this.smartAipi || !this.smartAipiEnabled) return;
     // A connection-scoped lock keeps the global inflight limit consistent when
     // an isolated web worker and a standalone worker share this database.
     const conn = await db.getConnection();
@@ -893,7 +946,7 @@ class GenerationWorker {
     await this.syncCreatePulse(db);
     await this.syncVgenv(db);
     await this.syncAtlasImages(db);
-    await this.syncSmartImages(db);
+    if (!this.smartImageLaneActive) await this.syncSmartImages(db);
     await this.syncHiggsfield(db);
     await this.syncVibi(db);
     await this.syncVibiClones(db);
@@ -909,7 +962,7 @@ class GenerationWorker {
       higgsfieldSlots = await this.submitHiggsfieldQueued(db, higgsfieldSlots);
     }
 
-    await this.submitSmartImages(db);
+    if (!this.smartImageLaneActive) await this.submitSmartImages(db);
     await this.submitAtlasImages(db);
     await this.submitVibiQueued(db);
     await this.submitVibiCloneQueue(db);
