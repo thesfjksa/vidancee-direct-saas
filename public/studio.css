@@ -152,6 +152,26 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
 .custom-select-option.selected .model-picker-check { color: var(--accent); }
 .model-picker-options::-webkit-scrollbar { width: 10px; }
 .model-picker-options::-webkit-scrollbar-thumb { background: #67a8bc; }
+/* Aspect ratios use a viewport-level shape picker above the creator panel. */
+.custom-select.ratio-picker .custom-select-menu { position: fixed; inset: 0; margin: auto; width: min(580px,calc(100vw - 32px)); height: fit-content; max-height: calc(100dvh - 40px); padding: 0; overflow: hidden; border: 1px solid #d2e3ec; border-radius: 18px; box-shadow: 0 32px 100px rgba(0,45,74,.22); flex-direction: column; }
+.custom-select.ratio-picker.open .custom-select-menu { display: flex; }
+.custom-select.ratio-picker .custom-select-menu::backdrop { background: rgba(19,49,71,.28); backdrop-filter: blur(4px); }
+.ratio-picker-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 20px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.custom-select.ratio-picker .ratio-picker-option { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 0; min-height: 124px; padding: 12px 8px; border: 1px solid var(--line); border-radius: 12px; background: #f9fbfc; color: var(--brand); text-align: center; }
+.custom-select.ratio-picker .ratio-picker-option:hover { border-color: #9fcdd7; background: #f0f9fa; }
+.custom-select.ratio-picker .ratio-picker-option.selected { border-color: var(--turquoise); background: #eaf9fa; box-shadow: inset 0 0 0 1px var(--turquoise); color: var(--brand); }
+.custom-select.ratio-picker .ratio-picker-option.selected::after { display: none; }
+.ratio-picker-option:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.ratio-picker-shape { display: block; width: 80px; height: 64px; }
+.ratio-picker-shape svg { display: block; width: 100%; height: 100%; }
+.ratio-picker-label { font-size: 13px; font-weight: 700; margin-top: 4px; }
+.ratio-picker-description { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.ratio-picker-check { display: grid; place-items: center; position: absolute; top: 8px; right: 8px; width: 17px; height: 17px; border-radius: 50%; background: var(--turquoise); color: #fff; font-size: 11px; opacity: 0; }
+.ratio-picker-option.selected .ratio-picker-check { opacity: 1; }
+.ratio-picker .custom-select-value { display: flex; align-items: center; gap: 8px; }
+.ratio-picker .custom-select-value svg { width: 26px; height: 21px; flex-shrink: 0; }
+@media (max-width: 480px) { .ratio-picker-options { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; padding: 14px; } .custom-select.ratio-picker .ratio-picker-option { min-height: 112px; padding: 8px 5px; } .custom-select.ratio-picker .custom-select-menu { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border-radius: 14px; } }
+
 .image-preview { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 10px; }
 .image-chip { min-width: 0; position: relative; cursor: grab; border-radius: 8px; }
 .image-chip img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; pointer-events: none; }

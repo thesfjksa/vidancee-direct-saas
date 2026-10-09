@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/assets/cmmtools-icon.png">
 <title>CMM Tools — Creation Studio</title>
 <link rel="stylesheet" href="/brand.css?v=cmm-1">
-<link rel="stylesheet" href="/studio.css?v=cmm-4">
+<link rel="stylesheet" href="/studio.css?v=cmm-5">
 </head>
 <body>
 
@@ -480,7 +480,7 @@ function closeCustomSelects(except=null){
 }
 
 function positionCustomSelect(wrap){
-  if(!wrap||wrap.classList.contains('model-picker'))return;
+  if(!wrap||wrap.classList.contains('model-picker')||wrap.classList.contains('ratio-picker'))return;
   const trigger=wrap.querySelector('.custom-select-trigger');
   const menu=wrap.querySelector('.custom-select-menu');
   if(!trigger||!menu)return;
@@ -505,6 +505,25 @@ function positionCustomSelect(wrap){
 
 function customSelectSearchable(id){
   return ['model','imageModel','voiceModel'].includes(String(id));
+}
+
+function customSelectRatioPicker(id){
+  return ['ratio','imageRatio'].includes(String(id));
+}
+
+function ratioShapeSvg(ratio){
+  const parts=String(ratio).split(':').map(Number);
+  if(parts.length!==2||!parts.every(n=>Number.isFinite(n)&&n>0))return '';
+  const scale=48/Math.max(...parts),width=parts[0]*scale,height=parts[1]*scale;
+  return '<svg viewBox="0 0 80 64" fill="none" aria-hidden="true"><rect x="'+(80-width)/2+'" y="'+(64-height)/2+'" width="'+width+'" height="'+height+'" rx="3" fill="currentColor" fill-opacity=".07" stroke="currentColor" stroke-width="1.8"/></svg>';
+}
+
+function ratioPickerOptionHtml(o,i,selected){
+  const [width,height]=String(o.value).split(':').map(Number);
+  const orientation=width===height?'Square':width>height?(width/height>=3?'Ultrawide':'Landscape'):(height/width>=3?'Tall':'Portrait');
+  return '<button type="button" class="custom-select-option ratio-picker-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+selected+'" aria-label="'+escapeHtml(o.textContent)+' '+orientation+'">'+
+    '<span class="ratio-picker-check" aria-hidden="true">✓</span><span class="ratio-picker-shape">'+ratioShapeSvg(o.value)+'</span>'+
+    '<span class="ratio-picker-label">'+escapeHtml(o.textContent)+'</span><span class="ratio-picker-description">'+orientation+'</span></button>';
 }
 
 function filterCustomSelectOptions(wrap,query){
@@ -591,11 +610,12 @@ function modelPickerOptionHtml(id,o,i,selected){
 function ensureCustomSelect(id){
   const select=$(id);
   if(!select)return;
+  const isRatio=customSelectRatioPicker(id),isModal=customSelectSearchable(id)||isRatio;
   let wrap=select.closest('.custom-select');
 
   if(!wrap){
     wrap=document.createElement('div');
-    wrap.className='custom-select'+(customSelectSearchable(id)?' model-picker':'');
+    wrap.className='custom-select'+(customSelectSearchable(id)?' model-picker':isRatio?' ratio-picker':'');
     select.parentNode.insertBefore(wrap,select);
     wrap.appendChild(select);
     select.classList.add('native-select-hidden');
@@ -607,20 +627,22 @@ function ensureCustomSelect(id){
     trigger.className='custom-select-trigger';
     const label=document.querySelector('label[for="'+id+'"]');
     if(label){label.id=label.id||id+'Label';trigger.setAttribute('aria-labelledby',label.id);}
-    trigger.setAttribute('aria-haspopup',customSelectSearchable(id)?'dialog':'listbox');
+    trigger.setAttribute('aria-haspopup',isModal?'dialog':'listbox');
     trigger.setAttribute('aria-expanded','false');
     trigger.innerHTML='<span class="custom-select-value"></span><svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5 5 5-5"/></svg>';
 
-    const menu=document.createElement(customSelectSearchable(id)?'dialog':'div');
+    const menu=document.createElement(isModal?'dialog':'div');
+    menu.id=id+'Picker';
+    trigger.setAttribute('aria-controls',menu.id);
     menu.className='custom-select-menu';
-    menu.setAttribute('role',customSelectSearchable(id)?'dialog':'listbox');
-    menu.setAttribute('aria-label',customSelectSearchable(id)?modelPickerTitle(id)[0]:id+' options');
+    menu.setAttribute('role',isModal?'dialog':'listbox');
+    menu.setAttribute('aria-label',isRatio?'Choose aspect ratio':customSelectSearchable(id)?modelPickerTitle(id)[0]:id+' options');
 
-    if(customSelectSearchable(id)){
-      const titles=modelPickerTitle(id);
+    if(isModal){
+      const titles=isRatio?['Choose aspect ratio','Choose the shape of your canvas']:modelPickerTitle(id);
       const head=document.createElement('div');
       head.className='model-picker-head';
-      head.innerHTML='<div><strong>'+escapeHtml(titles[0])+'</strong><span>'+escapeHtml(titles[1])+'</span></div><button type="button" class="model-picker-close" aria-label="Close model picker">×</button>';
+      head.innerHTML='<div><strong>'+escapeHtml(titles[0])+'</strong><span>'+escapeHtml(titles[1])+'</span></div><button type="button" class="model-picker-close" aria-label="'+(isRatio?'Close aspect ratio picker':'Close model picker')+'">×</button>';
       menu.appendChild(head);
       head.querySelector('.model-picker-close').addEventListener('click',e=>{
         e.stopPropagation();
@@ -637,35 +659,43 @@ function ensureCustomSelect(id){
         });
       }
 
-      const search=document.createElement('div');
-      search.className='custom-select-search';
-      search.innerHTML='<input type="search" autocomplete="off" spellcheck="false" placeholder="Search models..." aria-label="Search models">';
-      menu.appendChild(search);
-      const options=document.createElement('div');
-      options.className='model-picker-options';
-      options.setAttribute('role','listbox');
-      options.setAttribute('aria-label','Available models');
-      menu.appendChild(options);
-      const empty=document.createElement('div');
-      empty.className='custom-select-empty';
-      empty.textContent='No models found';
-      options.appendChild(empty);
-      const input=search.querySelector('input');
-      input.addEventListener('click',e=>e.stopPropagation());
-      input.addEventListener('keydown',e=>{
-        if(e.key==='Escape'){
-          e.stopPropagation();
-          input.value='';
-          filterCustomSelectOptions(wrap,'');
-          wrap.classList.remove('open','drop-up');
-          trigger.setAttribute('aria-expanded','false');
-          if(menu instanceof HTMLDialogElement && menu.open)menu.close();
-        }
-      });
-      input.addEventListener('input',()=>{
-        filterCustomSelectOptions(wrap,input.value);
-        positionCustomSelect(wrap);
-      });
+      if(isRatio){
+        const options=document.createElement('div');
+        options.className='ratio-picker-options';
+        options.setAttribute('role','listbox');
+        options.setAttribute('aria-label','Available aspect ratios');
+        menu.appendChild(options);
+      }else{
+        const search=document.createElement('div');
+        search.className='custom-select-search';
+        search.innerHTML='<input type="search" autocomplete="off" spellcheck="false" placeholder="Search models..." aria-label="Search models">';
+        menu.appendChild(search);
+        const options=document.createElement('div');
+        options.className='model-picker-options';
+        options.setAttribute('role','listbox');
+        options.setAttribute('aria-label','Available models');
+        menu.appendChild(options);
+        const empty=document.createElement('div');
+        empty.className='custom-select-empty';
+        empty.textContent='No models found';
+        options.appendChild(empty);
+        const input=search.querySelector('input');
+        input.addEventListener('click',e=>e.stopPropagation());
+        input.addEventListener('keydown',e=>{
+          if(e.key==='Escape'){
+            e.stopPropagation();
+            input.value='';
+            filterCustomSelectOptions(wrap,'');
+            wrap.classList.remove('open','drop-up');
+            trigger.setAttribute('aria-expanded','false');
+            if(menu instanceof HTMLDialogElement && menu.open)menu.close();
+          }
+        });
+        input.addEventListener('input',()=>{
+          filterCustomSelectOptions(wrap,input.value);
+          positionCustomSelect(wrap);
+        });
+      }
     }
 
     wrap.appendChild(trigger);
@@ -686,7 +716,7 @@ function ensureCustomSelect(id){
         if(!willOpen && menu.open)menu.close();
       }
       if(willOpen){
-        const optionsRoot=menu.querySelector('.model-picker-options');
+        const optionsRoot=menu.querySelector('.model-picker-options,.ratio-picker-options');
         if(optionsRoot)optionsRoot.scrollTop=0;
         const search=wrap.querySelector('.custom-select-search input');
         if(search){
@@ -697,7 +727,10 @@ function ensureCustomSelect(id){
             search.focus({preventScroll:true});
           });
         }else{
-          requestAnimationFrame(()=>positionCustomSelect(wrap));
+          requestAnimationFrame(()=>{
+            positionCustomSelect(wrap);
+            if(isRatio&&menu.open)menu.querySelector('.custom-select-option.selected')?.focus({preventScroll:true});
+          });
         }
       }else{
         wrap.classList.remove('drop-up');
@@ -705,13 +738,15 @@ function ensureCustomSelect(id){
     });
 
     menu.addEventListener('keydown',e=>{
-      if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
+      if(!(isRatio?['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End']:['ArrowDown','ArrowUp','Home','End']).includes(e.key))return;
       if(e.target.matches('input') && ['Home','End'].includes(e.key))return;
       const options=[...menu.querySelectorAll('.custom-select-option')].filter(el=>el.style.display!=='none');
       if(!options.length)return;
       e.preventDefault();
       const index=options.indexOf(document.activeElement);
-      const next=e.key==='Home'?0:e.key==='End'?options.length-1:e.key==='ArrowDown'?(index+1)%options.length:(index<=0?options.length:index)-1;
+      const columns=isRatio?getComputedStyle(menu.querySelector('.ratio-picker-options')).gridTemplateColumns.split(' ').length:1;
+      const step=e.key==='ArrowDown'?columns:e.key==='ArrowUp'?-columns:e.key==='ArrowLeft'?-1:1;
+      const next=e.key==='Home'?0:e.key==='End'?options.length-1:index<0?0:(index+step+options.length)%options.length;
       options[next].focus({preventScroll:true});
       options[next].scrollIntoView({block:'nearest'});
     });
@@ -746,12 +781,13 @@ function rebuildCustomSelect(id){
   if(!wrap)return;
   const menu=wrap.querySelector('.custom-select-menu');
   const searchWrap=menu.querySelector('.custom-select-search');
-  const optionsRoot=menu.querySelector('.model-picker-options')||menu;
+  const optionsRoot=menu.querySelector('.model-picker-options,.ratio-picker-options')||menu;
   const empty=optionsRoot.querySelector('.custom-select-empty');
   optionsRoot.querySelectorAll('.custom-select-option').forEach(node=>node.remove());
   const optionsHtml=[...select.options].map((o,i)=>
     customSelectSearchable(id)
       ?modelPickerOptionHtml(id,o,i,i===select.selectedIndex)
+      :customSelectRatioPicker(id)?ratioPickerOptionHtml(o,i,i===select.selectedIndex)
       :'<button type="button" class="custom-select-option'+(i===select.selectedIndex?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(i===select.selectedIndex?'true':'false')+'">'+escapeHtml(o.textContent)+'</button>'
   ).join('');
   if(empty)empty.insertAdjacentHTML('beforebegin',optionsHtml);
@@ -778,7 +814,9 @@ function syncCustomSelect(id){
   if(!wrap)return;
   const value=wrap.querySelector('.custom-select-value');
   const selected=select.options[select.selectedIndex];
-  value.textContent=selected?selected.textContent:'Select';
+  if(customSelectRatioPicker(id)&&selected){
+    value.innerHTML=ratioShapeSvg(selected.value)+'<span>'+escapeHtml(selected.textContent)+'</span>';
+  }else value.textContent=selected?selected.textContent:'Select';
   wrap.querySelectorAll('.custom-select-option').forEach((opt,i)=>{
     const active=i===select.selectedIndex;
     opt.classList.toggle('selected',active);
