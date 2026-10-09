@@ -498,7 +498,7 @@ const server=http.createServer(async (req,res)=>{
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
       let voiceConfig={enabled:false};
-      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:4,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
+      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {

@@ -55,7 +55,7 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
   assert.match(values.get('prompt_enhancer_gemini_api_key').setting_value,/^v1:/);
   assert.equal(values.get('prompt_enhancer_gemini_api_key').is_secret,1);
   const config = await request('/api/config'); assert.equal(config.data.promptEnhancer.enabled,true);
-  assert.equal(config.data.promptEnhancer.revision,4);
+  assert.equal(config.data.promptEnhancer.revision,5);
   assert.equal(config.data.promptEnhancer.timeoutMs,120000);
   assert.equal(config.data.promptEnhancer.async,true);
   assert.equal(JSON.stringify(config.data).includes('gemini'),false);

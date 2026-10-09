@@ -45,9 +45,9 @@ test('both generation paths use a thinking level accepted by Gemini 3.8 Flash', 
 });
 
 test('provider failure messages identify HTTP categories without exposing response bodies', async () => {
-  for (const status of [400, 401, 402, 403, 404, 429, 500, 503]) {
+  for (const status of [400, 401, 402, 403, 404, 429, 500, 503, 504]) {
     let calls = 0;
-    const client = new GeminiPromptEnhancer({ apiKey: key, fetchImpl: async () => {
+    const client = new GeminiPromptEnhancer({ apiKey: key, retryDelaysMs: [1, 1], fetchImpl: async () => {
       calls++;
       return Response.json({ error: { message: key + ' private prompt private provider details' } }, { status });
     }});
@@ -60,8 +60,43 @@ test('provider failure messages identify HTTP categories without exposing respon
       if (status === 503) assert.match(e.message, /temporarily unavailable/);
       return true;
     });
-    assert.equal(calls, 1);
+    assert.equal(calls, status === 503 ? 3 : 1);
   }
+});
+
+test('explicit 503 rejections recover within the same background job and stop after success', async () => {
+  let calls = 0;
+  const requests = [];
+  const client = new GeminiPromptEnhancer({ apiKey: key, retryDelaysMs: [1, 2], fetchImpl: async (url, options) => {
+    calls++; requests.push({ url, body: options.body });
+    return calls < 3 ? Response.json({ error: 'Unavailable' }, { status: 503 }) : output('A recovered sunrise');
+  }});
+  const jobs = new PromptEnhancementJobs();
+  const input = { prompt: 'A sunrise', mediaType: 'image', requestId: '00000000-0000-4000-8000-000000000001' };
+  const first = jobs.start(1, input, () => client.enhance(input));
+  assert.equal(first.status, 'processing');
+  assert.deepEqual(jobs.start(1, input, () => { throw Error('Must reuse existing job'); }), first);
+  for (let i = 0; i < 50 && jobs.get(1, first.jobId).status === 'processing'; i++) await new Promise(r => setTimeout(r, 2));
+  const done = jobs.get(1, first.jobId);
+  assert.equal(done.status, 'completed'); assert.equal(done.prompt, 'A recovered sunrise');
+  assert.equal(calls, 3); assert.deepEqual(requests[0], requests[1]); assert.deepEqual(requests[1], requests[2]);
+  assert.deepEqual(jobs.getByRequest(1, input.requestId), done);
+  assert.deepEqual(jobs.start(1, input, () => client.enhance(input)), done); assert.equal(calls, 3);
+});
+
+test('503 retry waits share one deadline; subsequent connection failures and metadata checks are never retried', async () => {
+  let calls = 0;
+  const client = new GeminiPromptEnhancer({ apiKey: key, timeoutMs: 10, retryDelaysMs: [50, 50], fetchImpl: async () => {
+    calls++; return Response.json({ error: key }, { status: 503 });
+  }});
+  await assert.rejects(client.enhance({ prompt: 'A sunrise', mediaType: 'image' }), e => e.statusCode === 504);
+  assert.equal(calls, 1);
+  calls = 0; client.timeoutMs = 200; client.retryDelaysMs = [1, 1];
+  client.fetchImpl = async () => { calls++; if (calls === 1) return Response.json({}, { status: 503 }); throw Error('Connection lost '+key); };
+  await assert.rejects(client.enhance({ prompt: 'A sunrise', mediaType: 'video' }), e => /could not connect/.test(e.message) && !e.message.includes(key));
+  assert.equal(calls, 2);
+  calls = 0; client.fetchImpl = async () => { calls++; return Response.json({}, { status: 503 }); };
+  await assert.rejects(client.check(), /HTTP 503/); assert.equal(calls, 1);
 });
 
 test('invalid inputs and blocked/truncated/empty/oversized output cannot reach generation', async () => {

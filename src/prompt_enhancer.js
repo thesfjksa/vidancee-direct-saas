@@ -1,4 +1,5 @@
 const { randomUUID, createHash } = require('node:crypto');
+const { setTimeout: delay } = require('node:timers/promises');
 const GEMINI_ENHANCER_MODEL = 'gemini-3.8-flash';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const MAX_PROMPT_CHARS = 8000;
@@ -59,10 +60,11 @@ function enhancerInstruction(mediaType) {
 }
 
 class GeminiPromptEnhancer {
-  constructor({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = ENHANCEMENT_TIMEOUT_MS } = {}) {
+  constructor({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = ENHANCEMENT_TIMEOUT_MS, retryDelaysMs = [2000, 4000] } = {}) {
     this.apiKey = String(apiKey || '').trim();
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
+    this.retryDelaysMs = retryDelaysMs;
   }
 
   async request(body) {
@@ -70,11 +72,24 @@ class GeminiPromptEnhancer {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), body ? this.timeoutMs : Math.min(this.timeoutMs, 25000));
     try {
-      const response = await this.fetchImpl(GEMINI_BASE_URL + GEMINI_ENHANCER_MODEL + (body ? ':generateContent' : ''), {
-        method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal,
-        headers: { 'x-goog-api-key': this.apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
+      let response;
+      for (let attempt = 0; ; attempt++) {
+        controller.signal.throwIfAborted();
+        response = await this.fetchImpl(GEMINI_BASE_URL + GEMINI_ENHANCER_MODEL + (body ? ':generateContent' : ''), {
+          method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal,
+          headers: { 'x-goog-api-key': this.apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        // Retry only an explicit service rejection, never an ambiguous timeout or
+        // disconnected paid request. All attempts share the same overall deadline.
+        if (!body || response.ok || response.status !== 503 || attempt >= this.retryDelaysMs.length) break;
+        await response.body?.cancel();
+        const retryAfter = Number(response.headers?.get('retry-after'));
+        const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(15000, Math.max(this.retryDelaysMs[attempt], retryAfter * 1000))
+          : this.retryDelaysMs[attempt];
+        await delay(waitMs, undefined, { signal: controller.signal });
+      }
       if (!response.ok) throw upstreamError(response.status);
       const chunks = []; let size = 0;
       for await (const chunk of response.body) {
