@@ -195,6 +195,10 @@
 
               <label class="meta" for="imageRatio">Aspect ratio</label>
               <select id="imageRatio" onchange="updateImageCost()"></select>
+              <div id="imageQualityBlock" class="hide">
+                <label class="meta" for="imageQuality">Quality</label>
+                <select id="imageQuality" onchange="updateImageCost()"></select>
+              </div>
             </div>
           </div>
 
@@ -1351,12 +1355,14 @@ function renderImageConfig(){
   ).join('');
   ensureCustomSelect('imageModel');
   ensureCustomSelect('imageRatio');
+  ensureCustomSelect('imageQuality');
   renderImageRatios();
   renderImageReferenceControls(false);
 }
 
 function renderImageRatios(){
   const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value)||(config.imagePricing||[])[0];
+  renderImageQualities(model);
   const ratios=Array.isArray(model?.aspectRatios)&&model.aspectRatios.length?model.aspectRatios:(config.imageAspectRatios||[]);
   const previous=$('imageRatio').value;
   $('imageRatio').innerHTML=ratios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
@@ -1367,6 +1373,20 @@ function renderImageRatios(){
   updateImageCost();
 }
 
+function imageQualityLabel(quality){
+  const value=String(quality||'');
+  return value.charAt(0).toUpperCase()+value.slice(1);
+}
+
+function renderImageQualities(model){
+  const qualities=Array.isArray(model?.qualities)?model.qualities:[];
+  const select=$('imageQuality'),previous=select.value;
+  $('imageQualityBlock').classList.toggle('hide',!qualities.length);
+  select.innerHTML=qualities.map(q=>'<option value="'+escapeHtml(q)+'">'+escapeHtml(imageQualityLabel(q))+'</option>').join('');
+  select.value=qualities.includes(previous)?previous:(model?.defaultQuality||qualities[0]||'');
+  rebuildCustomSelect('imageQuality');
+}
+
 async function updateImageCost(){
   const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value);
   syncCustomSelect('imageModel');
@@ -1375,7 +1395,7 @@ async function updateImageCost(){
 
   if(!model.dynamicCost){
     ++imageCostRequestSeq;
-    $('imageCost').textContent=Number(model.costByAspectRatio?.[$('imageRatio').value]??model.cost);
+    $('imageCost').textContent=Number(model.costByQuality?.[$('imageQuality').value]?.[$('imageRatio').value]??model.costByAspectRatio?.[$('imageRatio').value]??model.cost);
     return;
   }
 
@@ -1795,7 +1815,8 @@ async function createImageGeneration(){
   b.disabled=true;m.className='msg muted';m.textContent='Submitting image generation...';
   try{
     if(!config.imagePricing?.length)throw new Error('Image generation models are not configured.');
-    const imageCap=normalizedClientCapabilities(currentImageModel(),'image').image;
+    const model=currentImageModel();
+    const imageCap=normalizedClientCapabilities(model,'image').image;
     if(imageReferenceItems.length&&!imageCap.supported)throw new Error('This model does not accept reference images.');
     if(imageCap.max>0&&imageReferenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' reference images.');
     if(imageCap.min>0&&imageReferenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' reference image'+(imageCap.min===1?'':'s')+'.');
@@ -1803,6 +1824,7 @@ async function createImageGeneration(){
     form.append('prompt',$('imagePrompt').value);
     form.append('model',$('imageModel').value);
     form.append('aspectRatio',$('imageRatio').value);
+    if(model?.qualities?.length)form.append('quality',$('imageQuality').value);
     for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
@@ -1867,7 +1889,7 @@ function imageGenerationCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+escapeHtml(imageModelLabel(g.model))+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<div class="job-title">'+escapeHtml(imageModelLabel(g.model))+' · '+escapeHtml(g.aspect_ratio)+(g.quality?' · '+escapeHtml(imageQualityLabel(g.quality)):'')+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,180))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+download+del+'</div>'+
@@ -1883,7 +1905,7 @@ function openImagePreview(id){
   if(!generation?.has_image||!generation.image_url)return;
   closeCustomSelects();
   imagePreviewGenerationId=String(generation.id);
-  $('generatedImageMeta').textContent=imageModelLabel(generation.model)+' · '+generation.aspect_ratio;
+  $('generatedImageMeta').textContent=imageModelLabel(generation.model)+' · '+generation.aspect_ratio+(generation.quality?' · '+imageQualityLabel(generation.quality):'');
   const image=$('generatedImageFull'),status=$('generatedImageStatus');
   status.textContent='Loading image…';status.classList.remove('hide');
   image.onload=()=>status.classList.add('hide');

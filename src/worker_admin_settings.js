@@ -4,7 +4,7 @@ const { CreatePulseClient } = require('./provider/createpulse.js');
 const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
 const { SmartAipiClient } = require('./provider/smartaipi.js');
-const { smartImageModel } = require('./smartaipi_images.js');
+const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
@@ -342,7 +342,7 @@ class GenerationWorker {
         ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 25`);
       for (const job of queued) {
         if (!slots) break;
-        if (!smartImageModel(job.model) || !this.smartAipiModels[job.model]?.enabled || !(this.smartAipiModels[job.model]?.sourceUsd > 0)) continue;
+        if (!smartImageModel(job.model) || !this.smartAipiModels[job.model]?.enabled || !(smartImageSourcePrice(this.smartAipiModels[job.model], job.image_quality || 'medium') > 0)) continue;
         const [claim] = await conn.execute("UPDATE generations SET status='processing',submitted_at=UTC_TIMESTAMP(),started_at=UTC_TIMESTAMP(),error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='smartaipi' AND status='queued'",[job.id]);
         if (!claim.affectedRows) continue;
         claimed.push(job); slots -= 1;
@@ -369,7 +369,7 @@ class GenerationWorker {
     try {
       const [images] = await db.execute('SELECT image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',[job.id]);
       // No automatic upstream retry: a timeout can still have incurred a charge.
-      result = await client.generateImage({model:job.model,prompt:job.prompt,aspectRatio:job.aspect_ratio,
+      result = await client.generateImage({model:job.model,prompt:job.prompt,aspectRatio:job.aspect_ratio,quality:job.image_quality||'medium',
         images:images.map(image=>({data:image.image_data}))});
     } catch (error) {
       console.error('GPT image request failed for', job.id, error.message);

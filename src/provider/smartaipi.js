@@ -1,4 +1,4 @@
-const { smartImageModel, SMART_IMAGE_SIZES } = require('../smartaipi_images.js');
+const { smartImageRequestSpec } = require('../smartaipi_images.js');
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 function smartAipiBaseUrl(value = 'https://api.smartaipi.com/v1') {
@@ -65,11 +65,10 @@ class SmartAipiClient {
     return result.data.map(m => String(m.id || '')).filter(Boolean);
   }
 
-  async generateImage({ model, prompt, aspectRatio, images = [] }) {
-    const spec = smartImageModel(model);
-    if (!spec || !Object.hasOwn(SMART_IMAGE_SIZES, aspectRatio)) throw new Error('Unsupported GPT image model or size.');
+  async generateImage({ model, prompt, aspectRatio, quality = 'medium', images = [] }) {
+    const spec = smartImageRequestSpec(model, aspectRatio, quality);
     if (images.length > 1) throw new Error('This image model accepts at most one reference image.');
-    const body = { model: spec.apiModel, prompt, size: SMART_IMAGE_SIZES[aspectRatio], quality: 'medium', n: 1 };
+    const body = { model: spec.apiModel, prompt, size: spec.size, quality: spec.quality, n: 1 };
     if (images.length) {
       const bytes = images[0].data;
       validateSmartReference(bytes);

@@ -466,7 +466,7 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.higgsfield.active ||
           providerSettings.vibi.active || providerSettings.smartaipi.active
         );
-        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && m.sourceUsd>0)));
+        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -851,11 +851,11 @@ const server=http.createServer(async (req,res)=>{
         if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
           return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
         }
-        const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings);
+        const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings,body.quality??'medium');
         for(const image of (Array.isArray(body.images)?body.images:[]))validateSmartReference(image?.data);
         generation=await createImageGenerationForUser(user.id,body,{
           provider:'smartaipi',dynamicModel:true,referenceCapabilities:SMART_IMAGE_REFS,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
         });
       }
 

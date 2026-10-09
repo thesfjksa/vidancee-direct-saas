@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SmartAipiClient, smartAipiBaseUrl } = require('../src/provider/smartaipi.js');
-const { SMART_IMAGE_MODELS, defaultSmartImageConfig, normalizeSmartImageConfig, publicSmartImagePricing, smartImageQuote } = require('../src/smartaipi_images.js');
+const { SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, smartImageRatios, smartImageRequestSpec, defaultSmartImageConfig, normalizeSmartImageConfig, publicSmartImagePricing, smartImageQuote } = require('../src/smartaipi_images.js');
 const { GenerationWorker } = require('../src/worker_admin_settings.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const model = SMART_IMAGE_MODELS[0].id;
@@ -22,9 +22,52 @@ test('catalog is provider-neutral, price-gated and uses the configured credit mu
   s.smartAipiEnabled = true; s.smartAipiApiKey = ''; assert.deepEqual(publicSmartImagePricing(s), []);
   s.smartAipiApiKey = 'test-only'; s.smartAipiModels[model].enabled = false;
   assert.throws(() => smartImageQuote(model, '1:1', s), /not enabled/);
-  assert.throws(() => smartImageQuote(SMART_IMAGE_MODELS[1].id, '16:9', s), /aspect ratio/);
+  assert.throws(() => smartImageQuote(SMART_IMAGE_MODELS[3].id, '16:9', s), /aspect ratio/);
   assert.throws(() => normalizeSmartImageConfig({ [model]: { enabled: true, sourceUsd: -1 } }), /price/);
   assert.throws(() => normalizeSmartImageConfig({ unknown: { enabled: true, sourceUsd: 1 } }), /Unknown/);
+});
+
+test('model-specific presets and all three qualities map to valid API sizes', async () => {
+  for (const spec of SMART_IMAGE_MODELS) {
+    const ratios = smartImageRatios(spec.id);
+    assert.equal(ratios.length, spec.freeformSizes ? 11 : 3);
+    for (const ratio of ratios) for (const quality of SMART_IMAGE_QUALITIES) {
+      const request = smartImageRequestSpec(spec.id, ratio, quality);
+      const [width, height] = request.size.split('x').map(Number);
+      const [a, b] = ratio.split(':').map(Number);
+      assert.equal(width * b, height * a);
+      assert.equal(width % 16, 0); assert.equal(height % 16, 0);
+      assert.ok(width * height >= 655360 && width * height <= 8294400);
+      assert.ok(Math.max(width, height) <= 3840 && Math.max(width, height) / Math.min(width, height) <= 3);
+      const client = new SmartAipiClient({ apiKey: 'test-only', fetchImpl: async (url, options) => {
+        const body = JSON.parse(options.body);
+        assert.equal(body.size, SMART_IMAGE_SIZES[ratio]); assert.equal(body.quality, quality); assert.equal(body.model, spec.apiModel);
+        return Response.json({ data: [{ b64_json: png.toString('base64') }] });
+      }});
+      await client.generateImage({ model: spec.id, prompt: 'Test', aspectRatio: ratio, quality });
+    }
+  }
+  assert.throws(() => smartImageRequestSpec(model, '4:1'), /aspect ratio/);
+  for (const quality of ['auto', 'ultra', '', null, {}]) assert.throws(() => smartImageRequestSpec(model, '1:1', quality), /quality/);
+});
+
+test('quality estimates preserve legacy overrides and reject disabled or invalid rates', () => {
+  const s = settings();
+  s.smartAipiModels = normalizeSmartImageConfig({ [model]: { enabled: true, sourceUsd: 0.053 } });
+  assert.equal(s.smartAipiModels[model].sourceUsd, 0.053);
+  assert.equal(s.smartAipiModels[model].qualitySourceUsd.low, 0.006);
+  assert.ok(Math.abs(s.smartAipiModels[model].qualitySourceUsd.high - 0.211) < 1e-12);
+  assert.equal(smartImageQuote(model, '1:1', s).cost, 13.25);
+  assert.equal(smartImageQuote(model, '16:9', s, 'low').cost, 1.9);
+  assert.equal(smartImageQuote(model, '9:16', s, 'high').cost, 66.76);
+  s.smartAipiModels = normalizeSmartImageConfig({ [model]: { enabled: true, qualitySourceUsd: { low: 0.003, medium: 0, high: 0.1055 } } });
+  const published = publicSmartImagePricing(s).find(m => m.id === model);
+  assert.deepEqual(published.qualities, ['low', 'high']); assert.equal(published.defaultQuality, 'low');
+  assert.equal(published.costByQuality.high['9:16'], smartImageQuote(model, '9:16', s, 'high').cost);
+  assert.throws(() => smartImageQuote(model, '1:1', s, 'medium'), /enabled price/);
+  for (const qualitySourceUsd of [{ high: -1 }, { high: Infinity }, { ultra: 1 }, []]) {
+    assert.throws(() => normalizeSmartImageConfig({ [model]: { enabled: true, qualitySourceUsd } }), /price|pricing/);
+  }
 });
 
 test('text generation maps all six IDs to the documented authenticated JSON endpoint', async () => {
@@ -97,13 +140,15 @@ function storageDb({ failures = 0, row = { status: 'processing', refunded_at: nu
 test('worker stores bytes and completion atomically and retries only storage', async () => {
   const worker = new GenerationWorker(); let calls = 0; let refunds = 0;
   worker.refundSmartImage = async () => refunds++;
-  const client = { async generateImage() { calls++; return { mimeType: 'image/png', data: png }; } };
+  const qualities = [];
+  const client = { async generateImage(input) { calls++; qualities.push(input.quality); return { mimeType: 'image/png', data: png }; } };
   const db = storageDb({ failures: 1 });
-  await worker.processSmartImage(db, { id: 'job', model, prompt: 'X', aspect_ratio: '1:1' }, client);
+  await worker.processSmartImage(db, { id: 'job', model, prompt: 'X', aspect_ratio: '1:1', image_quality: 'high' }, client);
+  assert.deepEqual(qualities, ['high']);
   assert.deepEqual(db.events, ['begin', 'rollback', 'release', 'begin', 'image', 'completed', 'commit', 'release']);
   assert.equal(calls, 1); assert.equal(refunds, 0);
   await worker.processSmartImage(storageDb({ row: { status: 'failed', refunded_at: 'now' } }), { id: 'refunded', model }, client);
-  assert.equal(refunds, 0);
+  assert.equal(refunds, 0); assert.deepEqual(qualities, ['high', 'medium']);
 });
 
 test('worker refunds failures without retrying upstream; paused/disabled workers submit nothing', async () => {

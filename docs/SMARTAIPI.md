@@ -3,7 +3,9 @@
 Deploy this version to both the web application and the standalone worker. Both
 must use the same MySQL database and settings encryption secret. Startup creates
 `generation_image_outputs` automatically; the database user needs CREATE TABLE
-permission. No new npm dependencies or provider environment variables are needed.
+and ALTER TABLE permissions. Startup adds nullable `generations.image_quality`;
+existing queued jobs use Medium. No new npm dependencies or provider environment
+variables are needed.
 
 In Admin → Provider → GPT images · SmartAIPI:
 
@@ -12,10 +14,12 @@ In Admin → Provider → GPT images · SmartAIPI:
    existing encrypted settings storage and are never returned by the settings API.
 3. Set source credits per USD to match the application's credit conversion.
    The default is 100; this is an application setting, not a SmartAIPI credit unit.
-4. Review each medium-quality square source-price estimate. The five published
+4. Review the Low, Medium and High square source-price estimates. Published
    estimates are prefilled. GPT Image 1 starts at zero because its per-image price
-   was not listed; set its price to make it visible. Zero prices and unchecked
-   models are hidden from customers.
+   was not listed; configure each quality to expose it. A zero rate hides that
+   quality; all-zero rates or unchecked models hide the model. Existing saved
+   Medium prices are preserved; initial Low/High prices scale proportionally to
+   those overrides. Review them in Admin before enabling paid generations.
 5. Click Test saved connection. This calls GET `/v1/models`, reports which exact
    image IDs are listed for the account, and does not generate paid images.
 6. Existing global paid-generation controls and Admin → Users → Sources apply.
@@ -23,29 +27,56 @@ In Admin → Provider → GPT images · SmartAIPI:
 
 Supported explicit model IDs:
 
-| API model | Square source USD estimate, medium |
-| --- | ---: |
-| gpt-image-2.5-flare | 0.0265 |
-| gpt-image-2.5-sunburst | 0.0265 |
-| gpt-image-2 | 0.0265 |
-| gpt-image-1.5 | 0.017 |
-| gpt-image-1 | Configure in Admin |
-| gpt-image-1-mini | 0.0055 |
+| API model | Low square USD | Medium square USD | High square USD |
+| --- | ---: | ---: | ---: |
+| gpt-image-2.5-flare | 0.003 | 0.0265 | 0.1055 |
+| gpt-image-2.5-sunburst | 0.003 | 0.0265 | 0.1055 |
+| gpt-image-2 | 0.003 | 0.0265 | 0.1055 |
+| gpt-image-1.5 | 0.0045 | 0.017 | 0.067 |
+| gpt-image-1 | Configure | Configure | Configure |
+| gpt-image-1-mini | 0.0025 | 0.0055 | 0.018 |
 
 Pricing references: https://smartaipi.com/pricing and https://smartaipi.com/docs,
 checked 2026-10-09. These are estimates, not exact token settlement. Variable text
 and reference-image input charges may increase actual upstream costs. Admin can
-adjust estimates to account for those costs. Landscape and portrait multiply the
-configured square estimate by 1.5. Customer credits equal configured source USD ×
-source credits per USD × existing CUSTOMER_CREDIT_MULTIPLIER (default 2.5), rounded
-to two decimals. The same quote is shown before submission and reserved in the
-existing credit transaction. A queued job keeps its reserved quote if prices change.
+adjust each quality’s square estimate to account for those costs. Other sizes use
+an approximate pixel-area factor: width × height / 1024². The fixed landscape and
+portrait sizes retain the existing 1.5× estimate. SmartAIPI does not publish exact
+per-image prices for every custom shape.
 
-Image Studio offers square 1024×1024, landscape 1536×1024 and portrait 1024×1536,
-medium quality, one result per job. Text requests use `/v1/images/generations`.
-One optional PNG/JPEG/WebP reference of up to 20 MB uses `/v1/images/edits` with a
-JSON base64 image. Provider documentation conflicts on multiple references and
-masks, so those capabilities are intentionally not exposed in this integration.
+Customer credits equal estimated source USD × source credits per USD × existing
+CUSTOMER_CREDIT_MULTIPLIER (default 2.5), rounded to two decimals. The same quote is
+shown before submission and reserved in the existing credit transaction. A queued
+job keeps its selected quality and reserved quote if prices or UI choices change.
+
+GPT Image 2 and both 2.5 models expose these aspect-ratio presets:
+
+| Ratio | API size |
+| --- | --- |
+| 1:1 | 1024×1024 |
+| 3:2 | 1536×1024 |
+| 2:3 | 1024×1536 |
+| 16:9 | 1536×864 |
+| 9:16 | 864×1536 |
+| 4:3 | 1280×960 |
+| 3:4 | 960×1280 |
+| 4:5 | 1024×1280 |
+| 5:4 | 1280×1024 |
+| 3:1 | 1536×512 |
+| 1:3 | 512×1536 |
+
+Custom-size documentation: https://smartaipi.com/blog/gpt-image-2-now-available
+and https://smartaipi.com/blog/gpt-image-2-5-now-available. Presets use dimensions
+divisible by 16, 655,360–8,294,400 pixels, maximum edge 3840 and maximum ratio 3:1.
+GPT Image 1, 1.5 and 1 Mini retain their three fixed sizes: 1:1, 3:2 and 2:3.
+The server and API adapter enforce these model-specific options.
+
+Image Studio offers Low, Medium and High quality, defaults to Medium when priced,
+and produces one result per job. Quality appears on the generated-image card and
+preview. Text requests use `/v1/images/generations`. One optional PNG/JPEG/WebP
+reference of up to 20 MB uses `/v1/images/edits` with a JSON base64 image and the
+same selected size and quality. Provider documentation conflicts on multiple
+references and masks, so those capabilities are intentionally not exposed.
 
 The provider returns synchronous base64 image data. The worker claims queued jobs
 under a shared MySQL advisory lock, obeys inflight limits, and performs slow API
@@ -63,9 +94,11 @@ occurred. Disabling a source stops new starts; an already started request may fi
 Queued jobs wait while the global source, model or customer permission is disabled.
 
 Verification: `npm test` covers endpoint mapping, edit input, response validation,
-timeouts, estimate conversion, encrypted settings, HTTP submission and ownership,
+timeouts, all supported ratio/quality combinations, estimate conversion, encrypted
+settings, HTTP submission and ownership,
 worker persistence/refunds/capacity, and interrupted-request handling using mocked
 provider and database responses. Local browser QA checks model selection, ratio
-quotes, reference limits, admin settings and desktop/mobile layouts. Live provider
+and quality quotes, submitted quality, reference limits, admin quality-price
+settings and desktop/mobile layouts. Live provider
 generation and the production MySQL migration require the configured deployment;
 no live provider key was supplied during implementation.

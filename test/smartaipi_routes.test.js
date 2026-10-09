@@ -19,8 +19,8 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
     if (sql.includes('FROM users WHERE id=')) return [[users.get(Number(args[0]))].filter(Boolean)];
     if (sql.includes('COUNT(*)')) return [[{ total: 0 }]];
     if (sql.includes('INSERT INTO generations')) {
-      const [id, user_id, provider, queue_priority, mode, model, aspect_ratio, prompt, credits_cost, provider_cost, provider_cost_unit] = args;
-      jobs.set(id, { id, user_id, provider, queue_priority, mode, model, aspect_ratio, prompt, credits_cost, provider_cost, provider_cost_unit, status: 'queued', media_type: 'image' });
+      const [id, user_id, provider, queue_priority, mode, model, aspect_ratio, prompt, credits_cost, provider_cost, provider_cost_unit, image_quality] = args;
+      jobs.set(id, { id, user_id, provider, queue_priority, mode, model, aspect_ratio, prompt, credits_cost, provider_cost, provider_cost_unit, image_quality, status: 'queued', media_type: 'image' });
       return [{ affectedRows: 1 }];
     }
     if (sql.includes('INSERT INTO credit_transactions')) { transactions.push(args); return [{ affectedRows: 1 }]; }
@@ -58,11 +58,25 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   assert.equal(result.status, 201); assert.equal(result.data.generation.credits_cost, 9.94);
   assert.equal(result.data.user.credits, 90.06); assert.equal(transactions.length, 1);
   const job = jobs.get(result.data.generation.id); assert.equal(job.provider, 'smartaipi'); assert.equal(job.provider_cost_unit, 'usd-estimate');
+  assert.equal(job.image_quality, 'medium'); assert.equal(result.data.generation.quality, 'medium');
   assert.equal(job.status, 'queued'); // Queue reservation must not call the paid provider.
-  for (const body of [{ ...input, aspectRatio: '16:9' }, { ...input, prompt: '' }, { ...input, images: [{ data: 'not bytes' }] }]) {
+  for (const body of [{ ...input, aspectRatio: '4:1' }, { ...input, quality: 'ultra' }, { ...input, prompt: '' }, { ...input, images: [{ data: 'not bytes' }] }]) {
     assert.equal((await request('/api/image-generations', { method: 'POST', body })).status, 400);
   }
   assert.equal(users.get(1).credits, 90.06);
+  const form = new FormData();
+  for (const [key, value] of Object.entries({ ...input, aspectRatio: '9:16', quality: 'high' })) form.append(key, value);
+  const highResponse = await fetch(origin+'/api/image-generations', { method: 'POST', body: form });
+  assert.equal(highResponse.status, 201); const high = await highResponse.json();
+  assert.equal(high.generation.quality, 'high'); assert.equal(high.generation.credits_cost, 33.38);
+  assert.equal(jobs.get(high.generation.id).image_quality, 'high');
+  const balance = users.get(1).credits;
+  const disabledQuality = await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiModels: { [model]: { enabled: true, qualitySourceUsd: { low: 0.003, medium: 0.0265, high: 0 } } } } });
+  assert.equal(disabledQuality.status, 200);
+  assert.equal(disabledQuality.data.settings.smartaipi.models.find(m=>m.id===model).qualitySourceUsd.high, 0);
+  assert.deepEqual((await request('/api/config')).data.imagePricing.find(m=>m.id===model).qualities, ['low', 'medium']);
+  assert.equal((await request('/api/image-generations', { method: 'POST', body: { ...input, quality: 'high' } })).status, 400);
+  assert.equal(users.get(1).credits, balance);
   job.status = 'completed'; job.output_url = 'db:image'; outputs.set(job.id, { mime_type: 'image/png', image_data: png });
   const mediaPath = '/api/image-generations/'+job.id+'/media';
   const media = await fetch(origin+mediaPath); assert.equal(media.status, 200); assert.equal(media.headers.get('content-type'), 'image/png');
@@ -79,5 +93,5 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiEnabled: true, allowProviderCharges: false } });
   assert.equal((await request('/api/image-generations', { method: 'POST', body: input })).status, 503);
   await request('/admin/provider-settings', { admin: true, method: 'POST', body: { clearSmartAipiApiKey: true } });
-  assert.equal(values.has('smartaipi_api_key'), false); assert.equal(users.get(1).credits, 90.06);
+  assert.equal(values.has('smartaipi_api_key'), false); assert.equal(users.get(1).credits, balance);
 });
