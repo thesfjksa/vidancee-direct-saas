@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/assets/cmmtools-icon.png">
 <title>CMM Tools — Creation Studio</title>
 <link rel="stylesheet" href="/brand.css?v=cmm-1">
-<link rel="stylesheet" href="/studio.css?v=cmm-5">
+<link rel="stylesheet" href="/studio.css?v=cmm-6">
 </head>
 <body>
 
@@ -113,6 +113,12 @@
             <div class="block">
               <label class="block-title" for="prompt">Prompt</label>
               <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
+              <label class="prompt-enhancer" for="videoPromptEnhancer">
+                <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
+                <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="videoEnhancerNote">Adds detail before generation</small></span>
+                <input id="videoPromptEnhancer" type="checkbox" role="switch" onchange="updateEnhancerNote('video')" aria-describedby="videoEnhancerNote">
+                <span class="enhancer-track" aria-hidden="true"></span>
+              </label>
 
               <label class="meta" for="model">Model</label>
               <select id="model" onchange="handleVideoModelChange()"></select>
@@ -188,6 +194,12 @@
             <div class="block">
               <label class="block-title" for="imagePrompt">Prompt</label>
               <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details..."></textarea>
+              <label class="prompt-enhancer" for="imagePromptEnhancer">
+                <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
+                <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="imageEnhancerNote">Adds detail before generation</small></span>
+                <input id="imagePromptEnhancer" type="checkbox" role="switch" onchange="updateEnhancerNote('image')" aria-describedby="imageEnhancerNote">
+                <span class="enhancer-track" aria-hidden="true"></span>
+              </label>
 
               <label class="meta" for="imageModel">Model</label>
               <select id="imageModel" onchange="handleImageModelChange()"></select>
@@ -439,6 +451,7 @@ function enterApp(){
   renderConfig();
   renderImageConfig();
   renderVoiceConfig();
+  renderPromptEnhancer();
   setupReferenceDrop();
   setupVideoReferenceDrop();
   setupImageGenerationDrop();
@@ -1848,8 +1861,48 @@ function setupImageGenerationDrop(){
   });
 }
 
+const enhancedPromptCache={image:null,video:null};
+
+function updateEnhancerNote(kind){
+  const toggle=$(kind+'PromptEnhancer');
+  $(kind+'EnhancerNote').textContent=toggle.disabled?'Currently unavailable':toggle.checked?'On · adds detail before generation':'Off · use your prompt as written';
+}
+
+function renderPromptEnhancer(){
+  for(const kind of ['image','video']){
+    const toggle=$(kind+'PromptEnhancer');
+    toggle.disabled=!config.promptEnhancer?.enabled;
+    if(toggle.disabled)toggle.checked=false;
+    updateEnhancerNote(kind);
+  }
+}
+
+async function prepareGenerationPrompt(kind,message){
+  const input=$(kind==='image'?'imagePrompt':'prompt'),original=input.value;
+  if(!original.trim())throw new Error('Enter a prompt before generating.');
+  if(!$(kind+'PromptEnhancer').checked)return original;
+  const request={prompt:original,mediaType:kind,
+    aspectRatio:$(kind==='image'?'imageRatio':'ratio').value,
+    imageReferences:kind==='image'?imageReferenceItems.length:referenceItems.length,
+    videoReferences:kind==='video'?videoReferenceItems.length:0,
+    ...(kind==='video'?{duration:Number($('duration').value)}:{})};
+  const context=JSON.stringify({...request,prompt:undefined});
+  const cached=enhancedPromptCache[kind];
+  if(cached?.prompt===original&&cached.context===context)return original;
+  message.textContent='Enhancing your prompt…';
+  const result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify(request)});
+  if(typeof result.prompt!=='string'||!result.prompt.trim())throw new Error('Prompt enhancer returned an empty prompt.');
+  if(input.value!==original)throw new Error('Your prompt changed during enhancement. Generate again with the updated text.');
+  input.value=result.prompt;
+  enhancedPromptCache[kind]={prompt:result.prompt,context};
+  return result.prompt;
+}
+
 async function createImageGeneration(){
   const b=$('generateImageBtn'),m=$('imageGenMsg');
+  if(b.disabled)return;
+  const panel=b.closest('.creator').querySelector('.creator-scroll');
+  panel.inert=true;b.setAttribute('aria-busy','true');
   b.disabled=true;m.className='msg muted';m.textContent='Submitting image generation...';
   try{
     if(!config.imagePricing?.length)throw new Error('Image generation models are not configured.');
@@ -1858,21 +1911,23 @@ async function createImageGeneration(){
     if(imageReferenceItems.length&&!imageCap.supported)throw new Error('This model does not accept reference images.');
     if(imageCap.max>0&&imageReferenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' reference images.');
     if(imageCap.min>0&&imageReferenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' reference image'+(imageCap.min===1?'':'s')+'.');
+    const prompt=await prepareGenerationPrompt('image',m);
+    m.textContent='Submitting image generation...';
     const form=new FormData();
-    form.append('prompt',$('imagePrompt').value);
+    form.append('prompt',prompt);
     form.append('model',$('imageModel').value);
     form.append('aspectRatio',$('imageRatio').value);
     if(model?.qualities?.length)form.append('quality',$('imageQuality').value);
     for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
-    $('imagePrompt').value='';
+    $('imagePrompt').value='';enhancedPromptCache.image=null;
     clearImageReferenceItems();
     m.className='msg ok';m.textContent='Image generation queued.';
     await Promise.all([loadImageGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
     m.className='msg err';m.textContent=e.message;
-  }finally{b.disabled=false}
+  }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
 }
 
 async function loadImageGenerations(){
@@ -2108,13 +2163,18 @@ function validateClientReferenceSelection(){
 
 async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
+  if(b.disabled)return;
+  const panel=b.closest('.creator').querySelector('.creator-scroll');
+  panel.inert=true;b.setAttribute('aria-busy','true');
   b.disabled=true;
   m.className='msg muted';
   m.textContent='Submitting generation...';
   try{
     validateClientReferenceSelection();
+    const prompt=await prepareGenerationPrompt('video',m);
+    m.textContent='Submitting generation...';
     const form=new FormData();
-    form.append('prompt',$('prompt').value);
+    form.append('prompt',prompt);
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
@@ -2144,7 +2204,7 @@ async function createGeneration(){
 
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
-    $('prompt').value='';
+    $('prompt').value='';enhancedPromptCache.video=null;
     clearReferenceItems();
     clearVideoReferenceItems();
     m.className='msg ok';
@@ -2153,7 +2213,7 @@ async function createGeneration(){
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-  }finally{b.disabled=false}
+  }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
 }
 
 function aspectValue(ratio){
