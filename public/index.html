@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/assets/cmmtools-icon.png">
 <title>CMM Tools — Creation Studio</title>
 <link rel="stylesheet" href="/brand.css?v=cmm-1">
-<link rel="stylesheet" href="/studio.css?v=cmm-6">
+<link rel="stylesheet" href="/studio.css?v=cmm-7">
 </head>
 <body>
 
@@ -366,15 +366,36 @@
 
 <dialog id="generatedImageDialog" class="generated-image-dialog" aria-labelledby="generatedImageTitle" aria-describedby="generatedImageMeta">
   <div class="generated-image-head">
-    <div><h2 id="generatedImageTitle">Image preview</h2><p id="generatedImageMeta"></p></div>
-    <div class="generated-image-actions">
-      <button type="button" class="btn secondary" onclick="downloadPreviewImage()">Download</button>
-      <button type="button" class="generated-image-close" aria-label="Close image preview" onclick="closeImagePreview()" autofocus>×</button>
+    <div class="generated-image-heading">
+      <span class="generated-image-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></span>
+      <div><h2 id="generatedImageTitle">Image preview</h2><p id="generatedImageMeta"></p></div>
     </div>
+    <button type="button" class="generated-image-close" aria-label="Close image preview" onclick="closeImagePreview()" autofocus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
   </div>
-  <div class="generated-image-frame">
-    <p id="generatedImageStatus" class="generated-image-status" role="status">Loading image…</p>
-    <img id="generatedImageFull" alt="Generated image preview">
+  <div class="generated-image-body">
+    <div class="generated-image-frame">
+      <p id="generatedImageStatus" class="generated-image-status" role="status">Loading image…</p>
+      <img id="generatedImageFull" alt="Generated image preview">
+    </div>
+    <aside class="generated-image-details" aria-labelledby="generatedImageDetailsTitle">
+      <div class="generated-image-info">
+        <h3 id="generatedImageDetailsTitle">Image details</h3>
+        <dl class="generated-image-detail-grid">
+          <div><dt>Aspect ratio</dt><dd id="generatedImageAspect"></dd></div>
+          <div><dt>Quality</dt><dd id="generatedImageQuality"></dd></div>
+          <div><dt>Dimensions</dt><dd id="generatedImageDimensions">Loading…</dd></div>
+          <div><dt>Credits used</dt><dd id="generatedImageCost"></dd></div>
+        </dl>
+        <details id="generatedImagePromptDetails" class="generated-image-prompt-details" open>
+          <summary>Prompt</summary>
+          <p id="generatedImagePrompt"></p>
+        </details>
+      </div>
+      <div class="generated-image-actions">
+        <button type="button" class="generated-image-download" onclick="downloadPreviewImage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>Download image</button>
+        <button id="reuseImagePreviewBtn" type="button" class="generated-image-reuse" onclick="reusePreviewImage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1-7.5L4 10"/></svg>Reuse prompt</button>
+      </div>
+    </aside>
   </div>
 </dialog>
 
@@ -2105,10 +2126,17 @@ function openImagePreview(id){
   closeCustomSelects();
   imagePreviewGenerationId=String(generation.id);
   $('generatedImageMeta').textContent=imageModelLabel(generation.model)+' · '+generation.aspect_ratio+(generation.quality?' · '+imageQualityLabel(generation.quality):'');
+  $('generatedImageAspect').textContent=generation.aspect_ratio||'—';
+  $('generatedImageQuality').textContent=generation.quality?imageQualityLabel(generation.quality):'Default';
+  $('generatedImageCost').textContent=String(generation.credits_cost??'—');
+  $('generatedImagePrompt').textContent=generation.prompt||'No prompt saved for this image.';
+  $('generatedImagePromptDetails').open=window.innerWidth>760;
+  $('generatedImageDimensions').textContent='Loading…';
+  $('reuseImagePreviewBtn').disabled=$('generateImageBtn').disabled;
   const image=$('generatedImageFull'),status=$('generatedImageStatus');
   status.textContent='Loading image…';status.classList.remove('hide');
-  image.onload=()=>status.classList.add('hide');
-  image.onerror=()=>{status.textContent='Image could not be loaded. Close and try again.';status.classList.remove('hide')};
+  image.onload=()=>{status.classList.add('hide');$('generatedImageDimensions').textContent=image.naturalWidth+' × '+image.naturalHeight};
+  image.onerror=()=>{status.textContent='Image could not be loaded. Close and try again.';status.classList.remove('hide');$('generatedImageDimensions').textContent='Unavailable'};
   image.src=generation.image_url;
   const dialog=$('generatedImageDialog');
   if(!dialog.open)dialog.showModal();
@@ -2116,11 +2144,31 @@ function openImagePreview(id){
 
 function closeImagePreview(){
   const dialog=$('generatedImageDialog');
-  if(dialog.open)dialog.close();
+  if(!dialog.open)return;
+  dialog.close();
+  resetImagePreview();
+}
+
+function resetImagePreview(){
+  const id=imagePreviewGenerationId;
+  if(!id)return;
+  imagePreviewGenerationId=null;
+  $('generatedImageFull').onload=null;$('generatedImageFull').onerror=null;
+  $('generatedImageFull').removeAttribute('src');
+  // Polling may have replaced the original thumbnail while this dialog was open.
+  const trigger=[...document.querySelectorAll('.image-preview-trigger')].find(button=>button.dataset.generationId===id);
+  if(trigger)trigger.focus({preventScroll:true});
 }
 
 function downloadPreviewImage(){
   if(imagePreviewGenerationId)downloadImageGeneration(imagePreviewGenerationId);
+}
+
+async function reusePreviewImage(){
+  const id=imagePreviewGenerationId;
+  if(!id||$('generateImageBtn').disabled)return;
+  closeImagePreview();
+  await reuseImageGeneration(id);
 }
 
 $('generatedImageDialog').addEventListener('click',event=>{
@@ -2129,13 +2177,8 @@ $('generatedImageDialog').addEventListener('click',event=>{
   if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeImagePreview();
 });
 $('generatedImageDialog').addEventListener('close',()=>{
-  const id=imagePreviewGenerationId;
-  imagePreviewGenerationId=null;
-  $('generatedImageFull').onload=null;$('generatedImageFull').onerror=null;
-  $('generatedImageFull').removeAttribute('src');
-  // Polling may have replaced the original thumbnail while this dialog was open.
-  const trigger=[...document.querySelectorAll('.image-preview-trigger')].find(button=>button.dataset.generationId===id);
-  if(trigger)trigger.focus({preventScroll:true});
+  // A queued close event can arrive after another image has been opened.
+  if(!$('generatedImageDialog').open)resetImagePreview();
 });
 
 function downloadImageGeneration(id){
