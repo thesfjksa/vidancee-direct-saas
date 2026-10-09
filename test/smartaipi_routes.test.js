@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
-const { SMART_IMAGE_MODELS } = require('../src/smartaipi_images.js');
+const { SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION } = require('../src/smartaipi_images.js');
 const model = SMART_IMAGE_MODELS[0].id;
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 
@@ -47,47 +47,49 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   }
   assert.equal((await request('/admin/smartaipi/check', { method: 'POST' })).status, 401);
   values.set('smartaipi_credits_per_usd', { setting_key: 'smartaipi_credits_per_usd', setting_value: '100', is_secret: 0 });
+  values.set('smartaipi_customer_credits_per_usd', { setting_key: 'smartaipi_customer_credits_per_usd', setting_value: '9400', is_secret: 0 });
   let saved = await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiApiKey: 'test-secret-only', smartAipiEnabled: true, allowProviderCharges: true } });
-  assert.equal(saved.status, 200); assert.equal(saved.data.settings.smartaipi.customerCreditsPerUsd, 9400); assert.equal(saved.data.settings.smartaipi.apiKeyConfigured, true);
+  assert.equal(saved.status, 200); assert.equal(saved.data.settings.smartaipi.customerCreditsPerUsd, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD); assert.equal(saved.data.settings.smartaipi.apiKeyConfigured, true);
   assert.equal(JSON.stringify(saved.data).includes('test-secret-only'), false);
   assert.match(values.get('smartaipi_api_key').setting_value, /^v1:/);
   assert.equal(values.get('smartaipi_api_key').is_secret, 1);
   let config = await request('/api/config'); assert.equal(config.data.imagePricing.filter(m=>m.id.endsWith('_studio')).length, 5);
   assert.equal(JSON.stringify(config.data).includes('test-secret-only'), false);
-  assert.equal(config.data.imagePricing.find(m=>m.id===model).costByQuality.medium['1:1'],250);
+  assert.equal(config.data.imagePricing.find(m=>m.id===model).costByQuality.medium['1:1'],160);
   const input = { model, prompt: 'A flower', aspectRatio: '3:2' };
   const result = await request('/api/image-generations', { method: 'POST', body: input });
-  assert.equal(result.status, 201); assert.equal(result.data.generation.credits_cost, 374);
-  assert.equal(result.data.user.credits, 1626); assert.equal(transactions.length, 1);
+  assert.equal(result.status, 201); assert.equal(result.data.generation.credits_cost, 240);
+  assert.equal(result.data.user.credits, 1760); assert.equal(transactions.length, 1);
   const job = jobs.get(result.data.generation.id); assert.equal(job.provider, 'smartaipi'); assert.equal(job.provider_cost_unit, 'usd-estimate');
   assert.equal(job.image_quality, 'medium'); assert.equal(result.data.generation.quality, 'medium');
   assert.equal(job.status, 'queued'); // Queue reservation must not call the paid provider.
   for (const body of [{ ...input, aspectRatio: '4:1' }, { ...input, quality: 'ultra' }, { ...input, prompt: '' }, { ...input, images: [{ data: 'not bytes' }] }]) {
     assert.equal((await request('/api/image-generations', { method: 'POST', body })).status, 400);
   }
-  assert.equal(users.get(1).credits, 1626);
+  assert.equal(users.get(1).credits, 1760);
   const form = new FormData();
   for (const [key, value] of Object.entries({ ...input, aspectRatio: '9:16', quality: 'high' })) form.append(key, value);
   const highResponse = await fetch(origin+'/api/image-generations', { method: 'POST', body: form });
   assert.equal(highResponse.status, 201); const high = await highResponse.json();
-  assert.equal(high.generation.quality, 'high'); assert.equal(high.generation.credits_cost, 1256);
+  assert.equal(high.generation.quality, 'high'); assert.equal(high.generation.credits_cost, 807);
   assert.equal(jobs.get(high.generation.id).image_quality, 'high');
   const squareInput = { ...input, model: SMART_IMAGE_MODELS[2].id, aspectRatio: '1:1', quality: 'medium' };
   const square = await request('/api/image-generations', { method: 'POST', body: squareInput, user: 2 });
-  assert.equal(square.status, 201); assert.equal(square.data.generation.credits_cost,250);
-  assert.equal(square.data.user.credits,1750);
-  users.get(2).credits = 249;
+  assert.equal(square.status, 201); assert.equal(square.data.generation.credits_cost,160);
+  assert.equal(square.data.user.credits,1840);
+  users.get(2).credits = 159;
   const counts = [jobs.size, transactions.length];
   assert.equal((await request('/api/image-generations', { method: 'POST', body: squareInput, user: 2 })).status,402);
-  assert.equal(users.get(2).credits,249); assert.deepEqual([jobs.size, transactions.length],counts);
+  assert.equal(users.get(2).credits,159); assert.deepEqual([jobs.size, transactions.length],counts);
   const balance = users.get(1).credits;
   const repriced = await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: 10000 } });
   assert.equal(repriced.status, 200); assert.equal(repriced.data.settings.smartaipi.customerCreditsPerUsd, 10000);
   assert.equal(values.get('smartaipi_customer_credits_per_usd').setting_value, '10000');
+  assert.equal(values.get('smartaipi_pricing_revision').setting_value, SMART_IMAGE_PRICING_REVISION);
   assert.equal((await request('/api/config')).data.imagePricing.find(m=>m.id===model).costByQuality.medium['1:1'], 265);
-  assert.equal(jobs.get(job.id).credits_cost,374); // Existing reservations retain their price.
+  assert.equal(jobs.get(job.id).credits_cost,240); // Existing reservations retain their price.
   assert.equal((await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: 0 } })).status,400);
-  await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: 9400 } });
+  await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD } });
 
   const disabledQuality = await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiModels: { [model]: { enabled: true, qualitySourceUsd: { low: 0.003, medium: 0.0265, high: 0 } } } } });
   assert.equal(disabledQuality.status, 200);

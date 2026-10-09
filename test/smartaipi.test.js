@@ -1,11 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SmartAipiClient, smartAipiBaseUrl } = require('../src/provider/smartaipi.js');
-const { SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, smartImageRatios, smartImageRequestSpec, defaultSmartImageConfig, normalizeSmartImageConfig, publicSmartImagePricing, smartImageQuote } = require('../src/smartaipi_images.js');
+const { DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, smartImageRatios, smartImageRequestSpec, defaultSmartImageConfig, normalizeSmartImageConfig, publicSmartImagePricing, smartImageQuote } = require('../src/smartaipi_images.js');
 const { GenerationWorker } = require('../src/worker_admin_settings.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const model = SMART_IMAGE_MODELS[0].id;
-const settings = () => ({ smartAipiEnabled: true, smartAipiApiKey: 'test-only', smartAipiCustomerCreditsPerUsd: 9400, smartAipiModels: defaultSmartImageConfig() });
+const settings = () => ({ smartAipiEnabled: true, smartAipiApiKey: 'test-only', smartAipiCustomerCreditsPerUsd: DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, smartAipiModels: defaultSmartImageConfig() });
 
 test('catalog is provider-neutral, price-gated and uses the configured credit multiplier', () => {
   const s = settings();
@@ -13,8 +13,8 @@ test('catalog is provider-neutral, price-gated and uses the configured credit mu
   const square = smartImageQuote(model, '1:1', s);
   const landscape = smartImageQuote(model, '3:2', s);
   assert.equal(square.sourceUsd, 0.0265);
-  assert.equal(square.cost, 250);
-  assert.equal(landscape.cost, 374);
+  assert.equal(square.cost, 160);
+  assert.equal(landscape.cost, 240);
   assert.equal(landscape.size, '1536x1024');
   assert.equal(publicSmartImagePricing(s)[0].costByAspectRatio['3:2'], landscape.cost);
   assert.equal(JSON.stringify(publicSmartImagePricing(s)).includes('smartaipi'), false);
@@ -27,18 +27,18 @@ test('catalog is provider-neutral, price-gated and uses the configured credit mu
   assert.throws(() => normalizeSmartImageConfig({ unknown: { enabled: true, sourceUsd: 1 } }), /Unknown/);
 });
 
-test('SmartAIPI uses direct 9400 conversion and whole credits independently of global markup', () => {
+test('SmartAIPI uses 160-credit baseline conversion and whole credits independently of global markup', () => {
   const s = settings();
   const oldMultiplier = process.env.CUSTOMER_CREDIT_MULTIPLIER;
   try {
     process.env.CUSTOMER_CREDIT_MULTIPLIER = '11';
     for (const spec of SMART_IMAGE_MODELS.slice(0, 3)) {
-      assert.equal(smartImageQuote(spec.id, '1:1', s, 'low').cost, 29);
-      assert.equal(smartImageQuote(spec.id, '1:1', s, 'medium').cost, 250);
-      assert.equal(smartImageQuote(spec.id, '1:1', s, 'high').cost, 992);
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'low').cost, 19);
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'medium').cost, 160);
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'high').cost, 637);
     }
     delete s.smartAipiCustomerCreditsPerUsd; s.smartAipiCreditsPerUsd = 100;
-    assert.equal(smartImageQuote(model, '1:1', s).cost, 250);
+    assert.equal(smartImageQuote(model, '1:1', s).cost, 160);
     s.smartAipiCustomerCreditsPerUsd = 10000;
     assert.equal(smartImageQuote(model, '1:1', s).cost, 265);
     for (const rate of [0, -1, Infinity, NaN]) {
@@ -49,6 +49,21 @@ test('SmartAIPI uses direct 9400 conversion and whole credits independently of g
     if (oldMultiplier === undefined) delete process.env.CUSTOMER_CREDIT_MULTIPLIER;
     else process.env.CUSTOMER_CREDIT_MULTIPLIER = oldMultiplier;
   }
+});
+
+test('the same 160-credit conversion applies to every SmartAIPI image model and quality', () => {
+  const s = settings();
+  s.smartAipiModels[SMART_IMAGE_MODELS[4].id] = { enabled: true, sourceUsd: 0.02, qualitySourceUsd: { low: 0.01, medium: 0.02, high: 0.03 } };
+  const squarePrices = [[19,160,637],[19,160,637],[19,160,637],[28,103,405],[61,121,182],[16,34,109]];
+  for (const [i,spec] of SMART_IMAGE_MODELS.entries()) {
+    for (const [q,quality] of SMART_IMAGE_QUALITIES.entries()) {
+      assert.equal(smartImageQuote(spec.id,'1:1',s,quality).cost,squarePrices[i][q]);
+      assert.equal(publicSmartImagePricing(s).find(m=>m.id===spec.id).costByQuality[quality]['1:1'],squarePrices[i][q]);
+    }
+  }
+  assert.equal(smartImageQuote(model,'9:16',s,'medium').cost,203);
+  assert.equal(smartImageQuote(model,'3:2',s,'medium').cost,240);
+  assert.equal(smartImageQuote(model,'3:1',s,'medium').cost,120);
 });
 
 test('model-specific presets and all three qualities map to valid API sizes', async () => {
@@ -81,9 +96,9 @@ test('quality estimates preserve legacy overrides and reject disabled or invalid
   assert.equal(s.smartAipiModels[model].sourceUsd, 0.053);
   assert.equal(s.smartAipiModels[model].qualitySourceUsd.low, 0.006);
   assert.ok(Math.abs(s.smartAipiModels[model].qualitySourceUsd.high - 0.211) < 1e-12);
-  assert.equal(smartImageQuote(model, '1:1', s).cost, 499);
-  assert.equal(smartImageQuote(model, '16:9', s, 'low').cost, 72);
-  assert.equal(smartImageQuote(model, '9:16', s, 'high').cost, 2511);
+  assert.equal(smartImageQuote(model, '1:1', s).cost, 320);
+  assert.equal(smartImageQuote(model, '16:9', s, 'low').cost, 46);
+  assert.equal(smartImageQuote(model, '9:16', s, 'high').cost, 1613);
   s.smartAipiModels = normalizeSmartImageConfig({ [model]: { enabled: true, qualitySourceUsd: { low: 0.003, medium: 0, high: 0.1055 } } });
   const published = publicSmartImagePricing(s).find(m => m.id === model);
   assert.deepEqual(published.qualities, ['low', 'high']); assert.equal(published.defaultQuality, 'low');

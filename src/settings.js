@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
-const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD } = require('./smartaipi_images.js');
+const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION } = require('./smartaipi_images.js');
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 
 const DEFAULTS = {
@@ -21,6 +21,7 @@ const DEFAULTS = {
   smartaipi_enabled: 'true',
   smartaipi_max_inflight: '2',
   smartaipi_customer_credits_per_usd: String(DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD),
+  smartaipi_pricing_revision: '',
   smartaipi_models: JSON.stringify(defaultSmartImageConfig()),
   vgenv_base_url: 'https://api.vgenv.com',
   vgenv_api_key: '',
@@ -153,8 +154,10 @@ async function getProviderSettings() {
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
     smartAipiMaxInflight: Math.max(1, Math.min(10, Number(read('smartaipi_max_inflight') || 2))),
-    // A new key prevents legacy before-markup rates from overriding this policy.
-    smartAipiCustomerCreditsPerUsd: Number(read('smartaipi_customer_credits_per_usd') || DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD),
+    // Adopt the requested 160-credit policy once; subsequent Admin overrides persist.
+    smartAipiCustomerCreditsPerUsd: read('smartaipi_pricing_revision') === SMART_IMAGE_PRICING_REVISION
+      ? Number(read('smartaipi_customer_credits_per_usd') || DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD)
+      : DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD,
     smartAipiModels: normalizeSmartImageConfig(JSON.parse(read('smartaipi_models'))),
     vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
@@ -254,6 +257,7 @@ async function updateProviderSettings(input = {}) {
     const n = Number(input.smartAipiCustomerCreditsPerUsd);
     if (!Number.isFinite(n) || n <= 0 || n > 1000000) throw Object.assign(new Error('SmartAIPI customer credits per USD must be greater than zero and at most 1000000.'), { statusCode: 400 });
     smartUpdates.push(['smartaipi_customer_credits_per_usd', String(n)]);
+    smartUpdates.push(['smartaipi_pricing_revision', SMART_IMAGE_PRICING_REVISION]);
   }
   if ('smartAipiModels' in input) smartUpdates.push(['smartaipi_models', JSON.stringify(normalizeSmartImageConfig(input.smartAipiModels))]);
 

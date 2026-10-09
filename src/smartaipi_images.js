@@ -1,4 +1,5 @@
-const DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD = 9400;
+const DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD = 160 / 0.0265;
+const SMART_IMAGE_PRICING_REVISION = 'gpt2-medium-160';
 
 // Explicit API IDs and square source-price estimates from SmartAIPI's pricing
 // page (2026-10-09). Public IDs preserve routing independently of other catalogs.
@@ -84,7 +85,9 @@ function smartImageQuote(id, ratio, settings, quality = 'medium') {
   // SmartAIPI uses a direct USD-to-customer-credit conversion. This replaces
   // the former source-credit conversion plus the global provider markup.
   const creditsPerUsd = Number(settings.smartAipiCustomerCreditsPerUsd ?? DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD);
-  const cost = Math.ceil(sourceUsd * creditsPerUsd);
+  const rawCost = sourceUsd * creditsPerUsd;
+  // Ignore only floating-point noise at whole-credit boundaries (e.g. 240).
+  const cost = Math.ceil(rawCost - Number.EPSILON * Math.abs(rawCost) * 4);
   if (!Number.isFinite(cost) || !(cost > 0)) throw Object.assign(new Error('This image quality needs a valid credit price.'), { statusCode: 400 });
   return { cost, sourceUsd, ...request };
 }
@@ -108,6 +111,6 @@ function publicSmartImagePricing(settings) {
   });
 }
 
-module.exports = { DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, SMART_IMAGE_REFS,
+module.exports = { DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION, SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, SMART_IMAGE_REFS,
   defaultSmartImageConfig, normalizeSmartImageConfig, smartImageModel, smartImageRatios,
   smartImageSourcePrice, smartImageRequestSpec, smartImageQuote, publicSmartImagePricing };
