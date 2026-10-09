@@ -12,8 +12,9 @@ In Admin → Provider → GPT images · SmartAIPI:
 1. Keep the API base URL `https://api.smartaipi.com/v1`.
 2. Enter the SmartAIPI API key, enable the source, and save settings. Keys use the
    existing encrypted settings storage and are never returned by the settings API.
-3. Set source credits per USD to match the application's credit conversion.
-   The default is 100; this is an application setting, not a SmartAIPI credit unit.
+3. Customer credits per USD defaults to 9,400. Credits are estimated source USD
+   × this multiplier, rounded up to whole credits: $0.0265 → 250 credits. This
+   directly sets customer pricing and replaces the former conversion plus markup.
 4. Review the Low, Medium and High square source-price estimates. Published
    estimates are prefilled. GPT Image 1 starts at zero because its per-image price
    was not listed; configure each quality to expose it. A zero rate hides that
@@ -44,10 +45,15 @@ an approximate pixel-area factor: width × height / 1024². The fixed landscape 
 portrait sizes retain the existing 1.5× estimate. SmartAIPI does not publish exact
 per-image prices for every custom shape.
 
-Customer credits equal estimated source USD × source credits per USD × existing
-CUSTOMER_CREDIT_MULTIPLIER (default 2.5), rounded to two decimals. The same quote is
-shown before submission and reserved in the existing credit transaction. A queued
-job keeps its selected quality and reserved quote if prices or UI choices change.
+SmartAIPI customer credits equal ceil(estimated source USD × customer credits per
+USD), with a default factor of 9,400. No additional CUSTOMER_CREDIT_MULTIPLIER
+applies to these image jobs. The same quote is shown before submission and
+reserved in the existing credit transaction. A queued job keeps its selected
+quality and reserved quote if prices or UI choices change.
+The new `smartaipi_customer_credits_per_usd` setting ignores legacy
+`smartaipi_credits_per_usd` values, so existing installations adopt 9,400 without
+manually clearing the old setting. Admin can save a different direct multiplier.
+Other provider pricing retains its existing conversion and markup.
 
 GPT Image 2 and both 2.5 models expose these aspect-ratio presets:
 

@@ -5,7 +5,7 @@ const { SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, smartImage
 const { GenerationWorker } = require('../src/worker_admin_settings.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const model = SMART_IMAGE_MODELS[0].id;
-const settings = () => ({ smartAipiEnabled: true, smartAipiApiKey: 'test-only', smartAipiCreditsPerUsd: 100, smartAipiModels: defaultSmartImageConfig() });
+const settings = () => ({ smartAipiEnabled: true, smartAipiApiKey: 'test-only', smartAipiCustomerCreditsPerUsd: 9400, smartAipiModels: defaultSmartImageConfig() });
 
 test('catalog is provider-neutral, price-gated and uses the configured credit multiplier', () => {
   const s = settings();
@@ -13,8 +13,8 @@ test('catalog is provider-neutral, price-gated and uses the configured credit mu
   const square = smartImageQuote(model, '1:1', s);
   const landscape = smartImageQuote(model, '3:2', s);
   assert.equal(square.sourceUsd, 0.0265);
-  assert.equal(square.cost, 6.63);
-  assert.equal(landscape.cost, 9.94);
+  assert.equal(square.cost, 250);
+  assert.equal(landscape.cost, 374);
   assert.equal(landscape.size, '1536x1024');
   assert.equal(publicSmartImagePricing(s)[0].costByAspectRatio['3:2'], landscape.cost);
   assert.equal(JSON.stringify(publicSmartImagePricing(s)).includes('smartaipi'), false);
@@ -25,6 +25,30 @@ test('catalog is provider-neutral, price-gated and uses the configured credit mu
   assert.throws(() => smartImageQuote(SMART_IMAGE_MODELS[3].id, '16:9', s), /aspect ratio/);
   assert.throws(() => normalizeSmartImageConfig({ [model]: { enabled: true, sourceUsd: -1 } }), /price/);
   assert.throws(() => normalizeSmartImageConfig({ unknown: { enabled: true, sourceUsd: 1 } }), /Unknown/);
+});
+
+test('SmartAIPI uses direct 9400 conversion and whole credits independently of global markup', () => {
+  const s = settings();
+  const oldMultiplier = process.env.CUSTOMER_CREDIT_MULTIPLIER;
+  try {
+    process.env.CUSTOMER_CREDIT_MULTIPLIER = '11';
+    for (const spec of SMART_IMAGE_MODELS.slice(0, 3)) {
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'low').cost, 29);
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'medium').cost, 250);
+      assert.equal(smartImageQuote(spec.id, '1:1', s, 'high').cost, 992);
+    }
+    delete s.smartAipiCustomerCreditsPerUsd; s.smartAipiCreditsPerUsd = 100;
+    assert.equal(smartImageQuote(model, '1:1', s).cost, 250);
+    s.smartAipiCustomerCreditsPerUsd = 10000;
+    assert.equal(smartImageQuote(model, '1:1', s).cost, 265);
+    for (const rate of [0, -1, Infinity, NaN]) {
+      s.smartAipiCustomerCreditsPerUsd = rate;
+      assert.throws(() => smartImageQuote(model, '1:1', s), /valid credit price/);
+    }
+  } finally {
+    if (oldMultiplier === undefined) delete process.env.CUSTOMER_CREDIT_MULTIPLIER;
+    else process.env.CUSTOMER_CREDIT_MULTIPLIER = oldMultiplier;
+  }
 });
 
 test('model-specific presets and all three qualities map to valid API sizes', async () => {
@@ -57,9 +81,9 @@ test('quality estimates preserve legacy overrides and reject disabled or invalid
   assert.equal(s.smartAipiModels[model].sourceUsd, 0.053);
   assert.equal(s.smartAipiModels[model].qualitySourceUsd.low, 0.006);
   assert.ok(Math.abs(s.smartAipiModels[model].qualitySourceUsd.high - 0.211) < 1e-12);
-  assert.equal(smartImageQuote(model, '1:1', s).cost, 13.25);
-  assert.equal(smartImageQuote(model, '16:9', s, 'low').cost, 1.9);
-  assert.equal(smartImageQuote(model, '9:16', s, 'high').cost, 66.76);
+  assert.equal(smartImageQuote(model, '1:1', s).cost, 499);
+  assert.equal(smartImageQuote(model, '16:9', s, 'low').cost, 72);
+  assert.equal(smartImageQuote(model, '9:16', s, 'high').cost, 2511);
   s.smartAipiModels = normalizeSmartImageConfig({ [model]: { enabled: true, qualitySourceUsd: { low: 0.003, medium: 0, high: 0.1055 } } });
   const published = publicSmartImagePricing(s).find(m => m.id === model);
   assert.deepEqual(published.qualities, ['low', 'high']); assert.equal(published.defaultQuality, 'low');

@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
-const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS } = require('./smartaipi_images.js');
+const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD } = require('./smartaipi_images.js');
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 
 const DEFAULTS = {
@@ -20,7 +20,7 @@ const DEFAULTS = {
   smartaipi_api_key: '',
   smartaipi_enabled: 'true',
   smartaipi_max_inflight: '2',
-  smartaipi_credits_per_usd: '100',
+  smartaipi_customer_credits_per_usd: String(DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD),
   smartaipi_models: JSON.stringify(defaultSmartImageConfig()),
   vgenv_base_url: 'https://api.vgenv.com',
   vgenv_api_key: '',
@@ -153,7 +153,8 @@ async function getProviderSettings() {
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
     smartAipiMaxInflight: Math.max(1, Math.min(10, Number(read('smartaipi_max_inflight') || 2))),
-    smartAipiCreditsPerUsd: Number(read('smartaipi_credits_per_usd') || 100),
+    // A new key prevents legacy before-markup rates from overriding this policy.
+    smartAipiCustomerCreditsPerUsd: Number(read('smartaipi_customer_credits_per_usd') || DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD),
     smartAipiModels: normalizeSmartImageConfig(JSON.parse(read('smartaipi_models'))),
     vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
@@ -207,7 +208,7 @@ async function getAdminProviderSettings() {
       enabled: s.smartAipiEnabled,
       active: Boolean(s.smartAipiEnabled && s.smartAipiApiKey),
       maxInflight: s.smartAipiMaxInflight,
-      creditsPerUsd: s.smartAipiCreditsPerUsd,
+      customerCreditsPerUsd: s.smartAipiCustomerCreditsPerUsd,
       models: SMART_IMAGE_MODELS.map(m => ({ id: m.id, label: m.label, apiModel: m.apiModel, ...s.smartAipiModels[m.id] })),
     },
     vgenv: {
@@ -249,10 +250,10 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n) || n < 1 || n > 10) throw new Error('SmartAIPI max inflight must be 1 to 10.');
     smartUpdates.push(['smartaipi_max_inflight', String(n)]);
   }
-  if ('smartAipiCreditsPerUsd' in input) {
-    const n = Number(input.smartAipiCreditsPerUsd);
-    if (!Number.isFinite(n) || n <= 0 || n > 1000000) throw new Error('SmartAIPI credits per USD must be greater than zero and at most 1000000.');
-    smartUpdates.push(['smartaipi_credits_per_usd', String(n)]);
+  if ('smartAipiCustomerCreditsPerUsd' in input) {
+    const n = Number(input.smartAipiCustomerCreditsPerUsd);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000000) throw Object.assign(new Error('SmartAIPI customer credits per USD must be greater than zero and at most 1000000.'), { statusCode: 400 });
+    smartUpdates.push(['smartaipi_customer_credits_per_usd', String(n)]);
   }
   if ('smartAipiModels' in input) smartUpdates.push(['smartaipi_models', JSON.stringify(normalizeSmartImageConfig(input.smartAipiModels))]);
 
