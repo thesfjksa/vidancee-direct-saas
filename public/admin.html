@@ -44,6 +44,18 @@
       <div class="top"><div><h2 style="margin:0">Generation engines</h2><div class="muted">Credentials are saved securely. Switch a source off to stop new jobs through it. Models supplied only by that source disappear from the customer app.</div></div><button class="btn" onclick="saveProviderSettings()">Save settings</button></div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
         <div class="card">
+          <div class="source-head"><h3>Prompt enhancer · Gemini 3.8 Flash</h3>
+            <label class="source-switch" title="Enable prompt enhancement"><input id="enhancerEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label>
+          </div>
+          <div id="enhancerEnabledText" class="source-state"></div>
+          <div class="muted">Gemini API key</div><input id="enhancerApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearEnhancerApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="enhancerSecretStatus" class="muted" style="margin-top:8px"></div>
+          <p class="muted">Enhances text before image or video submission using gemini-3.8-flash. No extra customer credits are deducted; Google may charge API usage. Requires the global paid-generation switch. The connection check only reads model information.</p>
+          <button class="secondary" onclick="checkPromptEnhancer()">Test saved connection</button>
+          <div id="enhancerActionMsg" class="muted" style="margin-top:8px">Save settings before testing.</div>
+        </div>
+        <div class="card">
           <div class="source-head">
             <h3>Primary engine</h3>
             <label class="source-switch" title="Enable or disable this backend source">
@@ -327,6 +339,7 @@ async function loadGenerations(){try{const q=encodeURIComponent($('genSearch').v
 async function loadCredits(){try{const d=await api('/admin/credits');$('creditRows').innerHTML=d.transactions.length?d.transactions.map(c=>'<tr><td>'+fmt(c.created_at)+'</td><td>'+esc(c.email)+'</td><td>'+(c.generation_id||'—')+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.note||'—')+'</td><td class="'+(c.amount>0?'ok':'err')+'">'+(c.amount>0?'+':'')+c.amount+'</td></tr>').join(''):'<tr><td colspan="6" class="muted">No credit activity.</td></tr>'}catch(e){}}
 function updateSourceSwitchLabels(){
   const items=[
+    ['enhancerEnabled','enhancerEnabledText'],
     ['vidEnabled','vidEnabledText'],
     ['cpEnabled','cpEnabledText'],
     ['atlasEnabled','atlasEnabledText'],
@@ -345,6 +358,9 @@ function updateSourceSwitchLabels(){
 
 async function loadProviderSettings(){try{
   const d=await api('/admin/provider-settings');const s=d.settings;
+  $('enhancerEnabled').checked=s.promptEnhancer?.enabled!==false;
+  $('enhancerApiKey').value='';$('clearEnhancerApiKey').checked=false;
+  $('enhancerSecretStatus').textContent=s.promptEnhancer?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('vidEnabled').checked=s.vidancee?.enabled!==false;
   $('cpEnabled').checked=s.createpulse?.enabled!==false;
   $('smartEnabled').checked=s.smartaipi?.enabled!==false;
@@ -369,6 +385,7 @@ async function loadProviderSettings(){try{
 async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
   const body={
+    promptEnhancerEnabled:$('enhancerEnabled').checked,promptEnhancerApiKey:$('enhancerApiKey').value.trim(),clearPromptEnhancerApiKey:$('clearEnhancerApiKey').checked,
     vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,higgsfieldEnabled:$('higgsfieldEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
     smartAipiEnabled:$('smartEnabled').checked,smartAipiBaseUrl:$('smartBaseUrl').value.trim(),smartAipiApiKey:$('smartApiKey').value.trim(),clearSmartAipiApiKey:$('clearSmartApiKey').checked,
     smartAipiMaxInflight:Number($('smartInflight').value),smartAipiCustomerCreditsPerUsd:Number($('smartCreditsPerUsd').value),
@@ -382,6 +399,12 @@ async function saveProviderSettings(){
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
   try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}
+}
+
+async function checkPromptEnhancer(){
+  const m=$('enhancerActionMsg');m.className='muted';m.textContent='Checking saved Gemini API key...';
+  try{const d=await api('/admin/prompt-enhancer/check',{method:'POST',body:'{}'});m.className='ok';m.textContent='Connected · '+d.model;}
+  catch(e){m.className='err';m.textContent=e.message;}
 }
 
 async function checkSmartAipi(){

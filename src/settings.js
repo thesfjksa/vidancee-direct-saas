@@ -2,8 +2,11 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION } = require('./smartaipi_images.js');
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
+const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
 const DEFAULTS = {
+  prompt_enhancer_enabled: 'true',
+  prompt_enhancer_gemini_api_key: '',
   vidancee_base_url: 'https://vidancee.com',
   vidancee_email: '',
   vidancee_password: '',
@@ -138,6 +141,8 @@ async function getProviderSettings() {
   };
   const routing = String(read('provider_routing') || 'overflow');
   return {
+    promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
+    promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
     vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
     vidanceeEmail: String(read('vidancee_email') || '').trim(),
     vidanceePassword: String(read('vidancee_password') || ''),
@@ -180,6 +185,11 @@ async function getProviderSettings() {
 async function getAdminProviderSettings() {
   const s = await getProviderSettings();
   return {
+    promptEnhancer: {
+      model: GEMINI_ENHANCER_MODEL, enabled: s.promptEnhancerEnabled,
+      apiKeyConfigured: Boolean(s.promptEnhancerApiKey),
+      active: Boolean(s.promptEnhancerEnabled && s.promptEnhancerApiKey && s.allowProviderCharges),
+    },
     vidancee: {
       baseUrl: s.vidanceeBaseUrl,
       email: s.vidanceeEmail,
@@ -245,6 +255,12 @@ async function getAdminProviderSettings() {
 }
 
 async function updateProviderSettings(input = {}) {
+  if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
+    throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
+  }
+  if ('promptEnhancerApiKey' in input && (typeof input.promptEnhancerApiKey !== 'string' || input.promptEnhancerApiKey.length > 512)) {
+    throw Object.assign(new Error('Invalid prompt enhancer API key.'), { statusCode: 400 });
+  }
   const smartUpdates = [];
   if ('smartAipiBaseUrl' in input) smartUpdates.push(['smartaipi_base_url', smartAipiBaseUrl(input.smartAipiBaseUrl || DEFAULTS.smartaipi_base_url)]);
   if ('smartAipiEnabled' in input) smartUpdates.push(['smartaipi_enabled', input.smartAipiEnabled ? 'true' : 'false']);
@@ -321,6 +337,10 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isFinite(n) || n < 0 || n > 1000000) throw new Error('Vibi clone customer cost must be zero or greater.');
     await put('vibi_clone_customer_cost', String(n));
   }
+
+  if ('promptEnhancerEnabled' in input) await put('prompt_enhancer_enabled', input.promptEnhancerEnabled ? 'true' : 'false');
+  if (input.clearPromptEnhancerApiKey === true) await del('prompt_enhancer_gemini_api_key');
+  else if (String(input.promptEnhancerApiKey || '').trim()) await put('prompt_enhancer_gemini_api_key', String(input.promptEnhancerApiKey).trim(), true);
 
   for (const [key, value] of smartUpdates) await put(key, value);
   if (input.clearSmartAipiApiKey === true) await del('smartaipi_api_key');

@@ -44,6 +44,8 @@ const { VidanceeClient } = require('./src/provider/vidancee.js');
 const { SmartAipiClient, validateSmartReference } = require('./src/provider/smartaipi.js');
 const { smartImageModel, smartImageQuote, publicSmartImagePricing, SMART_IMAGE_REFS, SMART_IMAGE_MODELS } = require('./src/smartaipi_images.js');
 const { VibiClient } = require('./src/provider/vibi.js');
+const { GeminiPromptEnhancer, PromptEnhancementGate, normalizeEnhancement } = require('./src/prompt_enhancer.js');
+const promptEnhancementGate = new PromptEnhancementGate();
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
@@ -495,6 +497,7 @@ const server=http.createServer(async (req,res)=>{
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
       let voiceConfig={enabled:false};
+      let promptEnhancerConfig={enabled:false,maxPromptChars:8000};
       let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {
@@ -502,6 +505,7 @@ const server=http.createServer(async (req,res)=>{
           const currentUser=await userFromRequest(req);
           if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
+          promptEnhancerConfig.enabled=Boolean(currentUser?.status==='active' && providerSettings.promptEnhancer.active);
           const seedanceFallbackActive=Boolean(
             (customerProviderAccess.vidancee && providerSettings.vidancee.active) ||
             (customerProviderAccess.createpulse && providerSettings.createpulse.active)
@@ -551,9 +555,24 @@ const server=http.createServer(async (req,res)=>{
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
         voice:voiceConfig,
+        promptEnhancer:promptEnhancerConfig,
         providerAccess:customerProviderAccess,
         plans:publicPlans(),
       });
+    }
+
+    if (req.method==='POST' && routePath==='/api/prompts/enhance') {
+      requireDatabase();
+      const user=await requireUser(req);
+      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
+      const settings=await getProviderSettings();
+      if(!settings.allowProviderCharges || !settings.promptEnhancerEnabled || !settings.promptEnhancerApiKey) {
+        return sendJson(res,503,{ok:false,error:'Prompt enhancer is currently unavailable. Turn it off to use your original prompt.'});
+      }
+      const body=await readJson(req);
+      normalizeEnhancement(body); // Reject invalid input before consuming a request slot.
+      const result=await promptEnhancementGate.run(user.id,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
+      return sendJson(res,200,{ok:true,...result});
     }
 
     if (req.method==='POST' && routePath==='/api/model-cost') {
@@ -1098,6 +1117,14 @@ const server=http.createServer(async (req,res)=>{
         if(!settings.vibiApiKey)return sendJson(res,400,{ok:false,error:'Vibi API key is not configured.'});
         const me=await vibiClient(settings).getMe();
         return sendJson(res,200,{ok:true,connected:true,creditBalance:Number(me.credit_balance||0),account:me.email||null});
+      }
+
+      if (req.method==='POST' && routePath==='/admin/prompt-enhancer/check') {
+        requireDatabase();
+        const settings=await getProviderSettings();
+        if(!settings.promptEnhancerApiKey)return sendJson(res,400,{ok:false,error:'Prompt enhancer API key is not configured.'});
+        const result=await new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).check();
+        return sendJson(res,200,{ok:true,...result});
       }
 
       if (req.method==='POST' && routePath==='/admin/smartaipi/check') {
