@@ -1,9 +1,12 @@
+const { randomUUID, createHash } = require('node:crypto');
 const GEMINI_ENHANCER_MODEL = 'gemini-3.8-flash';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const MAX_PROMPT_CHARS = 8000;
+const ENHANCEMENT_TIMEOUT_MS = 120000;
+const PUBLIC_ERROR = Symbol('promptEnhancerError');
 
 function enhancerError(message, statusCode = 502) {
-  return Object.assign(new Error(message), { statusCode });
+  return Object.assign(new Error(message), { statusCode, [PUBLIC_ERROR]: true });
 }
 
 function upstreamError(status) {
@@ -56,7 +59,7 @@ function enhancerInstruction(mediaType) {
 }
 
 class GeminiPromptEnhancer {
-  constructor({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 25000 } = {}) {
+  constructor({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = ENHANCEMENT_TIMEOUT_MS } = {}) {
     this.apiKey = String(apiKey || '').trim();
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
@@ -65,7 +68,7 @@ class GeminiPromptEnhancer {
   async request(body) {
     if (!this.apiKey) throw enhancerError('Prompt enhancer is not configured.', 503);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = setTimeout(() => controller.abort(), body ? this.timeoutMs : Math.min(this.timeoutMs, 25000));
     try {
       const response = await this.fetchImpl(GEMINI_BASE_URL + GEMINI_ENHANCER_MODEL + (body ? ':generateContent' : ''), {
         method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal,
@@ -82,7 +85,7 @@ class GeminiPromptEnhancer {
       try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { throw enhancerError('Prompt enhancer returned an invalid response.'); }
     } catch (error) {
-      if (error.statusCode) throw error;
+      if (error[PUBLIC_ERROR]) throw error;
       if (controller.signal.aborted) throw enhancerError('Prompt enhancement timed out. Your prompt has been kept.', 504);
       // Never disclose upstream bodies, credentials, URLs or user prompts.
       throw enhancerError('Prompt enhancer could not connect. Please try again or turn it off.');
@@ -124,16 +127,78 @@ class PromptEnhancementGate {
     this.users = new Map(); this.inflight = 0;
   }
 
-  async run(userId, task) {
+  acquire(userId) {
     const now = this.now();
     for (const [id, state] of this.users) if (!state.active && now - state.started >= 60000) this.users.delete(id);
     const state = this.users.get(userId) || { active: false, started: now, count: 0 };
     if (now - state.started >= 60000) { state.started = now; state.count = 0; }
     if (state.active || state.count >= this.perMinute || this.inflight >= this.maxInflight) throw enhancerError('Prompt enhancer is busy. Please wait a moment before trying again.', 429);
     state.active = true; state.count++; this.inflight++; this.users.set(userId, state);
+    let released = false;
+    return () => { if (!released) { released = true; state.active = false; this.inflight--; } };
+  }
+
+  async run(userId, task) {
+    const release = this.acquire(userId);
     try { return await task(); }
-    finally { state.active = false; this.inflight--; }
+    finally { release(); }
   }
 }
 
-module.exports = { GEMINI_ENHANCER_MODEL, MAX_PROMPT_CHARS, normalizeEnhancement, GeminiPromptEnhancer, PromptEnhancementGate };
+// Background jobs avoid holding an HTTP request open while the model thinks.
+// Records live in this web process; reconnects reuse a job, never restart its API call.
+class PromptEnhancementJobs {
+  constructor({ gate = new PromptEnhancementGate(), now = Date.now, retentionMs = 600000, maxEntries = 1000 } = {}) {
+    this.gate = gate; this.now = now; this.retentionMs = retentionMs; this.maxEntries = maxEntries;
+    this.jobs = new Map(); this.requests = new Map();
+  }
+
+  prune() {
+    for (const [id, job] of this.jobs) {
+      if (job.status !== 'processing' && this.now() - job.finishedAt >= this.retentionMs) {
+        this.jobs.delete(id); this.requests.delete(job.requestKey);
+      }
+    }
+  }
+
+  snapshot(job) {
+    return { jobId: job.id, status: job.status,
+      ...(job.status === 'completed' ? job.result : {}),
+      ...(job.status === 'failed' ? { error: job.error, statusCode: job.statusCode } : {}) };
+  }
+
+  start(userId, input, task) {
+    const normalized = normalizeEnhancement(input);
+    if (typeof input.requestId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestId)) {
+      throw enhancerError('Invalid enhancement request ID.', 400);
+    }
+    this.prune();
+    const owner = String(userId), requestKey = owner + ':' + input.requestId;
+    const fingerprint = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+    const existing = this.jobs.get(this.requests.get(requestKey));
+    if (existing) {
+      if (existing.fingerprint !== fingerprint) throw enhancerError('This enhancement request ID was already used for another prompt.', 409);
+      return this.snapshot(existing);
+    }
+    if (this.jobs.size >= this.maxEntries) throw enhancerError('Prompt enhancer is busy. Please try again later.', 429);
+    const release = this.gate.acquire(userId);
+    const job = { id: randomUUID(), owner, requestKey, fingerprint, status: 'processing' };
+    this.jobs.set(job.id, job); this.requests.set(requestKey, job.id);
+    Promise.resolve().then(task).then(result => {
+      job.result = result; job.status = 'completed';
+    }, error => {
+      job.error = error?.[PUBLIC_ERROR] ? error.message : 'Prompt enhancement failed. Your prompt has been kept.';
+      job.statusCode = error?.[PUBLIC_ERROR] ? error.statusCode : 502;
+      job.status = 'failed';
+    }).finally(() => { job.finishedAt = this.now(); release(); });
+    return this.snapshot(job);
+  }
+
+  get(userId, id) {
+    this.prune();
+    const job = this.jobs.get(id);
+    return job && job.owner === String(userId) ? this.snapshot(job) : null;
+  }
+}
+
+module.exports = { GEMINI_ENHANCER_MODEL, MAX_PROMPT_CHARS, ENHANCEMENT_TIMEOUT_MS, normalizeEnhancement, GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs };

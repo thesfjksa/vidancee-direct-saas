@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { GeminiPromptEnhancer, PromptEnhancementGate, normalizeEnhancement, GEMINI_ENHANCER_MODEL } = require('../src/prompt_enhancer.js');
+const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, normalizeEnhancement, GEMINI_ENHANCER_MODEL, ENHANCEMENT_TIMEOUT_MS } = require('../src/prompt_enhancer.js');
 const key = 'test-gemini-key-not-real';
 const output = prompt => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ thought: true, text: 'Private reasoning' }, { text: prompt }] } }] });
 
@@ -117,4 +117,62 @@ test('request gate bounds user/global concurrency and rate, releases failures an
   await gate.run(2, async () => {});
   assert.equal(gate.users.has(1), false);
   await gate.run(1, async () => {});
+});
+
+test('slow responses get a two-minute allowance, but stalled bodies still abort without retries', async () => {
+  const client = new GeminiPromptEnhancer({ apiKey: key });
+  assert.equal(ENHANCEMENT_TIMEOUT_MS,120000); assert.equal(client.timeoutMs,120000);
+  // Scaled timings exercise both a delayed success and the body-reading deadline.
+  client.timeoutMs=200;
+  client.fetchImpl=async()=>{await new Promise(r=>setTimeout(r,60));return output('A slowly enhanced scene');};
+  assert.equal((await client.enhance({prompt:'A sunrise',mediaType:'image'})).prompt,'A slowly enhanced scene');
+  let aborted=false,calls=0;
+  client.timeoutMs=10;
+  client.fetchImpl=async(url,options)=>{
+    calls++;
+    return {ok:true,body:{async *[Symbol.asyncIterator](){
+      await new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>{aborted=true;reject(new DOMException('aborted','AbortError'));}));
+    }}};
+  };
+  await assert.rejects(client.enhance({prompt:'A sunrise',mediaType:'video'}),e=>e.statusCode===504);
+  assert.equal(aborted,true);assert.equal(calls,1);
+});
+
+test('background jobs return immediately, isolate owners and deduplicate reconnects and completed requests',async()=>{
+  let now=0,release,calls=0;
+  const gate=new PromptEnhancementGate({now:()=>now,perMinute:2});
+  const jobs=new PromptEnhancementJobs({gate,now:()=>now,retentionMs:10});
+  const input={prompt:'A sunrise',mediaType:'image',requestId:'00000000-0000-4000-8000-000000000001'};
+  const task=()=>{calls++;return new Promise(r=>{release=r;});};
+  const first=jobs.start(1,input,task);assert.equal(first.status,'processing');
+  await new Promise(r=>setImmediate(r));
+  assert.equal(calls,1);assert.equal(gate.inflight,1);
+  assert.deepEqual(jobs.start(1,input,task),first);assert.equal(calls,1);
+  assert.equal(jobs.get(2,first.jobId),null);assert.equal(JSON.stringify(first).includes(input.prompt),false);
+  assert.throws(()=>jobs.start(1,{...input,prompt:'Different'},task),e=>e.statusCode===409);
+  assert.throws(()=>jobs.start(1,{...input,requestId:'bad'},task),e=>e.statusCode===400);
+  assert.throws(()=>jobs.start(1,{...input,requestId:'00000000-0000-4000-8000-000000000002'},task),e=>e.statusCode===429);
+  release({prompt:'Enhanced sunrise',mediaType:'image'});await new Promise(r=>setImmediate(r));
+  const done=jobs.get(1,first.jobId);assert.equal(done.status,'completed');assert.equal(done.prompt,'Enhanced sunrise');
+  assert.equal(gate.inflight,0);assert.deepEqual(jobs.start(1,input,task),done);assert.equal(calls,1);
+  now=10;assert.equal(jobs.get(1,first.jobId),null);assert.equal(jobs.requests.size,0);
+});
+
+test('background failures stay available without exposing secrets or automatically restarting',async()=>{
+  const gate=new PromptEnhancementGate(),jobs=new PromptEnhancementJobs({gate,maxEntries:1});
+  const input={prompt:'A sunrise',mediaType:'video',requestId:'00000000-0000-4000-8000-000000000001'};
+  let calls=0;
+  const client=new GeminiPromptEnhancer({apiKey:key,timeoutMs:10,fetchImpl:async(url,options)=>{
+    calls++;return new Promise((r,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError'))));
+  }});
+  const job=jobs.start(1,input,()=>client.enhance(input));
+  await new Promise(r=>setTimeout(r,30));
+  const failed=jobs.get(1,job.jobId);assert.equal(failed.status,'failed');assert.equal(failed.statusCode,504);
+  assert.match(failed.error,/timed out/);assert.equal(gate.inflight,0);
+  assert.deepEqual(jobs.start(1,input,()=>client.enhance(input)),failed);assert.equal(calls,1);
+  assert.throws(()=>jobs.start(2,{...input,requestId:'00000000-0000-4000-8000-000000000002'},()=>{}),e=>e.statusCode===429);
+  const other=new PromptEnhancementJobs();
+  const unexpected=other.start(2,input,()=>{throw Object.assign(Error(key),{statusCode:400});});
+  await new Promise(r=>setImmediate(r));
+  assert.equal(JSON.stringify(other.get(2,unexpected.jobId)).includes(key),false);
 });

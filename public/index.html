@@ -1862,6 +1862,7 @@ function setupImageGenerationDrop(){
 }
 
 const enhancedPromptCache={image:null,video:null};
+const pendingEnhancementRequests={image:null,video:null};
 
 function updateEnhancerNote(kind){
   const toggle=$(kind+'PromptEnhancer');
@@ -1890,10 +1891,38 @@ async function prepareGenerationPrompt(kind,message){
   const cached=enhancedPromptCache[kind];
   if(cached?.prompt===original&&cached.context===context)return original;
   message.textContent='Enhancing your prompt…';
-  const result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify(request)});
+  let pending=pendingEnhancementRequests[kind];
+  if(pending?.original!==original||pending.context!==context){
+    pending={original,context,requestId:crypto.randomUUID()};pendingEnhancementRequests[kind]=pending;
+  }
+  let result;
+  try{
+    if(!pending.jobId){
+      result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify({...request,async:true,requestId:pending.requestId}),signal:AbortSignal.timeout(15000)});
+      pending.jobId=result.jobId;
+    }
+    const started=Date.now(),deadline=started+(config.promptEnhancer?.timeoutMs||120000)+15000;
+    while(pending.jobId){
+      if(result?.status==='completed')break;
+      if(result?.status==='failed'){
+        pendingEnhancementRequests[kind]=null;
+        throw new Error(result.error||'Prompt enhancement failed. Your prompt has been kept.');
+      }
+      if(Date.now()>=deadline)throw new Error('Enhancement is still processing. Generate again to resume it. Your prompt has been kept.');
+      if(Date.now()-started>10000)message.textContent='Still enhancing your prompt… this can take up to 2 minutes.';
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      try{result=await api('/api/prompts/enhance/'+encodeURIComponent(pending.jobId),{signal:AbortSignal.timeout(10000)});}
+      catch(e){if(e.status&&e.status<500)throw e;/* Retry status reads, never the paid enhancement. */}
+    }
+  }catch(e){
+    if(e.status&&e.status<500)pendingEnhancementRequests[kind]=null;
+    if(e.name==='TimeoutError')throw new Error('Could not read enhancement status. Generate again to resume it. Your prompt has been kept.');
+    throw e;
+  }
   if(typeof result.prompt!=='string'||!result.prompt.trim())throw new Error('Prompt enhancer returned an empty prompt.');
   if(input.value!==original)throw new Error('Your prompt changed during enhancement. Generate again with the updated text.');
   input.value=result.prompt;
+  pendingEnhancementRequests[kind]=null;
   enhancedPromptCache[kind]={prompt:result.prompt,context};
   return result.prompt;
 }
@@ -1921,7 +1950,7 @@ async function createImageGeneration(){
     for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
-    $('imagePrompt').value='';enhancedPromptCache.image=null;
+    $('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
     clearImageReferenceItems();
     m.className='msg ok';m.textContent='Image generation queued.';
     await Promise.all([loadImageGenerations(),loadDashboard(),loadCredits()]);
@@ -2204,7 +2233,7 @@ async function createGeneration(){
 
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
-    $('prompt').value='';enhancedPromptCache.video=null;
+    $('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;
     clearReferenceItems();
     clearVideoReferenceItems();
     m.className='msg ok';

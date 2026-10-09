@@ -44,8 +44,9 @@ const { VidanceeClient } = require('./src/provider/vidancee.js');
 const { SmartAipiClient, validateSmartReference } = require('./src/provider/smartaipi.js');
 const { smartImageModel, smartImageQuote, publicSmartImagePricing, SMART_IMAGE_REFS, SMART_IMAGE_MODELS } = require('./src/smartaipi_images.js');
 const { VibiClient } = require('./src/provider/vibi.js');
-const { GeminiPromptEnhancer, PromptEnhancementGate, normalizeEnhancement } = require('./src/prompt_enhancer.js');
+const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, ENHANCEMENT_TIMEOUT_MS, normalizeEnhancement } = require('./src/prompt_enhancer.js');
 const promptEnhancementGate = new PromptEnhancementGate();
+const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
@@ -497,7 +498,7 @@ const server=http.createServer(async (req,res)=>{
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
       let voiceConfig={enabled:false};
-      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:2};
+      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:3,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {
@@ -571,8 +572,21 @@ const server=http.createServer(async (req,res)=>{
       }
       const body=await readJson(req);
       normalizeEnhancement(body); // Reject invalid input before consuming a request slot.
+      if(body.async===true) {
+        const job=promptEnhancementJobs.start(user.id,body,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
+        return sendJson(res,job.status==='processing'?202:200,{ok:true,...job});
+      }
       const result=await promptEnhancementGate.run(user.id,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
       return sendJson(res,200,{ok:true,...result});
+    }
+
+    if (req.method==='GET' && /^\/api\/prompts\/enhance\/[a-f0-9-]{36}$/i.test(routePath)) {
+      requireDatabase();
+      const user=await requireUser(req);
+      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
+      const job=promptEnhancementJobs.get(user.id,routePath.split('/').pop());
+      if(!job)return sendJson(res,404,{ok:false,error:'This enhancement expired or the service restarted. Your prompt has been kept. Generate again to retry.'});
+      return sendJson(res,200,{ok:true,...job});
     }
 
     if (req.method==='POST' && routePath==='/api/model-cost') {
