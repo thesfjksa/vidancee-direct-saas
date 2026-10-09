@@ -148,6 +148,7 @@ test('background jobs return immediately, isolate owners and deduplicate reconne
   await new Promise(r=>setImmediate(r));
   assert.equal(calls,1);assert.equal(gate.inflight,1);
   assert.deepEqual(jobs.start(1,input,task),first);assert.equal(calls,1);
+  assert.deepEqual(jobs.getByRequest(1,input.requestId),first);assert.equal(jobs.getByRequest(2,input.requestId),null);assert.equal(jobs.getByRequest(1,'missing'),null);
   assert.equal(jobs.get(2,first.jobId),null);assert.equal(JSON.stringify(first).includes(input.prompt),false);
   assert.throws(()=>jobs.start(1,{...input,prompt:'Different'},task),e=>e.statusCode===409);
   assert.throws(()=>jobs.start(1,{...input,requestId:'bad'},task),e=>e.statusCode===400);
@@ -155,7 +156,7 @@ test('background jobs return immediately, isolate owners and deduplicate reconne
   release({prompt:'Enhanced sunrise',mediaType:'image'});await new Promise(r=>setImmediate(r));
   const done=jobs.get(1,first.jobId);assert.equal(done.status,'completed');assert.equal(done.prompt,'Enhanced sunrise');
   assert.equal(gate.inflight,0);assert.deepEqual(jobs.start(1,input,task),done);assert.equal(calls,1);
-  now=10;assert.equal(jobs.get(1,first.jobId),null);assert.equal(jobs.requests.size,0);
+  now=10;assert.equal(jobs.get(1,first.jobId),null);assert.equal(jobs.requests.size,0);assert.equal(jobs.getByRequest(1,input.requestId),null);
 });
 
 test('background failures stay available without exposing secrets or automatically restarting',async()=>{

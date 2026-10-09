@@ -199,6 +199,11 @@ class PromptEnhancementJobs {
     const job = this.jobs.get(id);
     return job && job.owner === String(userId) ? this.snapshot(job) : null;
   }
+
+  getByRequest(userId, requestId) {
+    this.prune();
+    return this.get(userId, this.requests.get(String(userId) + ':' + requestId));
+  }
 }
 
 module.exports = { GEMINI_ENHANCER_MODEL, MAX_PROMPT_CHARS, ENHANCEMENT_TIMEOUT_MS, normalizeEnhancement, GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs };

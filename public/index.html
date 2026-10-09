@@ -1895,28 +1895,55 @@ async function prepareGenerationPrompt(kind,message){
   if(pending?.original!==original||pending.context!==context){
     pending={original,context,requestId:crypto.randomUUID()};pendingEnhancementRequests[kind]=pending;
   }
-  let result;
+  let result,lastReadError=null;
+  const started=Date.now(),deadline=started+(config.promptEnhancer?.timeoutMs||120000)+60000;
   try{
-    if(!pending.jobId){
-      result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify({...request,async:true,requestId:pending.requestId}),signal:AbortSignal.timeout(15000)});
-      pending.jobId=result.jobId;
+    if(!pending.jobId&&!pending.recovering){
+      try{
+        result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify({...request,async:true,requestId:pending.requestId}),signal:AbortSignal.timeout(30000)});
+        pending.jobId=result.jobId;
+        if(!pending.jobId&&typeof result.prompt!=='string'){
+          pending.recovering=true;
+          lastReadError=new Error('The server returned an invalid enhancement response.');
+        }
+      }catch(e){
+        if(e.name!=='TimeoutError'&&e.name!=='TypeError'&&!(e.status>=500))throw e;
+        // A lost acknowledgement does not mean the paid job failed to start.
+        // Recover it using GET and the same request ID; never repeat POST automatically.
+        pending.recovering=true;lastReadError=e;
+      }
     }
-    const started=Date.now(),deadline=started+(config.promptEnhancer?.timeoutMs||120000)+15000;
-    while(pending.jobId){
+    const recoveryDeadline=Date.now()+45000;
+    while(pending.jobId||pending.recovering){
       if(result?.status==='completed')break;
       if(result?.status==='failed'){
         pendingEnhancementRequests[kind]=null;
         throw new Error(result.error||'Prompt enhancement failed. Your prompt has been kept.');
       }
-      if(Date.now()>=deadline)throw new Error('Enhancement is still processing. Generate again to resume it. Your prompt has been kept.');
-      if(Date.now()-started>10000)message.textContent='Still enhancing your prompt… this can take up to 2 minutes.';
+      if(Date.now()>=deadline){
+        throw new Error(lastReadError?'Connection to the site was interrupted while checking enhancement. Generate again to resume it. Your prompt has been kept.':'Enhancement is still processing. Generate again to resume it. Your prompt has been kept.');
+      }
+      if(pending.recovering)message.textContent='Reconnecting to your enhancement…';
+      else if(Date.now()-started>10000)message.textContent='Still enhancing your prompt… this can take up to 2 minutes.';
       await new Promise(resolve=>setTimeout(resolve,1500));
-      try{result=await api('/api/prompts/enhance/'+encodeURIComponent(pending.jobId),{signal:AbortSignal.timeout(10000)});}
-      catch(e){if(e.status&&e.status<500)throw e;/* Retry status reads, never the paid enhancement. */}
+      const statusPath=pending.jobId?'/api/prompts/enhance/'+encodeURIComponent(pending.jobId):'/api/prompts/enhance/requests/'+encodeURIComponent(pending.requestId);
+      try{
+        result=await api(statusPath,{signal:AbortSignal.timeout(20000)});
+        if(!result.jobId||!['processing','completed','failed'].includes(result.status))throw new Error('The server returned an invalid enhancement status. Your prompt has been kept.');
+        pending.jobId=result.jobId;pending.recovering=false;lastReadError=null;
+      }catch(e){
+        if(pending.recovering&&e.status===404){
+          if(Date.now()<recoveryDeadline)continue;
+          pending.recovering=false;
+          throw new Error('The server did not confirm your enhancement request. Generate again to retry it. Your prompt has been kept.');
+        }
+        if(e.status&&e.status<500)throw e;
+        if(e.name!=='TimeoutError'&&e.name!=='TypeError'&&!e.status)throw e;
+        lastReadError=e; // Retry only status reads, never the paid enhancement.
+      }
     }
   }catch(e){
     if(e.status&&e.status<500)pendingEnhancementRequests[kind]=null;
-    if(e.name==='TimeoutError')throw new Error('Could not read enhancement status. Generate again to resume it. Your prompt has been kept.');
     throw e;
   }
   if(typeof result.prompt!=='string'||!result.prompt.trim())throw new Error('Prompt enhancer returned an empty prompt.');

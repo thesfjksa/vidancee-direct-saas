@@ -498,7 +498,7 @@ const server=http.createServer(async (req,res)=>{
       let videoPricing=publicPricing();
       let imagePricing=publicImagePricing();
       let voiceConfig={enabled:false};
-      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:3,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
+      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:4,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
 
       if (dbConfigured()) {
@@ -578,6 +578,16 @@ const server=http.createServer(async (req,res)=>{
       }
       const result=await promptEnhancementGate.run(user.id,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
       return sendJson(res,200,{ok:true,...result});
+    }
+
+    const enhancementRequestMatch=routePath.match(/^\/api\/prompts\/enhance\/requests\/([a-f0-9-]{36})$/i);
+    if (req.method==='GET' && enhancementRequestMatch) {
+      requireDatabase();
+      const user=await requireUser(req);
+      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
+      const job=promptEnhancementJobs.getByRequest(user.id,enhancementRequestMatch[1]);
+      if(!job)return sendJson(res,404,{ok:false,error:'The enhancement request could not be found. Your prompt has been kept.'});
+      return sendJson(res,200,{ok:true,...job});
     }
 
     if (req.method==='GET' && /^\/api\/prompts\/enhance\/[a-f0-9-]{36}$/i.test(routePath)) {

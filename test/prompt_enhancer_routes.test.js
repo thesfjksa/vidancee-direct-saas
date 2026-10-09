@@ -55,7 +55,7 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
   assert.match(values.get('prompt_enhancer_gemini_api_key').setting_value,/^v1:/);
   assert.equal(values.get('prompt_enhancer_gemini_api_key').is_secret,1);
   const config = await request('/api/config'); assert.equal(config.data.promptEnhancer.enabled,true);
-  assert.equal(config.data.promptEnhancer.revision,3);
+  assert.equal(config.data.promptEnhancer.revision,4);
   assert.equal(config.data.promptEnhancer.timeoutMs,120000);
   assert.equal(config.data.promptEnhancer.async,true);
   assert.equal(JSON.stringify(config.data).includes('gemini'),false);
@@ -84,16 +84,25 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
   assert.equal(started.status,202);assert.equal(started.data.status,'processing');
   const jobPath='/api/prompts/enhance/'+started.data.jobId;
   assert.equal((await request(jobPath,{user:3})).data.status,'processing');
+  // Recover an accepted POST whose HTTP response was lost, using a read-only lookup.
+  const recoveryPath='/api/prompts/enhance/requests/'+asyncInput.requestId;
+  const recovered=await request(recoveryPath,{user:3});
+  assert.equal(recovered.status,200);assert.equal(recovered.data.jobId,started.data.jobId);
+  assert.equal(recovered.data.status,'processing');assert.equal(calls,before+1);
+  assert.equal((await request(recoveryPath,{user:2})).status,404);
+  assert.equal((await request(recoveryPath,{user:0})).status,401);
+
   assert.equal((await request(jobPath,{user:2})).status,404);
   assert.equal((await request(jobPath,{user:0})).status,401);
   assert.equal((await request('/api/prompts/enhance',{method:'POST',body:asyncInput,user:3})).data.jobId,started.data.jobId);
   assert.equal(calls,before+1);
   assert.equal((await request('/api/prompts/enhance',{method:'POST',body:{...asyncInput,prompt:'Different'},user:3})).status,409);
-  users.get(3).status='disabled';assert.equal((await request(jobPath,{user:3})).status,403);users.get(3).status='active';
+  users.get(3).status='disabled';assert.equal((await request(recoveryPath,{user:3})).status,403);assert.equal((await request(jobPath,{user:3})).status,403);users.get(3).status='active';
   mode='ok';release();
   let completed;
   for(let i=0;i<20;i++){completed=await request(jobPath,{user:3});if(completed.data.status==='completed')break;await new Promise(r=>setImmediate(r));}
   assert.equal(completed.data.status,'completed');assert.match(completed.data.prompt,/realistic child/);
+  assert.deepEqual((await request(recoveryPath,{user:3})).data,completed.data);
   const replay=await request('/api/prompts/enhance',{method:'POST',body:asyncInput,user:3});
   assert.equal(replay.status,200);assert.equal(replay.data.status,'completed');assert.equal(calls,before+1);
   assert.equal(users.get(3).credits,2000);
