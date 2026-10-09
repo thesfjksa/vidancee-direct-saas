@@ -803,6 +803,7 @@ function normalizedClientCapabilities(model,mediaType){
       min,
       roles:[...new Set(roles)],
       requiredRoles:[...new Set(requiredRoles)],
+      maxBytes:Number(source.maxBytes||0),
     };
   };
 
@@ -987,7 +988,7 @@ function renderImageReferenceControls(modelChanged=false){
     const max=cap.max||6;
     const required=cap.min>0||cap.requiredRoles.length>0;
     $('imageReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' image'+(max===1?'':'s');
-    $('imageReferenceDropHelp').textContent='JPEG, PNG or WebP · max '+max;
+    $('imageReferenceDropHelp').textContent='JPEG, PNG or WebP · max '+max+(cap.maxBytes?' · '+(cap.maxBytes/1024/1024)+' MB each':'');
     if(imageReferenceItems.length>max){
       while(imageReferenceItems.length>max){
         const item=imageReferenceItems.pop();
@@ -1358,7 +1359,8 @@ async function updateImageCost(){
   if(!model){$('imageCost').textContent='—';return}
 
   if(!model.dynamicCost){
-    $('imageCost').textContent=Number(model.cost);
+    ++imageCostRequestSeq;
+    $('imageCost').textContent=Number(model.costByAspectRatio?.[$('imageRatio').value]??model.cost);
     return;
   }
 
@@ -1692,7 +1694,7 @@ function addImageGenerationFiles(fileList){
     return;
   }
   const files=[...fileList];
-  const valid=files.filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase()));
+  const valid=files.filter(file=>['image/jpeg','image/png','image/webp'].includes(String(file.type||'').toLowerCase())&&(!cap.maxBytes||file.size<=cap.maxBytes));
   const max=cap.max||6;
   const slots=Math.max(0,max-imageReferenceItems.length);
   imageReferenceItems.push(...valid.slice(0,slots).map(imageRefItem));
@@ -1700,7 +1702,7 @@ function addImageGenerationFiles(fileList){
   renderImageReferencePreview();
 
   if(valid.length!==files.length){
-    m.className='msg err';m.textContent='Reference images must be JPEG, PNG, or WebP.';
+    m.className='msg err';m.textContent='Reference images must be JPEG, PNG, or WebP'+(cap.maxBytes?' and '+(cap.maxBytes/1024/1024)+' MB or smaller':'')+'.';
   }else if(valid.length>slots){
     m.className='msg err';m.textContent='This model accepts at most '+max+' reference image'+(max===1?'':'s')+'.';
   }else{

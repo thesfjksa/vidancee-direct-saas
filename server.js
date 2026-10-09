@@ -41,6 +41,8 @@ const { fork } = require('node:child_process');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
+const { SmartAipiClient, validateSmartReference } = require('./src/provider/smartaipi.js');
+const { smartImageModel, smartImageQuote, publicSmartImagePricing, SMART_IMAGE_REFS, SMART_IMAGE_MODELS } = require('./src/smartaipi_images.js');
 const { VibiClient } = require('./src/provider/vibi.js');
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
@@ -292,7 +294,7 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -462,9 +464,9 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vgenv.active ||
           providerSettings.atlascloud.active ||
           providerSettings.higgsfield.active ||
-          providerSettings.vibi.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active
         );
-        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady);
+        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && m.sourceUsd>0)));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -513,6 +515,10 @@ const server=http.createServer(async (req,res)=>{
           });
 
           if (!customerProviderAccess.atlascloud || !providerSettings.atlascloud.active) imagePricing=[];
+
+          if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active) {
+            imagePricing.push(...publicSmartImagePricing(await getProviderSettings()));
+          }
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
             voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
@@ -841,7 +847,19 @@ const server=http.createServer(async (req,res)=>{
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
 
-      if (customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+      if (smartImageModel(requestedModel)) {
+        if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
+          return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
+        }
+        const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings);
+        for(const image of (Array.isArray(body.images)?body.images:[]))validateSmartReference(image?.data);
+        generation=await createImageGenerationForUser(user.id,body,{
+          provider:'smartaipi',dynamicModel:true,referenceCapabilities:SMART_IMAGE_REFS,
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',
+        });
+      }
+
+      if (!generation && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'image');
         if (dynamicModel) {
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
@@ -898,6 +916,16 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       const row=await getUserImageGeneration(user.id,imageMediaMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
+      if (row.output_url==='db:image') {
+        const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+        const output=outputs[0];
+        if(!output)return sendJson(res,404,{ok:false,error:'Generated image is unavailable.'});
+        const extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[output.mime_type]||'png';
+        res.writeHead(200,{'content-type':output.mime_type,'content-length':output.image_data.length,
+          'content-disposition':'inline; filename="cmm-tools-image-'+row.id.slice(0,8)+'.'+extension+'"',
+          'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});
+        return res.end(output.image_data);
+      }
       return proxyMedia(req,res,row,'video');
     }
 
@@ -1072,6 +1100,14 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,connected:true,creditBalance:Number(me.credit_balance||0),account:me.email||null});
       }
 
+      if (req.method==='POST' && routePath==='/admin/smartaipi/check') {
+        requireDatabase();
+        const settings=await getProviderSettings();
+        if(!settings.smartAipiApiKey)return sendJson(res,400,{ok:false,error:'SmartAIPI API key is not configured.'});
+        const available=await new SmartAipiClient({baseUrl:settings.smartAipiBaseUrl,apiKey:settings.smartAipiApiKey}).listModels();
+        return sendJson(res,200,{ok:true,connected:true,models:SMART_IMAGE_MODELS.map(m=>({id:m.apiModel,available:available.includes(m.apiModel)}))});
+      }
+
       if (req.method==='GET' && routePath==='/admin/provider-settings') {
         requireDatabase();
         return sendJson(res,200,{ok:true,settings:await getAdminProviderSettings()});
@@ -1187,6 +1223,7 @@ const server=http.createServer(async (req,res)=>{
             vgenv:providerSettings.vgenv.configured,
             higgsfield:providerSettings.higgsfield.configured,
             vibi:providerSettings.vibi.configured,
+            smartaipi:providerSettings.smartaipi.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1195,6 +1232,7 @@ const server=http.createServer(async (req,res)=>{
             vgenv:providerSettings.vgenv.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
             vibi:providerSettings.vibi.enabled,
+            smartaipi:providerSettings.smartaipi.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1203,6 +1241,7 @@ const server=http.createServer(async (req,res)=>{
             vgenv:providerSettings.vgenv.active,
             higgsfield:providerSettings.higgsfield.active,
             vibi:providerSettings.vibi.active,
+            smartaipi:providerSettings.smartaipi.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
@@ -1210,6 +1249,7 @@ const server=http.createServer(async (req,res)=>{
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           vibiMaxInflight:providerSettings.vibi.maxInflight,
+          smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,

@@ -3,6 +3,8 @@ const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
 const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
+const { SmartAipiClient } = require('./provider/smartaipi.js');
+const { smartImageModel } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
@@ -31,6 +33,13 @@ class GenerationWorker {
     this.atlasCloud = null;
     this.vgenv = null;
     this.vibi = null;
+    this.smartAipi = null;
+    this.smartAipiFingerprint = '';
+    this.smartImageTasks = new Set();
+    this.smartAipiEnabled = false;
+    this.smartAipiMaxInflight = 2;
+    this.smartAipiModels = {};
+    this.refundSmartImage = refundGeneration;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
     this.atlasCloudFingerprint = '';
@@ -93,6 +102,14 @@ class GenerationWorker {
     this.higgsfieldEnabled = Boolean(settings.higgsfieldEnabled);
     this.vibiEnabled = Boolean(settings.vibiEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
+    this.smartAipiEnabled = settings.smartAipiEnabled;
+    this.smartAipiMaxInflight = settings.smartAipiMaxInflight;
+    this.smartAipiModels = settings.smartAipiModels;
+    const smartFingerprint = JSON.stringify([settings.smartAipiBaseUrl, settings.smartAipiApiKey]);
+    if (smartFingerprint !== this.smartAipiFingerprint) {
+      this.smartAipiFingerprint = smartFingerprint;
+      this.smartAipi = settings.smartAipiApiKey ? new SmartAipiClient({baseUrl: settings.smartAipiBaseUrl, apiKey: settings.smartAipiApiKey}) : null;
+    }
 
     const vidFingerprint = JSON.stringify([settings.vidanceeBaseUrl, settings.vidanceeEmail, settings.vidanceePassword]);
     if (vidFingerprint !== this.vidanceeFingerprint) {
@@ -285,6 +302,99 @@ class GenerationWorker {
       } catch (error) {
         console.error('Atlas Cloud image status sync failed for', row.id, error.message);
       }
+    }
+  }
+
+  async syncSmartImages(db) {
+    // Synchronous image requests have no resumable provider job ID. If a worker
+    // exits mid-request, expire the reservation after twice the API timeout.
+    // Never resubmit an ambiguous request, which could charge the provider twice.
+    const [rows] = await db.query(`SELECT id,status FROM generations WHERE provider='smartaipi' AND media_type='image'
+      AND ((status='processing' AND submitted_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE))
+        OR (status='submit_error' AND refunded_at IS NULL)) LIMIT 25`);
+    for (const row of rows) {
+      if (row.status === 'processing') {
+        const [claim] = await db.execute("UPDATE generations SET status='submit_error',error_message='Image generation was interrupted.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='processing' AND submitted_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE)",[row.id]);
+        if (!claim.affectedRows) continue;
+      }
+      await this.refundSmartImage(row.id,'submit_error','Image generation was interrupted. Credits were refunded.',null);
+    }
+  }
+
+  async submitSmartImages(db) {
+    if (!this.allowProviderCharges || !this.smartAipi || !this.smartAipiEnabled) return;
+    // A connection-scoped lock keeps the global inflight limit consistent when
+    // an isolated web worker and a standalone worker share this database.
+    const conn = await db.getConnection();
+    const claimed = [];
+    let locked = false;
+    try {
+      const [[lock]] = await conn.query("SELECT GET_LOCK('cmm_smartaipi_images',0) AS acquired");
+      locked = Number(lock?.acquired) === 1;
+      if (!locked) return;
+      const [[active]] = await conn.query("SELECT COUNT(*) AS total FROM generations WHERE provider='smartaipi' AND media_type='image' AND status IN ('submitting','submitted','processing')");
+      let slots = Math.max(0, this.smartAipiMaxInflight - Number(active?.total || 0));
+      if (!slots) return;
+      const [queued] = await conn.query(`SELECT g.* FROM generations g
+        JOIN users u ON u.id=g.user_id AND u.status='active'
+        LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='smartaipi'
+        WHERE g.provider='smartaipi' AND g.media_type='image' AND g.status='queued' AND COALESCE(a.enabled,1)=1
+        ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 25`);
+      for (const job of queued) {
+        if (!slots) break;
+        if (!smartImageModel(job.model) || !this.smartAipiModels[job.model]?.enabled || !(this.smartAipiModels[job.model]?.sourceUsd > 0)) continue;
+        const [claim] = await conn.execute("UPDATE generations SET status='processing',submitted_at=UTC_TIMESTAMP(),started_at=UTC_TIMESTAMP(),error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='smartaipi' AND status='queued'",[job.id]);
+        if (!claim.affectedRows) continue;
+        claimed.push(job); slots -= 1;
+      }
+    } finally {
+      try { if (locked) await conn.query("SELECT RELEASE_LOCK('cmm_smartaipi_images')"); }
+      finally { conn.release(); }
+      // Start every claimed job even if releasing the advisory lock failed.
+      // The synchronous upstream requests run in the background so other
+      // providers keep getting polled during a slow image render.
+      for (const job of claimed) {
+        const client = this.smartAipi;
+        const task = this.processSmartImage(db, job, client).catch(error => {
+          console.error('GPT image processing failed for', job.id, error.message);
+        });
+        this.smartImageTasks.add(task);
+        task.finally(() => this.smartImageTasks.delete(task));
+      }
+    }
+  }
+
+  async processSmartImage(db, job, client) {
+    let result;
+    try {
+      const [images] = await db.execute('SELECT image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',[job.id]);
+      // No automatic upstream retry: a timeout can still have incurred a charge.
+      result = await client.generateImage({model:job.model,prompt:job.prompt,aspectRatio:job.aspect_ratio,
+        images:images.map(image=>({data:image.image_data}))});
+    } catch (error) {
+      console.error('GPT image request failed for', job.id, error.message);
+      await this.refundSmartImage(job.id,'failed','Image generation failed. Credits were refunded.',null);
+      return;
+    }
+    // Retry only local persistence, never the paid API operation.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      let conn;
+      try {
+        conn = await db.getConnection();
+        await conn.beginTransaction();
+        const [rows] = await conn.execute('SELECT status,refunded_at FROM generations WHERE id=? FOR UPDATE',[job.id]);
+        if (!rows[0] || rows[0].status !== 'processing' || rows[0].refunded_at) { await conn.rollback(); return; }
+        await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type),image_data=VALUES(image_data)',[job.id,result.mimeType,result.data]);
+        await conn.execute("UPDATE generations SET status='completed',output_url='db:image',completed_at=UTC_TIMESTAMP(),error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=?",[job.id]);
+        await conn.commit();
+        return;
+      } catch (error) {
+        if (conn) await conn.rollback();
+        if (attempt === 2) {
+          console.error('GPT image storage failed for',job.id,error.message);
+          await this.refundSmartImage(job.id,'failed','Generated image could not be saved. Credits were refunded.',null);
+        }
+      } finally { if (conn) conn.release(); }
     }
   }
 
@@ -783,6 +893,7 @@ class GenerationWorker {
     await this.syncCreatePulse(db);
     await this.syncVgenv(db);
     await this.syncAtlasImages(db);
+    await this.syncSmartImages(db);
     await this.syncHiggsfield(db);
     await this.syncVibi(db);
     await this.syncVibiClones(db);
@@ -798,6 +909,7 @@ class GenerationWorker {
       higgsfieldSlots = await this.submitHiggsfieldQueued(db, higgsfieldSlots);
     }
 
+    await this.submitSmartImages(db);
     await this.submitAtlasImages(db);
     await this.submitVibiQueued(db);
     await this.submitVibiCloneQueue(db);
@@ -884,3 +996,4 @@ class GenerationWorker {
 }
 
 module.exports = { GenerationWorker };
+

@@ -1,5 +1,7 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS } = require('./smartaipi_images.js');
+const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 
 const DEFAULTS = {
   vidancee_base_url: 'https://vidancee.com',
@@ -14,6 +16,12 @@ const DEFAULTS = {
   atlascloud_api_key: '',
   atlascloud_max_inflight: '4',
   atlascloud_enabled: 'true',
+  smartaipi_base_url: 'https://api.smartaipi.com/v1',
+  smartaipi_api_key: '',
+  smartaipi_enabled: 'true',
+  smartaipi_max_inflight: '2',
+  smartaipi_credits_per_usd: '100',
+  smartaipi_models: JSON.stringify(defaultSmartImageConfig()),
   vgenv_base_url: 'https://api.vgenv.com',
   vgenv_api_key: '',
   vgenv_max_inflight: '4',
@@ -141,6 +149,12 @@ async function getProviderSettings() {
     atlasCloudApiKey: String(read('atlascloud_api_key') || '').trim(),
     atlasCloudMaxInflight: Math.max(1, Math.min(50, Number(read('atlascloud_max_inflight') || 4))),
     atlasCloudEnabled: asBool(read('atlascloud_enabled')),
+    smartAipiBaseUrl: smartAipiBaseUrl(read('smartaipi_base_url')),
+    smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
+    smartAipiEnabled: asBool(read('smartaipi_enabled')),
+    smartAipiMaxInflight: Math.max(1, Math.min(10, Number(read('smartaipi_max_inflight') || 2))),
+    smartAipiCreditsPerUsd: Number(read('smartaipi_credits_per_usd') || 100),
+    smartAipiModels: normalizeSmartImageConfig(JSON.parse(read('smartaipi_models'))),
     vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
     vgenvMaxInflight: Math.max(1, Math.min(50, Number(read('vgenv_max_inflight') || 4))),
@@ -186,6 +200,16 @@ async function getAdminProviderSettings() {
       enabled: Boolean(s.atlasCloudEnabled),
       active: Boolean(s.atlasCloudEnabled && s.atlasCloudApiKey),
     },
+    smartaipi: {
+      baseUrl: s.smartAipiBaseUrl,
+      apiKeyConfigured: Boolean(s.smartAipiApiKey),
+      configured: Boolean(s.smartAipiApiKey),
+      enabled: s.smartAipiEnabled,
+      active: Boolean(s.smartAipiEnabled && s.smartAipiApiKey),
+      maxInflight: s.smartAipiMaxInflight,
+      creditsPerUsd: s.smartAipiCreditsPerUsd,
+      models: SMART_IMAGE_MODELS.map(m => ({ id: m.id, label: m.label, apiModel: m.apiModel, ...s.smartAipiModels[m.id] })),
+    },
     vgenv: {
       baseUrl: s.vgenvBaseUrl,
       apiKeyConfigured: Boolean(s.vgenvApiKey),
@@ -217,6 +241,21 @@ async function getAdminProviderSettings() {
 }
 
 async function updateProviderSettings(input = {}) {
+  const smartUpdates = [];
+  if ('smartAipiBaseUrl' in input) smartUpdates.push(['smartaipi_base_url', smartAipiBaseUrl(input.smartAipiBaseUrl || DEFAULTS.smartaipi_base_url)]);
+  if ('smartAipiEnabled' in input) smartUpdates.push(['smartaipi_enabled', input.smartAipiEnabled ? 'true' : 'false']);
+  if ('smartAipiMaxInflight' in input) {
+    const n = Number(input.smartAipiMaxInflight);
+    if (!Number.isInteger(n) || n < 1 || n > 10) throw new Error('SmartAIPI max inflight must be 1 to 10.');
+    smartUpdates.push(['smartaipi_max_inflight', String(n)]);
+  }
+  if ('smartAipiCreditsPerUsd' in input) {
+    const n = Number(input.smartAipiCreditsPerUsd);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000000) throw new Error('SmartAIPI credits per USD must be greater than zero and at most 1000000.');
+    smartUpdates.push(['smartaipi_credits_per_usd', String(n)]);
+  }
+  if ('smartAipiModels' in input) smartUpdates.push(['smartaipi_models', JSON.stringify(normalizeSmartImageConfig(input.smartAipiModels))]);
+
   if ('vidanceeBaseUrl' in input) await put('vidancee_base_url', normalizeUrl(input.vidanceeBaseUrl, DEFAULTS.vidancee_base_url));
   if ('vidanceeEmail' in input) await put('vidancee_email', String(input.vidanceeEmail || '').trim());
   if ('vidanceeEnabled' in input) await put('vidancee_enabled', input.vidanceeEnabled ? 'true' : 'false');
@@ -278,6 +317,10 @@ async function updateProviderSettings(input = {}) {
     await put('vibi_clone_customer_cost', String(n));
   }
 
+  for (const [key, value] of smartUpdates) await put(key, value);
+  if (input.clearSmartAipiApiKey === true) await del('smartaipi_api_key');
+  else if (String(input.smartAipiApiKey || '').trim()) await put('smartaipi_api_key', String(input.smartAipiApiKey).trim(), true);
+
   if ('routing' in input) {
     const routing = String(input.routing || '');
     if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
@@ -337,3 +380,4 @@ module.exports = {
   setSettingValue,
   deleteSettingValue,
 };
+

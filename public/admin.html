@@ -92,6 +92,25 @@
         </div>
         <div class="card">
           <div class="source-head">
+            <h3>GPT images · SmartAIPI</h3>
+            <label class="source-switch" title="Enable or disable this backend source">
+              <input id="smartEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span>
+            </label>
+          </div>
+          <div id="smartEnabledText" class="source-state"></div>
+          <div class="muted">API base URL (including /v1)</div><input id="smartBaseUrl" style="width:100%;margin:6px 0 10px">
+          <div class="muted">API key</div><input id="smartApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearSmartApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="smartSecretStatus" class="muted" style="margin-top:8px"></div>
+          <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="smartInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin-top:12px">Source credits per USD (before markup)</div><input id="smartCreditsPerUsd" type="number" min="0.01" step="any" value="100" style="width:100%;margin-top:6px">
+          <p class="muted">Medium quality · one image per job · one optional reference. Square source prices are estimates; landscape and portrait use 1.5×. Input tokens can add provider charges, so adjust these rates to your account costs. A zero price hides the model.</p>
+          <div id="smartModelPrices"></div>
+          <button class="secondary" style="margin-top:12px" onclick="checkSmartAipi()">Test saved connection</button>
+          <div id="smartActionMsg" class="muted" style="margin-top:8px">Save settings before testing. This check does not generate an image.</div>
+        </div>
+        <div class="card">
+          <div class="source-head">
             <h3>Video engine · MiniMax H3</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="vgenvEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
@@ -186,6 +205,7 @@
       <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Primary Seedance generation source</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Overflow Seedance generation source</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">MiniMax H3 generation source</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>SmartAIPI</strong><span class="muted">GPT image generation source</span></div><span class="source-switch"><input id="accessSmartaipi" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Atlas Cloud</strong><span class="muted">Image generation source</span></div><span class="source-switch"><input id="accessAtlascloud" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Voice Studio</strong><span class="muted">Voice generation source</span></div><span class="source-switch"><input id="accessVibi" type="checkbox"><span class="source-switch-track"></span></span></label>
     </div>
@@ -224,7 +244,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['vibi','Voice']];
+      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -241,6 +261,7 @@ function openProviderAccess(id){
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessCreatepulse').checked=a.createpulse!==false;
   $('accessVgenv').checked=a.vgenv!==false;
+  $('accessSmartaipi').checked=a.smartaipi!==false;
   $('accessAtlascloud').checked=a.atlascloud!==false;
   $('accessVibi').checked=a.vibi!==false;
   $('providerAccessMsg').className='muted';$('providerAccessMsg').textContent='';
@@ -255,6 +276,7 @@ async function saveProviderAccess(){
     vidancee:$('accessVidancee').checked,
     createpulse:$('accessCreatepulse').checked,
     vgenv:$('accessVgenv').checked,
+    smartaipi:$('accessSmartaipi').checked,
     atlascloud:$('accessAtlascloud').checked,
     vibi:$('accessVibi').checked,
   };
@@ -308,6 +330,7 @@ function updateSourceSwitchLabels(){
     ['vidEnabled','vidEnabledText'],
     ['cpEnabled','cpEnabledText'],
     ['atlasEnabled','atlasEnabledText'],
+    ['smartEnabled','smartEnabledText'],
     ['vgenvEnabled','vgenvEnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
@@ -324,6 +347,7 @@ async function loadProviderSettings(){try{
   const d=await api('/admin/provider-settings');const s=d.settings;
   $('vidEnabled').checked=s.vidancee?.enabled!==false;
   $('cpEnabled').checked=s.createpulse?.enabled!==false;
+  $('smartEnabled').checked=s.smartaipi?.enabled!==false;
   $('atlasEnabled').checked=s.atlascloud?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
   $('higgsfieldEnabled').checked=s.higgsfield?.enabled!==false;
@@ -332,6 +356,10 @@ async function loadProviderSettings(){try{
   $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
   $('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;
   $('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;
+  $('smartBaseUrl').value=s.smartaipi?.baseUrl||'https://api.smartaipi.com/v1';$('smartApiKey').value='';$('clearSmartApiKey').checked=false;
+  $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('smartInflight').value=s.smartaipi?.maxInflight||2;$('smartCreditsPerUsd').value=s.smartaipi?.creditsPerUsd||100;
+  $('smartModelPrices').innerHTML=(s.smartaipi?.models||[]).map(model=>'<div data-smart-model="'+esc(model.id)+'" style="margin-top:12px"><label><input class="smart-model-enabled" type="checkbox" style="width:auto" '+(model.enabled?'checked':'')+'> '+esc(model.label)+'</label><div class="muted">Square source price (USD)</div><input class="smart-model-price" type="number" min="0" max="1000" step="any" value="'+Number(model.sourceUsd)+'" style="width:100%;margin-top:6px"></div>').join('');
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
   $('higgsfieldMcpUrl').value=s.higgsfield?.mcpUrl||'https://mcp.higgsfield.ai/mcp';$('higgsfieldInflight').value=s.higgsfield?.maxInflight||4;$('higgsfieldConnectionStatus').textContent=s.higgsfield?.connected?'Account: connected':'Account: not connected';$('higgsfieldConnectionStatus').className=s.higgsfield?.connected?'ok':'muted';
   $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
@@ -342,6 +370,9 @@ async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
   const body={
     vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,higgsfieldEnabled:$('higgsfieldEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
+    smartAipiEnabled:$('smartEnabled').checked,smartAipiBaseUrl:$('smartBaseUrl').value.trim(),smartAipiApiKey:$('smartApiKey').value.trim(),clearSmartAipiApiKey:$('clearSmartApiKey').checked,
+    smartAipiMaxInflight:Number($('smartInflight').value),smartAipiCreditsPerUsd:Number($('smartCreditsPerUsd').value),
+    smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value)}])),
     vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,
     createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),
     atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),
@@ -351,6 +382,15 @@ async function saveProviderSettings(){
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
   try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}
+}
+
+async function checkSmartAipi(){
+  const m=$('smartActionMsg');m.className='muted';m.textContent='Checking saved API key...';
+  try{
+    const d=await api('/admin/smartaipi/check',{method:'POST',body:'{}'});
+    const found=(d.models||[]).filter(x=>x.available).length;
+    m.className='ok';m.textContent='Connected · '+found+' of '+(d.models||[]).length+' GPT image IDs listed. '+(d.models||[]).filter(x=>!x.available).map(x=>x.id+' not listed').join(' · ');
+  }catch(e){m.className='err';m.textContent=e.message}
 }
 
 async function checkVibi(){
