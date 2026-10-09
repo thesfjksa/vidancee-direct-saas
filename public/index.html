@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/assets/cmmtools-icon.png">
 <title>CMM Tools — Creation Studio</title>
 <link rel="stylesheet" href="/brand.css?v=cmm-1">
-<link rel="stylesheet" href="/studio.css?v=cmm-3">
+<link rel="stylesheet" href="/studio.css?v=cmm-4">
 </head>
 <body>
 
@@ -348,9 +348,24 @@
 
 </div>
 
+<dialog id="generatedImageDialog" class="generated-image-dialog" aria-labelledby="generatedImageTitle" aria-describedby="generatedImageMeta">
+  <div class="generated-image-head">
+    <div><h2 id="generatedImageTitle">Image preview</h2><p id="generatedImageMeta"></p></div>
+    <div class="generated-image-actions">
+      <button type="button" class="btn secondary" onclick="downloadPreviewImage()">Download</button>
+      <button type="button" class="generated-image-close" aria-label="Close image preview" onclick="closeImagePreview()" autofocus>×</button>
+    </div>
+  </div>
+  <div class="generated-image-frame">
+    <p id="generatedImageStatus" class="generated-image-status" role="status">Loading image…</p>
+    <img id="generatedImageFull" alt="Generated image preview">
+  </div>
+</dialog>
+
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
+let imagePreviewGenerationId=null;
 let voiceGenerations=[],voiceGenerationLoadPending=false,voiceCostTimer=null,voiceCostRequestSeq=0,voiceOptions={models:[],voices:[]},voiceClones=[];
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
 let videoReferenceItems=[],videoReferenceSeq=0;
@@ -1348,7 +1363,7 @@ function renderImageRatios(){
   if(ratios.includes(previous))$('imageRatio').value=previous;
   else if(model?.defaultAspectRatio&&ratios.includes(model.defaultAspectRatio))$('imageRatio').value=model.defaultAspectRatio;
   syncCustomSelect('imageModel');
-  syncCustomSelect('imageRatio');
+  rebuildCustomSelect('imageRatio');
   updateImageCost();
 }
 
@@ -1837,7 +1852,7 @@ function renderImageGallery(){
 function imageGenerationCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   const media=g.has_image
-    ?'<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+escapeHtml(g.image_url)+'" alt="Generated image" loading="lazy"></div>'
+    ?'<button type="button" class="job-media image-preview-trigger" style="aspect-ratio:'+aspect+'" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open generated image preview" onclick="openImagePreview(this.dataset.generationId)"><img src="'+escapeHtml(g.image_url)+'" alt="Generated image" loading="lazy"><span class="image-preview-hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></span></button>'
     :'<div class="job-media job-placeholder" style="aspect-ratio:'+aspect+'">'+
       (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
       '</div>';
@@ -1862,6 +1877,45 @@ function imageGenerationCard(g){
 function imageModelLabel(id){
   return config?.imagePricing?.find(model=>model.id===id)?.label||id;
 }
+
+function openImagePreview(id){
+  const generation=imageGenerations.find(item=>String(item.id)===String(id));
+  if(!generation?.has_image||!generation.image_url)return;
+  closeCustomSelects();
+  imagePreviewGenerationId=String(generation.id);
+  $('generatedImageMeta').textContent=imageModelLabel(generation.model)+' · '+generation.aspect_ratio;
+  const image=$('generatedImageFull'),status=$('generatedImageStatus');
+  status.textContent='Loading image…';status.classList.remove('hide');
+  image.onload=()=>status.classList.add('hide');
+  image.onerror=()=>{status.textContent='Image could not be loaded. Close and try again.';status.classList.remove('hide')};
+  image.src=generation.image_url;
+  const dialog=$('generatedImageDialog');
+  if(!dialog.open)dialog.showModal();
+}
+
+function closeImagePreview(){
+  const dialog=$('generatedImageDialog');
+  if(dialog.open)dialog.close();
+}
+
+function downloadPreviewImage(){
+  if(imagePreviewGenerationId)downloadImageGeneration(imagePreviewGenerationId);
+}
+
+$('generatedImageDialog').addEventListener('click',event=>{
+  if(event.target!==event.currentTarget)return;
+  const rect=event.currentTarget.getBoundingClientRect();
+  if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeImagePreview();
+});
+$('generatedImageDialog').addEventListener('close',()=>{
+  const id=imagePreviewGenerationId;
+  imagePreviewGenerationId=null;
+  $('generatedImageFull').onload=null;$('generatedImageFull').onerror=null;
+  $('generatedImageFull').removeAttribute('src');
+  // Polling may have replaced the original thumbnail while this dialog was open.
+  const trigger=[...document.querySelectorAll('.image-preview-trigger')].find(button=>button.dataset.generationId===id);
+  if(trigger)trigger.focus({preventScroll:true});
+});
 
 function downloadImageGeneration(id){
   const g=imageGenerations.find(item=>String(item.id)===String(id));
