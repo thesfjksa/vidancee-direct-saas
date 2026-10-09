@@ -6,6 +6,22 @@ function enhancerError(message, statusCode = 502) {
   return Object.assign(new Error(message), { statusCode });
 }
 
+function upstreamError(status) {
+  // Fixed messages only: never return upstream error bodies or credentials.
+  const messages = {
+    400: 'Prompt enhancer rejected the request (HTTP 400). Contact support to check its settings.',
+    401: 'Prompt enhancer credentials were rejected (HTTP 401). Contact support.',
+    402: 'Prompt enhancer requires billing or API credits (HTTP 402). Contact support.',
+    403: 'Prompt enhancer access was denied (HTTP 403). Contact support to check its API key and permissions.',
+    404: 'Prompt enhancer model is unavailable for the configured account (HTTP 404). Contact support.',
+    429: 'Prompt enhancer has reached its quota or rate limit (HTTP 429). Please try later or turn it off.',
+  };
+  const message = messages[status] || (status >= 500
+    ? 'Prompt enhancer service is temporarily unavailable (HTTP ' + status + '). Please try later or turn it off.'
+    : 'Prompt enhancer request failed (HTTP ' + status + '). Please try again or turn it off.');
+  return enhancerError(message, status === 429 ? 429 : 502);
+}
+
 function normalizeEnhancement(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw enhancerError('Invalid enhancement request.', 400);
   if (!['image', 'video'].includes(input.mediaType)) throw enhancerError('Choose image or video enhancement.', 400);
@@ -56,9 +72,7 @@ class GeminiPromptEnhancer {
         headers: { 'x-goog-api-key': this.apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      if (!response.ok) throw enhancerError(response.status === 429
-        ? 'Prompt enhancer is busy. Please try again shortly.'
-        : 'Prompt enhancer request failed. Please try again or turn the enhancer off.', response.status === 429 ? 429 : 502);
+      if (!response.ok) throw upstreamError(response.status);
       const chunks = []; let size = 0;
       for await (const chunk of response.body) {
         size += chunk.length;
@@ -80,7 +94,8 @@ class GeminiPromptEnhancer {
     const result = await this.request({
       systemInstruction: { parts: [{ text: enhancerInstruction(mediaType) }] },
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({ prompt, ...context }) }] }],
-      generationConfig: { candidateCount: 1, maxOutputTokens: 2048, responseMimeType: 'text/plain', thinkingConfig: { thinkingLevel: 'minimal' } },
+      // Gemini 3.8 Flash supports low/medium/high; minimal is rejected with HTTP 400.
+      generationConfig: { candidateCount: 1, maxOutputTokens: 2048, responseMimeType: 'text/plain', thinkingConfig: { thinkingLevel: 'low' } },
     });
     const candidate = result.candidates?.[0];
     if (result.promptFeedback?.blockReason || candidate?.finishReason !== 'STOP') {

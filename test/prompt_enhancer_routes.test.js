@@ -29,6 +29,9 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
     if (mode === 'fail') return Response.json({ error: 'test-gemini-secret' }, { status: 503 });
     if (mode === 'blocked') return Response.json({ promptFeedback: { blockReason: 'SAFETY' } });
     const body = JSON.parse(options.body);
+    if (!['low', 'medium', 'high'].includes(body.generationConfig.thinkingConfig.thinkingLevel)) {
+      return Response.json({ error: { status: 'INVALID_ARGUMENT', message: 'Unsupported thinking level' } }, { status: 400 });
+    }
     assert.equal(JSON.parse(body.contents[0].parts[0].text).prompt, 'A child dancing');
     return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'A realistic child dancing in a quiet street.' }] } }] });
   };
@@ -51,6 +54,7 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
   assert.match(values.get('prompt_enhancer_gemini_api_key').setting_value,/^v1:/);
   assert.equal(values.get('prompt_enhancer_gemini_api_key').is_secret,1);
   const config = await request('/api/config'); assert.equal(config.data.promptEnhancer.enabled,true);
+  assert.equal(config.data.promptEnhancer.revision,2);
   assert.equal(JSON.stringify(config.data).includes('gemini'),false);
   assert.equal((await request('/admin/prompt-enhancer/check', { admin: true, method: 'POST' })).status,200);
   for (const mediaType of ['image','video']) {
@@ -67,6 +71,7 @@ test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve cred
   users.get(2).status = 'active'; mode = 'fail';
   const failure = await request('/api/prompts/enhance', { method: 'POST', body: input, user: 2 });
   assert.equal(failure.status,502); assert.equal(JSON.stringify(failure.data).includes('test-gemini-secret'),false);
+  assert.match(failure.data.error,/temporarily unavailable \(HTTP 503\)/);
   mode = 'blocked'; assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input, user: 2 })).status,422); mode = 'ok';
   for (let i=0;i<4;i++) assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,200);
   assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,429);

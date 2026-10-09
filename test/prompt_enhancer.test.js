@@ -20,10 +20,46 @@ test('Gemini maps image/video instructions, preserves input language and sends t
       assert.equal(data.durationSeconds, mediaType === 'video' ? 10 : undefined);
       assert.equal(data.images, undefined); assert.equal(data.model, undefined);
       assert.equal(body.generationConfig.maxOutputTokens, 2048);
-      assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'minimal');
+      assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'low');
       return output('An enhanced scene');
     }});
     assert.deepEqual(await client.enhance({ prompt: 'بچہ ناچ رہا ہے — no text', mediaType, aspectRatio: '9:16', duration: 10, imageReferences: 1, images: ['must not forward'] }), { prompt: 'An enhanced scene', mediaType });
+    assert.equal(calls, 1);
+  }
+});
+
+test('both generation paths use a thinking level accepted by Gemini 3.8 Flash', async () => {
+  const accepted = new Set(['low', 'medium', 'high']);
+  let calls = 0;
+  const client = new GeminiPromptEnhancer({ apiKey: key, fetchImpl: async (url, options) => {
+    calls++;
+    const level = JSON.parse(options.body).generationConfig.thinkingConfig.thinkingLevel;
+    // Simulate the documented provider rejection which the old minimal request hit.
+    if (!accepted.has(level)) return Response.json({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Unsupported thinking level' } }, { status: 400 });
+    return output('Enhanced prompt');
+  }});
+  for (const mediaType of ['image', 'video']) {
+    assert.equal((await client.enhance({ prompt: 'Cinematic dawn', mediaType })).prompt, 'Enhanced prompt');
+  }
+  assert.equal(calls, 2);
+});
+
+test('provider failure messages identify HTTP categories without exposing response bodies', async () => {
+  for (const status of [400, 401, 402, 403, 404, 429, 500, 503]) {
+    let calls = 0;
+    const client = new GeminiPromptEnhancer({ apiKey: key, fetchImpl: async () => {
+      calls++;
+      return Response.json({ error: { message: key + ' private prompt private provider details' } }, { status });
+    }});
+    await assert.rejects(client.enhance({ prompt: 'A sunrise', mediaType: 'image' }), e => {
+      assert.equal(e.statusCode, status === 429 ? 429 : 502);
+      assert.match(e.message, new RegExp('HTTP ' + status));
+      assert.equal(e.message.includes(key), false);
+      assert.equal(e.message.includes('private'), false);
+      if (status === 429) assert.match(e.message, /quota or rate limit/);
+      if (status === 503) assert.match(e.message, /temporarily unavailable/);
+      return true;
+    });
     assert.equal(calls, 1);
   }
 });

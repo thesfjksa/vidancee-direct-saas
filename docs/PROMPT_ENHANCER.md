@@ -9,7 +9,7 @@ The image and video creation screens each have an optional **Prompt enhancer** s
 3. Enable the enhancer source switch and the existing global **Allow paid provider calls** setting. The customer switch becomes available after the customer reloads the app.
 4. Use **Test saved connection** to check that the saved key can list the exact model. This checks model metadata and does not generate text. It does not confirm remaining generation quota; test an enhancement separately after setup.
 
-The model ID is fixed to `gemini-3.8-flash`. There is no provider fallback. Google API availability, permissions, quota, and billing still apply.
+The model ID is fixed to `gemini-3.8-flash`, with thinking level `low`, the lowest setting this model supports. `minimal` is unsupported and causes HTTP 400. See Google's [thinking level compatibility table](https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels). Public `/api/config` returns `promptEnhancer.revision: 2` to identify deployment of this fix. There is no provider fallback. Google API availability, permissions, quota, and billing still apply.
 
 ## Request and failure behavior
 
@@ -19,7 +19,7 @@ Enhancement does not deduct customer credits or change image/video generation pr
 
 If enhancement fails, generation is not submitted; the original prompt and attached references remain available. The user may retry or switch enhancement off. If enhancement succeeds but generation submission fails, the enhanced text and references remain. Retrying the unchanged text and context reuses that result rather than calling Gemini again. Successful generation clears the prompt and references as before.
 
-Requests have a 25-second deadline and no automatic retries. Blocked, incomplete, empty, and oversized results are rejected. Rate limits are per web process: six starts per minute per user, one concurrent request per user, and eight concurrent requests overall. Limits reset after a process restart and are not shared between web instances. Upstream errors are sanitized so they cannot disclose API keys or provider response bodies.
+Requests have a 25-second deadline and no automatic retries. Blocked, incomplete, empty, and oversized results are rejected. Rate limits are per web process: six starts per minute per user, one concurrent request per user, and eight concurrent requests overall. Limits reset after a process restart and are not shared between web instances. Upstream errors report their HTTP category (request settings, credentials/access, billing, model availability, quota/rate limit, or temporary service failure) using fixed messages so they cannot disclose API keys or provider response bodies.
 
 ## Validation
 
