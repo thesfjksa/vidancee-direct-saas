@@ -24,6 +24,27 @@ function validateSmartReference(bytes) {
   catch { throw Object.assign(new Error('Reference image must be a valid PNG, JPEG or WebP file.'), { statusCode: 400 }); }
 }
 
+function validateGeneratedCanvas(bytes, mimeType, requestedSize) {
+  // Request PNG explicitly so its IHDR gives the displayed canvas dimensions,
+  // without JPEG EXIF rotation or ambiguous provider response metadata.
+  if (mimeType !== 'image/png' || bytes.length < 33 || bytes.readUInt32BE(8) !== 13 || bytes.toString('ascii', 12, 16) !== 'IHDR') {
+    throw new Error('Image service did not return a valid PNG canvas.');
+  }
+  const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+  if (!width || !height || Math.max(width, height) > 3840 || width * height < 655360 || width * height > 8294400) {
+    throw new Error('Image service returned invalid canvas dimensions.');
+  }
+  const [requestedWidth, requestedHeight] = requestedSize.split('x').map(Number);
+  // Accept a different resolution only when the shape matches, allowing at most
+  // one pixel of rounding. A portrait request can never accept a landscape.
+  if (Math.abs(width * requestedHeight - height * requestedWidth) > Math.max(requestedWidth, requestedHeight)) {
+    const error = new Error('Image service returned '+width+'x'+height+' instead of the requested '+requestedSize+' canvas.');
+    error.code = 'IMAGE_ASPECT_RATIO_MISMATCH';
+    throw error;
+  }
+  return { width, height };
+}
+
 class SmartAipiClient {
   constructor({ baseUrl, apiKey, fetchImpl = globalThis.fetch, timeoutMs = 300000 }) {
     this.baseUrl = smartAipiBaseUrl(baseUrl);
@@ -68,7 +89,10 @@ class SmartAipiClient {
   async generateImage({ model, prompt, aspectRatio, quality = 'medium', images = [] }) {
     const spec = smartImageRequestSpec(model, aspectRatio, quality);
     if (images.length > 1) throw new Error('This image model accepts at most one reference image.');
-    const body = { model: spec.apiModel, prompt, size: spec.size, quality: spec.quality, n: 1 };
+    const [width, height] = spec.size.split('x').map(Number);
+    const orientation = width === height ? 'square' : width < height ? 'portrait (vertical)' : 'landscape (horizontal)';
+    const canvasPrompt = String(prompt)+'\n\nCanvas requirement: render the final image on a '+orientation+' canvas with a width-to-height aspect ratio of '+aspectRatio+' ('+width+' pixels wide by '+height+' pixels high). This canvas requirement takes precedence over any different framing or aspect ratio described above. Compose the entire scene for this canvas. Reference images supply visual content; their dimensions must not change the requested canvas. Do not add borders, letterboxing, or text describing these instructions.';
+    const body = { model: spec.apiModel, prompt: canvasPrompt, size: spec.size, quality: spec.quality, output_format: 'png', n: 1 };
     if (images.length) {
       const bytes = images[0].data;
       validateSmartReference(bytes);
@@ -80,7 +104,9 @@ class SmartAipiClient {
         !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('Image service did not return a valid image.');
     const bytes = Buffer.from(encoded, 'base64');
     if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('Image service returned an invalid image size.');
-    return { data: bytes, mimeType: imageMime(bytes) };
+    const mimeType = imageMime(bytes);
+    const dimensions = validateGeneratedCanvas(bytes, mimeType, spec.size);
+    return { data: bytes, mimeType, ...dimensions };
   }
 }
 

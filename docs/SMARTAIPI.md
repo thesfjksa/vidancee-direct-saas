@@ -46,6 +46,13 @@ an approximate pixel-area factor: width × height / 1024². The fixed landscape 
 portrait sizes retain the existing 1.5× estimate. SmartAIPI does not publish exact
 per-image prices for every custom shape.
 
+SmartAIPI currently publishes identical Low/Medium/High square rates for GPT
+Image 2, GPT Image 2.5 Flare and GPT Image 2.5 Sunburst. Their credit quotes are
+therefore intentionally identical for the same quality and canvas. For Medium
+1024×1024 each lists $0.0265, corresponding to 160 customer credits at the default
+conversion. Model-specific Admin overrides remain available; no speculative
+price difference is applied.
+
 SmartAIPI customer credits equal ceil(estimated source USD × customer credits per
 USD), with a default factor of 160 / 0.0265 (approximately 6,037.735849).
 No additional CUSTOMER_CREDIT_MULTIPLIER applies to these image jobs. The same quote is shown before submission and
@@ -80,6 +87,22 @@ divisible by 16, 655,360–8,294,400 pixels, maximum edge 3840 and maximum ratio
 GPT Image 1, 1.5 and 1 Mini retain their three fixed sizes: 1:1, 3:2 and 2:3.
 The server and API adapter enforce these model-specific options.
 
+Each SmartAIPI request includes the selected `size` and an explicit canvas
+instruction appended to the provider prompt, even when the prompt enhancer is
+off. For 4:5 this is a portrait canvas, 1024 pixels wide by 1280 pixels high. The
+original saved customer prompt stays unchanged. Reference-image dimensions and
+conflicting prompt framing must not override the selected canvas.
+
+The adapter requests PNG output and checks the actual image's IHDR dimensions,
+not response labels. A different resolution is accepted only if its aspect ratio
+matches, allowing one pixel of rounding; dimensions must also fit the documented
+image bounds. A wrong shape is failed with a specific customer error and the
+existing idempotent refund. It is never stored as a completed image, stretched,
+cropped or automatically regenerated. This prevents accepting horizontal output
+for a 4:5 request; it does not guarantee that the upstream provider will honor
+every custom size on every attempt. Upstream charges may still occur when the
+provider returns a wrong-size image. Existing completed images are unchanged.
+
 Image Studio offers Low, Medium and High quality, defaults to Medium when priced,
 and produces one result per job. Quality appears on the generated-image card and
 preview. Text requests use `/v1/images/generations`. One optional PNG/JPEG/WebP
@@ -89,7 +112,7 @@ references and masks, so those capabilities are intentionally not exposed.
 
 A saved image job first appears as `queued` while the standalone worker claims it; this does not indicate other customers ahead of it. GPT images have their own polling loop, starting about half a second after worker startup and repeating at the configured WORKER_POLL_MS interval (five seconds by default). Slow or unavailable video-provider checks cannot delay that loop. Existing source, model, user-access and inflight limits still apply. Once claimed, the image is marked `processing` before the upstream API call.
 
-The web app sends a throttled, read-only health request to wake the standalone worker after saving an image/video/voice job. Active image-status reads also wake it so existing queued work can recover when the dashboard is reopened. No prompt, reference, session cookie or provider credential is sent. Job creation does not wait for this request. For ai.mehroz.online the default is https://worker.mehroz.online/live; other deployments should set WORKER_WAKE_URL to their worker health endpoint. Set it to an empty value to disable wake requests. Worker health revision 3 reports workerEnabled, general polling timestamps, independent imagePolling timestamps, and active image tasks. Web health services.queueRevision 1 reports wake-request results.
+The web app sends a throttled, read-only health request to wake the standalone worker after saving an image/video/voice job. Active image-status reads also wake it so existing queued work can recover when the dashboard is reopened. No prompt, reference, session cookie or provider credential is sent. Job creation does not wait for this request. For ai.mehroz.online the default is https://worker.mehroz.online/live; other deployments should set WORKER_WAKE_URL to their worker health endpoint. Set it to an empty value to disable wake requests. Worker health revision 4 reports workerEnabled, general polling timestamps, independent imagePolling timestamps, and active image tasks. Web health services.queueRevision 1 reports wake-request results; imageCanvasRevision 1 identifies canvas request and output validation.
 
 The provider returns synchronous base64 image data. The worker claims queued jobs
 under a shared MySQL advisory lock, obeys inflight limits, and performs slow API

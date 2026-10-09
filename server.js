@@ -492,6 +492,7 @@ const server=http.createServer(async (req,res)=>{
         database,
         services:{
           queueRevision:1,
+          imageCanvasRevision:1,
           workerWakeup:workerWakeup.status(),
           generationBackendReady,
           imageGenerationReady,

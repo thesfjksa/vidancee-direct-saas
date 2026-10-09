@@ -424,7 +424,10 @@ class GenerationWorker {
         images:images.map(image=>({data:image.image_data}))});
     } catch (error) {
       console.error('GPT image request failed for', job.id, error.message);
-      await this.refundSmartImage(job.id,'failed','Image generation failed. Credits were refunded.',null);
+      const message = error.code === 'IMAGE_ASPECT_RATIO_MISMATCH'
+        ? 'The image service returned the wrong aspect ratio for your '+job.aspect_ratio+' image. Credits were refunded. Use Reuse prompt to try again.'
+        : 'Image generation failed. Credits were refunded.';
+      await this.refundSmartImage(job.id,'failed',message,null);
       return;
     }
     // Retry only local persistence, never the paid API operation.

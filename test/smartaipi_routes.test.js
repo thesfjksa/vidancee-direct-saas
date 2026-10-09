@@ -116,6 +116,14 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   assert.equal((await request(detailPath, { user: 2 })).status, 404);
   assert.equal((await request(reference.url, { user: 2 })).status, 404);
   assert.deepEqual([users.get(1).credits, jobs.size, transactions.length], beforeReuse);
+  for (const selectedModel of [SMART_IMAGE_MODELS[0].id, SMART_IMAGE_MODELS[2].id]) {
+    const portrait = await request('/api/image-generations', { method:'POST', body:{model:selectedModel,prompt:'Portrait canvas',aspectRatio:'4:5',quality:'medium'} });
+    assert.equal(portrait.status,201);
+    assert.equal(portrait.data.generation.aspect_ratio,'4:5');
+    assert.equal(portrait.data.generation.model,selectedModel);
+    assert.equal(portrait.data.generation.credits_cost,200);
+    assert.equal(jobs.get(portrait.data.generation.id).aspect_ratio,'4:5');
+  }
   const squareInput = { ...input, model: SMART_IMAGE_MODELS[2].id, aspectRatio: '1:1', quality: 'medium' };
   const square = await request('/api/image-generations', { method: 'POST', body: squareInput, user: 2 });
   assert.equal(square.status, 201); assert.equal(square.data.generation.credits_cost,160);

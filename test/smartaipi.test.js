@@ -3,9 +3,29 @@ const assert = require('node:assert/strict');
 const { SmartAipiClient, smartAipiBaseUrl } = require('../src/provider/smartaipi.js');
 const { DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_MODELS, SMART_IMAGE_SIZES, SMART_IMAGE_QUALITIES, smartImageRatios, smartImageRequestSpec, defaultSmartImageConfig, normalizeSmartImageConfig, publicSmartImagePricing, smartImageQuote } = require('../src/smartaipi_images.js');
 const { GenerationWorker } = require('../src/worker_admin_settings.js');
+const { deflateSync } = require('node:zlib');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const model = SMART_IMAGE_MODELS[0].id;
 const settings = () => ({ smartAipiEnabled: true, smartAipiApiKey: 'test-only', smartAipiCustomerCreditsPerUsd: DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, smartAipiModels: defaultSmartImageConfig() });
+
+// Real, decodable PNG fixtures at the requested size, rather than a 1x1 image
+// that would hide an upstream service ignoring the selected canvas.
+function canvasPng(width, height) {
+  function chunk(type, data) {
+    const name = Buffer.from(type), content = Buffer.concat([name, data]);
+    let crc = 0xffffffff;
+    for (const byte of content) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    const prefix = Buffer.alloc(4), suffix = Buffer.alloc(4);
+    prefix.writeUInt32BE(data.length); suffix.writeUInt32BE((crc ^ 0xffffffff) >>> 0);
+    return Buffer.concat([prefix, content, suffix]);
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 0;
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'), chunk('IHDR',header), chunk('IDAT',deflateSync(Buffer.alloc((width+1)*height))), chunk('IEND',Buffer.alloc(0))]);
+}
 
 test('catalog is provider-neutral, price-gated and uses the configured credit multiplier', () => {
   const s = settings();
@@ -81,7 +101,10 @@ test('model-specific presets and all three qualities map to valid API sizes', as
       const client = new SmartAipiClient({ apiKey: 'test-only', fetchImpl: async (url, options) => {
         const body = JSON.parse(options.body);
         assert.equal(body.size, SMART_IMAGE_SIZES[ratio]); assert.equal(body.quality, quality); assert.equal(body.model, spec.apiModel);
-        return Response.json({ data: [{ b64_json: png.toString('base64') }] });
+        assert.equal(body.output_format, 'png');
+        assert.ok(body.prompt.startsWith('Test\n\nCanvas requirement:'));
+        assert.ok(body.prompt.includes('aspect ratio of '+ratio));
+        return Response.json({ data: [{ b64_json: canvasPng(width,height).toString('base64') }] });
       }});
       await client.generateImage({ model: spec.id, prompt: 'Test', aspectRatio: ratio, quality });
     }
@@ -110,16 +133,21 @@ test('quality estimates preserve legacy overrides and reject disabled or invalid
 });
 
 test('text generation maps all six IDs to the documented authenticated JSON endpoint', async () => {
+  const outputBytes = canvasPng(1024,1536);
   for (const spec of SMART_IMAGE_MODELS) {
     const client = new SmartAipiClient({ apiKey: 'test-only', fetchImpl: async (url, options) => {
       assert.equal(url, 'https://api.smartaipi.com/v1/images/generations');
       assert.equal(options.headers.Authorization, 'Bearer test-only');
       assert.equal(options.redirect, 'error');
-      assert.deepEqual(JSON.parse(options.body), { model: spec.apiModel, prompt: 'A flower', size: '1024x1536', quality: 'medium', n: 1 });
-      return Response.json({ data: [{ b64_json: png.toString('base64') }] });
+      const body = JSON.parse(options.body);
+      assert.deepEqual({ ...body, prompt: 'A flower' }, { model: spec.apiModel, prompt: 'A flower', size: '1024x1536', quality: 'medium', output_format: 'png', n: 1 });
+      assert.ok(body.prompt.startsWith('A flower\n\nCanvas requirement:'));
+      assert.match(body.prompt, /portrait \(vertical\)/);
+      return Response.json({ data: [{ b64_json: outputBytes.toString('base64') }] });
     }});
     const output = await client.generateImage({ model: spec.id, prompt: 'A flower', aspectRatio: '2:3' });
-    assert.equal(output.mimeType, 'image/png'); assert.deepEqual(output.data, png);
+    assert.equal(output.mimeType, 'image/png'); assert.deepEqual(output.data, outputBytes);
+    assert.deepEqual([output.width,output.height],[1024,1536]);
   }
 });
 
@@ -128,12 +156,37 @@ test('reference edits send base64 bytes and enforce one valid reference before a
   const client = new SmartAipiClient({ apiKey: 'test-only', fetchImpl: async (url, options) => {
     calls += 1; assert.equal(url, 'https://api.smartaipi.com/v1/images/edits');
     assert.equal(JSON.parse(options.body).image, png.toString('base64'));
-    return Response.json({ data: [{ b64_json: png.toString('base64') }] });
+    assert.equal(JSON.parse(options.body).output_format, 'png');
+    return Response.json({ data: [{ b64_json: canvasPng(1024,1024).toString('base64') }] });
   }});
   await client.generateImage({ model, prompt: 'Edit', aspectRatio: '1:1', images: [{ data: png }] });
   await assert.rejects(client.generateImage({ model, prompt: 'Edit', aspectRatio: '1:1', images: [{ data: png }, { data: png }] }), /one reference/);
   await assert.rejects(client.generateImage({ model, prompt: 'Edit', aspectRatio: '1:1', images: [{ data: Buffer.from('text') }] }), /valid PNG/);
   assert.equal(calls, 1);
+});
+
+test('4:5 generation and edits enforce a portrait canvas and reject a landscape response without retrying', async () => {
+  for (const spec of SMART_IMAGE_MODELS.slice(0,3)) for (const images of [[],[{data:png}]]) {
+    let calls = 0;
+    const client = new SmartAipiClient({ apiKey:'test-only', fetchImpl:async (url, options) => {
+      calls++;
+      const body = JSON.parse(options.body);
+      assert.equal(body.size,'1024x1280');assert.equal(body.model,spec.apiModel);
+      assert.ok(body.prompt.startsWith('A cinematic wide landscape\n\n'));
+      assert.match(body.prompt,/portrait \(vertical\).*aspect ratio of 4:5/);
+      assert.match(body.prompt,/takes precedence/);
+      return Response.json({data:[{b64_json:canvasPng(1536,1024).toString('base64')}]});
+    }});
+    await assert.rejects(client.generateImage({model:spec.id,prompt:'A cinematic wide landscape',aspectRatio:'4:5',images}), error => error.code==='IMAGE_ASPECT_RATIO_MISMATCH' && /1536x1024/.test(error.message));
+    assert.equal(calls,1);
+  }
+  const client = new SmartAipiClient({ apiKey:'test-only', fetchImpl:async () => Response.json({data:[{b64_json:canvasPng(832,1040).toString('base64')}]}) });
+  const output = await client.generateImage({model,prompt:'Portrait',aspectRatio:'4:5'});
+  assert.deepEqual([output.width,output.height],[832,1040]);
+  client.fetchImpl = async () => Response.json({data:[{b64_json:png.toString('base64')}]});
+  await assert.rejects(client.generateImage({model,prompt:'X',aspectRatio:'4:5'}),/invalid canvas dimensions/);
+  client.fetchImpl = async () => Response.json({data:[{b64_json:canvasPng(1024,1024).subarray(0,25).toString('base64')}]});
+  await assert.rejects(client.generateImage({model,prompt:'X',aspectRatio:'1:1'}),/valid PNG canvas/);
 });
 
 test('model connection check is GET-only and failures never disclose upstream bodies', async () => {
@@ -200,6 +253,20 @@ test('worker refunds failures without retrying upstream; paused/disabled workers
   await worker.submitSmartImages(unavailableDb);
   worker.allowProviderCharges = true; worker.smartAipi = client; worker.smartAipiEnabled = false;
   await worker.submitSmartImages(unavailableDb);
+});
+
+test('a returned aspect-ratio mismatch refunds the image reservation and is never saved as completed or regenerated', async () => {
+  const worker = new GenerationWorker(); let calls=0,refunds=0;
+  const db = storageDb();
+  worker.refundSmartImage = async (id,status,message) => {
+    refunds++;assert.equal(id,'wrong-shape');assert.equal(status,'failed');
+    assert.match(message,/wrong aspect ratio.*4:5/);assert.match(message,/Credits were refunded/);assert.match(message,/Reuse prompt/);
+  };
+  const client = new SmartAipiClient({apiKey:'test-only',fetchImpl:async () => {
+    calls++;return Response.json({data:[{b64_json:canvasPng(1536,1024).toString('base64')}]});
+  }});
+  await worker.processSmartImage(db,{id:'wrong-shape',model,prompt:'Test',aspect_ratio:'4:5'},client);
+  assert.equal(calls,1);assert.equal(refunds,1);assert.deepEqual(db.events,[]);
 });
 
 test('worker claims with shared lock, access filter and inflight capacity; slow API does not block polls', async () => {
