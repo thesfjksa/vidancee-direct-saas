@@ -3,6 +3,23 @@ const assert = require('node:assert/strict');
 const { GenerationWorker } = require('../src/worker_admin_settings.js');
 const { WorkerWakeup } = require('../src/worker_wakeup.js');
 const { defaultSmartImageConfig } = require('../src/smartaipi_images.js');
+const { spawnSync } = require('node:child_process');
+
+test('standalone polling keeps Node alive until the image cycle runs and shuts down cleanly', () => {
+  const root = require('node:path').resolve(__dirname, '..');
+  const script = `
+    process.env.WORKER_ENABLED='true';
+    const db=require('./src/db.js');db.dbConfigured=()=>true;
+    const {GenerationWorker}=require('./src/worker_admin_settings.js');
+    const worker=new GenerationWorker();
+    worker.runOnce=async()=>{};
+    worker.runSmartImagesOnce=async()=>{console.log('Image queue polled');worker.stop();};
+    worker.start();
+  `;
+  const child = spawnSync(process.execPath, ['-e', script], { cwd: root, timeout: 3000, encoding: 'utf8' });
+  assert.equal(child.error, undefined); assert.equal(child.status, 0);
+  assert.match(child.stdout, /Image queue polled/);
+});
 
 test('a blocked video-provider cycle does not delay an independent image pickup cycle', async t => {
   const worker = new GenerationWorker(); t.after(() => worker.stop());

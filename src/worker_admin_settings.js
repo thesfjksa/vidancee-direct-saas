@@ -95,7 +95,6 @@ class GenerationWorker {
     if (this.stopped) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.tick(), delay);
-    if (this.timer.unref) this.timer.unref();
   }
 
   async tick() {
@@ -111,7 +110,6 @@ class GenerationWorker {
     if (this.stopped) return;
     clearTimeout(this.smartImageTimer);
     this.smartImageTimer = setTimeout(() => this.tickSmartImages(), delay);
-    this.smartImageTimer.unref?.();
   }
 
   async tickSmartImages() {

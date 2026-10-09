@@ -56,7 +56,7 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
         service:'mehroz-ai-worker',
         pid:process.pid,
         uptimeSeconds:Math.round(process.uptime()),
-        revision:2,
+        revision:3,
         workerEnabled:worker.enabled(),
         polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
         imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,

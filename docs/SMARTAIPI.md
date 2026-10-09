@@ -89,7 +89,7 @@ references and masks, so those capabilities are intentionally not exposed.
 
 A saved image job first appears as `queued` while the standalone worker claims it; this does not indicate other customers ahead of it. GPT images have their own polling loop, starting about half a second after worker startup and repeating at the configured WORKER_POLL_MS interval (five seconds by default). Slow or unavailable video-provider checks cannot delay that loop. Existing source, model, user-access and inflight limits still apply. Once claimed, the image is marked `processing` before the upstream API call.
 
-The web app sends a throttled, read-only health request to wake the standalone worker after saving an image/video/voice job. Active image-status reads also wake it so existing queued work can recover when the dashboard is reopened. No prompt, reference, session cookie or provider credential is sent. Job creation does not wait for this request. For ai.mehroz.online the default is https://worker.mehroz.online/live; other deployments should set WORKER_WAKE_URL to their worker health endpoint. Set it to an empty value to disable wake requests. Worker health revision 2 reports workerEnabled, general polling timestamps, independent imagePolling timestamps, and active image tasks. Web health services.queueRevision 1 reports wake-request results.
+The web app sends a throttled, read-only health request to wake the standalone worker after saving an image/video/voice job. Active image-status reads also wake it so existing queued work can recover when the dashboard is reopened. No prompt, reference, session cookie or provider credential is sent. Job creation does not wait for this request. For ai.mehroz.online the default is https://worker.mehroz.online/live; other deployments should set WORKER_WAKE_URL to their worker health endpoint. Set it to an empty value to disable wake requests. Worker health revision 3 reports workerEnabled, general polling timestamps, independent imagePolling timestamps, and active image tasks. Web health services.queueRevision 1 reports wake-request results.
 
 The provider returns synchronous base64 image data. The worker claims queued jobs
 under a shared MySQL advisory lock, obeys inflight limits, and performs slow API
@@ -115,3 +115,5 @@ and quality quotes, submitted quality, reference limits, admin quality-price
 settings and desktop/mobile layouts. Live provider
 generation and the production MySQL migration require the configured deployment;
 no live provider key was supplied during implementation.
+
+Worker polling timers keep the Node event loop alive until shutdown. They are cleared by `stop()` on SIGTERM/SIGINT, so the consumer cannot exit merely because a request finished and only background polling remained.
