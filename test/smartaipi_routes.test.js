@@ -8,7 +8,7 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 test('real HTTP routes enforce source controls, encrypted settings, billing and private image ownership', async t => {
   process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'test-admin-only';
   const users = new Map([1, 2].map(id => [id, { id, email: 'test'+id+'@example.com', credits: 2000, status: 'active', plan_code: 'pro', role: 'user' }]));
-  const values = new Map(); const jobs = new Map(); const outputs = new Map(); const access = new Map(); const transactions = [];
+  const values = new Map(); const jobs = new Map(); const outputs = new Map(); const access = new Map(); const transactions = []; const references = [];
   async function execute(sql, args = []) {
     if (sql.startsWith('CREATE')) return [[], []];
     if (sql.includes('INSERT INTO app_settings')) { values.set(args[0], { setting_key: args[0], setting_value: args[1], is_secret: args[2] }); return [{ affectedRows: 1 }]; }
@@ -24,6 +24,17 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
       return [{ affectedRows: 1 }];
     }
     if (sql.includes('INSERT INTO credit_transactions')) { transactions.push(args); return [{ affectedRows: 1 }]; }
+    if (sql.includes('INSERT INTO generation_images')) {
+      const [generation_id, position_index, filename, mime_type, image_data] = args;
+      references.push({ id: references.length + 1, generation_id, position_index, filename, mime_type, image_data });
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.includes('FROM generation_images gi')) {
+      const binary = sql.includes('gi.image_data');
+      const owner = args[binary ? 2 : 1];
+      const rows = references.filter(ref => ref.generation_id === args[0] && jobs.get(ref.generation_id)?.user_id === owner && (!binary || ref.id === args[1]));
+      return [rows.map(ref => binary ? ref : { id: ref.id, position_index: ref.position_index, filename: ref.filename, mime_type: ref.mime_type })];
+    }
     if (sql.startsWith('UPDATE users SET credits=credits-')) { users.get(args[1]).credits -= args[0]; return [{ affectedRows: 1 }]; }
     if (sql.includes('FROM generations WHERE id=')) {
       const row = jobs.get(args[0]); return [[row].filter(row => row && (args.length < 2 || row.user_id === args[1]))];
@@ -83,10 +94,28 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   assert.equal(users.get(1).credits, 1760);
   const form = new FormData();
   for (const [key, value] of Object.entries({ ...input, aspectRatio: '9:16', quality: 'high' })) form.append(key, value);
+  form.append('images', new Blob([png], { type: 'image/png' }), 'saved-reference.png');
   const highResponse = await fetch(origin+'/api/image-generations', { method: 'POST', body: form });
   assert.equal(highResponse.status, 201); const high = await highResponse.json();
   assert.equal(high.generation.quality, 'high'); assert.equal(high.generation.credits_cost, 807);
   assert.equal(jobs.get(high.generation.id).image_quality, 'high');
+  const detailPath = '/api/image-generations/'+high.generation.id;
+  const beforeReuse = [users.get(1).credits, jobs.size, transactions.length];
+  const detail = await request(detailPath);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.data.generation.prompt, input.prompt);
+  assert.equal(detail.data.generation.aspect_ratio, '9:16');
+  assert.equal(detail.data.generation.quality, 'high');
+  assert.equal(detail.data.generation.reference_images.length, 1);
+  const reference = detail.data.generation.reference_images[0];
+  assert.equal(reference.filename, 'saved-reference.png');
+  assert.equal(reference.image_data, undefined);
+  const referenceResponse = await fetch(origin+reference.url);
+  assert.equal(referenceResponse.status, 200);
+  assert.deepEqual(Buffer.from(await referenceResponse.arrayBuffer()), png);
+  assert.equal((await request(detailPath, { user: 2 })).status, 404);
+  assert.equal((await request(reference.url, { user: 2 })).status, 404);
+  assert.deepEqual([users.get(1).credits, jobs.size, transactions.length], beforeReuse);
   const squareInput = { ...input, model: SMART_IMAGE_MODELS[2].id, aspectRatio: '1:1', quality: 'medium' };
   const square = await request('/api/image-generations', { method: 'POST', body: squareInput, user: 2 });
   assert.equal(square.status, 201); assert.equal(square.data.generation.credits_cost,160);

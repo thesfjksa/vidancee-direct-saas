@@ -963,7 +963,8 @@ const server=http.createServer(async (req,res)=>{
       const row=await getUserImageGeneration(user.id,imageGenMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
       if(['queued','submitting','submitted','processing'].includes(row.status))wakeGenerationWorker(req);
-      return sendJson(res,200,{ok:true,generation:serializeImageGeneration(row)});
+      const referenceImages=await listUserGenerationReferenceImages(user.id,row.id);
+      return sendJson(res,200,{ok:true,generation:{...serializeImageGeneration(row),reference_images:referenceImages}});
     }
 
     if (req.method==='DELETE' && imageGenMatch) {

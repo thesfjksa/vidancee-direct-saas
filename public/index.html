@@ -1986,6 +1986,54 @@ async function createImageGeneration(){
   }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
 }
 
+async function reuseImageGeneration(id){
+  const fallback=imageGenerations.find(g=>String(g.id)===String(id));
+  const b=$('generateImageBtn'),m=$('imageGenMsg');
+  if(!fallback||b.disabled)return;
+  go('images');
+  const panel=b.closest('.creator').querySelector('.creator-scroll');
+  panel.inert=true;b.disabled=true;b.setAttribute('aria-busy','true');
+  m.className='msg muted';m.textContent='Restoring prompt and reference images...';
+  try{
+    const d=await api('/api/image-generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
+    const g=d.generation||fallback,notes=[];
+    clearImageReferenceItems();
+    $('imagePrompt').value=g.prompt||'';
+    enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
+    if([...$('imageModel').options].some(o=>o.value===g.model))$('imageModel').value=g.model;
+    else notes.push('The original model is unavailable; choose an available model.');
+    renderImageRatios();renderImageReferenceControls(false);
+    if([...$('imageRatio').options].some(o=>o.value===g.aspect_ratio))$('imageRatio').value=g.aspect_ratio;
+    else notes.push('The original aspect ratio is unavailable for this model.');
+    if(g.quality){
+      if([...$('imageQuality').options].some(o=>o.value===g.quality))$('imageQuality').value=g.quality;
+      else notes.push('The original quality is unavailable for this model.');
+    }
+    syncCustomSelect('imageModel');syncCustomSelect('imageRatio');syncCustomSelect('imageQuality');
+    const cap=normalizedClientCapabilities(currentImageModel(),'image').image;
+    const references=Array.isArray(g.reference_images)?g.reference_images:[];
+    const selected=references.slice(0,cap.supported?(cap.max||6):0);
+    const signal=AbortSignal.timeout(20000);
+    const restored=await Promise.allSettled(selected.map(async image=>{
+      const response=await fetch(image.url,{signal,credentials:'same-origin'});
+      if(!response.ok)throw new Error('Reference image unavailable.');
+      const blob=await response.blob();
+      if(!['image/jpeg','image/png','image/webp'].includes(blob.type)||!blob.size||(cap.maxBytes&&blob.size>cap.maxBytes))throw new Error('Reference image unsupported.');
+      return new File([blob],image.filename||'reference-image',{type:blob.type});
+    }));
+    imageReferenceItems=restored.filter(result=>result.status==='fulfilled').map(result=>imageRefItem(result.value));
+    renderImageReferencePreview();updateImageCost();
+    if(references.length>imageReferenceItems.length)notes.push('Some reference images could not be restored; upload them again if needed.');
+    else if(g.mode==='reference-to-image'&&!references.length)notes.push('The original reference images are no longer stored; upload them again if needed.');
+    m.textContent='Prompt and settings reused.'+(imageReferenceItems.length?' '+imageReferenceItems.length+' reference image'+(imageReferenceItems.length===1?'':'s')+' restored.':'')+(notes.length?' '+notes.join(' '):'');
+  }catch(e){
+    m.className='msg err';m.textContent=e.name==='TimeoutError'?'Restoring the image timed out. Click Reuse prompt to try again.':e.message;
+  }finally{
+    b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy');
+    $('imagePrompt').focus();$('imagePrompt').scrollIntoView({behavior:'smooth',block:'center'});
+  }
+}
+
 async function loadImageGenerations(){
   if(imageGenerationLoadPending)return;
   imageGenerationLoadPending=true;
@@ -2034,6 +2082,8 @@ function imageGenerationCard(g){
   const del=['completed','failed','submit_error'].includes(g.status)
     ?'<button type="button" class="job-action delete" onclick="deleteImageGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>'
     :'';
+  const reuse='<button type="button" class="job-action" onclick="reuseImageGeneration(\''+escapeHtml(g.id)+'\')" title="Reuse prompt and settings">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1-7.5L4 10"/></svg>Reuse prompt</button>';
 
   return '<article class="job">'+media+
     '<div class="job-body">'+
@@ -2041,7 +2091,7 @@ function imageGenerationCard(g){
       '<div class="job-title">'+escapeHtml(imageModelLabel(g.model))+' · '+escapeHtml(g.aspect_ratio)+(g.quality?' · '+escapeHtml(imageQualityLabel(g.quality)):'')+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,180))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
-      '<div class="job-actions">'+download+del+'</div>'+
+      '<div class="job-actions">'+download+reuse+del+'</div>'+
     '</div></article>';
 }
 
