@@ -1,4 +1,6 @@
-# Mehroz AI plans
+# CMM Tools plans
+
+Updated 11 October 2026.
 
 ## Public plans
 
@@ -8,15 +10,18 @@
 | Pro | PKR 4,500 | 1,500 | 3 | Priority |
 | Premium | PKR 12,000 | 4,000 | 5 | Highest |
 
-All three plans use the same credit economy. Individual model deductions continue to be calculated from the sourcing rule:
+All plans use one customer balance, with source-specific generation pricing:
 
-`customer credits = source billing units × 2.5`
+- Legacy/static source billing units use `CUSTOMER_CREDIT_MULTIPLIER`, default 2.5, rounded to two decimals.
+- Higgsfield uses the provider-reported amount at 1:1; valid zero-credit quotes are accepted.
+- SmartAIPI uses `ceil(estimated source USD * customer credits per USD)`, default `160 / 0.0265`. It does not add the shared multiplier.
+- Vibi TTS reserves an estimate and reconciles to the reported source credits times the shared multiplier. Voice cloning has an Admin-configurable customer cost.
 
-The plan price does not multiply generation costs again.
+The plan price does not multiply generation costs again. Source assignments and model availability remain separate from plan concurrency. See [SMARTAIPI.md](SMARTAIPI.md) and [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md).
 
 ## Current purchase workflow
 
-There is no automatic payment gateway yet.
+There is no automatic payment gateway, recurring billing or scheduled monthly credit grant. Included credits are granted for each approved purchase request. The displayed monthly price does not implement automatic renewal.
 
 1. Customer opens **Plans**.
 2. Customer requests Basic, Pro, or Premium.
@@ -29,7 +34,7 @@ Rejecting a request does not modify the user's plan or credits.
 
 ## Runtime entitlement
 
-Plan concurrency is shared across video and image generations:
+Plan concurrency is shared across active video, image and voice generation records:
 
 - no paid plan: 1
 - Basic: 2
@@ -52,3 +57,4 @@ Plan definitions are in:
 `src/plans.js`
 
 Do not duplicate plan prices/credits in frontend JavaScript. The customer page receives plan definitions from `/api/config`.
+

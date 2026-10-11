@@ -493,3 +493,20 @@
 - Expanded the content to use the released space and adjusted the creation panel to clear both header rows.
 - On mobile the same row scrolls horizontally to expose every section; removed the duplicate bottom dock and sidebar plan card.
 - Updated the studio stylesheet cache version. No database or environment changes.
+
+
+## 2026-10-09 - GPT image canvas validation and light preview
+
+- Application revision `d3befea1847dd337a13cdf94c1cce80f7d1305e4` added selected-size canvas instructions and PNG dimension checks. Wrong-shape outputs fail and refund without automatic paid regeneration.
+- The same revision retained equal GPT Image 2 and 2.5 credit quotes where SmartAIPI's published rates match.
+- Application revision `f7787b414444ef59247d944970fc16b26dafc0d7` replaced the dark image preview with a pale canvas, white details, prompt and metadata, Download image and Reuse prompt actions, and responsive mobile stacking.
+- Guarded delayed dialog-close events and restored thumbnail focus.
+- Canvas validation recorded 42 automated tests passing. Preview validation recorded seven browser viewport sizes and interaction/error checks with mocked provider APIs.
+
+## 2026-10-11 - Current documentation and downloadable handoff
+
+- Rewrote the main handoff around the deployed CMM Tools application and archived the accumulated milestone handoff separately.
+- Updated README, Admin source/settings guidance, plans and billing exceptions, image UI, Hostinger worker diagnostics, Gemini recovery notes and the confirmed image-to-video protocol.
+- Documented the SmartAIPI 160-credit square Medium baseline, size-dependent estimates, Admin overrides and source-specific refund boundaries.
+- Public read-only checks confirmed the served app revision, connected database, worker revision 4 and recent independent image polling.
+- Prepared PDF, editable Word and Markdown documentation for project continuation. No runtime behavior or commercial settings were changed by this documentation update.

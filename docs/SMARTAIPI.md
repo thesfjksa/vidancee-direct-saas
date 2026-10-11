@@ -1,5 +1,7 @@
 # SmartAIPI GPT images
 
+Documentation reviewed 2026-10-11 against application revision `f7787b414444ef59247d944970fc16b26dafc0d7`. Official square pricing was rechecked at https://smartaipi.com/pricing; the listed GPT Image 2 and GPT Image 2.5 square rates remain the same.
+
 Deploy this version to both the web application and the standalone worker. Both
 must use the same MySQL database and settings encryption secret. Startup creates
 `generation_image_outputs` automatically; the database user needs CREATE TABLE
@@ -149,3 +151,10 @@ generation and the production MySQL migration require the configured deployment;
 no live provider key was supplied during implementation.
 
 Worker polling timers keep the Node event loop alive until shutdown. They are cleared by `stop()` on SIGTERM/SIGINT, so the consumer cannot exit merely because a request finished and only background polling remained.
+
+
+## Current public quote verification
+
+On 2026-10-11 the public catalog returned GPT Image 2, GPT Image 2.5 Flare and GPT Image 2.5 Sunburst at square Low 19, Medium 160 and High 637 credits. Medium 4:5 was 200 credits. GPT Image 1.5 was also enabled; its square quotes were 28, 103 and 405. Customer assignments and Admin model switches can change the visible catalog. Adapter support for GPT Image 1 or 1 Mini does not guarantee those models are enabled.
+
+This read-only quote check did not submit an image or verify upstream account balance. The backend canvas tests and mock browser checks recorded in the handoff belong to the 2026-10-09 releases.

@@ -1,4 +1,6 @@
-# Hostinger hPanel Deployment
+# CMM Tools Hostinger Deployment
+
+Updated 11 October 2026.
 
 The production deployment uses **two separate Hostinger Node.js applications** connected to the same GitHub repository and the same MySQL database.
 
@@ -16,28 +18,18 @@ Use the `main` branch for both Hostinger applications.
 
 ## Production architecture
 
-```text
-Customers
-   ↓
-https://ai.mehroz.online
-   ↓
-Main Node.js web/API app
-WORKER_ENABLED=false
-   ↓
-Shared MySQL database
-   ↑
-Worker Node.js app
-https://worker.mehroz.online
-WORKER_ENABLED=true
-   ↓
-Higgsfield / Vidancee / CreatePulse / vgenv / Atlas Cloud
-```
+| Component | Origin | Entry | Worker flag |
+| --- | --- | --- | --- |
+| Customer web and API | https://ai.mehroz.online | server.js | WORKER_ENABLED=false |
+| Standalone generation worker | https://worker.mehroz.online | worker.js | WORKER_ENABLED=true |
+
+Both applications connect to the shared MySQL queue and encrypted Admin settings. The worker handles Higgsfield, Vidancee, CreatePulse, vgenv, Atlas Cloud, SmartAIPI and Vibi work. Gemini prompt enhancement runs asynchronously in the web process. Its in-memory records are not persistent across restarts.
 
 The web app and worker use the same database and Admin-managed provider settings.
 
 The main app writes queued generations into MySQL. The worker app picks up those jobs, submits them to the configured providers, polls provider status, and writes completion/failure state back into MySQL.
 
-The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 3 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
+The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 4 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
 
 ---
 
@@ -143,16 +135,14 @@ Worker health endpoint:
 https://worker.mehroz.online/health
 ```
 
-Expected response shape:
+Worker health includes `revision: 4`, `workerEnabled`, general `polling` timestamps and independent `imagePolling` diagnostics. For configured image processing, check:
 
-```json
-{
-  "ok": true,
-  "service": "mehroz-ai-worker",
-  "pid": 808232,
-  "uptimeSeconds": 2099
-}
-```
+- `imagePolling.enabled` and `imagePolling.sourceReady`
+- recent `lastStartedAt`, `lastFinishedAt` and `lastSuccessfulAt`
+- `imagePolling.activeTasks`, alongside configured inflight limits
+- increasing `uptimeSeconds` and a stable PID between deployments
+
+Use `/health` or `/live` without a query string on this worker. An HTTP 200 response alone does not prove active queue processing or a successful upstream generation.
 
 A continuously increasing `uptimeSeconds` value with the same PID indicates the worker is staying alive.
 
@@ -324,3 +314,10 @@ Provider credentials are managed through the private Admin UI and encrypted at r
 
 
 Worker polling timers keep the Node event loop alive until shutdown. They are cleared by `stop()` on SIGTERM/SIGINT, so the consumer cannot exit merely because a request finished and only background polling remained.
+
+
+## Current readiness check
+
+Public checks on 2026-10-11 returned HTTP 200 for the customer page, public config, web health and worker health. The web database was connected. Worker revision 4 reported recent general/image polling and image source readiness. This is an availability check, not a paid provider-generation test. Web health `workerEnabled=false` and `workerOnline=false` are expected in the separated production architecture.
+
+Web health `services.queueRevision=1` identifies the non-blocking wake implementation, and `services.imageCanvasRevision=1` identifies the selected-canvas request and output-validation update. Public config `promptEnhancer.revision=5` identifies enhancement status recovery. On the current UI the stylesheet version is `cmm-7`.

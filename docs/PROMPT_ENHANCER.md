@@ -1,5 +1,7 @@
 # Image and video prompt enhancer
 
+Documentation reviewed 2026-10-11. Application recovery implementation remains public-config revision 5.
+
 The image and video creation screens each have an optional **Prompt enhancer** switch. It starts off. When enabled, the web app starts a background Gemini `gemini-3.8-flash` request and polls its status through short HTTP requests. After completion it puts the enhanced text in the prompt field and submits that text through the existing generation flow. Image prompts describe a still composition; video prompts describe action and camera motion while respecting the chosen duration. The enhancer preserves the user's subject, style, language, quoted text, and explicit constraints.
 
 ## Setup
@@ -32,3 +34,10 @@ Blocked, incomplete, empty, and oversized results are rejected. Rate limits are 
 ## Validation
 
 `npm test` covers request shape, image/video instructions, model requests, delayed responses and stalled bodies, background request ownership/idempotency/expiry, initial-response recovery and interrupted polling, failure handling, bounded 503 recovery with a shared deadline and no retries after ambiguous failures, concurrency limits, authentication, encrypted settings, source and global switches, public config, and unchanged customer credit balances. Browser QA covers a lost initial acknowledgement after 17 seconds, recovery by request ID without a second POST, a simulated 27-second enhancement, temporary status failures, service-restart recovery, both creation screens, actual submitted prompts, switch-off behavior, references, duplicate submission prevention, Admin controls, and mobile layout using mocked APIs. Live Google generation requires a configured key and is not part of these automated checks.
+
+
+## Diagnosing unavailable status
+
+The app returns an unavailable response when the enhancer switch or global paid-call switch is off, or no saved key is configured. An upstream HTTP 503 is separately classified as temporary service unavailability; it is not itself proof of low API credits. A successful metadata check does not validate generation quota. Inspect the categorized error and the Google account billing/quota state rather than changing models or purchasing credits based only on a 503.
+
+Anonymous public config intentionally reports the enhancer as disabled because availability requires an active signed-in user. A public read cannot establish its customer-session availability. This documentation refresh did not run a live Google enhancement. Detailed tests above are historical mock-based implementation checks.

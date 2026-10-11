@@ -1,97 +1,54 @@
-# Vidancee Direct SaaS
+# CMM Tools Web App
 
-Fresh SaaS project for an authorized server-side Vidancee integration.
+Deployed multi-user platform for video, image and voice generation, with customer accounts, a credit ledger, plan requests and a private Admin dashboard.
 
-## Current milestone
+Documentation updated 11 October 2026. Application code reviewed at `f7787b414444ef59247d944970fc16b26dafc0d7`.
 
-**Production SaaS — multi-provider generation platform**
+## Current features
 
-Implemented:
+- CMM Tools branding, light UI and horizontal workspace navigation.
+- Video generation with model-specific duration, ratio, resolution and reference controls.
+- Image generation with GPT models, quality selection, vector ratio picker and a light floating preview.
+- Image and video Reuse prompt, restoring owned references where retained.
+- Optional asynchronous Gemini prompt enhancement with request recovery.
+- Vibi-backed Voice Studio and customer-owned MiniMax voice clones.
+- Persistent MySQL generation queues, transactional credit reservations and idempotent refunds.
+- Manual Basic, Pro and Premium plan requests with Admin approval.
+- Admin-managed encrypted provider settings, global switches and per-customer source access.
 
-- Vidancee login using `GET/POST /login.php`
-- PHP session cookie handling
-- Studio CSRF extraction from `meta[name="csrf-token"]`
-- Text-to-video submission through `POST /api/generate.php`
-- Job polling through `GET /api/jobs.php?limit=12&status=finished&with_active=1`
-- Provider health/status test
-- Admin-only test console
-- Provider-credit spending disabled by default
-- Hostinger/hPanel deployment documentation
-- Project handoff documentation for continuation in another LLM/chat
+## Production deployment
 
-Current major capabilities include:
+| Application | URL | Entry | WORKER_ENABLED |
+| --- | --- | --- | --- |
+| Customer web and API | https://ai.mehroz.online | server.js | false |
+| Standalone worker | https://worker.mehroz.online | worker.js | true |
 
-- customer accounts, plans, credits, and MySQL persistence
-- production generation queue/worker
-- text-to-video and reference-driven video generation
-- image generation workspace
-- Admin-managed provider credentials and global provider switches
-- per-customer provider/source assignments
-- dynamic Higgsfield MCP image/video model catalog and capability-driven inputs
-- Vidancee/CreatePulse Seedance routing
-- MiniMax H3 through vgenv
-- Atlas Cloud image generation
-- customer-facing model filtering based on source assignment
+Both Hostinger applications use `main`, the same MySQL database and the same encryption settings. `APP_URL` remains `https://ai.mehroz.online` on both. Use `npm run build` as the build command, and the correct entry file for each application. Keep CommonJS runtime compatibility.
 
-## Local/production start
+Node.js 20 or later is required. Install dependencies with `npm install`. Start the web app using `npm start`; a separately configured worker uses `npm run worker`. Run automated checks with `npm test`.
 
-Node.js 20+.
+Health routes are `/live` and `/health` on the web app, and `/health` on the worker. Worker health revision 4 includes independent image polling, readiness and active task diagnostics. Recent polling timestamps matter in addition to HTTP reachability.
 
-Web/API process:
+## Admin and billing
 
-```bash
-npm start
-```
+The private Admin interface is https://ai.mehroz.online/admin-console and uses `ADMIN_TOKEN`. Provider API keys and passwords are managed in Admin and stored encrypted in MySQL. Infrastructure secrets remain in Hostinger environment settings.
 
-Standalone generation worker:
+Pricing has source-specific rules: legacy source units use the shared multiplier, Higgsfield credits are passed through at 1:1, and SmartAIPI uses a direct USD-to-customer-credit factor. The SmartAIPI default is `160 / 0.0265`; a Medium 1024 x 1024 GPT Image 2 is 160 credits, and a Medium 4:5 image is 200 credits. The global 2.5 multiplier is not added to SmartAIPI or Higgsfield quotes. See the handoff and SmartAIPI document for estimates, Admin overrides and refund behavior.
 
-```bash
-npm run worker
-```
+The implemented sources are Vidancee, CreatePulse, vgenv, Atlas Cloud, Higgsfield MCP, SmartAIPI and Vibi. Gemini enhancement runs in the web process. Source configuration and customer permissions determine what is available; implementation alone does not guarantee live access to every model.
 
-### Production Hostinger architecture
+## Documentation
 
-Production uses two separate Hostinger Node.js applications:
+Start with [the current project handoff](docs/PROJECT_HANDOFF.md). It covers current features, pricing, architecture, deployment, data, APIs, troubleshooting and the continuation checkpoint.
 
-- `https://ai.mehroz.online` → `server.js` with `WORKER_ENABLED=false`
-- `https://worker.mehroz.online` → `worker.js` with `WORKER_ENABLED=true`
+- [Hostinger deployment](docs/HPANEL_DEPLOYMENT.md)
+- [Admin provider settings](docs/ADMIN_PROVIDER_SETTINGS.md)
+- [SmartAIPI image integration](docs/SMARTAIPI.md)
+- [Prompt enhancer](docs/PROMPT_ENHANCER.md)
+- [CMM Tools UI](docs/CMM_UI_DESIGN.md)
+- [Plans and credit rules](docs/PLANS.md)
+- [Vidancee protocol](docs/VIDANCEE_PROTOCOL.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Historical milestone handoff](docs/archive/PROJECT_HANDOFF_2026-10-09.md)
 
-Both applications use the same MySQL database and Admin-managed provider settings.
-
-This separation is production-verified: the worker can process queued generations independently while the customer web application remains isolated from provider/queue workload.
-
-
-Health checks:
-
-```text
-Main lightweight liveness: GET /live
-Main full health:          GET /health
-Worker health:             GET /health on worker.mehroz.online
-```
-
-Provider test console:
-
-```text
-GET /
-```
-
-Configure secrets only through environment variables. Never commit real provider credentials, PHPSESSID values, CSRF values, database passwords, or admin tokens.
-
-See:
-
-- `docs/PROJECT_HANDOFF.md`
-- `docs/VIDANCEE_PROTOCOL.md`
-- `docs/HPANEL_DEPLOYMENT.md`
-
-## Voice Studio
-
-Voice generation and voice cloning use Vibi's official API through the standalone worker.
-
-- API base: `https://api.vibi.pro`
-- authentication: encrypted Admin-managed `xi-api-key`
-- TTS: Vibi-supported ElevenLabs and MiniMax models/voices
-- cloning: MiniMax voice cloning with customer-owned clone isolation
-- source access: global Admin switch + per-customer Voice assignment
-- generated audio is served through Mehroz AI rather than exposing the provider URL directly
-
-The previous experimental AI Tools Flow integration is not used.
+The archive contains superseded milestone instructions. Use the current handoff when continuing development. Real passwords, API keys, OAuth tokens, cookies and database credentials must stay outside documentation and the repository.

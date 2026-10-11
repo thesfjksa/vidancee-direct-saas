@@ -1,5 +1,7 @@
 # Vidancee Protocol Notes
 
+Current implementation note reviewed 2026-10-11. Historical captures are retained with their original context.
+
 This document records the confirmed provider protocol observed during discovery. It intentionally contains no live credentials, sessions, or token values.
 
 ## Authorization context
@@ -97,6 +99,23 @@ Confirmed response shape:
 
 Always store `job_ids`; do not assume quantity will always be one.
 
+## Image-to-video generation
+
+The later browser capture and current adapter use the same `/api/generate.php` endpoint with multipart fields:
+
+```text
+mode=image-to-video
+model=seedance_2.5
+duration=10
+aspect_ratio=9:16
+prompt=<customer text>
+quantity=1
+max_retries=3
+images[]=<binary reference>
+```
+
+Each reference is appended as `images[]`; no separate pre-upload endpoint is required by this adapter. The CMM Tools customer API derives the generation mode from the supplied references. Static app limits are up to six images, with source/model-specific size checks. Those are application limits, not a guarantee that every future provider model accepts six images.
+
 ## Job polling
 
 Confirmed endpoint:
@@ -170,9 +189,9 @@ Seedance 2.5, 30s image-to-video example: 14 provider credits
 
 ## Not yet confirmed
 
-- exact image-to-video submission multipart field names
 - pagination beyond the first `jobs.php` page
 - cancellation endpoint
 - rate limits
 - whether provider CSRF rotates during long-lived sessions
 - whether completed provider files have a retention/expiry policy
+
