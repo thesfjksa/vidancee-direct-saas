@@ -594,7 +594,7 @@ const server=http.createServer(async (req,res)=>{
           }
 
           if(customerProviderAccess.vercel && providerSettings.vercel.active){
-            const catalog=await publicProviderCatalog('vercel');
+            const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
             videoPricing.push(...catalog.video);imagePricing.push(...catalog.image);
           }
 

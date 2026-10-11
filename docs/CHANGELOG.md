@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-11 — Instant credit estimates
+
+- `/api/config` includes a price table (`costTable`, keyed `ratio|quality|size`, plus `costEstimates`) for every AI Gateway image model, computed with the same `quoteGateway` used by `/api/model-cost` and the current Admin conversion rate. The Image Studio shows the cost immediately without a request; 97 sampled combinations matched `/api/model-cost` exactly.
+- Remaining server quotes (video and non-gateway models) are cached per selection, limited to 10s and retried once, so a slow request no longer ends in "at submit".
+
 ## 2026-10-11 — Recraft image sizes
 
 - Recraft accepts only fixed sizes per aspect ratio, and the generic size calculation was valid only for 1:1. Every non-square Recraft request (for example Recraft V4 at 3:4 as 768x1024) was rejected by the AI Gateway with HTTP 400. Requests now use Recraft's size tables: V2/V3 (3:4 = 1024x1365), V4/V4.1/Flash (3:4 = 896x1216) and V4/V4.1 Pro (double the V4 sizes, 3:4 = 1792x2432).

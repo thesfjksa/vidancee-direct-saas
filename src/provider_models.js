@@ -1,5 +1,5 @@
 const { getPool } = require('./db.js');
-const { modelReady, normalizePriceOverride, mediaModels } = require('./vercel_models.js');
+const { modelReady, normalizePriceOverride, mediaModels, quoteGateway } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
   if (!value) return fallback;
@@ -346,12 +346,34 @@ function publicImageModel(model) {
   };
 }
 
-async function publicProviderCatalog(provider) {
+// Every AI Gateway image price is computed locally, so the page receives the
+// full table up front and shows the cost instantly instead of asking the
+// server on each change. Keys are "ratio|quality|size"; anything missing
+// falls back to the /api/model-cost request.
+function imageCostTable(model,creditsPerUsd) {
+  const table={},estimates=[];
+  for (const aspectRatio of model.aspectRatios||[]) {
+    for (const quality of model.qualities?.length?model.qualities:['']) {
+      for (const imageSize of model.imageSizes?.length?model.imageSizes:['']) {
+        try {
+          const quote=quoteGateway(model,{aspectRatio,quality:quality||undefined,imageSize:imageSize||undefined},creditsPerUsd);
+          const key=aspectRatio+'|'+quality+'|'+imageSize;
+          if (Number.isFinite(Number(quote.cost))) {table[key]=Number(quote.cost);if(quote.isEstimate)estimates.push(key);}
+        } catch {}
+      }
+    }
+  }
+  return {costTable:table,costEstimates:estimates};
+}
+
+async function publicProviderCatalog(provider, { creditsPerUsd } = {}) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
     .filter(isPlausibleCustomerModel).filter(model=>provider!=='vercel'||model.ready);
+  const withCosts = model => provider==='vercel' && creditsPerUsd
+    ? { ...publicImageModel(model), ...imageCostTable(model,creditsPerUsd) } : publicImageModel(model);
   return {
     video: models.filter(model => model.mediaType === 'video').map(publicVideoModel),
-    image: models.filter(model => model.mediaType === 'image').map(publicImageModel),
+    image: models.filter(model => model.mediaType === 'image').map(withCosts),
   };
 }
 

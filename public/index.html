@@ -1207,6 +1207,31 @@ function renderGatewayVideoSettings(model){
   if(!model.supportsAudio)$('videoGenerateAudio').checked=false;
 }
 
+// Server price quotes are cached per selection and time-limited with one retry,
+// so switching back to a combination is instant and one slow request cannot
+// leave the price stuck.
+const quoteCache=new Map();
+async function fetchQuote(body){
+  // Gateway prices never depend on the prompt; other sources may.
+  const key=JSON.stringify(String(body.model||'').startsWith('studio_gw_')?{...body,prompt:undefined}:body);
+  if(quoteCache.has(key))return quoteCache.get(key);
+  let lastError;
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});
+      const quote={cost:Number(d.cost),isEstimate:Boolean(d.isEstimate)};
+      if(quoteCache.size>200)quoteCache.clear();
+      quoteCache.set(key,quote);
+      return quote;
+    }catch(e){
+      lastError=e;
+      // Client errors (unsupported selection, no access) will not change on retry.
+      if(e.status&&e.status<500)break;
+    }
+  }
+  throw lastError;
+}
+
 async function updateCost(){
   const model=(config.pricing||[]).find(x=>x.id===$('model').value);
   const o=$('duration').options[$('duration').selectedIndex];
@@ -1223,18 +1248,15 @@ async function updateCost(){
   const seq=++videoCostRequestSeq;
   $('cost').textContent='…';
   try{
-    const d=await api('/api/model-cost',{
-      method:'POST',
-      body:JSON.stringify({
-        mediaType:'video',
-        model:model.id,
-        prompt:String($('prompt').value||'').trim()||'Cost estimate',
-        duration:Number($('duration').value||0),
-        resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
-        aspectRatio:$('ratio').value,
-        generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
-        generateAudio:$('videoGenerateAudio').checked,
-      })
+    const d=await fetchQuote({
+      mediaType:'video',
+      model:model.id,
+      prompt:String($('prompt').value||'').trim()||'Cost estimate',
+      duration:Number($('duration').value||0),
+      resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
+      aspectRatio:$('ratio').value,
+      generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
+      generateAudio:$('videoGenerateAudio').checked,
     });
     if(seq===videoCostRequestSeq){$('cost').textContent=Number(d.cost);$('videoPriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
@@ -1525,18 +1547,26 @@ async function updateImageCost(){
     return;
   }
 
+  const quality=model.qualities?.length?$('imageQuality').value:'';
+  const imageSize=model.imageSizes?.length?$('imageSize').value:'';
+  // Gateway models ship their full price table with the page: no request needed.
+  const tableKey=$('imageRatio').value+'|'+quality+'|'+imageSize;
+  if(model.costTable&&Object.hasOwn(model.costTable,tableKey)){
+    ++imageCostRequestSeq;
+    $('imageCost').textContent=Number(model.costTable[tableKey]);
+    $('imagePriceNote').classList.toggle('hide',!(model.costEstimates||[]).includes(tableKey));
+    return;
+  }
+
   const seq=++imageCostRequestSeq;
   $('imageCost').textContent='…';
   try{
-    const d=await api('/api/model-cost',{
-      method:'POST',
-      body:JSON.stringify({
-        mediaType:'image',
-        model:model.id,
-        aspectRatio:$('imageRatio').value,
-        quality: model.qualities?.length?$('imageQuality').value:undefined,
-        imageSize: model.imageSizes?.length?$('imageSize').value:undefined,
-      })
+    const d=await fetchQuote({
+      mediaType:'image',
+      model:model.id,
+      aspectRatio:$('imageRatio').value,
+      quality:quality||undefined,
+      imageSize:imageSize||undefined,
     });
     if(seq===imageCostRequestSeq){$('imageCost').textContent=Number(d.cost);$('imagePriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
