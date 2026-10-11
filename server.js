@@ -400,6 +400,7 @@ const server=http.createServer(async (req,res)=>{
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
       '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
       '/favicon.ico':['assets/cmmtools-icon.png','image/png'],
+      '/assets/fonts/inter-latin-wght.woff2':['assets/fonts/inter-latin-wght.woff2','font/woff2'],
     };
     if ((req.method==='GET'||req.method==='HEAD') && studioAssets[routePath]) {
       const [file,contentType]=studioAssets[routePath];

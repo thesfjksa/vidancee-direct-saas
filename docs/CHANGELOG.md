@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Professional UI restyle
+
+- Merged the brand header and workspace navigation into one compact sticky bar with underline tabs; on tablet and mobile the tabs move to a second scrollable row that keeps the active tab in view.
+- Self-hosted the Inter variable font (SIL OFL) at `/assets/fonts/inter-latin-wght.woff2`; no external font service is used.
+- Rebuilt the design tokens around neutral surfaces, near-black headings and a 12–14px minimum text size, with deep blue reserved for primary actions and turquoise for accents.
+- Restyled creation panels, gallery cards, status badges, model and ratio pickers, image preview, plans, credits, account, sign-in and the admin console. Markup IDs, handlers and generation logic are unchanged.
+
 ## 2026-10-11 — Vercel AI Gateway image and video integration
 
 - Added encrypted Admin API credentials, source and account switches, concurrency and USD credit conversion.
