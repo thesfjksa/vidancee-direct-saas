@@ -512,7 +512,7 @@ async function getUserGeneration(userId, id) {
 async function listUserGenerationReferenceImages(userId, generationId) {
   const db = getPool();
   const [rows] = await db.execute(
-    `SELECT gi.id, gi.position_index, gi.filename, gi.mime_type
+    `SELECT gi.id, gi.position_index, gi.filename, gi.mime_type, LENGTH(gi.image_data) AS byte_length
      FROM generation_images gi
      JOIN generations g ON g.id = gi.generation_id
      WHERE gi.generation_id = ? AND g.user_id = ?
@@ -525,6 +525,7 @@ async function listUserGenerationReferenceImages(userId, generationId) {
     position: Number(row.position_index),
     filename: row.filename,
     mime_type: row.mime_type,
+    byte_length: Number(row.byte_length || 0),
     url: '/api/generations/' + generationId + '/reference-images/' + row.id,
   }));
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Instant reuse of image references
+
+- Reuse prompt on a reference-based image no longer downloads and re-uploads the reference files. The image list includes reference metadata (no bytes), the form restores references as pointers, and submissions send `reuseGenerationId` plus a `referenceOrder` such as `[{"kind":"reused","id":2},{"kind":"upload"}]`.
+- The server (`src/reference_reuse.js`) loads the customer's own stored references, merges them with new uploads in the given order and then runs the existing model, count and size validation unchanged. References from another account, duplicates and mismatched upload counts are rejected.
+- Measured in a throttled browser: prompt, settings and references restore in about 20 ms with Generate ready immediately, down from about 2.5–5s.
+
 ## 2026-10-11 — Gallery previews and instant prompt reuse
 
 - Image galleries load small WebP previews (768px wide, about 140 KB instead of 2–5 MB) from `/api/image-generations/:id/thumbnail`. Previews are created on first view with the optional `sharp` dependency, stored in the new `generation_image_thumbnails` table (created automatically on startup) and cached by the browser. Database and provider-hosted images are both supported. Without `sharp`, the route serves the original image.

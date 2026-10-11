@@ -177,7 +177,32 @@ async function listUserImageGenerations(userId, limit = 60) {
     "SELECT * FROM generations WHERE user_id=? AND media_type='image' ORDER BY created_at DESC LIMIT " + safeLimit,
     [userId],
   );
-  return rows.map(serializeImageGeneration);
+  const generations = rows.map(serializeImageGeneration);
+  // Reference metadata (no image bytes) lets "Reuse prompt" restore references
+  // without another request.
+  const referenced = generations.filter(g => g.mode === 'reference-to-image').map(g => g.id);
+  if (referenced.length) {
+    const [refs] = await db.query(
+      `SELECT gi.id, gi.generation_id, gi.filename, gi.mime_type, LENGTH(gi.image_data) AS byte_length
+       FROM generation_images gi JOIN generations g ON g.id = gi.generation_id
+       WHERE g.user_id = ? AND gi.generation_id IN (?)
+       ORDER BY gi.position_index ASC, gi.id ASC`,
+      [userId, referenced],
+    );
+    const byGeneration = new Map();
+    for (const ref of refs) {
+      if (!byGeneration.has(ref.generation_id)) byGeneration.set(ref.generation_id, []);
+      byGeneration.get(ref.generation_id).push({
+        id: Number(ref.id),
+        filename: ref.filename,
+        mime_type: ref.mime_type,
+        byte_length: Number(ref.byte_length || 0),
+        url: '/api/generations/' + ref.generation_id + '/reference-images/' + ref.id,
+      });
+    }
+    for (const g of generations) if (g.mode === 'reference-to-image') g.reference_images = byGeneration.get(g.id) || [];
+  }
+  return generations;
 }
 
 async function getUserImageGeneration(userId, id) {

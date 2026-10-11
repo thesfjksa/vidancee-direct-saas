@@ -30,7 +30,7 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
       return [{ affectedRows: 1 }];
     }
     if (sql.includes('FROM generation_images gi')) {
-      const binary = sql.includes('gi.image_data');
+      const binary = sql.includes('gi.image_data') && !sql.includes('LENGTH(gi.image_data)');
       const owner = args[binary ? 2 : 1];
       const rows = references.filter(ref => ref.generation_id === args[0] && jobs.get(ref.generation_id)?.user_id === owner && (!binary || ref.id === args[1]));
       return [rows.map(ref => binary ? ref : { id: ref.id, position_index: ref.position_index, filename: ref.filename, mime_type: ref.mime_type })];

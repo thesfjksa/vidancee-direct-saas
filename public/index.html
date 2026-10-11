@@ -1108,7 +1108,7 @@ function renderImageReferenceControls(modelChanged=false){
     if(imageReferenceItems.length>max){
       while(imageReferenceItems.length>max){
         const item=imageReferenceItems.pop();
-        if(item?.url)URL.revokeObjectURL(item.url);
+        if(item?.kind!=='reused'&&item?.url)URL.revokeObjectURL(item.url);
       }
       renderImageReferencePreview();
       if(modelChanged){
@@ -1840,8 +1840,19 @@ function imageRefItem(file){
   };
 }
 
+function reusedImageRefItem(image,generationId){
+  return {
+    key:'imgreused-'+Number(image.id),
+    kind:'reused',
+    id:Number(image.id),
+    generationId,
+    filename:image.filename||'Reference image',
+    url:image.url,
+  };
+}
+
 function clearImageReferenceItems(){
-  for(const item of imageReferenceItems)if(item.url)URL.revokeObjectURL(item.url);
+  for(const item of imageReferenceItems)if(item.kind!=='reused'&&item.url)URL.revokeObjectURL(item.url);
   imageReferenceItems=[];
   imageDraggedKey=null;
   $('imageGenInput').value='';
@@ -1893,7 +1904,7 @@ function removeImageReference(key,event){
   const index=imageReferenceItems.findIndex(item=>item.key===key);
   if(index<0)return;
   const [item]=imageReferenceItems.splice(index,1);
-  if(item.url)URL.revokeObjectURL(item.url);
+  if(item.kind!=='reused'&&item.url)URL.revokeObjectURL(item.url);
   renderImageReferencePreview();
 }
 
@@ -2066,7 +2077,12 @@ async function createImageGeneration(){
     form.append('aspectRatio',$('imageRatio').value);
     if(model?.qualities?.length)form.append('quality',$('imageQuality').value);
     if(model?.imageSizes?.length)form.append('imageSize',$('imageSize').value);
-    for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
+    const reused=imageReferenceItems.filter(item=>item.kind==='reused');
+    if(reused.length){
+      form.append('reuseGenerationId',reused[0].generationId);
+      form.append('referenceOrder',JSON.stringify(imageReferenceItems.map(item=>item.kind==='reused'?{kind:'reused',id:item.id}:{kind:'upload'})));
+    }
+    for(const item of imageReferenceItems)if(item.kind!=='reused')form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
     $('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
@@ -2112,29 +2128,27 @@ async function reuseImageGeneration(id){
     return;
   }
 
-  // Only reference uploads need the network. The prompt stays editable meanwhile;
-  // Generate waits so a submission cannot go out without the references.
+  // The server reuses its stored copies, so references are restored as pointers:
+  // nothing is downloaded or uploaded again.
+  const applyReferences=references=>{
+    const usable=references.filter(image=>['image/jpeg','image/png','image/webp'].includes(image.mime_type)&&(!cap.maxBytes||!image.byte_length||image.byte_length<=cap.maxBytes));
+    imageReferenceItems=usable.slice(0,cap.max||6).map(image=>reusedImageRefItem(image,String(g.id)));
+    renderImageReferencePreview();updateImageCost();
+    if(references.length>imageReferenceItems.length)notes.push('Some reference images could not be restored; upload them again if needed.');
+    else if(!references.length)notes.push('The original reference images are no longer stored; upload them again if needed.');
+    m.textContent='Prompt and settings reused.'+(imageReferenceItems.length?' '+imageReferenceItems.length+' reference image'+(imageReferenceItems.length===1?'':'s')+' restored.':'')+(notes.length?' '+notes.join(' '):'');
+  };
+  // The gallery list already carries the reference list, so this is normally instant.
+  if(Array.isArray(g.reference_images)){applyReferences(g.reference_images);return;}
+
+  // Fallback for data loaded before the list included references. The prompt
+  // stays editable; Generate waits so a submission cannot skip the references.
   m.textContent='Prompt and settings reused. Restoring reference images…';
   b.disabled=true;b.setAttribute('aria-busy','true');
   try{
     const d=await api('/api/image-generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
     if(token!==imageReuseToken)return;
-    const references=Array.isArray(d.generation?.reference_images)?d.generation.reference_images:[];
-    const selected=references.slice(0,cap.max||6);
-    const signal=AbortSignal.timeout(20000);
-    const restored=await Promise.allSettled(selected.map(async image=>{
-      const response=await fetch(image.url,{signal,credentials:'same-origin'});
-      if(!response.ok)throw new Error('Reference image unavailable.');
-      const blob=await response.blob();
-      if(!['image/jpeg','image/png','image/webp'].includes(blob.type)||!blob.size||(cap.maxBytes&&blob.size>cap.maxBytes))throw new Error('Reference image unsupported.');
-      return new File([blob],image.filename||'reference-image',{type:blob.type});
-    }));
-    if(token!==imageReuseToken)return;
-    imageReferenceItems=restored.filter(result=>result.status==='fulfilled').map(result=>imageRefItem(result.value));
-    renderImageReferencePreview();updateImageCost();
-    if(references.length>imageReferenceItems.length)notes.push('Some reference images could not be restored; upload them again if needed.');
-    else if(!references.length)notes.push('The original reference images are no longer stored; upload them again if needed.');
-    m.textContent='Prompt and settings reused.'+(imageReferenceItems.length?' '+imageReferenceItems.length+' reference image'+(imageReferenceItems.length===1?'':'s')+' restored.':'')+(notes.length?' '+notes.join(' '):'');
+    applyReferences(Array.isArray(d.generation?.reference_images)?d.generation.reference_images:[]);
   }catch(e){
     if(token!==imageReuseToken)return;
     m.className='msg err';m.textContent=e.name==='TimeoutError'?'Reference images took too long to restore. Upload them again or click Reuse prompt to retry.':e.message;

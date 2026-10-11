@@ -106,6 +106,7 @@ const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
+const { attachReusedImageReferences } = require('./src/reference_reuse.js');
 const {
   publicProviderCatalog,
   listProviderModels,
@@ -969,6 +970,7 @@ const server=http.createServer(async (req,res)=>{
       }
 
       const body=await readGenerationRequest(req);
+      await attachReusedImageReferences(getPool(),user.id,body);
       const requestedModel=String(body.model||'');
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
