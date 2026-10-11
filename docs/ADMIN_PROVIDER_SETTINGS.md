@@ -19,6 +19,7 @@ The Provider section stores and manages:
 - Atlas Cloud image API base URL / encrypted API key / max-inflight jobs
 - vgenv MiniMax H3 API base URL / encrypted API key / max-inflight jobs
 - SmartAIPI API base URL / encrypted key / max-inflight jobs / per-model Low, Medium and High square prices / direct customer credits per USD
+- Vercel AI Gateway encrypted API key, live image/video catalog, model visibility, USD overrides, max inflight and direct credit conversion
 - Gemini prompt-enhancer encrypted API key and global enable switch
 - Vibi encrypted API key, max-inflight jobs and customer clone cost
 - Higgsfield OAuth connection, model sync and per-model visibility
@@ -59,6 +60,7 @@ The generation worker reads provider settings from MySQL and refreshes provider 
 - vgenv — MiniMax H3 video source
 - Higgsfield MCP — dynamic image/video catalog; available overlapping definitions take precedence
 - SmartAIPI — GPT image generation and edits
+- Vercel AI Gateway — live image/video catalog and independent queue
 - Vibi — TTS and voice cloning
 - Google Gemini — prompt enhancement in the web process
 
@@ -72,7 +74,7 @@ Admin can additionally assign sources per customer from:
 
 `/admin-console` → **Users** → **Sources**
 
-Assignable sources include Higgsfield, Vidancee, CreatePulse, vgenv/MiniMax, Atlas Cloud, SmartAIPI and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
+Assignable sources include Higgsfield, Vidancee, CreatePulse, vgenv/MiniMax, Atlas Cloud, SmartAIPI, Vercel AI Gateway and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
 
 A customer's model catalog is built only from sources that are both globally available and assigned to that customer. The server also checks the assignment during cost lookup and submission, so this is not only a frontend filter.
 
@@ -128,3 +130,7 @@ The customer Voice Studio supports Vibi-backed TTS model/voice selection and cus
 SmartAIPI Test connection reads model availability without creating an image. Gemini Test saved connection checks the exact `gemini-3.8-flash` model metadata without generating text. Neither check proves a paid generation, remaining quota or response time. Provider-settings read responses expose configured flags rather than saved keys.
 
 For setup and error handling, see [SMARTAIPI.md](SMARTAIPI.md) and [PROMPT_ENHANCER.md](PROMPT_ENHANCER.md). The global Allow paid provider calls setting also controls actual enhancement and generation submissions.
+
+## Vercel AI Gateway
+
+Save an AI Gateway key, then use **Check saved key** to read the gateway credit balance. **Sync live models** updates the official catalog and account eligibility, while preserving per-model visibility and price overrides. Sync also works without a key for the public catalog. See [Vercel setup](VERCEL_AI_GATEWAY.md) for price configuration and supported workflows.

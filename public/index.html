@@ -133,6 +133,8 @@
                   <label class="meta" for="ratio">Aspect ratio</label>
                   <select id="ratio" onchange="updateCost()"></select>
                 </div>
+                <div id="videoModeControl" class="wide hide"><label class="meta" for="videoGenerationMode">Quality mode</label><select id="videoGenerationMode" onchange="updateCost()"></select></div>
+                <div id="videoAudioControl" class="wide hide"><label class="meta" for="videoGenerateAudio"><input id="videoGenerateAudio" type="checkbox" onchange="updateCost()"> Generate audio</label></div>
                 <div id="resolutionControl" class="wide hide">
                   <label class="meta" for="resolution">Resolution</label>
                   <select id="resolution" onchange="renderDurations(false)"></select>
@@ -142,7 +144,7 @@
           </div>
 
           <div class="creator-footer">
-            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div>
+            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div><div id="videoPriceNote" class="meta hide">Estimated price for the selected settings.</div>
             <button id="generateBtn" class="generate" onclick="createGeneration()">Generate</button>
             <div id="genMsg" class="msg muted"></div>
           </div>
@@ -207,6 +209,7 @@
 
               <label class="meta" for="imageRatio">Aspect ratio</label>
               <select id="imageRatio" onchange="updateImageCost()"></select>
+              <div id="imageSizeBlock" class="hide"><label class="meta" for="imageSize">Resolution</label><select id="imageSize" onchange="updateImageCost()"></select></div>
               <div id="imageQualityBlock" class="hide">
                 <label class="meta" for="imageQuality">Quality</label>
                 <select id="imageQuality" onchange="updateImageCost()"></select>
@@ -215,7 +218,7 @@
           </div>
 
           <div class="creator-footer">
-            <div class="cost-row"><span>Generation cost</span><strong><span id="imageCost">—</span> credits</strong></div>
+            <div class="cost-row"><span>Generation cost</span><strong><span id="imageCost">—</span> credits</strong></div><div id="imagePriceNote" class="meta hide">Estimated price for the selected settings.</div>
             <button id="generateImageBtn" class="generate" onclick="createImageGeneration()">Generate image</button>
             <div id="imageGenMsg" class="msg muted"></div>
           </div>
@@ -1119,6 +1122,7 @@ function renderDurations(resetResolution=false){
     return;
   }
 
+  renderGatewayVideoSettings(m);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
   const previousRatio=$('ratio').value;
   $('ratio').innerHTML=modelRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
@@ -1167,12 +1171,23 @@ function renderDurations(resetResolution=false){
   updateCost();
 }
 
+function renderGatewayVideoSettings(model){
+  const modes=model.modes||[],select=$('videoGenerationMode'),previous=select.value;
+  $('videoModeControl').classList.toggle('hide',!modes.length);
+  select.innerHTML=modes.map(mode=>'<option value="'+escapeHtml(mode)+'">'+escapeHtml(mode==='std'?'Standard':mode==='pro'?'Pro':mode)+'</option>').join('');
+  select.value=modes.includes(previous)?previous:(model.defaultMode||modes[0]||'');
+  ensureCustomSelect('videoGenerationMode');rebuildCustomSelect('videoGenerationMode');
+  $('videoAudioControl').classList.toggle('hide',!model.supportsAudio);
+  if(!model.supportsAudio)$('videoGenerateAudio').checked=false;
+}
+
 async function updateCost(){
   const model=(config.pricing||[]).find(x=>x.id===$('model').value);
   const o=$('duration').options[$('duration').selectedIndex];
   syncCustomSelect('duration');
   syncCustomSelect('ratio');
 
+  $('videoPriceNote').classList.add('hide');
   if(!model){$('cost').textContent='—';return}
   if(!model.dynamicCost){
     $('cost').textContent=o&&o.dataset.cost?o.dataset.cost:'—';
@@ -1191,9 +1206,11 @@ async function updateCost(){
         duration:Number($('duration').value||0),
         resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
         aspectRatio:$('ratio').value,
+        generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
+        generateAudio:$('videoGenerateAudio').checked,
       })
     });
-    if(seq===videoCostRequestSeq)$('cost').textContent=Number(d.cost);
+    if(seq===videoCostRequestSeq){$('cost').textContent=Number(d.cost);$('videoPriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
     if(seq===videoCostRequestSeq)$('cost').textContent='at submit';
   }
@@ -1428,6 +1445,7 @@ function renderImageConfig(){
   ensureCustomSelect('imageModel');
   ensureCustomSelect('imageRatio');
   ensureCustomSelect('imageQuality');
+  ensureCustomSelect('imageSize');
   renderImageRatios();
   renderImageReferenceControls(false);
 }
@@ -1435,6 +1453,7 @@ function renderImageConfig(){
 function renderImageRatios(){
   const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value)||(config.imagePricing||[])[0];
   renderImageQualities(model);
+  renderGatewayImageSizes(model);
   const ratios=Array.isArray(model?.aspectRatios)&&model.aspectRatios.length?model.aspectRatios:(config.imageAspectRatios||[]);
   const previous=$('imageRatio').value;
   $('imageRatio').innerHTML=ratios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
@@ -1443,6 +1462,14 @@ function renderImageRatios(){
   syncCustomSelect('imageModel');
   rebuildCustomSelect('imageRatio');
   updateImageCost();
+}
+
+function renderGatewayImageSizes(model){
+  const sizes=model?.imageSizes||[],select=$('imageSize'),previous=select.value;
+  $('imageSizeBlock').classList.toggle('hide',!sizes.length);
+  select.innerHTML=sizes.map(size=>'<option value="'+escapeHtml(size)+'">'+escapeHtml(size)+'</option>').join('');
+  select.value=sizes.includes(previous)?previous:(model?.defaultImageSize||sizes[0]||'');
+  rebuildCustomSelect('imageSize');
 }
 
 function imageQualityLabel(quality){
@@ -1463,6 +1490,7 @@ async function updateImageCost(){
   const model=(config.imagePricing||[]).find(x=>x.id===$('imageModel').value);
   syncCustomSelect('imageModel');
   syncCustomSelect('imageRatio');
+  $('imagePriceNote').classList.add('hide');
   if(!model){$('imageCost').textContent='—';return}
 
   if(!model.dynamicCost){
@@ -1480,9 +1508,11 @@ async function updateImageCost(){
         mediaType:'image',
         model:model.id,
         aspectRatio:$('imageRatio').value,
+        quality: model.qualities?.length?$('imageQuality').value:undefined,
+        imageSize: model.imageSizes?.length?$('imageSize').value:undefined,
       })
     });
-    if(seq===imageCostRequestSeq)$('imageCost').textContent=Number(d.cost);
+    if(seq===imageCostRequestSeq){$('imageCost').textContent=Number(d.cost);$('imagePriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
     if(seq===imageCostRequestSeq)$('imageCost').textContent='at submit';
   }
@@ -1995,6 +2025,7 @@ async function createImageGeneration(){
     form.append('model',$('imageModel').value);
     form.append('aspectRatio',$('imageRatio').value);
     if(model?.qualities?.length)form.append('quality',$('imageQuality').value);
+    if(model?.imageSizes?.length)form.append('imageSize',$('imageSize').value);
     for(const item of imageReferenceItems)form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
@@ -2030,7 +2061,8 @@ async function reuseImageGeneration(id){
       if([...$('imageQuality').options].some(o=>o.value===g.quality))$('imageQuality').value=g.quality;
       else notes.push('The original quality is unavailable for this model.');
     }
-    syncCustomSelect('imageModel');syncCustomSelect('imageRatio');syncCustomSelect('imageQuality');
+    if(g.imageSize&&[...$('imageSize').options].some(o=>o.value===g.imageSize))$('imageSize').value=g.imageSize;
+    syncCustomSelect('imageModel');syncCustomSelect('imageRatio');syncCustomSelect('imageQuality');syncCustomSelect('imageSize');
     const cap=normalizedClientCapabilities(currentImageModel(),'image').image;
     const references=Array.isArray(g.reference_images)?g.reference_images:[];
     const selected=references.slice(0,cap.supported?(cap.max||6):0);
@@ -2328,6 +2360,8 @@ async function createGeneration(){
     form.append('duration',$('duration').value);
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
     form.append('aspectRatio',$('ratio').value);
+    if(!$('videoModeControl').classList.contains('hide'))form.append('generationMode',$('videoGenerationMode').value);
+    if(!$('videoAudioControl').classList.contains('hide'))form.append('generateAudio',String($('videoGenerateAudio').checked));
 
     const reused=referenceItems.filter(item=>item.kind==='reused');
     const fresh=referenceItems.filter(item=>item.kind==='fresh');
@@ -2404,6 +2438,12 @@ async function reuseGeneration(id){
       }
     }
 
+    if(g.generation_options){
+      const mode=g.generation_options.generationMode;
+      if([...$('videoGenerationMode').options].some(o=>o.value===mode))$('videoGenerationMode').value=mode;
+      if(!$('videoAudioControl').classList.contains('hide'))$('videoGenerateAudio').checked=g.generation_options.generateAudio===true;
+      syncCustomSelect('videoGenerationMode');
+    }
     const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
     if(durationExists){
       $('duration').value=String(g.duration);

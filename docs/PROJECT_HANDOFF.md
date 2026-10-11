@@ -13,7 +13,7 @@ CMM Tools is a deployed, multi-user application for video generation, image gene
 | Generation worker | https://worker.mehroz.online |
 | GitHub repository | https://github.com/thesfjksa/vidancee-direct-saas |
 | Application branch | main |
-| Application revision reviewed | f7787b414444ef59247d944970fc16b26dafc0d7 |
+| Application revision | Vercel AI Gateway integration, based on main 701f13b; use the current Git commit for the exact deployment revision |
 | Runtime | Node.js 20 or later, CommonJS |
 | Persistence | Shared MySQL database |
 | Hosting | Two Hostinger Node.js applications |
@@ -28,7 +28,7 @@ Provide this handoff and access to the repository. Use this instruction:
 
 > Continue the existing CMM Tools app in thesfjksa/vidancee-direct-saas. Read the current main branch before editing. Preserve the separate Hostinger web and worker applications, existing customer accounts, credit ledger and Admin-managed credentials. Use this handoff as the current checkpoint and the archived handoff only as history. Verify any changed deployment or provider assumptions before acting.
 
-The reviewed revision identifies the application code behind this documentation. A later documentation-only commit may be the branch head. Recheck the branch and any pending local changes before publishing a future update.
+The reviewed revision identifies the application code behind this documentation. Always use the current branch head when continuing this integration. Recheck the branch and any pending local changes before publishing a future update.
 
 ## 2 Customer workspaces
 
@@ -76,6 +76,7 @@ These names are operational details for the owner and developer. Customer genera
 | Atlas Cloud | Seedream 5.0 Lite and Nano Banana 2 image generation | Admin API key |
 | Higgsfield MCP | Synced image and video catalog with capability-driven inputs | Admin OAuth connection |
 | SmartAIPI | GPT image generation and reference edits | Admin API key and model pricing |
+| Vercel AI Gateway | Live catalog of image and video models | Admin API key, model eligibility and positive USD pricing |
 | Vibi | Text-to-speech and MiniMax voice cloning | Admin API key |
 | Google Gemini | Optional image and video prompt enhancement in the web process | Admin API key |
 
@@ -84,6 +85,12 @@ Vidancee integration uses server-side login, cookies and CSRF tokens. Generation
 Legacy Seedance routing can use Vidancee as primary and CreatePulse as overflow where the selected job is compatible. Higgsfield definitions take precedence for overlapping public model IDs while their source and model are available; static sources remain available as configured fallbacks. Higgsfield uses OAuth and a catalog sync, with the documented official CLI catalog fallback when MCP discovery returns no usable model entries. Fixed model counts should not be assumed.
 
 A source can provide models only when it is configured, globally enabled and permitted for that customer. Dynamic catalog entries also need their own model switch enabled. Server-side cost and submission checks enforce this hierarchy. Queued work may wait when its source, model or customer assignment has been disabled. Switching a source off prevents new starts; already submitted jobs are handled according to their provider lifecycle.
+
+### Vercel AI Gateway
+
+The integration seeds 83 official media entries (39 video and 44 image, including Gemini image-generating language models) from the 11 October 2026 catalog. Admin can sync current models, show/hide entries and set USD estimates where fixed catalog prices are missing. The initial snapshot has 55 models with usable published prices. Only supported, priced, enabled, available models from an assigned and configured source enter customer selectors. Specialized vector, upscale and motion-control entries remain in Admin with a workflow notice.
+
+Images use image-generation/edit APIs or multimodal chat completions. Videos use the gateway asynchronous start/status protocol, persist the opaque operation in shared MySQL and download the completed MP4 into chunked database storage. Vercel has an independent worker loop. See `docs/VERCEL_AI_GATEWAY.md` for setup, native Node 20 transport and verification limits.
 
 ## 4 SmartAIPI models sizes and quality
 
@@ -157,6 +164,10 @@ These rows describe 1024 x 1024 output. Every source price in this table comes f
 
 At the default factor, a Medium GPT Image 2 at 4:5 is 200 credits; 3:2 or 2:3 is 240 credits. The 160-credit baseline applies to the square Medium image. A 40,000-credit balance funds 250 such square images at that baseline. These examples are credit arithmetic, not a promised monthly plan.
 
+### Vercel conversion
+
+Vercel has its own editable USD-to-credit factor, initially `160 / 0.0265`. Positive catalog image prices or duration tiers supply the quote. Token-priced or unpriced models require an explicit Admin image/quality or per-second estimate. Estimates are labeled in the UI. Existing SmartAIPI rates are never reused as Vercel source prices. The saved quote and model settings stay on the generation when pricing or the catalog later changes. The global 2.5 multiplier is not added to Vercel quotes.
+
 ### Voice reconciliation
 
 TTS initially reserves an estimate based on the text length. After Vibi supplies `credits_deducted`, the worker reconciles the debit to the reported source amount times the shared multiplier. A customer refund and an upstream provider refund are different transactions; returning CMM Tools credits does not guarantee the owner receives provider credits back.
@@ -222,7 +233,7 @@ The admin can inspect users, enable or disable accounts, add or subtract credits
 
 API keys and provider passwords are encrypted in MySQL. The encryption root is SETTINGS_ENCRYPTION_KEY, falling back to ADMIN_TOKEN. The same root must be supplied to both Hostinger applications. Admin read responses report whether a secret is configured and do not return its saved value. A blank secret input keeps its current value; explicit clear controls remove it.
 
-Provider settings include base URLs, global enable switches, inflight limits, Seedance routing, SmartAIPI model and quality prices, the direct SmartAIPI conversion factor, Gemini enhancement, and Vibi clone pricing. Higgsfield connects through OAuth and supports model synchronization and per-model Show or Hide controls. Saving settings normally requires no code deployment; the worker refreshes its clients from MySQL.
+Provider settings include Vercel credentials, catalog controls and USD price overrides, base URLs, global enable switches, inflight limits, Seedance routing, SmartAIPI model and quality prices, the direct SmartAIPI conversion factor, Gemini enhancement, and Vibi clone pricing. Higgsfield connects through OAuth and supports model synchronization and per-model Show or Hide controls. Saving settings normally requires no code deployment; the worker refreshes its clients from MySQL.
 
 ### Customer source assignments
 
@@ -277,6 +288,7 @@ Recommended deployment sequence: inspect the current branch, make a scoped chang
 | generation_images | Owned image-reference bytes and order |
 | generation_media | Capability-driven media references and roles |
 | generation_image_outputs | Stored image-output bytes |
+| generation_video_outputs and generation_video_chunks | Durable MP4 metadata and 1 MiB chunks with authenticated HTTP Range playback |
 | app_settings | Admin-managed provider and configuration settings |
 | provider_models | Synced model catalog and capability metadata |
 | user_provider_access | Per-customer source assignments |
@@ -333,7 +345,7 @@ The following are operational route groups. Customer routes require a valid cust
 | GET /api/prompts/enhance/:jobId | Read enhancement state |
 | GET /api/prompts/enhance/requests/:requestId | Recover a lost acknowledgement |
 
-Admin routes require `X-Admin-Token`. Key groups include GET /admin/stats, GET /admin/config, GET /admin/users, POST /admin/users/credits, PATCH /admin/users/:id, source-assignment routes, GET /admin/generations, GET /admin/credits and plan-request approval or rejection. Provider settings support GET and POST or PUT /admin/provider-settings. Connection checks include /admin/provider/check, /admin/vibi/check, /admin/smartaipi/check and /admin/prompt-enhancer/check. Higgsfield has OAuth start, callback, status, disconnect, sync and tool-inspection routes, plus /admin/provider-models controls.
+Admin routes require `X-Admin-Token`. Key groups include GET /admin/stats, GET /admin/config, GET /admin/users, POST /admin/users/credits, PATCH /admin/users/:id, source-assignment routes, GET /admin/generations, GET /admin/credits and plan-request approval or rejection. Provider settings support GET and POST or PUT /admin/provider-settings. Connection checks include /admin/provider/check, /admin/vibi/check, /admin/smartaipi/check and /admin/prompt-enhancer/check. Higgsfield has OAuth start, callback, status, disconnect, sync and tool-inspection routes, plus /admin/provider-models controls. Vercel routes are POST /admin/vercel/check, POST /admin/vercel/sync and POST /admin/vercel/models/:id/price; model visibility updates accept provider=vercel.
 
 Use the current `server.js` route handlers when implementing an API client; this summary does not define every request field. The worker exposes GET /health and /live at its separate origin. Call the worker paths without query strings in the current implementation.
 
@@ -391,6 +403,9 @@ Automatic payments, recurring plan renewal, Google customer sign-in, a multi-ins
 | src/smartaipi_images.js | GPT IDs, sizes, quality estimates and direct conversion |
 | src/billing.js and src/plans.js | Shared conversion and plan definitions |
 | src/prompt_enhancer.js | Gemini request, async records, limits and error handling |
+| src/vercel_models.js and src/vercel_queue.js | Gateway model normalization, validation, pricing and independent recovery loop |
+| src/provider/vercel.js and src/provider/vercel_catalog.json | Native gateway transport and initial official catalog snapshot |
+| src/video_outputs.js and src/image_canvas.js | Durable video playback and output-canvas validation |
 | src/provider_models.js | Dynamic model metadata and capability handling |
 | src/provider | Individual backend adapters and signed asset utilities |
 | public/index.html and public/studio.css | Customer UI and responsive workspaces |
@@ -404,7 +419,7 @@ Keep future changes scoped to the intended files. Inspect the remote branch befo
 
 ## 16 Reference documents and official sources
 
-Repository documents: `docs/HPANEL_DEPLOYMENT.md`, `docs/ADMIN_PROVIDER_SETTINGS.md`, `docs/SMARTAIPI.md`, `docs/PROMPT_ENHANCER.md`, `docs/CMM_UI_DESIGN.md`, `docs/PLANS.md`, `docs/VIDANCEE_PROTOCOL.md` and `docs/CHANGELOG.md`. Historical milestone detail is in `docs/archive/PROJECT_HANDOFF_2026-10-09.md`.
+Repository documents: `docs/HPANEL_DEPLOYMENT.md`, `docs/ADMIN_PROVIDER_SETTINGS.md`, `docs/SMARTAIPI.md`, `docs/VERCEL_AI_GATEWAY.md`, `docs/PROMPT_ENHANCER.md`, `docs/CMM_UI_DESIGN.md`, `docs/PLANS.md`, `docs/VIDANCEE_PROTOCOL.md` and `docs/CHANGELOG.md`. Historical milestone detail is in `docs/archive/PROJECT_HANDOFF_2026-10-09.md`.
 
 Official SmartAIPI source pricing: https://smartaipi.com/pricing. GPT Image 2 size documentation: https://smartaipi.com/blog/gpt-image-2-now-available. GPT Image 2.5 documentation: https://smartaipi.com/blog/gpt-image-2-5-now-available. Gemini API errors: https://ai.google.dev/gemini-api/docs/api-errors. Gemini thinking controls: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels.
 

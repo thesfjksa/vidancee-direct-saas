@@ -1,0 +1,4827 @@
+{
+  "retrievedAt": "2026-10-11",
+  "source": "https://ai-gateway.vercel.sh/v1/models",
+  "data": [
+    {
+      "id": "alibaba/wan-v2.5-t2v-preview",
+      "name": "Wan v2.5 Text-to-Video Preview",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          5,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.6-i2v",
+      "name": "Wan v2.6 Image-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.6-i2v-flash",
+      "name": "Wan v2.6 Image-to-Video Flash",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.075"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.6-r2v",
+      "name": "Wan v2.6 Reference-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "image": {
+            "max_count": 5,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 30
+          },
+          "max_total_inputs": 5
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.6-r2v-flash",
+      "name": "Wan v2.6 Reference-to-Video Flash",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "image": {
+            "max_count": 5,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 30
+          },
+          "max_total_inputs": 5
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.075"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.6-t2v",
+      "name": "Wan v2.6 Text-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 1500
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.7-r2v",
+      "name": "Wan v2.7 Reference-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 5000
+          },
+          "image": {
+            "max_count": 5,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000,
+            "min_aspect_ratio": "1:8",
+            "max_aspect_ratio": "8:1"
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 30,
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 4096
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 10
+          },
+          "max_total_inputs": 5
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v2.7-t2v",
+      "name": "Wan v2.7 Text-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 5000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 30
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v3.0-video",
+      "name": "Wan v3.0 Video",
+      "type": "video",
+      "tags": [
+        "vision",
+        "video-input",
+        "audio-input"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "adaptive"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "supported_fps": [
+          30
+        ],
+        "max_sample_count": 1,
+        "input_limits": {
+          "text": {
+            "max_chars": 20000
+          },
+          "image": {
+            "max_count": 10,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000,
+            "min_aspect_ratio": "1:8",
+            "max_aspect_ratio": "8:1"
+          },
+          "video": {
+            "max_count": 5,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 4096
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.2"
+          },
+          {
+            "cost_per_second": "0.2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "alibaba/wan-v3.0-video-prime",
+      "name": "Wan v3.0 Video Prime",
+      "type": "video",
+      "tags": [
+        "vision",
+        "video-input",
+        "audio-input"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "adaptive"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "supported_fps": [
+          30
+        ],
+        "max_sample_count": 1,
+        "input_limits": {
+          "text": {
+            "max_chars": 20000
+          },
+          "image": {
+            "max_count": 10,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpeg",
+              "jpg",
+              "png",
+              "bmp",
+              "webp"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ],
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 8000,
+            "min_aspect_ratio": "1:8",
+            "max_aspect_ratio": "8:1"
+          },
+          "video": {
+            "max_count": 5,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 240,
+            "max_dimension_pixels": 4096
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 1,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.28"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.14"
+          },
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.068"
+          },
+          {
+            "cost_per_second": "0.28"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bfl/flux-2-flex",
+      "name": "FLUX.2 [flex]",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-2-klein-4b",
+      "name": "FLUX.2 [klein] 4B",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-2-klein-9b",
+      "name": "FLUX.2 [klein] 9B",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-2-max",
+      "name": "FLUX.2 [max]",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-2-pro",
+      "name": "FLUX.2 [pro]",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-3-image",
+      "name": "FLUX 3 Image",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.024",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "768x768",
+            "cost": "0.0205"
+          },
+          {
+            "size": "1024x1024",
+            "cost": "0.024"
+          },
+          {
+            "size": "1536x1536",
+            "cost": "0.035"
+          },
+          {
+            "size": "2048x2048",
+            "cost": "0.05"
+          },
+          {
+            "size": "4096x4096",
+            "cost": "0.3035"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bfl/flux-3-video",
+      "name": "Flux 3",
+      "type": "video",
+      "tags": [
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "extend-video"
+        ],
+        "supported_resolutions": [
+          "hd",
+          "fhd"
+        ],
+        "supported_aspect_ratios": [
+          "21:9",
+          "2:1",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 10,
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "video": {
+            "max_count": 1,
+            "supported_formats": [
+              "mp4"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          }
+        }
+      },
+      "pricing": {}
+    },
+    {
+      "id": "bfl/flux-kontext-max",
+      "name": "FLUX.1 Kontext Max",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.08"
+      }
+    },
+    {
+      "id": "bfl/flux-kontext-pro",
+      "name": "FLUX.1 Kontext Pro",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.04"
+      }
+    },
+    {
+      "id": "bfl/flux-pro-1.0-fill",
+      "name": "FLUX.1 Fill [pro]",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.05"
+      }
+    },
+    {
+      "id": "bfl/flux-pro-1.1",
+      "name": "FLUX1.1 [pro]",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.04"
+      }
+    },
+    {
+      "id": "bfl/flux-pro-1.1-ultra",
+      "name": "FLUX1.1 [pro] Ultra",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.06"
+      }
+    },
+    {
+      "id": "bytedance/seedance-2.0",
+      "name": "Seedance 2.0",
+      "type": "video",
+      "tags": [
+        "video-generation",
+        "vision"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 9,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 50,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_token_pricing": {
+          "tiers": [
+            {
+              "resolution": "480p",
+              "no_video_input": {
+                "cost_per_million_tokens": "7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "4.3"
+              }
+            },
+            {
+              "resolution": "720p",
+              "no_video_input": {
+                "cost_per_million_tokens": "7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "4.3"
+              }
+            },
+            {
+              "resolution": "1080p",
+              "no_video_input": {
+                "cost_per_million_tokens": "7.7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "4.7"
+              }
+            },
+            {
+              "resolution": "4k",
+              "no_video_input": {
+                "cost_per_million_tokens": "4"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "2.4"
+              }
+            }
+          ],
+          "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
+        }
+      }
+    },
+    {
+      "id": "bytedance/seedance-2.0-fast",
+      "name": "Seedance 2.0 Fast",
+      "type": "video",
+      "tags": [
+        "vision",
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 9,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 50,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_token_pricing": {
+          "tiers": [
+            {
+              "resolution": "480p",
+              "no_video_input": {
+                "cost_per_million_tokens": "5.6"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "3.3"
+              }
+            },
+            {
+              "resolution": "720p",
+              "no_video_input": {
+                "cost_per_million_tokens": "5.6"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "3.3"
+              }
+            }
+          ],
+          "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
+        }
+      }
+    },
+    {
+      "id": "bytedance/seedance-2.0-mini",
+      "name": "Seedance 2.0 Mini",
+      "type": "video",
+      "tags": [
+        "vision",
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 9,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 50,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_token_pricing": {
+          "tiers": [
+            {
+              "resolution": "480p",
+              "no_video_input": {
+                "cost_per_million_tokens": "3.5"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "2.1"
+              }
+            },
+            {
+              "resolution": "720p",
+              "no_video_input": {
+                "cost_per_million_tokens": "3.5"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "2.1"
+              }
+            }
+          ],
+          "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
+        }
+      }
+    },
+    {
+      "id": "bytedance/seedance-2.5",
+      "name": "Seedance 2.5",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video",
+          "video-editing",
+          "extend-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9",
+          "adaptive"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 30,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif",
+              "heic",
+              "heif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 10,
+            "max_file_size_mb": 200,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 30,
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "mp3",
+              "wav"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 30
+          },
+          "max_total_inputs": 50
+        }
+      },
+      "pricing": {
+        "video_token_pricing": {
+          "tiers": [
+            {
+              "resolution": "480p",
+              "no_video_input": {
+                "cost_per_million_tokens": "10.7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "6.4"
+              }
+            },
+            {
+              "resolution": "720p",
+              "no_video_input": {
+                "cost_per_million_tokens": "10.7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "6.4"
+              }
+            },
+            {
+              "resolution": "1080p",
+              "no_video_input": {
+                "cost_per_million_tokens": "11.7"
+              },
+              "with_video_input": {
+                "cost_per_million_tokens": "7"
+              }
+            }
+          ],
+          "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
+        }
+      }
+    },
+    {
+      "id": "bytedance/seedance-v1.0-pro",
+      "name": "Seedance v1.0 Pro",
+      "type": "video",
+      "tags": [
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "generate_audio": false,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 2,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.0243"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.0515"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.1224"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bytedance/seedance-v1.0-pro-fast",
+      "name": "Seedance v1.0 Pro Fast",
+      "type": "video",
+      "tags": [
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "generate_audio": false,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.0097"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.0206"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.049"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bytedance/seedance-v1.5-pro",
+      "name": "Seedance v1.5 Pro",
+      "type": "video",
+      "tags": [
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 2,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpeg",
+              "png",
+              "webp",
+              "bmp",
+              "tiff",
+              "gif",
+              "heic",
+              "heif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 300,
+            "max_dimension_pixels": 6000,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "audio": false,
+            "cost_per_second": "0.0121"
+          },
+          {
+            "resolution": "480p",
+            "audio": true,
+            "cost_per_second": "0.0241"
+          },
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.0259"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.0518"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.0583"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.1166"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bytedance/seedream-4.0",
+      "name": "Seedream 4.0",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.03"
+      }
+    },
+    {
+      "id": "bytedance/seedream-4.5",
+      "name": "Seedream 4.5",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.04"
+      }
+    },
+    {
+      "id": "bytedance/seedream-5.0-lite",
+      "name": "Seedream 5.0 Lite",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.035"
+      }
+    },
+    {
+      "id": "bytedance/seedream-5.0-pro",
+      "name": "Seedream 5.0 Pro",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000000003",
+        "image": "0.035"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "name": "Nano Banana (Gemini 2.5 Flash Image)",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "web-search",
+        "vision"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.0000003",
+        "output": "0.0000025",
+        "input_cache_read": "0.00000003",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "default",
+            "cost": "0.039"
+          }
+        ],
+        "maps_search": "25",
+        "service_tiers": {
+          "flex": {
+            "input": "0.00000015",
+            "output": "0.00000125"
+          }
+        },
+        "regional": {
+          "eu": {
+            "input": "0.0000003",
+            "output": "0.0000025",
+            "input_cache_read": "0.00000003"
+          },
+          "us": {
+            "input": "0.0000003",
+            "output": "0.0000025",
+            "input_cache_read": "0.00000003"
+          }
+        }
+      }
+    },
+    {
+      "id": "google/gemini-3-pro-image",
+      "name": "Nano Banana Pro (Gemini 3 Pro Image)",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "web-search",
+        "implicit-caching",
+        "vision",
+        "structured-output"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000002",
+        "output": "0.000012",
+        "input_cache_read": "0.0000002",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "1K",
+            "cost": "0.1344"
+          },
+          {
+            "size": "2K",
+            "cost": "0.1344"
+          },
+          {
+            "size": "4K",
+            "cost": "0.24"
+          },
+          {
+            "size": "default",
+            "cost": "0.1344"
+          }
+        ],
+        "web_search": "14",
+        "maps_search": "14",
+        "service_tiers": {
+          "flex": {
+            "input": "0.000001",
+            "output": "0.000006"
+          }
+        }
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-image",
+      "name": "Gemini 3.1 Flash Image (Nano Banana 2)",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "implicit-caching",
+        "reasoning",
+        "vision",
+        "web-search",
+        "structured-output"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.0000005",
+        "output": "0.000003",
+        "input_cache_read": "0.00000005",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "512",
+            "cost": "0.045"
+          },
+          {
+            "size": "1K",
+            "cost": "0.067"
+          },
+          {
+            "size": "2K",
+            "cost": "0.101"
+          },
+          {
+            "size": "4K",
+            "cost": "0.151"
+          },
+          {
+            "size": "default",
+            "cost": "0.067"
+          }
+        ],
+        "web_search": "14",
+        "maps_search": "14"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-image-preview",
+      "name": "Gemini 3.1 Flash Image Preview (Nano Banana 2)",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "implicit-caching",
+        "reasoning",
+        "vision",
+        "web-search",
+        "structured-output"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.0000005",
+        "output": "0.000003",
+        "input_cache_read": "0.00000005",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "512",
+            "cost": "0.045"
+          },
+          {
+            "size": "1K",
+            "cost": "0.067"
+          },
+          {
+            "size": "2K",
+            "cost": "0.101"
+          },
+          {
+            "size": "4K",
+            "cost": "0.151"
+          },
+          {
+            "size": "default",
+            "cost": "0.067"
+          }
+        ],
+        "web_search": "14",
+        "service_tiers": {
+          "flex": {
+            "input": "0.00000025",
+            "output": "0.0000015"
+          }
+        }
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-lite-image",
+      "name": "Gemini 3.1 Flash Lite Image (Nano Banana 2 Lite)",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "implicit-caching",
+        "reasoning",
+        "vision",
+        "web-search"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.00000025",
+        "output": "0.0000015",
+        "input_cache_read": "0.00000003",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "default",
+            "cost": "0.034"
+          },
+          {
+            "size": "1K",
+            "cost": "0.034"
+          }
+        ],
+        "web_search": "14",
+        "maps_search": "14"
+      }
+    },
+    {
+      "id": "google/gemini-nano-banana-2.1",
+      "name": "Gemini Nano Banana 2.1",
+      "type": "language",
+      "tags": [
+        "image-generation",
+        "implicit-caching",
+        "reasoning",
+        "vision",
+        "web-search",
+        "structured-output"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.0000015",
+        "output": "0.0000075",
+        "input_cache_read": "0.00000015",
+        "image_dimension_quality_pricing": [
+          {
+            "size": "1K",
+            "cost": "0.0336"
+          },
+          {
+            "size": "2K",
+            "cost": "0.0504"
+          },
+          {
+            "size": "4K",
+            "cost": "0.1134"
+          },
+          {
+            "size": "default",
+            "cost": "0.0336"
+          }
+        ],
+        "web_search": "14",
+        "maps_search": "14"
+      }
+    },
+    {
+      "id": "google/veo-3.0-fast-generate-001",
+      "name": "Veo 3.0 Fast Generate",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          4,
+          6,
+          8
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 4,
+        "input_limits": {
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.15"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "google/veo-3.0-generate-001",
+      "name": "Veo 3.0",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          4,
+          6,
+          8
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 4,
+        "input_limits": {
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.2"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.4"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.2"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "google/veo-3.1-fast-generate-001",
+      "name": "Veo 3.1 Fast Generate",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video",
+          "extend-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          4,
+          6,
+          8
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 4,
+        "input_limits": {
+          "image": {
+            "max_count": 3,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "video": {
+            "max_count": 1,
+            "supported_formats": [
+              "mp4"
+            ],
+            "supported_sources": [
+              "url"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.15"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.1"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.15"
+          },
+          {
+            "resolution": "4k",
+            "audio": false,
+            "cost_per_second": "0.3"
+          },
+          {
+            "resolution": "4k",
+            "audio": true,
+            "cost_per_second": "0.35"
+          }
+        ]
+      }
+    },
+    {
+      "id": "google/veo-3.1-generate-001",
+      "name": "Veo 3.1",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video",
+          "extend-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          4,
+          6,
+          8
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 4,
+        "input_limits": {
+          "image": {
+            "max_count": 3,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "video": {
+            "max_count": 1,
+            "supported_formats": [
+              "mp4"
+            ],
+            "supported_sources": [
+              "url"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.2"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.4"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.2"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.4"
+          },
+          {
+            "resolution": "4k",
+            "audio": false,
+            "cost_per_second": "0.4"
+          },
+          {
+            "resolution": "4k",
+            "audio": true,
+            "cost_per_second": "0.6"
+          }
+        ]
+      }
+    },
+    {
+      "id": "google/veo-3.1-lite-generate-001",
+      "name": "Veo 3.1 Lite Generate",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "9:16",
+          "16:9"
+        ],
+        "supported_durations_seconds": [
+          4,
+          6,
+          8
+        ],
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 4,
+        "input_limits": {
+          "image": {
+            "max_count": 3,
+            "max_file_size_mb": 20,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "video": {
+            "max_count": 1,
+            "supported_formats": [
+              "mp4"
+            ],
+            "supported_sources": [
+              "url"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "720p",
+            "audio": false,
+            "cost_per_second": "0.03"
+          },
+          {
+            "resolution": "720p",
+            "audio": true,
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "1080p",
+            "audio": false,
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "1080p",
+            "audio": true,
+            "cost_per_second": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "heygen/heygen-video-1",
+      "name": "HeyGen Video",
+      "type": "video",
+      "tags": [
+        "vision",
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "768p",
+          "1080p",
+          "2k"
+        ],
+        "supported_aspect_ratios": [
+          "21:9",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 1,
+        "input_limits": {
+          "image": {
+            "max_count": 9,
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ]
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 16,
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "max_duration_seconds": 5
+          },
+          "audio": {
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "mode": "text_to_video",
+            "cost_per_second": "0.01"
+          },
+          {
+            "resolution": "768p",
+            "mode": "text_to_video",
+            "cost_per_second": "0.015"
+          },
+          {
+            "resolution": "1080p",
+            "mode": "text_to_video",
+            "cost_per_second": "0.045"
+          },
+          {
+            "resolution": "2k",
+            "mode": "text_to_video",
+            "cost_per_second": "0.045"
+          },
+          {
+            "resolution": "480p",
+            "mode": "image_to_video",
+            "cost_per_second": "0.01"
+          },
+          {
+            "resolution": "768p",
+            "mode": "image_to_video",
+            "cost_per_second": "0.015"
+          },
+          {
+            "resolution": "1080p",
+            "mode": "image_to_video",
+            "cost_per_second": "0.045"
+          },
+          {
+            "resolution": "2k",
+            "mode": "image_to_video",
+            "cost_per_second": "0.045"
+          },
+          {
+            "resolution": "480p",
+            "mode": "reference_to_video",
+            "cost_per_second": "0.02"
+          },
+          {
+            "resolution": "768p",
+            "mode": "reference_to_video",
+            "cost_per_second": "0.03"
+          },
+          {
+            "resolution": "1080p",
+            "mode": "reference_to_video",
+            "cost_per_second": "0.09"
+          },
+          {
+            "resolution": "2k",
+            "mode": "reference_to_video",
+            "cost_per_second": "0.09"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v2.5-turbo-i2v",
+      "name": "Kling v2.5 Turbo Image-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          5,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          },
+          "image": {
+            "max_count": 2,
+            "max_file_size_mb": 10,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "min_dimension_pixels": 300,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.042"
+          },
+          {
+            "mode": "pro",
+            "cost_per_second": "0.07"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v2.5-turbo-t2v",
+      "name": "Kling v2.5 Turbo Text-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          5,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.042"
+          },
+          {
+            "mode": "pro",
+            "cost_per_second": "0.07"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v2.6-i2v",
+      "name": "Kling v2.6 Image-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          5,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          },
+          "image": {
+            "max_count": 2,
+            "max_file_size_mb": 10,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "min_dimension_pixels": 300,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.042"
+          },
+          {
+            "audio": false,
+            "mode": "pro",
+            "cost_per_second": "0.07"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "cost_per_second": "0.14"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v2.6-motion-control",
+      "name": "Kling v2.6 Motion Control",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "motion-control"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "generate_audio": false,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          },
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 10,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "min_dimension_pixels": 300,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 1,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30,
+            "min_dimension_pixels": 340,
+            "max_dimension_pixels": 3850
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.07"
+          },
+          {
+            "mode": "pro",
+            "cost_per_second": "0.112"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v2.6-t2v",
+      "name": "Kling v2.6 Text-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          5,
+          10
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.042"
+          },
+          {
+            "audio": false,
+            "mode": "pro",
+            "cost_per_second": "0.07"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "cost_per_second": "0.14"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v3.0-i2v",
+      "name": "Kling v3.0 Image-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video",
+          "first-last-frame",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          },
+          "image": {
+            "max_count": 3,
+            "max_file_size_mb": 10,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "min_dimension_pixels": 300,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "audio": false,
+            "mode": "std",
+            "cost_per_second": "0.168"
+          },
+          {
+            "audio": true,
+            "mode": "std",
+            "cost_per_second": "0.252"
+          },
+          {
+            "audio": true,
+            "mode": "std",
+            "voice_control": true,
+            "cost_per_second": "0.308"
+          },
+          {
+            "audio": false,
+            "mode": "pro",
+            "cost_per_second": "0.224"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "cost_per_second": "0.336"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "voice_control": true,
+            "cost_per_second": "0.392"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v3.0-motion-control",
+      "name": "Kling v3.0 Motion Control",
+      "type": "video",
+      "tags": [
+        "video-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "motion-control"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "generate_audio": false,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          },
+          "image": {
+            "max_count": 1,
+            "max_file_size_mb": 10,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ],
+            "min_dimension_pixels": 300,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 1,
+            "max_file_size_mb": 100,
+            "supported_formats": [
+              "mp4",
+              "mov"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 3,
+            "max_duration_seconds": 30,
+            "min_dimension_pixels": 340,
+            "max_dimension_pixels": 3850
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "mode": "std",
+            "cost_per_second": "0.126"
+          },
+          {
+            "mode": "pro",
+            "cost_per_second": "0.168"
+          }
+        ]
+      }
+    },
+    {
+      "id": "klingai/kling-v3.0-t2v",
+      "name": "Kling v3.0 Text-to-Video",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video"
+        ],
+        "supported_resolutions": [
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "supported_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "supported_durations_seconds": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          30
+        ],
+        "input_limits": {
+          "text": {
+            "max_chars": 2500
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "audio": false,
+            "mode": "std",
+            "cost_per_second": "0.168"
+          },
+          {
+            "audio": true,
+            "mode": "std",
+            "cost_per_second": "0.252"
+          },
+          {
+            "audio": true,
+            "mode": "std",
+            "voice_control": true,
+            "cost_per_second": "0.308"
+          },
+          {
+            "audio": false,
+            "mode": "pro",
+            "cost_per_second": "0.224"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "cost_per_second": "0.336"
+          },
+          {
+            "audio": true,
+            "mode": "pro",
+            "voice_control": true,
+            "cost_per_second": "0.392"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta/muse-image-1.0",
+      "name": "Muse Image 1.0",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "vision"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.01"
+      }
+    },
+    {
+      "id": "minimax/minimax-h3",
+      "name": "MiniMax H3",
+      "type": "video",
+      "tags": [
+        "video-generation",
+        "vision"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "reference-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "2k",
+          "768p"
+        ],
+        "supported_aspect_ratios": [
+          "21:9",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 1,
+        "input_limits": {
+          "image": {
+            "max_count": 9,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "heic",
+              "heif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 256,
+            "max_dimension_pixels": 5760,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          },
+          "video": {
+            "max_count": 3,
+            "max_file_size_mb": 50,
+            "supported_formats": [
+              "h264",
+              "h265",
+              "mp4"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15,
+            "min_dimension_pixels": 256,
+            "max_dimension_pixels": 5760
+          },
+          "audio": {
+            "max_file_size_mb": 15,
+            "supported_formats": [
+              "wav",
+              "mp3"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 15
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "2k",
+            "cost_per_second": "0.13"
+          },
+          {
+            "resolution": "768p",
+            "cost_per_second": "0.08"
+          },
+          {
+            "cost_per_second": "0.13"
+          }
+        ]
+      }
+    },
+    {
+      "id": "minimax/minimax-h3-max",
+      "name": "MiniMax H3 Max",
+      "type": "video",
+      "tags": [
+        "video-generation",
+        "vision"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "first-last-frame"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "768p"
+        ],
+        "supported_aspect_ratios": [
+          "21:9",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16"
+        ],
+        "supported_durations_seconds": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "supported_fps": [
+          24
+        ],
+        "max_sample_count": 1,
+        "input_limits": {
+          "image": {
+            "max_count": 2,
+            "max_file_size_mb": 30,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "heic",
+              "heif"
+            ],
+            "supported_sources": [
+              "url"
+            ],
+            "min_dimension_pixels": 256,
+            "max_dimension_pixels": 5760,
+            "min_aspect_ratio": "2:5",
+            "max_aspect_ratio": "5:2"
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "768p",
+            "cost_per_second": "0.08"
+          },
+          {
+            "cost_per_second": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-image-1",
+      "name": "GPT Image 1",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000005",
+        "output": "0.00004",
+        "input_cache_read": "0.00000125"
+      }
+    },
+    {
+      "id": "openai/gpt-image-1-mini",
+      "name": "GPT Image 1 Mini",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000002",
+        "output": "0.000008",
+        "input_cache_read": "0.0000002"
+      }
+    },
+    {
+      "id": "openai/gpt-image-1.5",
+      "name": "GPT Image 1.5",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000005",
+        "output": "0.000032",
+        "input_cache_read": "0.00000125"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2",
+      "name": "GPT Image 2",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000005",
+        "output": "0.00003",
+        "input_cache_read": "0.00000125"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2.5-flare",
+      "name": "GPT Image 2.5 Flare",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000005",
+        "output": "0.00003",
+        "input_cache_read": "0.00000125"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2.5-sunburst",
+      "name": "GPT Image 2.5 Sunburst",
+      "type": "image",
+      "tags": [
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000005",
+        "output": "0.00003",
+        "input_cache_read": "0.00000125"
+      }
+    },
+    {
+      "id": "prodia/flux-fast-schnell",
+      "name": "Flux Schnell",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "quiverai/arrow-1.1",
+      "name": "Arrow 1.1",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image_dimension_quality_pricing": [
+          {
+            "operation": "generate",
+            "cost": "0.2"
+          },
+          {
+            "operation": "vectorize",
+            "cost": "0.15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "quiverai/arrow-2",
+      "name": "Arrow 2",
+      "type": "language",
+      "tags": [
+        "tool-use",
+        "reasoning",
+        "vision",
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000004",
+        "output": "0.00002",
+        "input_cache_read": "0.0000004",
+        "input_cache_write": "0.000005"
+      }
+    },
+    {
+      "id": "quiverai/arrow-2-telos",
+      "name": "Arrow 2 Telos",
+      "type": "language",
+      "tags": [
+        "tool-use",
+        "reasoning",
+        "vision",
+        "image-generation",
+        "implicit-caching"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "pricing": {
+        "input": "0.000006",
+        "output": "0.00003",
+        "input_cache_read": "0.0000006",
+        "input_cache_write": "0.0000075"
+      }
+    },
+    {
+      "id": "recraft/recraft-v2",
+      "name": "Recraft V2",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.022",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.044"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v3",
+      "name": "Recraft V3",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.04",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4",
+      "name": "Recraft V4",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.04",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4-pro",
+      "name": "Recraft V4 Pro",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.25",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1",
+      "name": "Recraft V4.1",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.035",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1-flash",
+      "name": "Recraft V4.1 Flash",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.007"
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1-pro",
+      "name": "Recraft V4.1 Pro",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.21",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1-utility",
+      "name": "Recraft V4.1 Utility",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.035",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.08"
+          }
+        ]
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1-utility-pro",
+      "name": "Recraft V4.1 Utility Pro",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.21",
+        "image_dimension_quality_pricing": [
+          {
+            "style": "vector_illustration",
+            "cost": "0.3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "topaz/proteus",
+      "name": "Proteus",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "topaz/starlight-precise-2.6",
+      "name": "Starlight Precise 2.6",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "topaz/wonder-3.5",
+      "name": "Wonder 3.5",
+      "type": "image",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {}
+    },
+    {
+      "id": "spacexai/grok-imagine-image",
+      "name": "Grok Imagine Image",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.02"
+      }
+    },
+    {
+      "id": "spacexai/grok-imagine-image-2.0",
+      "name": "Grok Imagine Image 2.0",
+      "type": "image",
+      "tags": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "pricing": {
+        "image": "0.06",
+        "image_dimension_quality_pricing": [
+          {
+            "quality": "low",
+            "cost": "0.04"
+          },
+          {
+            "size": "2048x2048",
+            "cost": "0.08"
+          },
+          {
+            "size": "2048x2048",
+            "quality": "low",
+            "cost": "0.06"
+          }
+        ]
+      }
+    },
+    {
+      "id": "spacexai/grok-imagine-video",
+      "name": "Grok Imagine",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video",
+          "reference-to-video",
+          "video-editing",
+          "extend-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p"
+        ],
+        "supported_aspect_ratios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3"
+        ],
+        "supported_durations_seconds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": false,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 5,
+            "supported_formats": [
+              "jpg",
+              "jpeg",
+              "png",
+              "webp",
+              "gif",
+              "avif"
+            ],
+            "supported_sources": [
+              "url",
+              "base64",
+              "buffer"
+            ]
+          },
+          "video": {
+            "max_count": 1,
+            "supported_sources": [
+              "url"
+            ],
+            "min_duration_seconds": 2,
+            "max_duration_seconds": 8.7
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.05"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.07"
+          }
+        ]
+      }
+    },
+    {
+      "id": "spacexai/grok-imagine-video-1.5",
+      "name": "Grok Imagine Video 1.5",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "image-to-video",
+          "text-to-video",
+          "reference-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3"
+        ],
+        "supported_durations_seconds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 7,
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "audio": {
+            "supported_sources": [
+              "url"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.08"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.14"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.25"
+          }
+        ]
+      }
+    },
+    {
+      "id": "spacexai/grok-imagine-video-1.5-lite",
+      "name": "Grok Imagine Video 1.5 Lite",
+      "type": "video",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "video_capabilities": {
+        "supported_operations": [
+          "text-to-video",
+          "image-to-video"
+        ],
+        "supported_resolutions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "supported_aspect_ratios": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3"
+        ],
+        "supported_durations_seconds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "generate_audio": true,
+        "supported_fps": [
+          24
+        ],
+        "input_limits": {
+          "image": {
+            "max_count": 7,
+            "supported_sources": [
+              "url",
+              "base64"
+            ]
+          },
+          "audio": {
+            "supported_sources": [
+              "url"
+            ]
+          }
+        }
+      },
+      "pricing": {
+        "video_duration_pricing": [
+          {
+            "resolution": "480p",
+            "cost_per_second": "0.02"
+          },
+          {
+            "resolution": "720p",
+            "cost_per_second": "0.03"
+          },
+          {
+            "resolution": "1080p",
+            "cost_per_second": "0.14"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -11,7 +11,8 @@ function serializeImageGeneration(row) {
     mode: row.mode,
     model: row.model,
     aspect_ratio: row.aspect_ratio,
-    quality: row.provider==='smartaipi' ? row.image_quality || 'medium' : null,
+    imageSize: (()=>{try{return JSON.parse(row.generation_options||'{}').imageSize||null;}catch{return null;}})(),
+    quality: row.provider==='smartaipi' ? row.image_quality || 'medium' : row.provider==='vercel' ? row.image_quality || null : null,
     prompt: row.prompt,
     status: row.status,
     credits_cost: Number(row.credits_cost),
@@ -129,11 +130,12 @@ async function createImageGenerationForUser(userId, input, options = {}) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id,user_id,provider,media_type,queue_priority,mode,model,duration,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit,image_quality)
-       VALUES (?,?,?,'image',?,?,?,0,?,?,'queued',?,?,?,?)`,
+       (id,user_id,provider,media_type,queue_priority,mode,model,duration,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit,image_quality,generation_options)
+       VALUES (?,?,?,'image',?,?,?,0,?,?,'queued',?,?,?,?,?)`,
       [
         id, userId, provider, planProfile.queuePriority, mode, model, aspectRatio,
         prompt, cost, providerCostValue, providerCostUnit, imageQuality,
+        options.generationOptions?JSON.stringify(options.generationOptions):null,
       ],
     );
 

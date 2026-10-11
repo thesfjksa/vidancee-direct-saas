@@ -100,11 +100,15 @@ const {
   migrateLegacyProviderEnvSettings,
 } = require('./src/settings.js');
 const { verifyAssetSignature } = require('./src/provider/assets.js');
+const { VercelGatewayClient } = require('./src/provider/vercel.js');
+const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
+const { serveVideoOutput } = require('./src/video_outputs.js');
 const {
   publicProviderCatalog,
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog,
 } = require('./src/provider_models.js');
 const {
   beginHiggsfieldAuthorization,
@@ -309,7 +313,7 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi','vercel'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -450,6 +454,17 @@ const server=http.createServer(async (req,res)=>{
       return res.end(image.image_data);
     }
 
+    const providerMediaMatch=routePath.match(/^\/provider-media\/([0-9a-f-]{36})\/(\d+)$/i);
+    if(req.method==='GET'&&providerMediaMatch){
+      requireDatabase();
+      const id=providerMediaMatch[1],position=Number(providerMediaMatch[2]);
+      if(!verifyAssetSignature(id,position,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
+      const [[media]]=await getPool().execute('SELECT mime_type,media_data FROM generation_media WHERE generation_id=? AND position_index=? LIMIT 1',[id,position]);
+      if(!media)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
+      res.writeHead(200,{'content-type':media.mime_type,'content-length':media.media_data.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});
+      return res.end(media.media_data);
+    }
+
     if (req.method==='GET' && routePath==='/live') {
       return sendJson(res,200,{
         ok:true,
@@ -479,9 +494,9 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vgenv.active ||
           providerSettings.atlascloud.active ||
           providerSettings.higgsfield.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active
         );
-        imageGenerationReady=Boolean(providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
+        imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -492,6 +507,7 @@ const server=http.createServer(async (req,res)=>{
         database,
         services:{
           queueRevision:1,
+          mediaGatewayRevision:1,
           imageCanvasRevision:1,
           workerWakeup:workerWakeup.status(),
           generationBackendReady,
@@ -538,6 +554,11 @@ const server=http.createServer(async (req,res)=>{
 
           if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active) {
             imagePricing.push(...publicSmartImagePricing(await getProviderSettings()));
+          }
+
+          if(customerProviderAccess.vercel && providerSettings.vercel.active){
+            const catalog=await publicProviderCatalog('vercel');
+            videoPricing.push(...catalog.video);imagePricing.push(...catalog.image);
           }
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
@@ -621,6 +642,13 @@ const server=http.createServer(async (req,res)=>{
       const body=await readJson(req);
       const mediaType=body.mediaType==='image'?'image':'video';
       const providerSettings=await getAdminProviderSettings();
+      if(isGatewayModel(body.model)){
+        if(!costAccess.vercel||!providerSettings.vercel.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
+        const model=await getProviderModelByPublicId('vercel',String(body.model),mediaType);
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This model is currently unavailable.'});
+        const quote=quoteGateway(model,body,providerSettings.vercel.customerCreditsPerUsd);
+        return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
+      }
       if (!costAccess.higgsfield || !providerSettings.higgsfield.active) {
         return sendJson(res,403,{ok:false,error:'This model source is not assigned to your account.'});
       }
@@ -909,6 +937,19 @@ const server=http.createServer(async (req,res)=>{
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
 
+      if(isGatewayModel(requestedModel)){
+        if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
+        const model=await getProviderModelByPublicId('vercel',requestedModel,'image');
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This image model is currently unavailable.'});
+        validateReferences(model,body);
+        const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
+        generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+          provider:'vercel',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
+          generationOptions:{...quote,model},
+        });
+      }
+
       if (smartImageModel(requestedModel)) {
         if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
           return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
@@ -1013,7 +1054,19 @@ const server=http.createServer(async (req,res)=>{
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
 
-      if (customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+      if(isGatewayModel(requestedModel)){
+        if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
+        const model=await getProviderModelByPublicId('vercel',requestedModel,'video');
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
+        validateReferences(model,body);
+        const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
+        generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vercel',dynamicModel:true,
+          defaultResolution:model.defaultResolution,referenceCapabilities:model.referenceCapabilities,
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',generationOptions:{...quote,model},
+        });
+      }
+
+      if (!generation && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
         if (dynamicModel) {
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
@@ -1111,6 +1164,10 @@ const server=http.createServer(async (req,res)=>{
       const row=await getUserGeneration(user.id,mediaMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Generation not found.'});
       const type=url.searchParams.get('type')==='poster'?'poster':'video';
+      if(type==='video'&&row.output_url==='db:video'){
+        try{return await serveVideoOutput(getPool(),req,res,row.id);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
       return proxyMedia(req,res,row,type);
     }
 
@@ -1172,6 +1229,24 @@ const server=http.createServer(async (req,res)=>{
         if(!settings.promptEnhancerApiKey)return sendJson(res,400,{ok:false,error:'Prompt enhancer API key is not configured.'});
         const result=await new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).check();
         return sendJson(res,200,{ok:true,...result});
+      }
+
+      if(req.method==='POST'&&routePath==='/admin/vercel/check'){
+        requireDatabase();const s=await getProviderSettings();
+        const credits=await new VercelGatewayClient({apiKey:s.vercelApiKey}).credits();
+        return sendJson(res,200,{ok:true,balance:credits.balance,totalUsed:credits.totalUsed});
+      }
+      if(req.method==='POST'&&routePath==='/admin/vercel/sync'){
+        requireDatabase();const s=await getProviderSettings();
+        const live=await new VercelGatewayClient({apiKey:s.vercelApiKey}).catalog();
+        const models=await syncProviderModels('vercel',mediaModels(live));
+        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
+      const gatewayPriceMatch=routePath.match(/^\/admin\/vercel\/models\/(\d+)\/price$/);
+      if(req.method==='POST'&&gatewayPriceMatch){
+        requireDatabase();const body=await readJson(req);
+        const model=await setGatewayPrice(Number(gatewayPriceMatch[1]),body.price);
+        return sendJson(res,200,{ok:true,model});
       }
 
       if (req.method==='POST' && routePath==='/admin/smartaipi/check') {
@@ -1239,7 +1314,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'higgsfield');
-        if (provider!=='higgsfield') return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['higgsfield','vercel'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1248,7 +1323,9 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='POST' && providerModelMatch) {
         requireDatabase();
         const body=await readJson(req);
-        const model=await setProviderModelEnabled('higgsfield',Number(providerModelMatch[1]),body.enabled===true);
+        const provider=String(body.provider||'higgsfield');
+        if(!['higgsfield','vercel'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
 
@@ -1298,6 +1375,7 @@ const server=http.createServer(async (req,res)=>{
             higgsfield:providerSettings.higgsfield.configured,
             vibi:providerSettings.vibi.configured,
             smartaipi:providerSettings.smartaipi.configured,
+            vercel:providerSettings.vercel.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1307,6 +1385,7 @@ const server=http.createServer(async (req,res)=>{
             higgsfield:providerSettings.higgsfield.enabled,
             vibi:providerSettings.vibi.enabled,
             smartaipi:providerSettings.smartaipi.enabled,
+            vercel:providerSettings.vercel.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1316,6 +1395,7 @@ const server=http.createServer(async (req,res)=>{
             higgsfield:providerSettings.higgsfield.active,
             vibi:providerSettings.vibi.active,
             smartaipi:providerSettings.smartaipi.active,
+            vercel:providerSettings.vercel.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
@@ -1324,6 +1404,7 @@ const server=http.createServer(async (req,res)=>{
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           vibiMaxInflight:providerSettings.vibi.maxInflight,
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
+          vercelMaxInflight:providerSettings.vercel.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
@@ -1592,6 +1673,7 @@ function bootstrap() {
       console.log('MySQL schema ready.');
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
+      await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       startWorkerChild();
     })
     .catch((error) => {

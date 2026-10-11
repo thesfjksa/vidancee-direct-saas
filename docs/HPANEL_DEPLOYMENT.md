@@ -29,7 +29,7 @@ The web app and worker use the same database and Admin-managed provider settings
 
 The main app writes queued generations into MySQL. The worker app picks up those jobs, submits them to the configured providers, polls provider status, and writes completion/failure state back into MySQL.
 
-The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 4 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
+The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 5 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
 
 ---
 
@@ -135,7 +135,7 @@ Worker health endpoint:
 https://worker.mehroz.online/health
 ```
 
-Worker health includes `revision: 4`, `workerEnabled`, general `polling` timestamps and independent `imagePolling` diagnostics. For configured image processing, check:
+Worker health includes `revision: 5`, `workerEnabled`, general `polling` timestamps and independent `imagePolling` diagnostics. For configured image processing, check:
 
 - `imagePolling.enabled` and `imagePolling.sourceReady`
 - recent `lastStartedAt`, `lastFinishedAt` and `lastSuccessfulAt`
@@ -321,3 +321,9 @@ Worker polling timers keep the Node event loop alive until shutdown. They are cl
 Public checks on 2026-10-11 returned HTTP 200 for the customer page, public config, web health and worker health. The web database was connected. Worker revision 4 reported recent general/image polling and image source readiness. This is an availability check, not a paid provider-generation test. Web health `workerEnabled=false` and `workerOnline=false` are expected in the separated production architecture.
 
 Web health `services.queueRevision=1` identifies the non-blocking wake implementation, and `services.imageCanvasRevision=1` identifies the selected-canvas request and output-validation update. Public config `promptEnhancer.revision=5` identifies enhancement status recovery. On the current UI the stylesheet version is `cmm-7`.
+
+## Vercel AI Gateway deployment
+
+Keep both applications on CommonJS and Node 20 or later. No new SDK dependency or Node runtime change is required. Startup adds `generations.provider_operation`, `generations.generation_options`, `provider_models.price_override` and the chunked video-output tables. Both processes seed the initial public media catalog when no Vercel entries exist; a catalog-seeding error does not stop existing provider queues. Configure the encrypted API key in Admin after deployment. Alternatively `AI_GATEWAY_API_KEY` is imported once when no saved key exists.
+
+Verify web `services.mediaGatewayRevision=1`, worker `revision=5` and the `gatewayPolling` timestamps. `gatewayPolling.sourceReady=false` is expected until an API key is saved, the source is enabled and generation submissions are enabled. Catalog presence and HTTP health do not prove paid generation or account quota.

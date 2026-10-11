@@ -4,7 +4,13 @@ const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, 
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
+const { DEFAULT_VERCEL_CREDITS_PER_USD } = require('./vercel_models.js');
+
 const DEFAULTS = {
+  vercel_api_key: '',
+  vercel_enabled: 'true',
+  vercel_max_inflight: '2',
+  vercel_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
   prompt_enhancer_enabled: 'true',
   prompt_enhancer_gemini_api_key: '',
   vidancee_base_url: 'https://vidancee.com',
@@ -141,6 +147,10 @@ async function getProviderSettings() {
   };
   const routing = String(read('provider_routing') || 'overflow');
   return {
+    vercelApiKey: String(read('vercel_api_key') || '').trim(),
+    vercelEnabled: asBool(read('vercel_enabled')),
+    vercelMaxInflight: Math.max(1, Math.min(10, Number(read('vercel_max_inflight') || 2))),
+    vercelCustomerCreditsPerUsd: Number(read('vercel_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
     promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
     promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
     vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
@@ -185,6 +195,12 @@ async function getProviderSettings() {
 async function getAdminProviderSettings() {
   const s = await getProviderSettings();
   return {
+    vercel: {
+      baseUrl: 'https://ai-gateway.vercel.sh/v1',
+      apiKeyConfigured: Boolean(s.vercelApiKey), configured: Boolean(s.vercelApiKey),
+      enabled: s.vercelEnabled, active: Boolean(s.vercelEnabled && s.vercelApiKey),
+      maxInflight: s.vercelMaxInflight, customerCreditsPerUsd: s.vercelCustomerCreditsPerUsd,
+    },
     promptEnhancer: {
       model: GEMINI_ENHANCER_MODEL, enabled: s.promptEnhancerEnabled,
       apiKeyConfigured: Boolean(s.promptEnhancerApiKey),
@@ -255,6 +271,24 @@ async function getAdminProviderSettings() {
 }
 
 async function updateProviderSettings(input = {}) {
+  // Validate every new source field before writing any settings.
+  const vercelUpdates=[];
+  if ('vercelEnabled' in input) {
+    if (typeof input.vercelEnabled !== 'boolean') throw Object.assign(new Error('AI Gateway enabled must be true or false.'), {statusCode:400});
+    vercelUpdates.push(['vercel_enabled',input.vercelEnabled?'true':'false']);
+  }
+  if ('vercelApiKey' in input && (typeof input.vercelApiKey !== 'string' || input.vercelApiKey.length>512))
+    throw Object.assign(new Error('Invalid AI Gateway API key.'), {statusCode:400});
+  if ('vercelMaxInflight' in input) {
+    const n=Number(input.vercelMaxInflight);
+    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('AI Gateway max inflight must be 1 to 10.'), {statusCode:400});
+    vercelUpdates.push(['vercel_max_inflight',String(n)]);
+  }
+  if ('vercelCustomerCreditsPerUsd' in input) {
+    const n=Number(input.vercelCustomerCreditsPerUsd);
+    if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('AI Gateway credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
+    vercelUpdates.push(['vercel_customer_credits_per_usd',String(n)]);
+  }
   if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
     throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
   }
@@ -346,6 +380,10 @@ async function updateProviderSettings(input = {}) {
   if (input.clearSmartAipiApiKey === true) await del('smartaipi_api_key');
   else if (String(input.smartAipiApiKey || '').trim()) await put('smartaipi_api_key', String(input.smartAipiApiKey).trim(), true);
 
+  for (const [key,value] of vercelUpdates) await put(key,value);
+  if (input.clearVercelApiKey===true) await del('vercel_api_key');
+  else if (String(input.vercelApiKey||'').trim()) await put('vercel_api_key',input.vercelApiKey.trim(),true);
+
   if ('routing' in input) {
     const routing = String(input.routing || '');
     if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
@@ -366,6 +404,9 @@ async function migrateLegacyProviderEnvSettings() {
     const value = String(process.env[env] || '');
     if (!rows.has(key) && value) tasks.push(put(key, value, true));
   };
+  secret('vercel_api_key', 'AI_GATEWAY_API_KEY');
+  plain('vercel_enabled', 'AI_GATEWAY_ENABLED');
+  plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
   plain('vidancee_base_url', 'VIDANCEE_BASE_URL');
   plain('vidancee_email', 'VIDANCEE_EMAIL');
   secret('vidancee_password', 'VIDANCEE_PASSWORD');

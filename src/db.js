@@ -77,6 +77,8 @@ async function initDb() {
       provider VARCHAR(40) NOT NULL DEFAULT 'vidancee',
       media_type VARCHAR(20) NOT NULL DEFAULT 'video',
       provider_job_id VARCHAR(191) NULL,
+      provider_operation LONGTEXT NULL,
+      generation_options LONGTEXT NULL,
       queue_priority INT NOT NULL DEFAULT 0,
       mode VARCHAR(40) NOT NULL DEFAULT 'text-to-video',
       model VARCHAR(80) NOT NULL,
@@ -112,6 +114,22 @@ async function initDb() {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (generation_id),
       CONSTRAINT fk_image_outputs_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS generation_video_outputs (
+      generation_id CHAR(36) NOT NULL,
+      mime_type VARCHAR(100) NOT NULL DEFAULT 'video/mp4',
+      byte_length BIGINT UNSIGNED NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (generation_id),
+      CONSTRAINT fk_video_outputs_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS generation_video_chunks (
+      generation_id CHAR(36) NOT NULL,
+      chunk_index INT UNSIGNED NOT NULL,
+      video_data MEDIUMBLOB NOT NULL,
+      PRIMARY KEY (generation_id, chunk_index),
+      CONSTRAINT fk_video_chunks_output FOREIGN KEY (generation_id) REFERENCES generation_video_outputs(generation_id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
     `CREATE TABLE IF NOT EXISTS generation_images (
@@ -242,9 +260,18 @@ async function initDb() {
   async function ensureGenerationColumn(name, definition) {
     const [columns] = await db.query("SHOW COLUMNS FROM generations LIKE ?", [name]);
     if (!columns.length) {
-      await db.query("ALTER TABLE generations ADD COLUMN " + definition);
+      try { await db.query("ALTER TABLE generations ADD COLUMN " + definition); }
+      catch (error) { if (error.code !== 'ER_DUP_FIELDNAME') throw error; }
     }
     return columns[0] || null;
+  }
+
+  await ensureGenerationColumn('provider_operation', 'provider_operation LONGTEXT NULL AFTER provider_job_id');
+  await ensureGenerationColumn('generation_options', 'generation_options LONGTEXT NULL AFTER provider_operation');
+  const [priceColumns] = await db.query("SHOW COLUMNS FROM provider_models LIKE 'price_override'");
+  if (!priceColumns.length) {
+    try { await db.query('ALTER TABLE provider_models ADD COLUMN price_override LONGTEXT NULL'); }
+    catch (error) { if (error.code !== 'ER_DUP_FIELDNAME') throw error; }
   }
 
   const [voiceCloneCreditsColumn] = await db.query("SHOW COLUMNS FROM user_voice_clones LIKE 'credits_cost'");

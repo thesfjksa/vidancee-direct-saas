@@ -1,3 +1,4 @@
+const { VercelQueue } = require('./vercel_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
@@ -26,6 +27,7 @@ function truthy(value, fallback = false) {
 
 class GenerationWorker {
   constructor() {
+    this.vercelQueue = new VercelQueue();
     this.running = false;
     this.timer = null;
     this.stopped = false;
@@ -80,6 +82,7 @@ class GenerationWorker {
     if (!this.enabled()) return;
     if (!dbConfigured()) return;
     this.stopped = false;
+    this.vercelQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
     this.schedule(1200);
@@ -89,6 +92,7 @@ class GenerationWorker {
     this.stopped = true;
     clearTimeout(this.timer);
     clearTimeout(this.smartImageTimer);
+    this.vercelQueue.stop();
   }
 
   schedule(delay = this.interval) {
@@ -1001,7 +1005,7 @@ class GenerationWorker {
     }
 
     if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) return;
-    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND provider<>'higgsfield' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
+    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND provider<>'higgsfield' AND provider<>'vercel' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
 
     const queuedUserIds=[...new Set(queued.map(job=>Number(job.user_id)).filter(Boolean))];
     const accessByUser=new Map();

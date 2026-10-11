@@ -24,6 +24,7 @@ function serializeGeneration(row) {
     refunded_at: row.refunded_at,
     has_video: Boolean(row.output_url),
     has_poster: Boolean(row.poster_url),
+    generation_options: (()=>{try{const o=JSON.parse(row.generation_options||'{}');return {generationMode:o.generationMode||null,generateAudio:o.generateAudio===true};}catch{return {};}})(),
     video_url: row.output_url ? '/api/generations/' + row.id + '/media?type=video' : null,
     poster_url: row.poster_url ? '/api/generations/' + row.id + '/media?type=poster' : null,
   };
@@ -421,11 +422,12 @@ async function createGenerationForUser(userId, input, options = {}) {
 
     await conn.execute(
       `INSERT INTO generations
-       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit, generation_options)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
       [
         id, userId, provider, planProfile.queuePriority, mode, model, duration,
         resolution, aspectRatio, prompt, cost, providerCostValue, providerCostUnit,
+        options.generationOptions?JSON.stringify(options.generationOptions):null,
       ],
     );
 

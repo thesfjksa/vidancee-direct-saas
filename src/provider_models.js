@@ -1,4 +1,5 @@
 const { getPool } = require('./db.js');
+const { modelReady, normalizePriceOverride, mediaModels } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
   if (!value) return fallback;
@@ -155,6 +156,15 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       : {},
     catalogVerified: options.catalogVerified === true,
     lastSeenAt: row.last_seen_at,
+    ...(row.provider==='vercel'?{
+      adapterSupported:options.adapterSupported===true, setupReason:options.setupReason||'',
+      gatewayType:options.gatewayType,pricing:options.pricing||{},priceOverride:safeJson(row.price_override,null),
+      inputLimits:options.inputLimits||{},supportedOperations:options.supportedOperations||[],
+      eligibility:options.eligibility||null,fps:options.fps||24,
+      qualities:options.qualities||[],defaultQuality:options.defaultQuality,
+      imageSizes:options.imageSizes||[],defaultImageSize:options.defaultImageSize,
+      supportsAudio:options.supportsAudio===true,
+    }:{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -162,6 +172,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.toolName = row.tool_name;
     base.inputSchema = safeJson(row.input_schema, {});
   }
+  if(row.provider==='vercel'){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
   return base;
 }
 
@@ -275,6 +286,8 @@ function normalizedReferenceCapabilities(model) {
       min,
       roles: [...new Set(kindRoles)],
       requiredRoles: [...new Set(requiredRoles)],
+      ...(source.maxBytes?{maxBytes:source.maxBytes}:{}),
+      ...(source.formats?{formats:source.formats}:{}),
     };
   };
 
@@ -316,6 +329,7 @@ function publicVideoModel(model) {
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
     capabilities: normalizedReferenceCapabilities(model),
+    ...(model.provider==='vercel'?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }
 
@@ -328,19 +342,43 @@ function publicImageModel(model) {
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
     capabilities: normalizedReferenceCapabilities(model),
+    ...(model.provider==='vercel'?{qualities:model.qualities,defaultQuality:model.defaultQuality,imageSizes:model.imageSizes,defaultImageSize:model.defaultImageSize}:{}),
   };
 }
 
 async function publicProviderCatalog(provider) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
-    .filter(isPlausibleCustomerModel);
+    .filter(isPlausibleCustomerModel).filter(model=>provider!=='vercel'||model.ready);
   return {
     video: models.filter(model => model.mediaType === 'video').map(publicVideoModel),
     image: models.filter(model => model.mediaType === 'image').map(publicImageModel),
   };
 }
 
+async function setGatewayPrice(id,value) {
+  const db=getPool();
+  const [rows]=await db.execute("SELECT * FROM provider_models WHERE id=? AND provider='vercel' LIMIT 1",[Number(id)]);
+  if(!rows[0])throw Object.assign(new Error('Provider model not found.'),{statusCode:404});
+  const price=normalizePriceOverride(value,rows[0].media_type);
+  await db.execute("UPDATE provider_models SET price_override=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='vercel'",[price?JSON.stringify(price):null,Number(id)]);
+  const [updated]=await db.execute("SELECT * FROM provider_models WHERE id=? AND provider='vercel' LIMIT 1",[Number(id)]);
+  return serializeProviderModel(updated[0]);
+}
+
+async function ensureGatewayCatalog() {
+  const db=getPool();
+  const conn=await db.getConnection();let locked=false;
+  try {
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_vercel_catalog_seed',10) AS acquired");
+    locked=Number(lock?.acquired)===1;if(!locked)return;
+    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='vercel'");
+    if(!Number(count.total))await syncProviderModels('vercel',mediaModels(require('./provider/vercel_catalog.json')));
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_vercel_catalog_seed')");conn.release();}
+}
+
 module.exports = {
+  setGatewayPrice,
+  ensureGatewayCatalog,
   safeJson,
   humanizeModelId,
   canonicalPublicModelId,

@@ -3,6 +3,7 @@
 const http = require('node:http');
 const { dbConfigured, initDb } = require('./src/db.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
+const { ensureGatewayCatalog } = require('./src/provider_models.js');
 const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
 
 let worker=null;
@@ -46,6 +47,7 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
   if(!dbConfigured()) throw new Error('Worker cannot start because MySQL is not configured.');
   await initDb();
   await migrateLegacyProviderEnvSettings();
+  await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();
   worker.start();
 
@@ -56,7 +58,8 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
         service:'mehroz-ai-worker',
         pid:process.pid,
         uptimeSeconds:Math.round(process.uptime()),
-        revision:4,
+        revision:5,
+        gatewayPolling:worker.vercelQueue.health(),
         workerEnabled:worker.enabled(),
         polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
         imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,

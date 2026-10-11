@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-11 — Vercel AI Gateway image and video integration
+
+- Added encrypted Admin API credentials, source and account switches, concurrency and USD credit conversion.
+- Seeded 83 official media models, including Gemini multimodal image models, with live catalog/eligibility sync that preserves visibility and Admin prices.
+- Added model-specific image quality/resolution, video audio/mode settings, capability validation and separate quotes.
+- Added independent image/video queue processing, stable video start idempotency keys and saved operations for restart recovery.
+- Added durable MP4 chunks, authenticated Range playback, image output shape checks and idempotent failure refunds.
+- Added transport, pricing, ownership and queue tests. Paid end-to-end generation requires a configured gateway key and funding.
+
+
 ## 2026-10-04 — Milestone 1 initialized
 
 - Created fresh GitHub project for direct Vidancee integration.

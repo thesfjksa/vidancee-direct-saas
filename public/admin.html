@@ -137,6 +137,19 @@
           <div class="muted" style="margin-top:12px">Max inflight H3 jobs</div><input id="vgenvInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
+          <div class="source-head"><h3>Images + video · Vercel AI Gateway</h3><label class="source-switch"><input id="vercelEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="vercelEnabledText" class="source-state"></div>
+          <div class="muted">Endpoint · https://ai-gateway.vercel.sh/v1</div>
+          <label class="muted" for="vercelApiKey">AI Gateway API key</label><input id="vercelApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearVercelApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="vercelSecretStatus" class="muted" style="margin-top:8px"></div>
+          <label class="muted" for="vercelInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="vercelInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
+          <label class="muted" for="vercelCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="vercelCreditsPerUsd" type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin:10px 0">Uses its own USD conversion and model pricing. Save settings before checking the key.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkVercel()">Check saved key</button><button class="secondary" onclick="syncVercelModels()">Sync live models</button></div>
+          <div id="vercelActionMsg" class="muted" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
           <div class="source-head">
             <h3>Higgsfield MCP</h3>
             <label class="source-switch" title="Enable or disable this backend source">
@@ -184,6 +197,14 @@
     </div>
 
     <div class="card" style="margin-top:12px">
+      <div class="top"><div><h2 style="margin:0">Vercel image and video catalog</h2><div id="vercelModelSummary" class="muted">Loading models...</div></div><button class="secondary" onclick="loadVercelModels()">Refresh models</button></div>
+      <div class="muted" style="margin-top:10px">Only ready, visible models appear for customers when the source is enabled and assigned. Missing catalog prices need an Admin USD estimate. Image overrides use a 1024px square rate for each quality; video overrides use USD per second.</div>
+      <div class="row" style="margin-top:12px"><input id="vercelModelSearch" type="search" placeholder="Search models" oninput="renderVercelModels()" aria-label="Search Vercel models"><select id="vercelModelType" onchange="renderVercelModels()" aria-label="Filter model type"><option value="">All models</option><option value="image">Image</option><option value="video">Video</option></select></div>
+      <div class="tablewrap"><table><thead><tr><th>Model</th><th>Type and settings</th><th>Generation readiness</th><th>USD price override</th><th>Customer visibility</th></tr></thead><tbody id="vercelModelRows"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table></div>
+      <div id="vercelCatalogMsg" class="muted" role="status"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
       <div class="top">
         <div>
           <h2 style="margin:0">Higgsfield model catalog</h2>
@@ -213,6 +234,7 @@
     </div>
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
+      <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image and video model catalog</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Higgsfield MCP models and your connected subscription</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Primary Seedance generation source</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Overflow Seedance generation source</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -256,7 +278,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['vercel','Vercel'],['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -269,6 +291,7 @@ function openProviderAccess(id){
   providerAccessUserId=Number(id);
   const a=user.provider_access||{};
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
+  $('accessVercel').checked=a.vercel!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessCreatepulse').checked=a.createpulse!==false;
@@ -284,6 +307,7 @@ async function saveProviderAccess(){
   if(!providerAccessUserId)return;
   const m=$('providerAccessMsg');m.className='muted';m.textContent='Saving access...';
   const providers={
+    vercel:$('accessVercel').checked,
     higgsfield:$('accessHiggsfield').checked,
     vidancee:$('accessVidancee').checked,
     createpulse:$('accessCreatepulse').checked,
@@ -346,6 +370,7 @@ function updateSourceSwitchLabels(){
     ['smartEnabled','smartEnabledText'],
     ['vgenvEnabled','vgenvEnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
+    ['vercelEnabled','vercelEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
   for(const [inputId,textId] of items){
@@ -367,6 +392,12 @@ async function loadProviderSettings(){try{
   $('atlasEnabled').checked=s.atlascloud?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
   $('higgsfieldEnabled').checked=s.higgsfield?.enabled!==false;
+  $('vercelEnabled').checked=s.vercel?.enabled!==false;
+  $('vercelApiKey').value='';$('clearVercelApiKey').checked=false;
+  $('vercelSecretStatus').textContent=s.vercel?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('vercelInflight').value=s.vercel?.maxInflight||2;
+  $('vercelCreditsPerUsd').value=s.vercel?.customerCreditsPerUsd||(160/0.0265);
+  loadVercelModels();
   $('vibiEnabled').checked=s.vibi?.enabled!==false;
   updateSourceSwitchLabels();
   $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
@@ -394,11 +425,54 @@ async function saveProviderSettings(){
     createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),
     atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
+    vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     higgsfieldMcpUrl:$('higgsfieldMcpUrl').value.trim(),higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
   try{await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';await loadProviderSettings();await loadProviderConfig()}catch(e){m.className='err';m.textContent=e.message}
+}
+
+let vercelModels=[];
+async function checkVercel(){
+  const msg=$('vercelActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  try{const d=await api('/admin/vercel/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · $'+String(d.balance??'—')+' available · $'+String(d.totalUsed??'—')+' used';}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function syncVercelModels(){
+  const msg=$('vercelActionMsg');msg.className='muted';msg.textContent='Syncing live model catalog...';
+  try{const d=await api('/admin/vercel/sync',{method:'POST',body:'{}'});vercelModels=d.models||[];renderVercelModels();msg.className='ok';msg.textContent=d.total+' models synced · '+d.ready+' ready with configured pricing';}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function loadVercelModels(){
+  try{const d=await api('/admin/provider-models?provider=vercel');vercelModels=d.models||[];renderVercelModels();}
+  catch(e){$('vercelModelSummary').textContent=e.message;}
+}
+function renderVercelModels(){
+  const q=$('vercelModelSearch').value.trim().toLowerCase(),type=$('vercelModelType').value;
+  const models=vercelModels.filter(m=>(!type||m.mediaType===type)&&(!q||(m.label+' '+m.providerModelId).toLowerCase().includes(q)));
+  $('vercelModelSummary').textContent=vercelModels.length+' synced models · '+vercelModels.filter(m=>m.mediaType==='video').length+' video · '+vercelModels.filter(m=>m.mediaType==='image').length+' image · '+vercelModels.filter(m=>m.ready&&m.enabled&&m.available).length+' ready and visible';
+  $('vercelModelRows').innerHTML=models.length?models.map(m=>{
+    const spec=[(m.aspectRatios||[]).join(', '),(m.mediaType==='video'?(m.resolutions||[]):(m.imageSizes||[])).join(', '),m.durations?.length?m.durations[0]+'–'+m.durations[m.durations.length-1]+' sec':''].filter(Boolean).join(' · ');
+    const placeholder=m.mediaType==='video'?'USD per second':'{"low":0.01,"medium":0.04,"high":0.16}';
+    const value=m.mediaType==='video'?(m.priceOverride?.perSecond??''):(m.priceOverride?JSON.stringify(m.priceOverride):'');
+    return '<tr><td><strong>'+esc(m.label)+'</strong><div class="muted">'+esc(m.providerModelId)+'</div></td><td>'+esc(m.mediaType)+'<div class="muted" style="max-width:260px">'+esc(spec)+'</div></td>'+
+      '<td class="'+(m.ready?'ok':'muted')+'">'+(m.available?(m.ready?'Ready':esc(m.setupReason)):'Not in latest sync')+'<details><summary class="muted">Catalog pricing</summary><pre style="max-width:260px;max-height:200px;overflow:auto">'+esc(JSON.stringify(m.pricing,null,2))+'</pre></details></td>'+
+      '<td style="min-width:230px"><input id="vercelPrice'+m.id+'" aria-label="USD override for '+esc(m.label)+'" style="width:100%;font-size:12px" placeholder="'+esc(placeholder)+'" value="'+esc(String(value))+'" '+(!m.adapterSupported?'disabled':'')+'><button class="secondary" style="margin-top:6px" onclick="saveVercelPrice('+m.id+')" '+(!m.adapterSupported?'disabled':'')+'>Save price</button><div class="muted">Blank restores catalog pricing</div></td>'+
+      '<td><button class="'+(m.enabled?'danger':'secondary')+'" onclick="toggleVercelModel('+m.id+','+(!m.enabled)+')">'+(m.enabled?'Hide':'Show')+'</button><div class="muted">'+(m.enabled&&m.ready&&m.available?'Visible when source is enabled':'Hidden from customers')+'</div></td></tr>';
+  }).join(''):'<tr><td colspan="5" class="muted">No models match this filter.</td></tr>';
+}
+async function saveVercelPrice(id){
+  const msg=$('vercelCatalogMsg'),model=vercelModels.find(m=>m.id===id),value=$('vercelPrice'+id).value.trim();
+  try{
+    const price=!value?null:model.mediaType==='video'?{perSecond:Number(value)}:JSON.parse(value);
+    await api('/admin/vercel/models/'+id+'/price',{method:'POST',body:JSON.stringify({price})});
+    await loadVercelModels();msg.className='ok';msg.textContent='Model pricing saved.';
+  }catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function toggleVercelModel(id,enabled){
+  try{await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({provider:'vercel',enabled})});await loadVercelModels();}
+  catch(e){$('vercelCatalogMsg').className='err';$('vercelCatalogMsg').textContent=e.message;}
 }
 
 async function checkPromptEnhancer(){
