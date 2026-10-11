@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Recraft image sizes
+
+- Recraft accepts only fixed sizes per aspect ratio, and the generic size calculation was valid only for 1:1. Every non-square Recraft request (for example Recraft V4 at 3:4 as 768x1024) was rejected by the AI Gateway with HTTP 400. Requests now use Recraft's size tables: V2/V3 (3:4 = 1024x1365), V4/V4.1/Flash (3:4 = 896x1216) and V4/V4.1 Pro (double the V4 sizes, 3:4 = 1792x2432).
+- The returned-image aspect check allows 3% instead of 2.5%, because Recraft's 3:2 size (1280x832) differs from an exact 3:2 by 2.6%. Distinct shapes still differ by at least 6.7%.
+- Not verified against a live paid Recraft request from this environment.
+
 ## 2026-10-11 — Faster recovery of interrupted images and live status
 
 - The browser gives status reads a 20s limit, so one hung request (for example during a hosting timeout) no longer freezes gallery updates until a reload. Measured: a hung list request previously left a finished job showing "Processing" indefinitely; the page now updates within about 23s.

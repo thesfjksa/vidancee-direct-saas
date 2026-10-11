@@ -34,7 +34,8 @@ function validateCanvas(data,mime,ratio) {
     throw new Error('The generated image has invalid canvas dimensions.');
   // Providers use slightly different preset dimensions. Permit their rounding,
   // but never accept the opposite orientation or a different requested shape.
-  if((w<h&&width>=height)||(w>h&&width<=height)||Math.abs((width/height)/(w/h)-1)>0.025)
+  // Recraft 3:2 is 1280x832 (2.6% off); distinct shapes such as 4:3 vs 5:4 differ by 6.7%.
+  if((w<h&&width>=height)||(w>h&&width<=height)||Math.abs((width/height)/(w/h)-1)>0.03)
     throw new Error('The image service returned a different aspect ratio. Credits were refunded.');
   return result;
 }

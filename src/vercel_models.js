@@ -152,9 +152,27 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
   return {cost,sourceUsd,isEstimate,...chosen};
 }
 
+// Recraft accepts only fixed sizes per aspect ratio (Recraft API appendix);
+// any other WxH is rejected with HTTP 400. V4 Pro sizes are exactly double V4.
+const RECRAFT_V3_SIZES={'1:1':'1024x1024','2:1':'2048x1024','1:2':'1024x2048','3:2':'1536x1024','2:3':'1024x1536',
+  '4:3':'1365x1024','3:4':'1024x1365','5:4':'1280x1024','4:5':'1024x1280','16:9':'1820x1024','9:16':'1024x1820'};
+const RECRAFT_V4_SIZES={'1:1':'1024x1024','2:1':'1536x768','1:2':'768x1536','3:2':'1280x832','2:3':'832x1280',
+  '4:3':'1216x896','3:4':'896x1216','5:4':'1152x896','4:5':'896x1152','16:9':'1344x768','9:16':'768x1344'};
+function recraftSize(id,ratio) {
+  if (/recraft-v[23]\b/.test(id)) return RECRAFT_V3_SIZES[ratio];
+  const base=RECRAFT_V4_SIZES[ratio];
+  if (!base||!/-pro\b/.test(id)) return base;
+  return base.split('x').map(n=>Number(n)*2).join('x');
+}
+
 function imageDimensions(model,chosen) {
   if (chosen.imageSize&&/^\d+x\d+$/.test(chosen.imageSize)) return chosen.imageSize;
   if (model.providerModelId?.startsWith('openai/')) return SMART_IMAGE_SIZES[chosen.aspectRatio];
+  if (model.providerModelId?.startsWith('recraft/')) {
+    const size=recraftSize(model.providerModelId,chosen.aspectRatio);
+    if (!size) fail('This aspect ratio is not available for this Recraft model.');
+    return size;
+  }
   const [a,b]=chosen.aspectRatio.split(':').map(Number);
   let long=chosen.imageSize==='4K'?4096:chosen.imageSize==='2K'?2048:chosen.imageSize==='512'?512:1024;
   if(model.providerModelId?.startsWith('bytedance/'))long=Math.round(long*Math.sqrt(Math.max(a,b)/Math.min(a,b))/16)*16;

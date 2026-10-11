@@ -175,3 +175,24 @@ test('shutdown drain waits for in-flight requests up to its limit',async()=>{
   assert.equal(await queue.drain(200),1);
   assert.ok(Date.now()-started<1500);
 });
+
+test('Recraft requests use the fixed sizes Recraft accepts and their outputs pass the canvas check',()=>{
+  const {imageDimensions}=require('../src/vercel_models.js');
+  const size=(id,ratio)=>imageDimensions({providerModelId:id},{aspectRatio:ratio});
+  assert.equal(size('recraft/recraft-v4','3:4'),'896x1216');
+  assert.equal(size('recraft/recraft-v4.1','16:9'),'1344x768');
+  assert.equal(size('recraft/recraft-v4-pro','3:4'),'1792x2432');
+  assert.equal(size('recraft/recraft-v4.1-pro','1:1'),'2048x2048');
+  assert.equal(size('recraft/recraft-v2','3:4'),'1024x1365');
+  assert.equal(size('recraft/recraft-v3','16:9'),'1820x1024');
+  assert.throws(()=>size('recraft/recraft-v4','21:9'),/not available/);
+  // Every offered Recraft shape must survive the returned-image aspect check.
+  const {validateCanvas}=require('../src/image_canvas.js');
+  const png=(w,h)=>{const b=Buffer.alloc(33);Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]).copy(b);b.writeUInt32BE(13,8);b.write('IHDR',12);b.writeUInt32BE(w,16);b.writeUInt32BE(h,20);return b;};
+  for(const id of ['recraft/recraft-v2','recraft/recraft-v4','recraft/recraft-v4.1-pro'])
+    for(const ratio of ['1:1','16:9','9:16','4:3','3:4','3:2','2:3']){
+      const [w,h]=size(id,ratio).split('x').map(Number);
+      assert.doesNotThrow(()=>validateCanvas(png(w,h),'image/png',ratio),id+' '+ratio);
+    }
+  assert.throws(()=>validateCanvas(png(1280,1024),'image/png','4:3'),/different aspect ratio/);
+});
