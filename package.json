@@ -17,5 +17,8 @@
     "mysql2": "^3.11.5",
     "busboy": "^1.6.0",
     "@modelcontextprotocol/client": "^2.3.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.4"
   }
 }

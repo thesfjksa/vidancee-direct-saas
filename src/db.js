@@ -116,6 +116,18 @@ async function initDb() {
       CONSTRAINT fk_image_outputs_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS generation_image_thumbnails (
+      generation_id CHAR(36) NOT NULL,
+      width_limit SMALLINT UNSIGNED NOT NULL,
+      mime_type VARCHAR(100) NOT NULL,
+      width SMALLINT UNSIGNED NOT NULL,
+      height SMALLINT UNSIGNED NOT NULL,
+      image_data MEDIUMBLOB NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (generation_id, width_limit),
+      CONSTRAINT fk_image_thumbnails_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS generation_video_outputs (
       generation_id CHAR(36) NOT NULL,
       mime_type VARCHAR(100) NOT NULL DEFAULT 'video/mp4',

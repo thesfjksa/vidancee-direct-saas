@@ -105,6 +105,7 @@ const { verifyAssetSignature } = require('./src/provider/assets.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
+const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const {
   publicProviderCatalog,
   listProviderModels,
@@ -1051,12 +1052,21 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,deleted:true,id:imageGenMatch[1]});
     }
 
-    const imageMediaMatch=routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})\/media$/i);
+    const imageMediaMatch=routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})\/(media|thumbnail)$/i);
     if (req.method==='GET' && imageMediaMatch) {
       requireDatabase();
       const user=await requireUser(req);
       const row=await getUserImageGeneration(user.id,imageMediaMatch[1]);
       if (!row) return sendJson(res,404,{ok:false,error:'Image generation not found.'});
+      if (imageMediaMatch[2]==='thumbnail' && row.output_url) {
+        // Gallery cards use a small WebP preview; without one, fall through to the original.
+        const thumb=await getImageThumbnail(getPool(),row);
+        if (thumb) {
+          res.writeHead(200,{'content-type':thumb.mimeType,'content-length':thumb.data.length,
+            'cache-control':IMMUTABLE_MEDIA_CACHE,'x-content-type-options':'nosniff'});
+          return res.end(thumb.data);
+        }
+      }
       if (row.output_url==='db:image') {
         const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
         const output=outputs[0];

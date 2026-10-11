@@ -2078,34 +2078,49 @@ async function createImageGeneration(){
   }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
 }
 
+let imageReuseToken=0;
 async function reuseImageGeneration(id){
-  const fallback=imageGenerations.find(g=>String(g.id)===String(id));
+  const g=imageGenerations.find(item=>String(item.id)===String(id));
   const b=$('generateImageBtn'),m=$('imageGenMsg');
-  if(!fallback||b.disabled)return;
+  // Leave the form alone while a generation is being submitted.
+  if(!g||b.closest('.creator').querySelector('.creator-scroll').inert)return;
+  const token=++imageReuseToken;
+  // Settings come from the gallery data already in memory, so the form fills instantly.
   go('images');
-  const panel=b.closest('.creator').querySelector('.creator-scroll');
-  panel.inert=true;b.disabled=true;b.setAttribute('aria-busy','true');
-  m.className='msg muted';m.textContent='Restoring prompt and reference images...';
+  const notes=[];
+  clearImageReferenceItems();
+  $('imagePrompt').value=g.prompt||'';
+  enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
+  if([...$('imageModel').options].some(o=>o.value===g.model))$('imageModel').value=g.model;
+  else notes.push('The original model is unavailable; choose an available model.');
+  renderImageRatios();renderImageReferenceControls(false);
+  if([...$('imageRatio').options].some(o=>o.value===g.aspect_ratio))$('imageRatio').value=g.aspect_ratio;
+  else notes.push('The original aspect ratio is unavailable for this model.');
+  if(g.quality){
+    if([...$('imageQuality').options].some(o=>o.value===g.quality))$('imageQuality').value=g.quality;
+    else notes.push('The original quality is unavailable for this model.');
+  }
+  if(g.imageSize&&[...$('imageSize').options].some(o=>o.value===g.imageSize))$('imageSize').value=g.imageSize;
+  syncCustomSelect('imageModel');syncCustomSelect('imageRatio');syncCustomSelect('imageQuality');syncCustomSelect('imageSize');
+  renderImageReferencePreview();updateImageCost();
+  const promptBox=$('imagePrompt');
+  promptBox.focus({preventScroll:true});promptBox.scrollIntoView({behavior:'smooth',block:'center'});
+  m.className='msg muted';
+  const cap=normalizedClientCapabilities(currentImageModel(),'image').image;
+  if(g.mode!=='reference-to-image'||!cap.supported){
+    m.textContent='Prompt and settings reused.'+(notes.length?' '+notes.join(' '):'');
+    return;
+  }
+
+  // Only reference uploads need the network. The prompt stays editable meanwhile;
+  // Generate waits so a submission cannot go out without the references.
+  m.textContent='Prompt and settings reused. Restoring reference images…';
+  b.disabled=true;b.setAttribute('aria-busy','true');
   try{
     const d=await api('/api/image-generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
-    const g=d.generation||fallback,notes=[];
-    clearImageReferenceItems();
-    $('imagePrompt').value=g.prompt||'';
-    enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
-    if([...$('imageModel').options].some(o=>o.value===g.model))$('imageModel').value=g.model;
-    else notes.push('The original model is unavailable; choose an available model.');
-    renderImageRatios();renderImageReferenceControls(false);
-    if([...$('imageRatio').options].some(o=>o.value===g.aspect_ratio))$('imageRatio').value=g.aspect_ratio;
-    else notes.push('The original aspect ratio is unavailable for this model.');
-    if(g.quality){
-      if([...$('imageQuality').options].some(o=>o.value===g.quality))$('imageQuality').value=g.quality;
-      else notes.push('The original quality is unavailable for this model.');
-    }
-    if(g.imageSize&&[...$('imageSize').options].some(o=>o.value===g.imageSize))$('imageSize').value=g.imageSize;
-    syncCustomSelect('imageModel');syncCustomSelect('imageRatio');syncCustomSelect('imageQuality');syncCustomSelect('imageSize');
-    const cap=normalizedClientCapabilities(currentImageModel(),'image').image;
-    const references=Array.isArray(g.reference_images)?g.reference_images:[];
-    const selected=references.slice(0,cap.supported?(cap.max||6):0);
+    if(token!==imageReuseToken)return;
+    const references=Array.isArray(d.generation?.reference_images)?d.generation.reference_images:[];
+    const selected=references.slice(0,cap.max||6);
     const signal=AbortSignal.timeout(20000);
     const restored=await Promise.allSettled(selected.map(async image=>{
       const response=await fetch(image.url,{signal,credentials:'same-origin'});
@@ -2114,16 +2129,17 @@ async function reuseImageGeneration(id){
       if(!['image/jpeg','image/png','image/webp'].includes(blob.type)||!blob.size||(cap.maxBytes&&blob.size>cap.maxBytes))throw new Error('Reference image unsupported.');
       return new File([blob],image.filename||'reference-image',{type:blob.type});
     }));
+    if(token!==imageReuseToken)return;
     imageReferenceItems=restored.filter(result=>result.status==='fulfilled').map(result=>imageRefItem(result.value));
     renderImageReferencePreview();updateImageCost();
     if(references.length>imageReferenceItems.length)notes.push('Some reference images could not be restored; upload them again if needed.');
-    else if(g.mode==='reference-to-image'&&!references.length)notes.push('The original reference images are no longer stored; upload them again if needed.');
+    else if(!references.length)notes.push('The original reference images are no longer stored; upload them again if needed.');
     m.textContent='Prompt and settings reused.'+(imageReferenceItems.length?' '+imageReferenceItems.length+' reference image'+(imageReferenceItems.length===1?'':'s')+' restored.':'')+(notes.length?' '+notes.join(' '):'');
   }catch(e){
-    m.className='msg err';m.textContent=e.name==='TimeoutError'?'Restoring the image timed out. Click Reuse prompt to try again.':e.message;
+    if(token!==imageReuseToken)return;
+    m.className='msg err';m.textContent=e.name==='TimeoutError'?'Reference images took too long to restore. Upload them again or click Reuse prompt to retry.':e.message;
   }finally{
-    b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy');
-    $('imagePrompt').focus();$('imagePrompt').scrollIntoView({behavior:'smooth',block:'center'});
+    if(token===imageReuseToken){b.removeAttribute('aria-busy');b.disabled=false;}
   }
 }
 
@@ -2159,7 +2175,7 @@ function renderImageGallery(){
   if(!container)return;
   const list=filteredImageGenerations();
   // Polling returns the same list most of the time; rebuilding would re-decode every image.
-  const signature=JSON.stringify(list.map(g=>[g.id,g.status,g.has_image,g.image_url,g.credits_cost,g.model,g.aspect_ratio,g.quality,g.prompt,g.error_message]));
+  const signature=JSON.stringify(list.map(g=>[g.id,g.status,g.has_image,g.image_url,g.thumbnail_url,g.credits_cost,g.model,g.aspect_ratio,g.quality,g.prompt,g.error_message]));
   if(container.dataset.signature===signature&&container.childElementCount)return;
   container.dataset.signature=signature;
   container.innerHTML=list.length?list.map(imageGenerationCard).join(''):emptyStateHtml('Your generated images will appear here.');
@@ -2168,7 +2184,7 @@ function renderImageGallery(){
 function imageGenerationCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   const media=g.has_image
-    ?'<button type="button" class="job-media image-preview-trigger" style="aspect-ratio:'+aspect+'" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open generated image preview" onclick="openImagePreview(this.dataset.generationId)"><img src="'+escapeHtml(g.image_url)+'" alt="Generated image" loading="lazy"><span class="image-preview-hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></span></button>'
+    ?'<button type="button" class="job-media image-preview-trigger" style="aspect-ratio:'+aspect+'" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open generated image preview" onclick="openImagePreview(this.dataset.generationId)"><img src="'+escapeHtml(g.thumbnail_url||g.image_url)+'" alt="Generated image" loading="lazy" decoding="async"><span class="image-preview-hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></span></button>'
     :'<div class="job-media job-placeholder" style="aspect-ratio:'+aspect+'">'+
       (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
       '</div>';
@@ -2209,11 +2225,26 @@ function openImagePreview(id){
   $('generatedImagePromptDetails').open=window.innerWidth>760;
   $('generatedImageDimensions').textContent='Loading…';
   $('reuseImagePreviewBtn').disabled=$('generateImageBtn').disabled;
-  const image=$('generatedImageFull'),status=$('generatedImageStatus');
-  status.textContent='Loading image…';status.classList.remove('hide');
-  image.onload=()=>{status.classList.add('hide');$('generatedImageDimensions').textContent=image.naturalWidth+' × '+image.naturalHeight};
-  image.onerror=()=>{status.textContent='Image could not be loaded. Close and try again.';status.classList.remove('hide');$('generatedImageDimensions').textContent='Unavailable'};
-  image.src=generation.image_url;
+  const image=$('generatedImageFull'),status=$('generatedImageStatus'),previewId=imagePreviewGenerationId;
+  const showFull=()=>{
+    image.onload=()=>{status.classList.add('hide');$('generatedImageDimensions').textContent=image.naturalWidth+' × '+image.naturalHeight};
+    image.onerror=()=>{status.textContent='Image could not be loaded. Close and try again.';status.classList.remove('hide');$('generatedImageDimensions').textContent='Unavailable'};
+    image.src=generation.image_url;
+  };
+  if(generation.thumbnail_url){
+    // The gallery preview is already cached: show it instantly, then swap in the
+    // full-resolution original once it has downloaded in the background.
+    status.classList.add('hide');
+    image.onload=null;image.onerror=null;
+    image.src=generation.thumbnail_url;
+    const full=new Image();
+    full.onload=()=>{if(imagePreviewGenerationId===previewId)showFull()};
+    full.onerror=()=>{if(imagePreviewGenerationId===previewId)showFull()};
+    full.src=generation.image_url;
+  }else{
+    status.textContent='Loading image…';status.classList.remove('hide');
+    showFull();
+  }
   const dialog=$('generatedImageDialog');
   if(!dialog.open)dialog.showModal();
 }
@@ -2452,82 +2483,84 @@ function findGeneration(id){
   return generations.find(g=>String(g.id)===String(id))||null;
 }
 
+let videoReuseToken=0;
+function applyVideoReuseSettings(g){
+  $('prompt').value=g.prompt||'';
+  if([...$('model').options].some(o=>o.value===g.model)){
+    $('model').value=g.model;
+    renderDurations(true);
+    renderVideoReferenceControls(true);
+  }
+  if(g.resolution && !$('resolutionControl').classList.contains('hide')){
+    if([...$('resolution').options].some(o=>o.value===g.resolution)){
+      $('resolution').value=g.resolution;
+      syncCustomSelect('resolution');
+      renderDurations(false);
+    }
+  }
+  if(g.generation_options){
+    const mode=g.generation_options.generationMode;
+    if([...$('videoGenerationMode').options].some(o=>o.value===mode))$('videoGenerationMode').value=mode;
+    if(!$('videoAudioControl').classList.contains('hide'))$('videoGenerateAudio').checked=g.generation_options.generateAudio===true;
+    syncCustomSelect('videoGenerationMode');
+  }
+  if([...$('duration').options].some(o=>Number(o.value)===Number(g.duration))){
+    $('duration').value=String(g.duration);
+  }
+  if([...$('ratio').options].some(o=>o.value===g.aspect_ratio||o.textContent===g.aspect_ratio)){
+    $('ratio').value=g.aspect_ratio;
+    syncCustomSelect('ratio');
+  }
+  syncCustomSelect('model');
+  syncCustomSelect('resolution');
+  syncCustomSelect('duration');
+  updateCost();
+}
+
 async function reuseGeneration(id){
-  const fallback=findGeneration(id);
-  if(!fallback)return;
+  const g=findGeneration(id),b=$('generateBtn'),m=$('genMsg');
+  // Leave the form alone while a generation is being submitted.
+  if(!g||b.closest('.creator').querySelector('.creator-scroll').inert)return;
+  const token=++videoReuseToken;
+  // Settings come from the gallery data already in memory, so the form fills instantly.
+  go('create');
+  applyVideoReuseSettings(g);
+  clearReferenceItems();
+  clearVideoReferenceItems();
+  reusedReferenceGenerationId=null;
+  renderReferencePreview();
+  const promptBox=$('prompt');
+  promptBox.focus({preventScroll:true});
+  promptBox.scrollIntoView({behavior:'smooth',block:'center'});
+  m.className='msg muted';
+  const reuseCap=normalizedClientCapabilities(currentVideoModel(),'video').image;
+  if(g.mode==='text-to-video'||!reuseCap.supported){
+    m.textContent='Prompt and generation settings reused.';
+    return;
+  }
 
-  $('genMsg').className='msg muted';
-  $('genMsg').textContent='Restoring prompt and reference images...';
-
+  // Reference images are reused by pointer; only their list needs the network.
+  m.textContent='Prompt and settings reused. Restoring reference images…';
+  b.disabled=true;b.setAttribute('aria-busy','true');
   try{
-    const d=await api('/api/generations/'+encodeURIComponent(id));
-    const g=d.generation||fallback;
-
-    go('create');
-    $('prompt').value=g.prompt||'';
-
-    const modelExists=[...$('model').options].some(o=>o.value===g.model);
-    if(modelExists){
-      $('model').value=g.model;
-      renderDurations(true);
-      renderVideoReferenceControls(true);
-    }
-
-    if(g.resolution && !$('resolutionControl').classList.contains('hide')){
-      const resolutionExists=[...$('resolution').options].some(o=>o.value===g.resolution);
-      if(resolutionExists){
-        $('resolution').value=g.resolution;
-        syncCustomSelect('resolution');
-        renderDurations(false);
-      }
-    }
-
-    if(g.generation_options){
-      const mode=g.generation_options.generationMode;
-      if([...$('videoGenerationMode').options].some(o=>o.value===mode))$('videoGenerationMode').value=mode;
-      if(!$('videoAudioControl').classList.contains('hide'))$('videoGenerateAudio').checked=g.generation_options.generateAudio===true;
-      syncCustomSelect('videoGenerationMode');
-    }
-    const durationExists=[...$('duration').options].some(o=>Number(o.value)===Number(g.duration));
-    if(durationExists){
-      $('duration').value=String(g.duration);
-      updateCost();
-    }
-
-    const ratioExists=[...$('ratio').options].some(o=>o.value===g.aspect_ratio||o.textContent===g.aspect_ratio);
-    if(ratioExists){
-      $('ratio').value=g.aspect_ratio;
-      syncCustomSelect('ratio');
-    }
-
-    syncCustomSelect('model');
-    syncCustomSelect('resolution');
-    syncCustomSelect('duration');
-
-    clearReferenceItems();
-    clearVideoReferenceItems();
-    const reuseCap=normalizedClientCapabilities(currentVideoModel(),'video').image;
-    const reuseMax=reuseCap.supported?(reuseCap.max||6):0;
-    const restored=Array.isArray(g.reference_images)?g.reference_images.slice(0,reuseMax):[];
+    const d=await api('/api/generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
+    if(token!==videoReuseToken)return;
+    const restored=Array.isArray(d.generation?.reference_images)?d.generation.reference_images.slice(0,reuseCap.max||6):[];
     referenceItems=restored.map((image,index)=>reusedReferenceItem(image,defaultImageRole(reuseCap,index)));
     reusedReferenceGenerationId=referenceItems.length?String(g.id):null;
     renderReferencePreview();
-
-    $('genMsg').className='msg muted';
+    updateCost();
     if(referenceItems.length){
-      $('genMsg').textContent='Prompt, settings, and '+referenceItems.length+' reference image'+(referenceItems.length===1?'':'s')+' reused. Drag to reorder or remove any image.';
-    }else if(g.mode==='image-to-video'){
-      $('genMsg').textContent='Prompt and settings reused. The reference images for this older generation are no longer stored, so upload them again if needed.';
+      m.textContent='Prompt, settings, and '+referenceItems.length+' reference image'+(referenceItems.length===1?'':'s')+' reused. Drag to reorder or remove any image.';
     }else{
-      $('genMsg').textContent='Prompt and generation settings reused.';
+      m.textContent='Prompt and settings reused. The reference images for this older generation are no longer stored, so upload them again if needed.';
     }
-
-    const promptBox=$('prompt');
-    promptBox.focus();
-    promptBox.scrollIntoView({behavior:'smooth',block:'center'});
   }catch(e){
-    $('genMsg').className='msg err';
-    $('genMsg').textContent=e.message;
+    if(token!==videoReuseToken)return;
+    m.className='msg err';
+    m.textContent=e.name==='TimeoutError'?'Reference images took too long to restore. Upload them again or click Reuse prompt to retry.':e.message;
+  }finally{
+    if(token===videoReuseToken){b.removeAttribute('aria-busy');b.disabled=false;}
   }
 }
 

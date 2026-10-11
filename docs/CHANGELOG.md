@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-11 — Gallery previews and instant prompt reuse
+
+- Image galleries load small WebP previews (768px wide, about 140 KB instead of 2–5 MB) from `/api/image-generations/:id/thumbnail`. Previews are created on first view with the optional `sharp` dependency, stored in the new `generation_image_thumbnails` table (created automatically on startup) and cached by the browser. Database and provider-hosted images are both supported. Without `sharp`, the route serves the original image.
+- The image preview dialog shows the cached preview instantly and swaps in the full-resolution original once it downloads. Downloads always use the original.
+- Reuse prompt fills the prompt and settings immediately from data already on the page. Only reference images are fetched in the background; the prompt stays editable and Generate waits until references are restored. Text-only generations make no network request.
+- Optional tuning: `IMAGE_THUMB_WIDTH` (default 768), `IMAGE_THUMB_QUALITY` (default 76) and `IMAGE_THUMB_CONCURRENCY` (default 2).
+- Local measurement on a throttled 40 Mbit/s connection with 60 stored 4.4 MB images: visible Image Studio cards loaded in 1.4s on first visit and 0.6s afterwards, down from 10.9s, and the page downloaded 1.3–2 MB instead of 50 MB. Reuse filled the form in 13 ms, down from about 5s.
+
 ## 2026-10-11 — Stability and speed fixes
 
 - Fixed a web-process crash: a provider connection reset while proxying a provider-hosted video escaped as an unhandled stream error and terminated `server.js`. The proxy now uses `stream.pipeline`, aborts the provider download when the viewer disconnects, and times out providers that do not answer within `MEDIA_PROXY_HEADER_TIMEOUT_MS` (default 30s). Covered by `test/media_proxy.test.js`.

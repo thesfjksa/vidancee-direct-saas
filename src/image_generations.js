@@ -3,6 +3,7 @@ const { getPool } = require('./db.js');
 const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
 const { roundCredits } = require('./billing.js');
+const { THUMB_WIDTH } = require('./image_thumbnails.js');
 
 function serializeImageGeneration(row) {
   return {
@@ -24,6 +25,7 @@ function serializeImageGeneration(row) {
     refunded_at: row.refunded_at,
     has_image: Boolean(row.output_url),
     image_url: row.output_url ? '/api/image-generations/' + row.id + '/media' : null,
+    thumbnail_url: row.output_url ? '/api/image-generations/' + row.id + '/thumbnail?w=' + THUMB_WIDTH : null,
   };
 }
 
