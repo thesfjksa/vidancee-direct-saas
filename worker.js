@@ -38,8 +38,17 @@ function shutdown(signal){
   console.warn('[worker] shutdown',signal);
   try{worker?.stop?.()}catch{}
   try{healthServer?.close?.()}catch{}
-  setTimeout(()=>process.exit(0),150).unref();
+  // Give in-flight image requests a short window to finish and save. Anything
+  // still running is recovered (refunded) by the next worker via its heartbeat.
+  const smartTasks=[...(worker?.smartImageTasks||[])];
+  const smartDone=Promise.race([Promise.allSettled(smartTasks),new Promise(resolve=>setTimeout(resolve,SHUTDOWN_DRAIN_MS).unref())]);
+  Promise.all([Promise.resolve(worker?.vercelQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),smartDone]).then(([left])=>{
+    left=(left||0)+(worker?.smartImageTasks?.size||0);
+    if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
+    setTimeout(()=>process.exit(0),150).unref();
+  });
 }
+const SHUTDOWN_DRAIN_MS=Math.max(0,Number(process.env.WORKER_SHUTDOWN_DRAIN_MS||25000));
 process.on('SIGTERM',()=>shutdown('SIGTERM'));
 process.on('SIGINT',()=>shutdown('SIGINT'));
 

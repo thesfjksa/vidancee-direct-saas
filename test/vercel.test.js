@@ -147,3 +147,31 @@ test('a slow image request does not block queue polls; compare-and-swap claims p
   await queue.claim(db,2,client);await drain();assert.equal(started,1);
   queue.complete=async()=>{};finish({data:png(),mimeType:'image/png'});await drain();assert.equal(queue.tasks.size,0);
 });
+
+test('in-flight gateway requests send a heartbeat and only abandoned claims are recovered',async()=>{
+  const {VercelQueue}=require('../src/vercel_queue.js');
+  const queue=new VercelQueue({getSettings:async()=>({vercelApiKey:'',vercelEnabled:false,allowProviderCharges:false}),
+    refund:async id=>refunded.push(id)});
+  const refunded=[],sql=[];
+  queue.tasks.add('running-here');
+  const db={async query(text,args){sql.push([text,args]);
+    if(text.startsWith('UPDATE generations SET updated_at'))return [{affectedRows:1}];
+    if(text.includes("status='submitting'"))return [[{id:'running-here'},{id:'abandoned'}]];
+    throw new Error(text);}};
+  await queue.runOnce(db);
+  assert.match(sql[0][0],/^UPDATE generations SET updated_at/);
+  assert.deepEqual(sql[0][1],[['running-here']]);
+  assert.match(sql[1][0],/media_type='image' AND status='processing' AND updated_at<DATE_SUB\(UTC_TIMESTAMP\(\),INTERVAL 3 MINUTE\)/);
+  assert.deepEqual(refunded,['abandoned']);
+});
+
+test('shutdown drain waits for in-flight requests up to its limit',async()=>{
+  const {VercelQueue}=require('../src/vercel_queue.js');
+  const queue=new VercelQueue();
+  queue.tasks.add('a');setTimeout(()=>queue.tasks.delete('a'),300);
+  assert.equal(await queue.drain(5000),0);
+  queue.tasks.add('b');
+  const started=Date.now();
+  assert.equal(await queue.drain(200),1);
+  assert.ok(Date.now()-started<1500);
+});

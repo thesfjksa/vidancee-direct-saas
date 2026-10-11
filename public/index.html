@@ -413,6 +413,7 @@ let videoReferenceItems=[],videoReferenceSeq=0;
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
 let videoCostRequestSeq=0,imageCostRequestSeq=0;
 const $=id=>document.getElementById(id);
+const API_READ_TIMEOUT_MS=20000;
 
 document.querySelectorAll('label.ref-drop').forEach(label=>{
   label.tabIndex=0;
@@ -423,6 +424,9 @@ document.querySelectorAll('label.ref-drop').forEach(label=>{
 });
 
 async function api(path,options={}){
+  // Reads without their own signal get a time limit: a request that hangs (for
+  // example during a hosting timeout) must not block later status refreshes.
+  if(!options.signal&&(!options.method||options.method==='GET'))options={...options,signal:AbortSignal.timeout(API_READ_TIMEOUT_MS)};
   const headers=Object.assign({},options.headers||{});
   if(options.body && !(options.body instanceof FormData) && !headers['content-type'])headers['content-type']='application/json';
   const r=await fetch(path,Object.assign({credentials:'same-origin'},options,{headers}));

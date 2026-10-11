@@ -24,6 +24,13 @@ class VercelQueue {
   }
   start(){this.stopped=false;this.schedule(700);}
   stop(){this.stopped=true;clearTimeout(this.timer);}
+  // Lets in-flight image requests finish before the process exits (for example
+  // during a redeploy), so a nearly finished image is saved instead of lost.
+  async drain(timeoutMs=25000){
+    const deadline=Date.now()+timeoutMs;
+    while(this.tasks.size&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,250));
+    return this.tasks.size;
+  }
   schedule(delay=5000){if(!this.stopped)this.timer=setTimeout(()=>this.tick(),delay);}
   async tick(){
     if(this.running)return;
@@ -39,11 +46,16 @@ class VercelQueue {
     const fingerprint=current.vercelApiKey||'';
     if(fingerprint!==this.fingerprint){this.fingerprint=fingerprint;this.client=fingerprint?this.clientFactory({apiKey:fingerprint}):null;}
     this.sourceReady=Boolean(this.client&&current.vercelEnabled&&current.allowProviderCharges);
+    // Heartbeat: every tick marks this worker's in-flight requests as alive, so a
+    // claim left behind by a restarted or killed worker is recognised quickly
+    // instead of showing "Processing" for ten minutes.
+    if(this.tasks.size)await db.query(`UPDATE generations SET updated_at=UTC_TIMESTAMP() WHERE provider='vercel'
+      AND status IN ('submitting','processing') AND refunded_at IS NULL AND id IN (?)`,[[...this.tasks]]);
     // Recovery never repeats a paid start request. Resumable operations are
     // persisted before the first poll; ambiguous starts are refunded instead.
     const [stale]=await db.query(`SELECT id FROM generations WHERE provider='vercel'
       AND refunded_at IS NULL AND ((status='submitting' AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))
-      OR (media_type='image' AND status='processing' AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE))) LIMIT 20`);
+      OR (media_type='image' AND status='processing' AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))) LIMIT 20`);
     for(const job of stale)if(!this.tasks.has(job.id))await this.refund(job.id,'submit_error','Generation was interrupted. Credits were refunded.',null);
     if(this.client)await this.pollVideos(db,this.client);
     if(this.sourceReady)await this.claim(db,current.vercelMaxInflight||2,this.client);

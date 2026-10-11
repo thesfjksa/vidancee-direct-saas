@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Faster recovery of interrupted images and live status
+
+- The browser gives status reads a 20s limit, so one hung request (for example during a hosting timeout) no longer freezes gallery updates until a reload. Measured: a hung list request previously left a finished job showing "Processing" indefinitely; the page now updates within about 23s.
+- Worker heartbeat: every pass, the worker marks its in-flight AI Gateway and GPT image requests as alive. A "processing" image that has not been marked for 3 minutes belonged to a worker that restarted or was killed, and is refunded then, instead of after 10 minutes. Requests still running in a live worker are never expired.
+- On SIGTERM (for example a redeploy), the worker stops claiming new jobs and waits up to `WORKER_SHUTDOWN_DRAIN_MS` (default 25s) for in-flight image requests to finish and save before exiting.
+- Redeploying the worker application during a long render can still interrupt it; such jobs are refunded automatically. Prefer deploying the worker while no generations are running.
+
 ## 2026-10-11 — Instant reuse of image references
 
 - Reuse prompt on a reference-based image no longer downloads and re-uploads the reference files. The image list includes reference metadata (no bytes), the form restores references as pointers, and submissions send `reuseGenerationId` plus a `referenceOrder` such as `[{"kind":"reused","id":2},{"kind":"upload"}]`.

@@ -48,6 +48,7 @@ class GenerationWorker {
     this.smartAipi = null;
     this.smartAipiFingerprint = '';
     this.smartImageTasks = new Set();
+    this.smartImageJobIds = new Set();
     this.smartAipiEnabled = false;
     this.smartAipiMaxInflight = 2;
     this.smartAipiModels = {};
@@ -361,15 +362,21 @@ class GenerationWorker {
   }
 
   async syncSmartImages(db) {
-    // Synchronous image requests have no resumable provider job ID. If a worker
-    // exits mid-request, expire the reservation after twice the API timeout.
+    // Synchronous image requests have no resumable provider job ID. Every pass
+    // marks this worker's in-flight requests as alive; a claim that has not been
+    // marked for 3 minutes belongs to a worker that exited mid-request.
     // Never resubmit an ambiguous request, which could charge the provider twice.
+    if (this.smartImageJobIds.size) {
+      await db.query(`UPDATE generations SET updated_at=UTC_TIMESTAMP() WHERE provider='smartaipi' AND status='processing' AND id IN (?)`,
+        [[...this.smartImageJobIds]]);
+    }
     const [rows] = await db.query(`SELECT id,status FROM generations WHERE provider='smartaipi' AND media_type='image'
-      AND ((status='processing' AND submitted_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE))
+      AND ((status='processing' AND updated_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))
         OR (status='submit_error' AND refunded_at IS NULL)) LIMIT 25`);
     for (const row of rows) {
       if (row.status === 'processing') {
-        const [claim] = await db.execute("UPDATE generations SET status='submit_error',error_message='Image generation was interrupted.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='processing' AND submitted_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE)",[row.id]);
+        if (this.smartImageJobIds.has(row.id)) continue;
+        const [claim] = await db.execute("UPDATE generations SET status='submit_error',error_message='Image generation was interrupted.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='processing' AND updated_at < DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE)",[row.id]);
         if (!claim.affectedRows) continue;
       }
       await this.refundSmartImage(row.id,'submit_error','Image generation was interrupted. Credits were refunded.',null);
@@ -414,7 +421,8 @@ class GenerationWorker {
           console.error('GPT image processing failed for', job.id, error.message);
         });
         this.smartImageTasks.add(task);
-        task.finally(() => this.smartImageTasks.delete(task));
+        this.smartImageJobIds.add(job.id);
+        task.finally(() => { this.smartImageTasks.delete(task); this.smartImageJobIds.delete(job.id); });
       }
     }
   }

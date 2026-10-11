@@ -301,9 +301,24 @@ test('interrupted requests are refunded after expiry, with no resubmit and no ov
   const worker = new GenerationWorker(); const refunded = [];
   worker.refundSmartImage = async id => refunded.push(id);
   const db = {
-    async query(sql) { assert.match(sql, /INTERVAL 10 MINUTE/); return [[{ id: 'interrupted', status: 'processing' }, { id: 'finished-race', status: 'processing' }, { id: 'refund-retry', status: 'submit_error' }]]; },
+    async query(sql) { assert.match(sql, /updated_at < DATE_SUB\(UTC_TIMESTAMP\(\),INTERVAL 3 MINUTE\)/); return [[{ id: 'interrupted', status: 'processing' }, { id: 'finished-race', status: 'processing' }, { id: 'refund-retry', status: 'submit_error' }]]; },
     async execute(sql, [id]) { assert.match(sql, /AND status='processing'/); return [{ affectedRows: id === 'finished-race' ? 0 : 1 }]; },
   };
   await worker.syncSmartImages(db);
   assert.deepEqual(refunded, ['interrupted', 'refund-retry']);
+});
+
+test('GPT image requests still running in this worker send a heartbeat and are never expired', async () => {
+  const worker = new GenerationWorker(); const refunded = []; const sql = [];
+  worker.refundSmartImage = async id => refunded.push(id);
+  worker.smartImageJobIds.add('running-here');
+  const db = {
+    async query(text, args) { sql.push([text, args]);
+      if (text.startsWith('UPDATE generations SET updated_at')) return [{ affectedRows: 1 }];
+      return [[{ id: 'running-here', status: 'processing' }, { id: 'abandoned', status: 'processing' }]]; },
+    async execute(text, [id]) { return [{ affectedRows: 1 }]; },
+  };
+  await worker.syncSmartImages(db);
+  assert.deepEqual(sql[0][1], [['running-here']]);
+  assert.deepEqual(refunded, ['abandoned']);
 });
