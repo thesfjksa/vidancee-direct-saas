@@ -26,7 +26,7 @@ async function serveVideoOutput(db,req,res,id) {
   const total=Number(output.byte_length),range=byteRange(req.headers.range,total);
   if(!range) {res.writeHead(416,{'content-range':'bytes */'+total,'accept-ranges':'bytes'});res.end();return;}
   const headers={'content-type':'video/mp4','content-length':range.end-range.start+1,'accept-ranges':'bytes',
-    'cache-control':'private, max-age=300','x-content-type-options':'nosniff'};
+    'cache-control':'private, max-age=31536000, immutable','x-content-type-options':'nosniff'};
   if(range.partial)headers['content-range']='bytes '+range.start+'-'+range.end+'/'+total;
   res.writeHead(range.partial?206:200,headers);
   for(let index=Math.floor(range.start/CHUNK_SIZE);index<=Math.floor(range.end/CHUNK_SIZE);index++) {

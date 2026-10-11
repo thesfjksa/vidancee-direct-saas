@@ -38,6 +38,8 @@ const { URL } = require('node:url');
 const fs = require('node:fs');
 const path = require('node:path');
 const { fork } = require('node:child_process');
+const { Readable } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
@@ -365,14 +367,35 @@ function requireDatabase() {
     const error=new Error('MySQL is not configured yet.'); error.statusCode=503; throw error;
   }
 }
+// Finished outputs never change under the same generation URL, so browsers may
+// reuse them instead of re-downloading every image and video on each visit.
+const IMMUTABLE_MEDIA_CACHE='private, max-age=31536000, immutable';
+const MEDIA_PROXY_HEADER_TIMEOUT_MS=Math.max(5000,Number(process.env.MEDIA_PROXY_HEADER_TIMEOUT_MS||30000));
 async function proxyMedia(req,res,row,type) {
   const target = type === 'poster' ? row.poster_url : row.output_url;
   if (!target) return sendJson(res,404,{ok:false,error:'Media not available.'});
 
   const headers={};
   if (req.headers.range) headers.range=req.headers.range;
-  const upstream=await fetch(target,{headers,redirect:'follow'});
+  // Abort the provider download when the viewer disconnects (browsers cancel
+  // video range requests constantly) or the provider stops responding.
+  const controller=new AbortController();
+  const abortUpstream=()=>controller.abort();
+  res.once('close',abortUpstream);
+  const headerTimer=setTimeout(abortUpstream,MEDIA_PROXY_HEADER_TIMEOUT_MS);
+  let upstream;
+  try {
+    upstream=await fetch(target,{headers,redirect:'follow',signal:controller.signal});
+  } catch {
+    res.removeListener('close',abortUpstream);
+    if (res.destroyed) return;
+    return sendJson(res,502,{ok:false,error:'Provider media fetch failed.'});
+  } finally {
+    clearTimeout(headerTimer);
+  }
   if (!upstream.ok && upstream.status !== 206) {
+    res.removeListener('close',abortUpstream);
+    controller.abort();
     return sendJson(res,502,{ok:false,error:'Provider media fetch failed.'});
   }
 
@@ -384,8 +407,19 @@ async function proxyMedia(req,res,row,type) {
   res.setHeader('cache-control','private, max-age=3600');
   res.statusCode=upstream.status;
   if (!upstream.body) return res.end();
-  const { Readable } = require('node:stream');
-  Readable.fromWeb(upstream.body).pipe(res);
+  // pipeline() handles stream errors; a bare pipe() let a provider connection
+  // reset escape as an unhandled 'error' event and crash the web process.
+  try {
+    await pipeline(Readable.fromWeb(upstream.body),res);
+  } catch (error) {
+    controller.abort();
+    if (!res.destroyed) res.destroy();
+    if (error?.name!=='AbortError' && error?.code!=='ERR_STREAM_PREMATURE_CLOSE' && error?.code!=='ABORT_ERR') {
+      console.warn('[media-proxy] provider stream ended early:',error?.cause?.code||error?.code||error?.message||error);
+    }
+  } finally {
+    res.removeListener('close',abortUpstream);
+  }
 }
 
 const server=http.createServer(async (req,res)=>{
@@ -1030,7 +1064,7 @@ const server=http.createServer(async (req,res)=>{
         const extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[output.mime_type]||'png';
         res.writeHead(200,{'content-type':output.mime_type,'content-length':output.image_data.length,
           'content-disposition':'inline; filename="cmm-tools-image-'+row.id.slice(0,8)+'.'+extension+'"',
-          'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});
+          'cache-control':IMMUTABLE_MEDIA_CACHE,'x-content-type-options':'nosniff'});
         return res.end(output.image_data);
       }
       return proxyMedia(req,res,row,'video');

@@ -483,16 +483,32 @@ function enterApp(){
   go('create');
   loadAll();
   clearInterval(poll);
+  lastStatusRefresh=Date.now();
   poll=setInterval(()=>{
-    if(document.visibilityState==='visible'){
-      loadGenerations();
-      loadImageGenerations();
-      loadVoiceGenerations();
-      loadVoiceClones();
-      loadDashboard();
-    }
-  },5000);
+    if(document.visibilityState!=='visible')return;
+    // Poll quickly only while something is generating; idle tabs refresh every 30s.
+    const due=hasActiveWork()?ACTIVE_POLL_MS:IDLE_POLL_MS;
+    if(Date.now()-lastStatusRefresh>=due)refreshStatus();
+  },ACTIVE_POLL_MS);
 }
+
+const ACTIVE_POLL_MS=5000,IDLE_POLL_MS=30000;
+const ACTIVE_STATUSES=['queued','submitting','submitted','processing'];
+let lastStatusRefresh=0;
+function hasActiveWork(){
+  return [generations,imageGenerations,voiceGenerations].some(list=>(list||[]).some(g=>ACTIVE_STATUSES.includes(g.status)));
+}
+function refreshStatus(){
+  lastStatusRefresh=Date.now();
+  loadGenerations();
+  loadImageGenerations();
+  loadVoiceGenerations();
+  loadVoiceClones();
+  loadDashboard();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&me&&poll&&Date.now()-lastStatusRefresh>=ACTIVE_POLL_MS)refreshStatus();
+});
 
 function go(name){
   closeCustomSelects();
@@ -1720,10 +1736,28 @@ function generationFingerprint(g){
   ]);
 }
 
+// Each video request streams from the database, so attach sources only for
+// cards near the viewport (hidden Library cards never load until opened).
+const lazyVideoObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(!entry.isIntersecting)return;
+    const video=entry.target;
+    lazyVideoObserver.unobserve(video);
+    if(video.dataset.src&&!video.getAttribute('src')){video.preload='metadata';video.src=video.dataset.src;}
+  });
+},{rootMargin:'400px 0px'}):null;
+function observeLazyVideos(node){
+  node.querySelectorAll('video[data-src]').forEach(video=>{
+    if(lazyVideoObserver)lazyVideoObserver.observe(video);
+    else{video.preload='metadata';video.src=video.dataset.src;}
+  });
+}
+
 function buildJobNode(g){
   const tpl=document.createElement('template');
   tpl.innerHTML=jobCard(g).trim();
   const node=tpl.content.firstElementChild;
+  observeLazyVideos(node);
   node.dataset.generationId=String(g.id);
   node.dataset.fingerprint=generationFingerprint(g);
   return node;
@@ -2124,6 +2158,10 @@ function renderImageGallery(){
   const container=$('imageGallery');
   if(!container)return;
   const list=filteredImageGenerations();
+  // Polling returns the same list most of the time; rebuilding would re-decode every image.
+  const signature=JSON.stringify(list.map(g=>[g.id,g.status,g.has_image,g.image_url,g.credits_cost,g.model,g.aspect_ratio,g.quality,g.prompt,g.error_message]));
+  if(container.dataset.signature===signature&&container.childElementCount)return;
+  container.dataset.signature=signature;
   container.innerHTML=list.length?list.map(imageGenerationCard).join(''):emptyStateHtml('Your generated images will appear here.');
 }
 
@@ -2528,7 +2566,7 @@ function jobCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   let media;
   if(g.has_video){
-    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="metadata" src="'+g.video_url+'"></video></div>';
+    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="none" data-src="'+escapeHtml(g.video_url)+'"></video></div>';
   }else if(g.has_poster){
     media='<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+g.poster_url+'"></div>';
   }else{

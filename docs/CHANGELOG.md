@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-11 — Stability and speed fixes
+
+- Fixed a web-process crash: a provider connection reset while proxying a provider-hosted video escaped as an unhandled stream error and terminated `server.js`. The proxy now uses `stream.pipeline`, aborts the provider download when the viewer disconnects, and times out providers that do not answer within `MEDIA_PROXY_HEADER_TIMEOUT_MS` (default 30s). Covered by `test/media_proxy.test.js`.
+- Idle browser tabs refresh generation status every 30s instead of every 5s; the 5s cadence applies only while a video, image or voice job is active. A tab returning to the foreground refreshes immediately.
+- The image gallery is no longer rebuilt on every poll when nothing changed.
+- Gallery videos attach their source only when the card nears the viewport, so hidden Library cards and off-screen videos no longer stream from the database on page load.
+- Finished images and database-stored videos are cached by the browser (`private, max-age=31536000, immutable`), so revisiting a gallery does not re-download every file.
+- Local measurement with 60 images and 50 videos: one idle tab dropped from 36 to 6 API requests per minute, and opening then revisiting Image Studio dropped from 301 MB to 7.7 MB of media. Under 30 tabs plus 4 gallery visitors on one CPU, API p95 latency fell from 2.05s to 0.28s.
+
 ## 2026-10-11 — Professional UI restyle
 
 - Merged the brand header and workspace navigation into one compact sticky bar with underline tabs; on tablet and mobile the tabs move to a second scrollable row that keeps the active tab in view.
