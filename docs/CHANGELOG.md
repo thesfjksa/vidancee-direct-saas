@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Provider usage and a compact SmartAIPI card
+
+- Admin → Provider starts with **Usage & limits**: per provider, the remaining balance where one is reported, plus last-24-hour jobs, 30-day completed/failed jobs, 30-day provider cost (as recorded on each job) and customer credits, and jobs in progress (`GET /admin/provider-usage`, `src/provider_usage.js`).
+- Balances: Vidancee from its jobs feed (credits minus reserved), saved by the worker at most once a minute so Admin never logs in a second time; Vercel from `/v1/credits`; SmartAIPI from the OpenAI-compatible `/dashboard/billing` routes if it offers them (otherwise "not reported"). CreatePulse, MiniMax, Atlas Cloud, Higgsfield and Vibi have no balance route in this integration, so they show consumption only. A source skipped by Cartoon Studio for lack of credits is flagged with the time it will be tried again.
+- The SmartAIPI per-model price editor is folded into a closed "Model prices" section with one compact row per model; floating-point noise (0.10549999999999998) is rounded for display. Saved prices are unchanged.
+
 ## 2026-10-12 — Cartoon Studio
 
 - New customer tab for cartoon videos. The customer picks a style (3D Animation, Anime, 2D Cartoon, Claymation or Comic), describes the scene, optionally adds one character image and chooses Seedance 2.5 or 2.0 Fast, duration and ratio. Prices are the normal Seedance prices. The tab appears when Vidancee or CreatePulse is active for the customer.

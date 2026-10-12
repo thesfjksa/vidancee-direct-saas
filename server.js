@@ -52,6 +52,7 @@ const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementG
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
 const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
 const { normalizeCartoonRequest, publicCartoonConfig } = require('./src/cartoon.js');
+const { providerUsage } = require('./src/provider_usage.js');
 const diagnostics = new RuntimeDiagnostics().start();
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
 function wakeGenerationWorker(req) {
@@ -1400,6 +1401,12 @@ const server=http.createServer(async (req,res)=>{
         if(!['higgsfield','vercel'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
+      }
+
+      if (req.method==='GET' && routePath==='/admin/provider-usage') {
+        requireDatabase();
+        const providers=await providerUsage(getPool(),await getProviderSettings(),await getAdminProviderSettings());
+        return sendJson(res,200,{ok:true,providers,checkedAt:new Date().toISOString()});
       }
 
       if (req.method==='GET' && routePath==='/admin/diagnostics') {

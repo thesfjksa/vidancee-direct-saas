@@ -41,6 +41,11 @@
 
   <section id="provider" class="section">
     <div class="card">
+      <div class="top"><div><h2 style="margin:0">Usage &amp; limits</h2><div class="muted">Remaining balance where the provider reports one, and the last 30 days of jobs from this app's records.</div></div><button class="secondary" onclick="loadProviderUsage()">Refresh</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Provider</th><th>Remaining</th><th>Last 24 h</th><th>30 days: done / failed</th><th>30 days: provider cost</th><th>30 days: customer credits</th><th>In progress</th></tr></thead><tbody id="usageRows"><tr><td colspan="7" class="muted">Loading...</td></tr></tbody></table></div>
+      <div id="usageNote" class="muted" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
       <div class="top"><div><h2 style="margin:0">Generation engines</h2><div class="muted">Credentials are saved securely. Switch a source off to stop new jobs through it. Models supplied only by that source disappear from the customer app.</div></div><button class="btn" onclick="saveProviderSettings()">Save settings</button></div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
         <div class="card">
@@ -116,8 +121,11 @@
           <div id="smartSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="smartInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
           <div class="muted" style="margin-top:12px">Customer credits per USD</div><input id="smartCreditsPerUsd" type="number" min="0.01" max="1000000" step="any" value="6037.735849056604" style="width:100%;margin-top:6px">
-          <p class="muted">Customer credits = estimated USD × this multiplier, rounded up to whole credits. Default multiplier: 160 ÷ 0.0265 (about 6,037.735849 credits per USD). A $0.0265 image costs 160 credits. Low, Medium and High quality · one image per job · one optional reference. Square source prices are estimates. Other sizes scale by pixel area (the fixed landscape/portrait sizes use 1.5×). Custom-size and input-token charges can differ, so adjust rates to your account costs. A zero rate hides that quality; all zero rates hide the model.</p>
-          <div id="smartModelPrices"></div>
+          <details class="smart-prices" style="margin-top:12px"><summary id="smartPricesSummary" class="muted" style="cursor:pointer">Model prices</summary>
+            <p class="muted" style="font-size:12px">Source USD for one square image. Customer credits = USD × the multiplier above, rounded up. Other sizes scale by pixel area. 0 hides that quality; all 0 hides the model.</p>
+            <div class="smart-price-head"><span></span><span>Low</span><span>Medium</span><span>High</span></div>
+            <div id="smartModelPrices"></div>
+          </details>
           <button class="secondary" style="margin-top:12px" onclick="checkSmartAipi()">Test saved connection</button>
           <div id="smartActionMsg" class="muted" style="margin-top:8px">Save settings before testing. This check does not generate an image.</div>
         </div>
@@ -269,7 +277,7 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);const hf=new URLSearchParams(location.search).get('higgsfield');if(hf){const btn=document.querySelector('.tabs button[data-tab="provider"]');tab('provider',btn);setTimeout(()=>{const m=$('higgsfieldActionMsg');if(!m)return;if(hf==='connected'){m.className='ok';m.textContent='Account connected. The model catalog was synced automatically when possible.'}else if(hf==='failed'){m.className='err';m.textContent='Account connection failed. Click Connect / Reconnect to try again.'}},250)}}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderSettings();loadProviderConfig()}}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderUsage();loadProviderSettings();loadProviderConfig()}}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -421,7 +429,9 @@ async function loadProviderSettings(){try{
   $('smartBaseUrl').value=s.smartaipi?.baseUrl||'https://api.smartaipi.com/v1';$('smartApiKey').value='';$('clearSmartApiKey').checked=false;
   $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('smartInflight').value=s.smartaipi?.maxInflight||2;$('smartCreditsPerUsd').value=s.smartaipi?.customerCreditsPerUsd||(160/0.0265);
-  $('smartModelPrices').innerHTML=(s.smartaipi?.models||[]).map(model=>'<div data-smart-model="'+esc(model.id)+'" style="margin-top:12px"><label><input class="smart-model-enabled" type="checkbox" style="width:auto" '+(model.enabled?'checked':'')+'> '+esc(model.label)+'</label>'+['low','medium','high'].map(q=>'<label class="muted" style="display:block;margin-top:8px">'+q.charAt(0).toUpperCase()+q.slice(1)+' · square source USD<input data-smart-quality="'+q+'" class="smart-quality-price '+(q==='medium'?'smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+Number(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'" style="width:100%;margin-top:4px"></label>').join('')+'</div>').join('');
+  const smartModels=s.smartaipi?.models||[],usd=v=>Number(Number(v||0).toPrecision(6));
+  $('smartPricesSummary').textContent='Model prices · '+smartModels.filter(m=>m.enabled).length+' of '+smartModels.length+' models on';
+  $('smartModelPrices').innerHTML=smartModels.map(model=>'<div class="smart-price-row" data-smart-model="'+esc(model.id)+'"><label><input class="smart-model-enabled" type="checkbox" style="width:auto"'+(model.enabled?' checked':'')+'> '+esc(model.label)+'</label><div>'+['low','medium','high'].map(q=>'<input aria-label="'+esc(model.label)+' '+q+' USD" data-smart-quality="'+q+'" class="smart-quality-price'+(q==='medium'?' smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+usd(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'">').join('')+'</div></div>').join('');
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
   $('higgsfieldMcpUrl').value=s.higgsfield?.mcpUrl||'https://mcp.higgsfield.ai/mcp';$('higgsfieldInflight').value=s.higgsfield?.maxInflight||4;$('higgsfieldConnectionStatus').textContent=s.higgsfield?.connected?'Account: connected':'Account: not connected';$('higgsfieldConnectionStatus').className=s.higgsfield?.connected?'ok':'muted';
   $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
@@ -600,6 +610,22 @@ async function toggleHiggsfieldModel(id,enabled){
 
 async function checkProvider(){const o=$('providerOut');o.textContent='Checking...';try{o.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
 async function providerJobs(){const o=$('providerJobsOut');o.textContent='Loading...';try{o.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
+async function loadProviderUsage(){
+  const rows=$('usageRows'),note=$('usageNote');
+  try{
+    const d=await api('/admin/provider-usage'),n=v=>Number(v||0).toLocaleString(undefined,{maximumFractionDigits:2});
+    rows.innerHTML=d.providers.map(p=>{
+      const b=p.balance||{},u=p.usage;
+      let remaining=b.error?'<span class="err">'+esc(b.error)+'</span>':b.remaining!=null&&Number.isFinite(Number(b.remaining))
+        ?'<strong>'+n(b.remaining)+'</strong> '+esc(b.unit||'')+(b.limit!=null?' <span class="muted">of '+n(b.limit)+'</span>':'')+(b.used!=null&&Number.isFinite(b.used)?'<div class="muted">used '+n(b.used)+'</div>':'')+(b.reserved?'<div class="muted">'+n(b.reserved)+' reserved by running jobs</div>':'')+(b.checkedAt?'<div class="muted">checked '+esc(fmt(b.checkedAt))+'</div>':'')
+        :'<span class="muted">'+esc(b.note||'Not reported')+'</span>';
+      if(b.outOfCreditsUntil)remaining+='<div class="err">Out of credits · skipped until '+esc(fmt(b.outOfCreditsUntil))+'</div>';
+      const cost=u.sourceCost30d.length?u.sourceCost30d.map(c=>n(c.total)+' '+esc(String(c.unit).replace('usd-estimate','USD (est.)').replace(/^usd$/,'USD'))).join('<br>'):'—';
+      return '<tr><td><strong>'+esc(p.label)+'</strong><div class="muted">'+(p.active?'On':p.configured?'Off':'Not configured')+'</div></td><td>'+remaining+'</td><td>'+u.jobs24h+'</td><td>'+u.completed30d+' / '+u.failed30d+'</td><td>'+cost+'</td><td>'+n(u.customerCredits30d)+'</td><td>'+u.active+'</td></tr>';
+    }).join('');
+    note.textContent='Checked '+fmt(d.checkedAt)+'. Provider cost uses the price recorded on each job, so it is an estimate where a provider bills by tokens.';
+  }catch(e){rows.innerHTML='<tr><td colspan="7" class="err">'+esc(e.message)+'</td></tr>'}
+}
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}

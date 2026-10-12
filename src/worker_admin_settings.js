@@ -9,6 +9,7 @@ const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.j
 const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { isCartoonJob, providerPrompt, vidanceeCreditsNeeded, looksOutOfCredits } = require('./cartoon.js');
+const { recordProviderStatus } = require('./provider_usage.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const {
   submitHiggsfieldGeneration,
@@ -227,6 +228,12 @@ class GenerationWorker {
     let snapshot;
     try { snapshot = await this.vidancee.getJobs(100); }
     catch (error) { console.error('Primary provider status sync failed:', error.message); return null; }
+    // Admin "Usage & limits" reads the balance from here, at most once a minute.
+    if (Date.now() - Number(this.vidanceeStatusSavedAt || 0) > 60000) {
+      this.vidanceeStatusSavedAt = Date.now();
+      recordProviderStatus(db, { vidancee: { credits: snapshot.credits, reserved: snapshot.reserved, concurrency: snapshot.concurrency,
+        processing: snapshot.processing, at: new Date().toISOString() } }).catch(error => console.error('Provider status save failed:', error.message));
+    }
 
     const allProviderJobs = [...(snapshot.active || []), ...(snapshot.jobs || [])];
     const providerById = new Map(allProviderJobs.map(job => [String(job.id), job]));
@@ -672,6 +679,7 @@ class GenerationWorker {
   markOutOfCredits(key) {
     this.outOfCreditsUntil = { ...(this.outOfCreditsUntil || {}), [key]: Date.now() + 10 * 60 * 1000 };
     if (key === 'vidancee') this.vidanceeBalance = 0;
+    if (dbConfigured()) recordProviderStatus(getPool(), { outOfCredits: this.outOfCreditsUntil }).catch(() => {});
   }
 
   chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots, access = {}) {

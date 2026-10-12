@@ -79,3 +79,12 @@ pre { overflow: auto; max-height: 430px; padding: 18px; background: var(--panel-
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 @media(max-width:1000px) { .grid { grid-template-columns: 1fr 1fr; } .wrap { padding: 0 20px 48px; } }
 @media(max-width:680px) { .wrap { padding: 0 14px 40px; } .grid { grid-template-columns: 1fr; } .row { flex-direction: column; } .row > * { width: 100%; min-width: 0; } .card { padding: 18px; } .top { align-items: flex-start; flex-wrap: wrap; } .admin-brand { gap: 16px; } .admin-brand .brand-logo { width: 100px; height: 36px; } .admin-brand > div { padding-left: 16px; } .brand { font-size: 18px; } #provider > .card:first-child > .top { flex-direction: column; } .login { padding: 26px; } }
+
+/* SmartAIPI model prices: one compact row per model */
+.smart-price-head { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin: 8px 0 2px; font-size: 11px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.smart-price-head span:first-child { display: none; }
+.smart-price-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.smart-price-row label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.smart-price-row > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.smart-price-row input[type=number] { width: 100%; min-width: 0; padding: 6px 4px; font-size: 12px; -moz-appearance: textfield; }
+.smart-price-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
