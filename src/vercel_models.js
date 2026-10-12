@@ -8,6 +8,36 @@ const fail = message => { throw Object.assign(new Error(message), {statusCode:40
 const positive = value => Number.isFinite(Number(value)) && Number(value)>0;
 const unique = values => [...new Set((Array.isArray(values)?values:[]))];
 
+// The gateway bills GPT Image models by tokens, so its catalog has no per-image
+// price. These are OpenAI's published per-image prices (Images API, standard
+// tier) for 1024x1024, 1024x1536 and 1536x1024, checked on 12 October 2026 in
+// developers.openai.com/api/docs/guides/image-generation ("Calculating costs").
+const OPENAI_SIZES=['1024x1024','1024x1536','1536x1024'];
+const OPENAI_IMAGE_USD={
+  'gpt-image-1':{low:[0.011,0.016,0.016],medium:[0.042,0.063,0.063],high:[0.167,0.25,0.25]},
+  'gpt-image-1-mini':{low:[0.005,0.006,0.006],medium:[0.011,0.015,0.015],high:[0.036,0.052,0.052]},
+  'gpt-image-1.5':{low:[0.009,0.013,0.013],medium:[0.034,0.05,0.05],high:[0.133,0.2,0.2]},
+  'gpt-image-2':{low:[0.006,0.005,0.005],medium:[0.053,0.041,0.041],high:[0.211,0.165,0.165]},
+};
+// GPT Image 2.5 has the same output-token price as GPT Image 2 but no published
+// per-image table, so it uses GPT Image 2's figures as an estimate.
+const OPENAI_IMAGE_ALIASES={'gpt-image-2.5-flare':'gpt-image-2','gpt-image-2.5-sunburst':'gpt-image-2'};
+
+function publishedImageTiers(providerModelId) {
+  const name=String(providerModelId||'').replace(/^openai\//,'');
+  if (!String(providerModelId||'').startsWith('openai/')) return [];
+  const prices=OPENAI_IMAGE_USD[OPENAI_IMAGE_ALIASES[name]||name];
+  if (!prices) return [];
+  // GPT Image 2 also renders the other presets. OpenAI publishes only these three
+  // sizes, and non-square can cost less than square, so other sizes use the
+  // highest published price for the quality rather than an area guess.
+  const sizes=/^gpt-image-2/.test(name)?unique([...OPENAI_SIZES,...Object.values(SMART_IMAGE_SIZES)]):OPENAI_SIZES;
+  return Object.entries(prices).flatMap(([quality,usd])=>sizes.map(size=>{
+    const index=OPENAI_SIZES.indexOf(size);
+    return {size,quality,cost:index>=0?usd[index]:Math.max(...usd)};
+  }));
+}
+
 function isGatewayModel(id) { return String(id||'').startsWith('studio_gw_'); }
 function publicId(id) { return 'studio_gw_'+String(id).replace(/[^a-zA-Z0-9]/g,'_'); }
 function mediaModels(catalog) {
@@ -124,7 +154,9 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
       // is applied explicitly, independently for each quality.
       if (positive(rate)) {sourceUsd=Number(rate)*area;isEstimate=true;}
     } else {
-      const matches=(p.image_dimension_quality_pricing||[]).filter(t=>
+      const catalogTiers=p.image_dimension_quality_pricing||[];
+      const tiers=catalogTiers.length||positive(p.image)?catalogTiers:publishedImageTiers(model.providerModelId);
+      const matches=tiers.filter(t=>
         (!t.size||t.size==='default'||t.size===chosen.imageSize||t.size===w+'x'+h)&&
         (!t.quality||t.quality===chosen.quality)&&!t.style&&!t.operation);
       const ranked=matches.sort((a,b)=>(Number(Boolean(b.size&&b.size!=='default'))+Number(Boolean(b.quality)))-(Number(Boolean(a.size&&a.size!=='default'))+Number(Boolean(a.quality))));
@@ -210,5 +242,5 @@ function validateReferences(model,input={}) {
   if (model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
 }
 
-module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,isGatewayModel,publicId,mediaModels,discoverModel,
+module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,isGatewayModel,publicId,mediaModels,discoverModel,
   normalizePriceOverride,modelReady,selection,quoteGateway,imageDimensions,videoDimensions,validateReferences};

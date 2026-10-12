@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — GPT Image models from the AI Gateway
+
+- The gateway catalog already contained GPT Image 1, 1 Mini, 1.5, 2, 2.5 Flare and 2.5 Sunburst, but bills them by tokens, so they had no per-image price and stayed hidden until an Admin price was set. They now use OpenAI's published per-image prices (see `docs/VERCEL_AI_GATEWAY.md`), become ready without setup and are marked as estimates because prompt and reference input tokens are extra. GPT Image 2.5 uses GPT Image 2's figures as an estimate; an Admin price still overrides.
+- The image picker shows one entry per model name. A model another source already provides to the customer (SmartAIPI's GPT Image 2, 2.5 and 1.5 on the live site) keeps its entry; the gateway copy appears when that source is unavailable. GPT Image 1 and 1 Mini are new for customers with gateway access.
+- Not verified with a paid gateway request from this environment.
+
 ## 2026-10-12 — Outages after Admin actions
 
 - Report: the site went offline for a few minutes after Admin actions such as assigning a customer to the AI Gateway source. The web process had in fact been running without a restart for 12.7 hours (since the 17:08 UTC deploy on 11 October, 97 MB RSS), so these outages did not come from an application crash. The browser error seen earlier (`ERR_CONNECTION_TIMED_OUT`) means the connection to Hostinger's edge itself failed.

@@ -1,5 +1,5 @@
 const { getPool } = require('./db.js');
-const { modelReady, normalizePriceOverride, mediaModels, quoteGateway } = require('./vercel_models.js');
+const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
   if (!value) return fallback;
@@ -132,6 +132,8 @@ async function syncProviderModels(provider, discoveredModels) {
   return listProviderModels(provider);
 }
 
+const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
+
 function serializeProviderModel(row, { includeInternal = true } = {}) {
   const options = safeJson(row.options_json, {});
   const base = {
@@ -173,6 +175,8 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.inputSchema = safeJson(row.input_schema, {});
   }
   if(row.provider==='vercel'){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
+  // Token-billed GPT Image models are priced from OpenAI's published per-image table.
+  if(row.provider==='vercel'&&!base.priceOverride&&!positiveNumber(base.pricing?.image)&&!(base.pricing?.image_dimension_quality_pricing||[]).length&&publishedImageTiers(base.providerModelId).length)base.publishedPrices=true;
   return base;
 }
 
@@ -366,6 +370,14 @@ function imageCostTable(model,creditsPerUsd) {
   return {costTable:table,costEstimates:estimates};
 }
 
+// One entry per model name: models already in the list (direct sources) keep
+// their place and gateway copies with the same name are left out.
+function addMissingImageModels(list, extra) {
+  const key = model => String(model?.label || '').trim().toLowerCase();
+  const taken = new Set(list.map(key));
+  return [...list, ...extra.filter(model => !taken.has(key(model)))];
+}
+
 async function publicProviderCatalog(provider, { creditsPerUsd } = {}) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
     .filter(isPlausibleCustomerModel).filter(model=>provider!=='vercel'||model.ready);
@@ -410,4 +422,5 @@ module.exports = {
   setProviderModelEnabled,
   quarantineProviderUtilityModels,
   publicProviderCatalog,
+  addMissingImageModels,
 };

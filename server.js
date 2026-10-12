@@ -111,6 +111,7 @@ const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const { attachReusedImageReferences } = require('./src/reference_reuse.js');
 const {
   publicProviderCatalog,
+  addMissingImageModels,
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
@@ -599,7 +600,10 @@ const server=http.createServer(async (req,res)=>{
 
           if(customerProviderAccess.vercel && providerSettings.vercel.active){
             const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
-            videoPricing.push(...catalog.video);imagePricing.push(...catalog.image);
+            videoPricing.push(...catalog.video);
+            // The gateway also offers models another source already provides here
+            // (for example GPT Image 2); its copy appears when that source is unavailable.
+            imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {

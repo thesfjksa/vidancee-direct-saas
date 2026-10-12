@@ -19,7 +19,7 @@ test('live media catalog includes multimodal image models and preserves distinct
   assert.equal(model('topaz/wonder-3.5').adapterSupported,false);
   assert.equal(model('quiverai/arrow-2').adapterSupported,false);
   assert.equal(model('openai/gpt-image-2').adapterSupported,true);
-  assert.equal(v.modelReady(model('openai/gpt-image-2')),false);
+  assert.equal(v.modelReady(model('openai/gpt-image-2')),true);
   assert.equal(v.modelReady(model('bytedance/seedance-2.5')),false);
   assert.equal(model('alibaba/wan-v2.6-t2v').referenceCapabilities.image.max,0);
   assert.throws(()=>v.mediaModels({data:[]}),/previous catalog has been kept/);
@@ -40,7 +40,7 @@ test('pricing matches resolution/audio/mode tiers, refuses missing rates and sep
   assert.equal(v.quoteGateway(gpt,{quality:'medium',aspectRatio:'4:5'},1000).cost,38);
   assert.equal(v.quoteGateway(gpt,{quality:'high',aspectRatio:'4:5'},1000).cost,125);
   assert.equal(v.quoteGateway(gpt,{quality:'high'},1000).isEstimate,true);
-  assert.throws(()=>v.quoteGateway({...gpt,priceOverride:null}),/Set a USD price/);
+  assert.throws(()=>v.quoteGateway({...gpt,providerModelId:'openai/unlisted-image',priceOverride:null}),/Set a USD price/);
   assert.throws(()=>v.quoteGateway(veo,{duration:7}),/Unsupported duration/);
   assert.throws(()=>v.quoteGateway(gpt,{quality:'ultra'}),/Unsupported image quality/);
   assert.throws(()=>v.quoteGateway(nano,{imageSize:'8K'}),/Unsupported image resolution/);
@@ -195,4 +195,28 @@ test('Recraft requests use the fixed sizes Recraft accepts and their outputs pas
       assert.doesNotThrow(()=>validateCanvas(png(w,h),'image/png',ratio),id+' '+ratio);
     }
   assert.throws(()=>validateCanvas(png(1280,1024),'image/png','4:3'),/different aspect ratio/);
+});
+
+test('GPT Image models use OpenAI published per-image prices unless Admin sets one',()=>{
+  const usd=(id,input)=>v.quoteGateway(model(id),input,1).sourceUsd;
+  for(const id of ['openai/gpt-image-1','openai/gpt-image-1-mini','openai/gpt-image-1.5','openai/gpt-image-2','openai/gpt-image-2.5-flare','openai/gpt-image-2.5-sunburst'])
+    assert.equal(v.modelReady(model(id)),true,id);
+  assert.equal(usd('openai/gpt-image-1',{quality:'low',aspectRatio:'1:1'}),0.011);
+  assert.equal(usd('openai/gpt-image-1',{quality:'high',aspectRatio:'2:3'}),0.25);
+  assert.equal(usd('openai/gpt-image-1-mini',{quality:'medium',aspectRatio:'3:2'}),0.015);
+  assert.equal(usd('openai/gpt-image-1.5',{quality:'high',aspectRatio:'1:1'}),0.133);
+  // GPT Image 2: published sizes are exact; other presets use the highest price for the quality.
+  assert.equal(usd('openai/gpt-image-2',{quality:'medium',aspectRatio:'3:2'}),0.041);
+  assert.equal(usd('openai/gpt-image-2',{quality:'medium',aspectRatio:'16:9'}),0.053);
+  assert.equal(usd('openai/gpt-image-2.5-flare',{quality:'high',aspectRatio:'9:16'}),0.211);
+  assert.equal(v.quoteGateway(model('openai/gpt-image-2'),{quality:'high'},1000).cost,211);
+  assert.equal(v.quoteGateway(model('openai/gpt-image-1'),{quality:'low'},1000).isEstimate,true);
+  // An Admin price still wins over the published table.
+  assert.equal(v.quoteGateway({...model('openai/gpt-image-2'),priceOverride:{high:0.1}},{quality:'high'},1000).cost,100);
+  assert.deepEqual(v.publishedImageTiers('google/gemini-nano-banana-2.1'),[]);
+  assert.equal(v.publishedImageTiers('openai/gpt-image-1').length,9);
+  // One picker entry per model name: the direct source keeps GPT Image 2.
+  const {addMissingImageModels}=require('../src/provider_models.js');
+  const merged=addMissingImageModels([{id:'gpt_image_2_studio',label:'GPT Image 2'}],[{id:'studio_gw_openai_gpt_image_2',label:'GPT Image 2 '},{id:'studio_gw_openai_gpt_image_1',label:'GPT Image 1'}]);
+  assert.deepEqual(merged.map(m=>m.id),['gpt_image_2_studio','studio_gw_openai_gpt_image_1']);
 });

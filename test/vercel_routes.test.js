@@ -70,7 +70,7 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal(saved.status,200);assert.equal(saved.data.settings.vercel.apiKeyConfigured,true);
   assert.equal(JSON.stringify(saved).includes('gateway-secret-only'),false);assert.match(values.get('vercel_api_key').setting_value,/^v1:/);assert.equal(values.get('vercel_api_key').is_secret,1);
   const config=await request('/api/config');
-  assert.equal(config.data.imagePricing.filter(m=>m.id.startsWith('studio_gw_')).length,1);
+  assert.equal(config.data.imagePricing.filter(m=>m.id.startsWith('studio_gw_')).length,2);
   assert.equal(config.data.pricing.filter(m=>m.id.startsWith('studio_gw_')).length,1);
   const nano=modelRows.find(m=>m.provider_model_id==='google/gemini-nano-banana-2.1');
   const input={model:nano.public_model_id,prompt:'A flower',aspectRatio:'4:5',imageSize:'2K'};
@@ -89,7 +89,8 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   const playback=await fetch(origin+mediaPath,{headers:{'x-test-user':'1',range:'bytes=4-7'}});assert.equal(playback.status,206);assert.deepEqual(Buffer.from(await playback.arrayBuffer()),bytes.subarray(4,8));
   assert.equal((await request(mediaPath,{user:2})).status,404);
   const gpt=modelRows.find(m=>m.provider_model_id==='openai/gpt-image-2');
-  assert.equal((await request('/api/image-generations',{method:'POST',body:{model:gpt.public_model_id,prompt:'A sunrise',aspectRatio:'1:1'}})).status,404);
+  // GPT Image is priced from OpenAI's published per-image table without an Admin rate.
+  assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'1:1'}})).data.cost,211);
   const rate=await request('/admin/vercel/models/'+gpt.id+'/price',{admin:true,method:'POST',body:{price:{low:0.01,medium:0.03,high:0.1}}});assert.equal(rate.status,200);assert.equal(rate.data.model.ready,true);
   assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'4:5'}})).data.cost,125);
   assert.equal((await request('/admin/provider-models/'+gpt.id,{admin:true,method:'POST',body:{provider:'vercel',enabled:false}})).status,200);
