@@ -57,6 +57,7 @@
       <button class="create-tab active" data-section="create" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg><span>Video studio</span></button>
       <button data-section="images" onclick="go('images')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg><span>Image studio</span></button>
       <button id="cartoonNav" class="hide" data-section="cartoon" onclick="go('cartoon')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/><circle cx="15" cy="10" r="1.2" fill="currentColor"/><path d="M8 14.5c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/></svg><span>Cartoon studio</span></button>
+      <button id="upscalerNav" class="hide" data-section="upscaler" onclick="go('upscaler')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v6h6"/><path d="M20 10V4h-6"/><path d="M4 20l7-7"/><path d="M20 4l-7 7"/></svg><span>Upscaler</span></button>
       <button id="voiceNav" class="hide" data-section="voices" onclick="go('voices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span>Voice studio</span></button>
       <button data-section="library" onclick="go('library')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg><span>Library</span></button>
       <button data-section="plans" onclick="go('plans')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z"/></svg><span>Plans</span></button>
@@ -341,6 +342,59 @@
       </div>
     </section>
 
+    <section id="upscaler" class="section">
+      <div class="create-layout">
+        <aside class="creator">
+          <div class="creator-head">
+            <div><strong>Upscale video</strong><div class="sub">Sharper detail up to 4K</div></div>
+            <div class="kicker">Studio</div>
+          </div>
+          <div class="creator-scroll">
+            <div class="block">
+              <div class="block-title">Video</div>
+              <div class="upscale-source" role="radiogroup" aria-label="Video source">
+                <button type="button" id="upscaleFromLibrary" class="upscale-source-btn selected" role="radio" aria-checked="true" onclick="setUpscaleSource('library')">From my videos</button>
+                <button type="button" id="upscaleFromUpload" class="upscale-source-btn" role="radio" aria-checked="false" onclick="setUpscaleSource('upload')">Upload a clip</button>
+              </div>
+              <div id="upscaleLibraryBlock">
+                <label class="meta" for="upscaleVideo">Finished video</label>
+                <select id="upscaleVideo" onchange="updateUpscaleCost()"></select>
+                <div id="upscaleLibraryEmpty" class="reference-capability-note hide">Finished videos from Video Studio and Cartoon Studio appear here.</div>
+              </div>
+              <div id="upscaleUploadBlock" class="hide">
+                <input id="upscaleFileInput" class="hide" type="file" accept="video/mp4,video/quicktime" onchange="setUpscaleFile(this.files)">
+                <label class="ref-drop" for="upscaleFileInput">
+                  <div>
+                    <div class="ref-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></div>
+                    <strong>Add a video</strong>
+                    <span>MP4 or MOV · up to 25 MB</span>
+                  </div>
+                </label>
+                <div id="upscaleFileInfo" class="reference-capability-note"></div>
+              </div>
+            </div>
+            <div class="block">
+              <label class="block-title" for="upscaleResolution">Output resolution</label>
+              <select id="upscaleResolution" onchange="updateUpscaleCost()"></select>
+              <div class="reference-capability-note" style="margin-top:8px">ByteDance Video Upscaler sharpens faces, text and colour and removes noise and compression blur. Priced per second of video.</div>
+            </div>
+          </div>
+          <div class="creator-footer">
+            <div class="cost-row"><span>Upscale cost</span><strong><span id="upscaleCost">—</span> credits</strong></div>
+            <button id="upscaleBtn" class="generate" onclick="createUpscale()">Upscale video</button>
+            <div id="upscaleMsg" class="msg muted"></div>
+          </div>
+        </aside>
+        <main class="canvas">
+          <div class="studio-intro"><div><div class="studio-eyebrow">SHARPEN. ENHANCE. DELIVER.</div><h1>Every frame, sharper.</h1><p>Upscale your videos to 1080p, 2K or 4K.</p></div><div class="studio-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v6h6"/><path d="M20 10V4h-6"/><path d="M4 20l7-7"/><path d="M20 4l-7 7"/></svg></div></div>
+          <div class="canvas-head">
+            <div><h1>Your upscales</h1><p>Every video you have upscaled.</p></div>
+          </div>
+          <div id="upscaleGallery" class="gallery"></div>
+        </main>
+      </div>
+    </section>
+
     <section id="library" class="section">
       <div class="page">
         <div class="page-head">
@@ -578,6 +632,7 @@ function go(name){
   }
   if(name==='images')renderImageGallery();
   if(name==='cartoon')renderCartoonGallery();
+  if(name==='upscaler')renderUpscaler();
   if(name==='voices')refreshVoiceStudio();
   if(name==='library')renderLibrary();
   if(name==='plans')loadPlanStatus();
@@ -1204,6 +1259,7 @@ function renderConfig(){
   renderVideoReferenceControls(false);
   refreshModelCapabilitySummaries();
   renderCartoonConfig();
+  renderUpscalerConfig();
 }
 
 function renderDurations(resetResolution=false){
@@ -1821,6 +1877,7 @@ async function loadGenerations(){
     generations=d.generations;
     renderCreateGallery();
     renderCartoonGallery();
+    if($('upscaler').classList.contains('active'))renderUpscaler();
     renderLibrary();
   }catch(e){
     if(e.status===401)location.reload();
@@ -1830,8 +1887,9 @@ async function loadGenerations(){
 }
 
 function isCartoonGeneration(g){return g?.generation_options?.studio==='cartoon'}
+function isUpscaleGeneration(g){return g?.generation_options?.studio==='upscale'}
 function filteredGenerations(){
-  const list=generations.filter(g=>!isCartoonGeneration(g));
+  const list=generations.filter(g=>!isCartoonGeneration(g)&&!isUpscaleGeneration(g));
   if(currentFilter==='completed')return list.filter(g=>g.status==='completed');
   if(currentFilter==='active')return list.filter(g=>['queued','submitting','submitted','processing'].includes(g.status));
   return list;
@@ -1871,17 +1929,17 @@ function buildJobNode(g){
   return node;
 }
 
-function emptyStateHtml(message){
-  return '<div class="empty"><svg class="empty-art" viewBox="0 0 170 118" fill="none" aria-hidden="true"><circle cx="85" cy="57" r="55" fill="#EFF7FA"/><rect x="22" y="24" width="105" height="70" rx="9" fill="#E0EDF3" transform="rotate(-8 22 24)"/><rect x="43" y="20" width="105" height="76" rx="10" fill="white" stroke="#C8DEE8" stroke-width="1.5"/><path d="M43 36h105" stroke="#E1ECF2"/><circle cx="53" cy="28" r="2" fill="#00B9C9"/><circle cx="61" cy="28" r="2" fill="#C8DEE8"/><circle cx="69" cy="28" r="2" fill="#C8DEE8"/><rect x="77" y="48" width="33" height="33" rx="10" fill="#004574"/><path d="m90 57 10 7-10 7V57Z" fill="#71E0E8"/><path d="m146 4 2 7 7 2-7 2-2 7-2-7-7-2 7-2 2-7Z" fill="#00B9C9"/><circle cx="23" cy="99" r="3" fill="#00B9C9"/></svg><strong>A space for your next creation.</strong><p>'+escapeHtml(message)+'</p><div class="empty-guide"><span><b>1</b> Add a prompt</span><span><b>2</b> Choose a model</span><span><b>3</b> Create</span></div></div>';
+function emptyStateHtml(message,steps=['Add a prompt','Choose a model','Create']){
+  return '<div class="empty"><svg class="empty-art" viewBox="0 0 170 118" fill="none" aria-hidden="true"><circle cx="85" cy="57" r="55" fill="#EFF7FA"/><rect x="22" y="24" width="105" height="70" rx="9" fill="#E0EDF3" transform="rotate(-8 22 24)"/><rect x="43" y="20" width="105" height="76" rx="10" fill="white" stroke="#C8DEE8" stroke-width="1.5"/><path d="M43 36h105" stroke="#E1ECF2"/><circle cx="53" cy="28" r="2" fill="#00B9C9"/><circle cx="61" cy="28" r="2" fill="#C8DEE8"/><circle cx="69" cy="28" r="2" fill="#C8DEE8"/><rect x="77" y="48" width="33" height="33" rx="10" fill="#004574"/><path d="m90 57 10 7-10 7V57Z" fill="#71E0E8"/><path d="m146 4 2 7 7 2-7 2-2 7-2-7-7-2 7-2 2-7Z" fill="#00B9C9"/><circle cx="23" cy="99" r="3" fill="#00B9C9"/></svg><strong>A space for your next creation.</strong><p>'+escapeHtml(message)+'</p><div class="empty-guide">'+steps.map((step,i)=>'<span><b>'+(i+1)+'</b> '+escapeHtml(step)+'</span>').join('')+'</div></div>';
 }
 
-function updateGallery(containerId,list,emptyMessage){
+function updateGallery(containerId,list,emptyMessage,emptySteps){
   const container=$(containerId);
   if(!container)return;
 
   if(!list.length){
     if(!container.querySelector('.empty') || container.querySelectorAll('.job').length){
-      container.innerHTML=emptyStateHtml(emptyMessage);
+      container.innerHTML=emptyStateHtml(emptyMessage,emptySteps);
     }
     return;
   }
@@ -2736,8 +2794,13 @@ function jobCard(g){
       '</div>';
   }
 
-  const reuseButton='<button type="button" class="job-action" onclick="reuseGeneration(\''+escapeHtml(g.id)+'\')" title="Reuse prompt and settings">'+
+  const upscale=isUpscaleGeneration(g);
+  const reuseButton=upscale?'':'<button type="button" class="job-action" onclick="reuseGeneration(\''+escapeHtml(g.id)+'\')" title="Reuse prompt and settings">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1-7.5L4 10"/></svg>Reuse prompt</button>';
+  const upscaleButton=!upscale&&g.has_video&&g.status==='completed'&&config?.upscaler?.enabled
+    ?'<button type="button" class="job-action" onclick="startUpscale(\''+escapeHtml(g.id)+'\')" title="Upscale this video">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14v6h6"/><path d="M20 10V4h-6"/><path d="M4 20l7-7"/><path d="M20 4l-7 7"/></svg>Upscale</button>'
+    :'';
 
   const downloadButton=g.has_video
     ?'<button type="button" class="job-action download" onclick="downloadGeneration(\''+escapeHtml(g.id)+'\')" title="Download video">'+
@@ -2753,11 +2816,97 @@ function jobCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+(isCartoonGeneration(g)?escapeHtml(cartoonStyleLabel(g.generation_options.cartoon_style))+' · ':'')+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<div class="job-title">'+(upscale?'Upscaled to '+escapeHtml(upscaleLabel(g.resolution))+' · '+(Number(g.duration)>0?g.duration+'s':'')+' · '+escapeHtml(g.aspect_ratio):(isCartoonGeneration(g)?escapeHtml(cartoonStyleLabel(g.generation_options.cartoon_style))+' · ':'')+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio))+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
-      '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
+      '<div class="job-actions">'+reuseButton+upscaleButton+downloadButton+deleteButton+'</div>'+
     '</div></article>';
+}
+
+// ---------- Upscaler ----------
+let upscaleSource='library',upscaleFile=null,upscaleFileSeconds=0;
+function upscaleLabel(id){return (config?.upscaler?.resolutions||[]).find(r=>r.id===id)?.label||String(id||'').toUpperCase()}
+function renderUpscalerConfig(){
+  const cfg=config?.upscaler,enabled=Boolean(cfg?.enabled);
+  $('upscalerNav').classList.toggle('hide',!enabled);
+  if(!enabled)return;
+  const previous=$('upscaleResolution').value;
+  $('upscaleResolution').innerHTML=cfg.resolutions.map(r=>'<option value="'+escapeHtml(r.id)+'">'+escapeHtml(r.label)+'</option>').join('');
+  $('upscaleResolution').value=cfg.resolutions.some(r=>r.id===previous)?previous:(cfg.resolutions.some(r=>r.id==='4k')?'4k':cfg.resolutions[0]?.id);
+  ensureCustomSelect('upscaleResolution');syncCustomSelect('upscaleResolution');
+}
+function upscaleCandidates(){return generations.filter(g=>g.status==='completed'&&g.has_video&&!isUpscaleGeneration(g)&&Number(g.duration)>0)}
+function renderUpscaler(){
+  const list=upscaleCandidates(),select=$('upscaleVideo'),previous=select.value;
+  select.innerHTML=list.map(g=>'<option value="'+escapeHtml(g.id)+'">'+escapeHtml((g.prompt||'Video').slice(0,48))+' · '+g.duration+'s</option>').join('');
+  if(list.some(g=>g.id===previous))select.value=previous;
+  $('upscaleLibraryEmpty').classList.toggle('hide',list.length>0);
+  select.classList.toggle('hide',!list.length);
+  ensureCustomSelect('upscaleVideo');rebuildCustomSelect('upscaleVideo');
+  updateGallery('upscaleGallery',generations.filter(isUpscaleGeneration),'Your upscaled videos will appear here.',['Choose a video','Pick 1080p, 2K or 4K','Upscale']);
+  updateUpscaleCost();
+}
+function setUpscaleSource(kind){
+  upscaleSource=kind;
+  $('upscaleFromLibrary').classList.toggle('selected',kind==='library');$('upscaleFromLibrary').setAttribute('aria-checked',String(kind==='library'));
+  $('upscaleFromUpload').classList.toggle('selected',kind==='upload');$('upscaleFromUpload').setAttribute('aria-checked',String(kind==='upload'));
+  $('upscaleLibraryBlock').classList.toggle('hide',kind!=='library');$('upscaleUploadBlock').classList.toggle('hide',kind!=='upload');
+  updateUpscaleCost();
+}
+function setUpscaleFile(files){
+  const file=files?.[0],info=$('upscaleFileInfo'),m=$('upscaleMsg');
+  upscaleFile=null;upscaleFileSeconds=0;info.textContent='';m.textContent='';
+  $('upscaleFileInput').value='';
+  if(file){
+    if(!['video/mp4','video/quicktime'].includes(file.type)){m.className='msg err';m.textContent='Use an MP4 or MOV video.';}
+    else if(file.size>25*1024*1024){m.className='msg err';m.textContent='The video must be 25 MB or smaller.';}
+    else{
+      const url=URL.createObjectURL(file),probe=document.createElement('video');
+      probe.preload='metadata';
+      probe.onloadedmetadata=()=>{upscaleFile=file;upscaleFileSeconds=Number(probe.duration)||0;URL.revokeObjectURL(url);
+        info.textContent=file.name+' · '+(upscaleFileSeconds?Math.round(upscaleFileSeconds*10)/10+'s':'length unknown');updateUpscaleCost();};
+      probe.onerror=()=>{upscaleFile=file;URL.revokeObjectURL(url);info.textContent=file.name;updateUpscaleCost();};
+      probe.src=url;
+    }
+  }
+  updateUpscaleCost();
+}
+function upscaleSeconds(){
+  if(upscaleSource==='upload')return upscaleFileSeconds;
+  return Number(findGeneration($('upscaleVideo').value)?.duration||0);
+}
+function updateUpscaleCost(){
+  const tier=(config?.upscaler?.resolutions||[]).find(r=>r.id===$('upscaleResolution').value),seconds=upscaleSeconds();
+  const billed=Math.min(config?.upscaler?.maxBilledSeconds||600,Math.ceil(seconds-1e-9));
+  $('upscaleCost').textContent=tier&&seconds>0?Math.ceil(billed*tier.creditsPerSecond-1e-9):'—';
+  syncCustomSelect('upscaleResolution');syncCustomSelect('upscaleVideo');
+}
+function startUpscale(id){
+  go('upscaler');setUpscaleSource('library');
+  if(upscaleCandidates().some(g=>g.id===id)){$('upscaleVideo').value=id;syncCustomSelect('upscaleVideo');updateUpscaleCost();}
+}
+async function createUpscale(){
+  const b=$('upscaleBtn'),m=$('upscaleMsg');
+  if(b.disabled)return;
+  const form=new FormData();
+  form.append('resolution',$('upscaleResolution').value);
+  if(upscaleSource==='upload'){
+    if(!upscaleFile){m.className='msg err';m.textContent='Add a video first.';return}
+    form.append('videos',upscaleFile,upscaleFile.name||'video.mp4');
+  }else{
+    if(!$('upscaleVideo').value){m.className='msg err';m.textContent='Choose a video first.';return}
+    form.append('sourceGenerationId',$('upscaleVideo').value);
+  }
+  b.disabled=true;m.className='msg muted';m.textContent='Submitting upscale...';
+  try{
+    const d=await api('/api/upscales',{method:'POST',body:form});
+    me=d.user;syncUser();
+    if(upscaleSource==='upload')setUpscaleFile(null);
+    m.className='msg ok';m.textContent='Upscale queued.';
+    await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
+    renderUpscaler();
+  }catch(e){m.className='msg err';m.textContent=e.message}
+  finally{b.disabled=false}
 }
 
 // ---------- Cartoon Studio ----------

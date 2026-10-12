@@ -24,4 +24,14 @@ function verifyAssetSignature(generationId, position, supplied) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { providerAssetUrl, verifyAssetSignature };
+// A finished video handed to a provider (the upscaler). Signed with a position
+// no reference image can have, so the link cannot open anything else.
+const OUTPUT_POSITION = 65535;
+function providerOutputUrl(generationId) {
+  const base = appUrl();
+  if (!base) throw new Error('APP_URL is required for provider media routing.');
+  return base + '/provider-outputs/' + encodeURIComponent(generationId) + '?sig=' + assetSignature(generationId, OUTPUT_POSITION);
+}
+function verifyOutputSignature(generationId, supplied) { return verifyAssetSignature(generationId, OUTPUT_POSITION, supplied); }
+
+module.exports = { providerAssetUrl, verifyAssetSignature, providerOutputUrl, verifyOutputSignature };

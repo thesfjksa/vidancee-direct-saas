@@ -107,7 +107,9 @@ const {
   updateProviderSettings,
   migrateLegacyProviderEnvSettings,
 } = require('./src/settings.js');
-const { verifyAssetSignature } = require('./src/provider/assets.js');
+const { verifyAssetSignature, verifyOutputSignature } = require('./src/provider/assets.js');
+const { createUpscaleJob, publicUpscalerConfig } = require('./src/upscaler.js');
+const { WaveSpeedClient } = require('./src/provider/wavespeed.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
@@ -326,7 +328,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','wavespeed'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -485,6 +487,21 @@ const server=http.createServer(async (req,res)=>{
       return res.end(image.image_data);
     }
 
+    // A finished video for the upscaler to download (signed link, no login).
+    const providerOutputMatch=routePath.match(/^\/provider-outputs\/([0-9a-f-]{36})$/i);
+    if(req.method==='GET'&&providerOutputMatch){
+      requireDatabase();
+      const id=providerOutputMatch[1];
+      if(!verifyOutputSignature(id,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
+      const [[row]]=await getPool().execute("SELECT id,output_url,poster_url FROM generations WHERE id=? AND media_type='video' AND status='completed' LIMIT 1",[id]);
+      if(!row?.output_url)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
+      if(row.output_url==='db:video'){
+        try{return await serveVideoOutput(getPool(),req,res,row.id);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
+      return proxyMedia(req,res,row,'video');
+    }
+
     const providerMediaMatch=routePath.match(/^\/provider-media\/([0-9a-f-]{36})\/(\d+)$/i);
     if(req.method==='GET'&&providerMediaMatch){
       requireDatabase();
@@ -558,6 +575,7 @@ const server=http.createServer(async (req,res)=>{
       let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
       let cartoonEnabled=false;
+      let upscalerConfig=publicUpscalerConfig(false,0);
 
       if (dbConfigured()) {
         try {
@@ -594,6 +612,10 @@ const server=http.createServer(async (req,res)=>{
             imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
+          if (customerProviderAccess.wavespeed && providerSettings.wavespeed.active) {
+            upscalerConfig=publicUpscalerConfig(true,providerSettings.wavespeed.customerCreditsPerUsd);
+          }
+
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
             voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
           }
@@ -613,6 +635,7 @@ const server=http.createServer(async (req,res)=>{
         promptEnhancer:promptEnhancerConfig,
         providerAccess:customerProviderAccess,
         cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
+        upscaler:upscalerConfig,
         plans:publicPlans(),
       });
     }
@@ -1120,6 +1143,23 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
     }
 
+    if (req.method==='POST' && routePath==='/api/upscales') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const settings=await getProviderSettings();
+      if (!settings.allowProviderCharges) return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
+      const access=await getUserProviderAccess(user.id);
+      if (!access.wavespeed || !settings.waveSpeedEnabled || !settings.waveSpeedApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
+      const body=await readGenerationRequest(req);
+      const video=Array.isArray(body.videos)?body.videos[0]:null;
+      const sourceId=String(body.sourceGenerationId||'');
+      if (video && sourceId) return sendJson(res,400,{ok:false,error:'Choose either a library video or an upload.'});
+      const row=await createUpscaleJob(user.id,{resolution:body.resolution,source:video?{video}:{generationId:sourceId}},settings.waveSpeedCustomerCreditsPerUsd);
+      wakeGenerationWorker(req);
+      const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
+      return sendJson(res,201,{ok:true,generation:serializeGeneration(row),user:userPayload(users[0])});
+    }
+
     const genMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})$/i);
     if (req.method==='GET' && genMatch) {
       requireDatabase();
@@ -1237,6 +1277,11 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vercel',mediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='POST'&&routePath==='/admin/wavespeed/check'){
+        requireDatabase();const s=await getProviderSettings();
+        const balance=await new WaveSpeedClient({apiKey:s.waveSpeedApiKey}).balance();
+        return sendJson(res,200,{ok:true,balance});
+      }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();
         const balance=await new ArgoLinkClient({apiKey:s.argoLinkApiKey}).balance();
@@ -1351,6 +1396,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.configured,
             vercel:providerSettings.vercel.configured,
             argolink:providerSettings.argolink.configured,
+            wavespeed:providerSettings.wavespeed.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1360,6 +1406,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
+            wavespeed:providerSettings.wavespeed.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1369,6 +1416,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
+            wavespeed:providerSettings.wavespeed.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
@@ -1377,6 +1425,7 @@ const server=http.createServer(async (req,res)=>{
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
+          waveSpeedMaxInflight:providerSettings.wavespeed.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,

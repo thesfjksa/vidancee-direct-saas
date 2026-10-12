@@ -24,7 +24,7 @@ function serializeGeneration(row) {
     refunded_at: row.refunded_at,
     has_video: Boolean(row.output_url),
     has_poster: Boolean(row.poster_url),
-    generation_options: (()=>{try{const o=JSON.parse(row.generation_options||'{}');return {generationMode:o.generationMode||null,generateAudio:o.generateAudio===true,...(o.studio==='cartoon'?{studio:'cartoon',cartoon_style:String(o.cartoonStyle||'')}:{})};}catch{return {};}})(),
+    generation_options: (()=>{try{const o=JSON.parse(row.generation_options||'{}');return {generationMode:o.generationMode||null,generateAudio:o.generateAudio===true,...(o.studio==='cartoon'?{studio:'cartoon',cartoon_style:String(o.cartoonStyle||'')}:{}),...(o.studio==='upscale'?{studio:'upscale',source_generation_id:o.sourceGenerationId||null,target_resolution:o.targetResolution||null,source_seconds:o.sourceSeconds??null}:{})};}catch{return {};}})(),
     video_url: row.output_url ? '/api/generations/' + row.id + '/media?type=video' : null,
     poster_url: row.poster_url ? '/api/generations/' + row.id + '/media?type=poster' : null,
   };

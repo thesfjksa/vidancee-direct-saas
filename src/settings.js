@@ -15,6 +15,10 @@ const DEFAULTS = {
   argolink_enabled: 'true',
   argolink_max_inflight: '3',
   argolink_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
+  wavespeed_api_key: '',
+  wavespeed_enabled: 'true',
+  wavespeed_max_inflight: '3',
+  wavespeed_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
   prompt_enhancer_enabled: 'true',
   prompt_enhancer_gemini_api_key: '',
   vidancee_base_url: 'https://vidancee.com',
@@ -145,6 +149,10 @@ async function getProviderSettings() {
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
     argoLinkCustomerCreditsPerUsd: Number(read('argolink_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
+    waveSpeedApiKey: String(read('wavespeed_api_key') || '').trim(),
+    waveSpeedEnabled: asBool(read('wavespeed_enabled')),
+    waveSpeedMaxInflight: Math.max(1, Math.min(10, Number(read('wavespeed_max_inflight') || 3))),
+    waveSpeedCustomerCreditsPerUsd: Number(read('wavespeed_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
     promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
     promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
     vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
@@ -192,6 +200,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.argoLinkApiKey), configured: Boolean(s.argoLinkApiKey),
       enabled: s.argoLinkEnabled, active: Boolean(s.argoLinkEnabled && s.argoLinkApiKey),
       maxInflight: s.argoLinkMaxInflight, customerCreditsPerUsd: s.argoLinkCustomerCreditsPerUsd,
+    },
+    wavespeed: {
+      baseUrl: 'https://api.wavespeed.ai/api/v3',
+      apiKeyConfigured: Boolean(s.waveSpeedApiKey), configured: Boolean(s.waveSpeedApiKey),
+      enabled: s.waveSpeedEnabled, active: Boolean(s.waveSpeedEnabled && s.waveSpeedApiKey),
+      maxInflight: s.waveSpeedMaxInflight, customerCreditsPerUsd: s.waveSpeedCustomerCreditsPerUsd,
     },
     promptEnhancer: {
       model: GEMINI_ENHANCER_MODEL, enabled: s.promptEnhancerEnabled,
@@ -264,6 +278,23 @@ async function updateProviderSettings(input = {}) {
     const n=Number(input.vercelCustomerCreditsPerUsd);
     if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('AI Gateway credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
     vercelUpdates.push(['vercel_customer_credits_per_usd',String(n)]);
+  }
+  const waveUpdates=[];
+  if ('waveSpeedEnabled' in input) {
+    if (typeof input.waveSpeedEnabled !== 'boolean') throw Object.assign(new Error('WaveSpeed enabled must be true or false.'), {statusCode:400});
+    waveUpdates.push(['wavespeed_enabled',input.waveSpeedEnabled?'true':'false']);
+  }
+  if ('waveSpeedApiKey' in input && (typeof input.waveSpeedApiKey !== 'string' || input.waveSpeedApiKey.length>512))
+    throw Object.assign(new Error('Invalid WaveSpeed API key.'), {statusCode:400});
+  if ('waveSpeedMaxInflight' in input) {
+    const n=Number(input.waveSpeedMaxInflight);
+    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('WaveSpeed max inflight must be 1 to 10.'), {statusCode:400});
+    waveUpdates.push(['wavespeed_max_inflight',String(n)]);
+  }
+  if ('waveSpeedCustomerCreditsPerUsd' in input) {
+    const n=Number(input.waveSpeedCustomerCreditsPerUsd);
+    if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('WaveSpeed credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
+    waveUpdates.push(['wavespeed_customer_credits_per_usd',String(n)]);
   }
   const argoUpdates=[];
   if ('argoLinkEnabled' in input) {
@@ -358,6 +389,10 @@ async function updateProviderSettings(input = {}) {
   if (input.clearVercelApiKey===true) await del('vercel_api_key');
   else if (String(input.vercelApiKey||'').trim()) await put('vercel_api_key',input.vercelApiKey.trim(),true);
 
+  for (const [key,value] of waveUpdates) await put(key,value);
+  if (input.clearWaveSpeedApiKey===true) await del('wavespeed_api_key');
+  else if (String(input.waveSpeedApiKey||'').trim()) await put('wavespeed_api_key',input.waveSpeedApiKey.trim(),true);
+
   for (const [key,value] of argoUpdates) await put(key,value);
   if (input.clearArgoLinkApiKey===true) await del('argolink_api_key');
   else if (String(input.argoLinkApiKey||'').trim()) await put('argolink_api_key',input.argoLinkApiKey.trim(),true);
@@ -386,6 +421,7 @@ async function migrateLegacyProviderEnvSettings() {
   plain('vercel_enabled', 'AI_GATEWAY_ENABLED');
   plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
+  secret('wavespeed_api_key', 'WAVESPEED_API_KEY');
   plain('vidancee_base_url', 'VIDANCEE_BASE_URL');
   plain('vidancee_email', 'VIDANCEE_EMAIL');
   secret('vidancee_password', 'VIDANCEE_PASSWORD');

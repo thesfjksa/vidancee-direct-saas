@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Video Upscaler (WaveSpeed)
+
+- New **Upscaler** tab: upscale a finished video (or an uploaded MP4/MOV up to 25 MB) to 1080p, 2K or 4K with ByteDance Video Upscaler on WaveSpeedAI. Every finished video card has an **Upscale** button. Priced per source second ($0.0072 / $0.0144 / $0.0288, at most 600 s) times the WaveSpeed credits-per-USD rate.
+- Admin: **Upscaler · WaveSpeed** card (key, switch, max inflight, credits per USD, balance check), WaveSpeed in customer Sources and in Usage & limits. Details in `docs/WAVESPEED_UPSCALER.md`.
+- Not verified with a paid WaveSpeed request.
+
 ## 2026-10-12 — One set of sources per studio
 
 - **Video Studio:** ArgoLink only (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3). AI Gateway video models are no longer offered; earlier gateway videos still play.

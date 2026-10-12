@@ -1,5 +1,6 @@
 const { VercelQueue } = require('./vercel_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
+const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
@@ -31,6 +32,7 @@ class GenerationWorker {
     };
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
     this.argoLinkQueue = new ArgoLinkQueue();
+    this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
     this.stopped = false;
@@ -81,6 +83,7 @@ class GenerationWorker {
     this.stopped = false;
     this.vercelQueue.start();
     this.argoLinkQueue.start();
+    this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
     this.schedule(1200);
@@ -92,6 +95,7 @@ class GenerationWorker {
     clearTimeout(this.smartImageTimer);
     this.vercelQueue.stop();
     this.argoLinkQueue.stop();
+    this.upscaleQueue.stop();
   }
 
   schedule(delay = this.interval) {

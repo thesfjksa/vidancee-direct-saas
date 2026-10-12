@@ -68,6 +68,17 @@ class VercelQueue {
     if(this.client)await this.pollVideos(db,this.client);
     if(this.sourceReady)await this.claim(db,this.maxInflight(current),this.client);
   }
+  // Queued jobs this source may start: active customer with access, and the
+  // model still visible in Admin.
+  queuedSql() {
+    const provider=this.provider;
+    return `SELECT g.* FROM generations g
+        JOIN users u ON u.id=g.user_id AND u.status='active'
+        JOIN provider_models m ON m.public_model_id=g.model AND m.provider='${provider}' AND m.media_type=g.media_type AND m.enabled=1 AND m.available=1
+        LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='${provider}'
+        WHERE g.provider='${provider}' AND g.status='queued' AND COALESCE(a.enabled,1)=1
+        ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 20`;
+  }
   async claim(db,maxInflight,client) {
     const conn=await db.getConnection();let locked=false;const claimed=[];const provider=this.provider;
     try {
@@ -75,12 +86,7 @@ class VercelQueue {
       locked=Number(lock?.acquired)===1;if(!locked)return;
       const [[active]]=await conn.query(`SELECT COUNT(*) AS total FROM generations WHERE provider='${provider}' AND status IN ('submitting','submitted','processing')`);
       let slots=Math.max(0,maxInflight-Number(active?.total||0));if(!slots)return;
-      const [queued]=await conn.query(`SELECT g.* FROM generations g
-        JOIN users u ON u.id=g.user_id AND u.status='active'
-        JOIN provider_models m ON m.public_model_id=g.model AND m.provider='${provider}' AND m.media_type=g.media_type AND m.enabled=1 AND m.available=1
-        LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='${provider}'
-        WHERE g.provider='${provider}' AND g.status='queued' AND COALESCE(a.enabled,1)=1
-        ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 20`);
+      const [queued]=await conn.query(this.queuedSql());
       for(const job of queued) {
         if(slots<=0)break;
         const [result]=await conn.execute(`UPDATE generations SET status=?,submitted_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND provider='${provider}' AND status='queued'`,

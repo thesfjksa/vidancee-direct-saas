@@ -75,6 +75,7 @@ These names are operational details for the owner and developer. Customer genera
 | Video Studio | ArgoLink (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3) |
 | Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
 | Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
+| Upscaler | WaveSpeed (ByteDance Video Upscaler). See `docs/WAVESPEED_UPSCALER.md` |
 | Voice Studio | Vibi |
 | Prompt enhancer | Google Gemini 3.8 Flash |
 

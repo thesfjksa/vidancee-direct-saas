@@ -44,8 +44,9 @@ function shutdown(signal){
   const smartTasks=[...(worker?.smartImageTasks||[])];
   const smartDone=Promise.race([Promise.allSettled(smartTasks),new Promise(resolve=>setTimeout(resolve,SHUTDOWN_DRAIN_MS).unref())]);
   Promise.all([Promise.resolve(worker?.vercelQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),smartDone,
-    Promise.resolve(worker?.argoLinkQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft])=>{
-    left=(left||0)+(argoLeft||0)+(worker?.smartImageTasks?.size||0);
+    Promise.resolve(worker?.argoLinkQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
+    Promise.resolve(worker?.upscaleQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,upscaleLeft])=>{
+    left=(left||0)+(argoLeft||0)+(upscaleLeft||0)+(worker?.smartImageTasks?.size||0);
     if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
     setTimeout(()=>process.exit(0),150).unref();
   });
@@ -73,6 +74,7 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
         revision:5,
         gatewayPolling:worker.vercelQueue.health(),
         argoLinkPolling:worker.argoLinkQueue.health(),
+        upscalePolling:worker.upscaleQueue.health(),
         workerEnabled:worker.enabled(),
         polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
         imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,
