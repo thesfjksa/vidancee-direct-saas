@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — FLUX 3 aspect ratios
+
+- FLUX 3 (AI Gateway) was limited to 1:1 because the catalog prices it by five square sizes. It now offers 1:1, 16:9, 9:16, 4:3, 3:4, 3:2 and 2:3. The five sizes are treated as resolution classes: a non-square image keeps the class's pixel count (rounded to 16 px, long side at most 4096) and its price, for example 16:9 at 1K = 1360x768 for 0.024 USD. The Resolution list shows the classes as 768 px, 1K, 1.5K, 2K and 4K. Rows from an earlier catalog sync get the shapes without a re-sync.
+- Not confirmed with a paid request: the catalog does not say FLUX 3 accepts non-square sizes. If the gateway rejects them, remove the shapes from `FLUX3_SHAPES` in `src/vercel_models.js`; customers are refunded automatically for failed jobs.
+
 ## 2026-10-12 — Model picker closed itself on phones
 
 - Every picker closed on any window resize. Opening the model picker focused its search box, which raises the phone keyboard; the keyboard resizes the window, so the picker closed immediately (also when the address bar hid). Reproduced by tapping the picker and then shrinking the viewport: the old code closed all three model pickers, the new code keeps them open. Resizing now only re-places small dropdowns, and on touch screens the search box is no longer focused automatically (tap it to type), so the keyboard does not cover the list.

@@ -1,5 +1,5 @@
 const { getPool } = require('./db.js');
-const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers } = require('./vercel_models.js');
+const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
   if (!value) return fallback;
@@ -174,6 +174,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.toolName = row.tool_name;
     base.inputSchema = safeJson(row.input_schema, {});
   }
+  if(row.provider==='vercel')applyModelFixups(base);
   if(row.provider==='vercel'){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
   // Token-billed GPT Image models are priced from OpenAI's published per-image table.
   if(row.provider==='vercel'&&!base.priceOverride&&!positiveNumber(base.pricing?.image)&&!(base.pricing?.image_dimension_quality_pricing||[]).length&&publishedImageTiers(base.providerModelId).length)base.publishedPrices=true;

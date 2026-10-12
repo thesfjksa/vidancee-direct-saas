@@ -220,3 +220,17 @@ test('GPT Image models use OpenAI published per-image prices unless Admin sets o
   const merged=addMissingImageModels([{id:'gpt_image_2_studio',label:'GPT Image 2'}],[{id:'studio_gw_openai_gpt_image_2',label:'GPT Image 2 '},{id:'studio_gw_openai_gpt_image_1',label:'GPT Image 1'}]);
   assert.deepEqual(merged.map(m=>m.id),['gpt_image_2_studio','studio_gw_openai_gpt_image_1']);
 });
+
+test('FLUX 3 offers common shapes, priced by resolution class',()=>{
+  const flux=model('bfl/flux-3-image');
+  assert.deepEqual(flux.aspectRatios,['1:1','16:9','9:16','4:3','3:4','3:2','2:3']);
+  assert.equal(v.imageDimensions(flux,{aspectRatio:'1:1',imageSize:'1024x1024'}),'1024x1024');
+  assert.equal(v.imageDimensions(flux,{aspectRatio:'16:9',imageSize:'1024x1024'}),'1360x768');
+  assert.equal(v.imageDimensions(flux,{aspectRatio:'2:3',imageSize:'1536x1536'}),'1248x1888');
+  assert.equal(v.imageDimensions(flux,{aspectRatio:'16:9',imageSize:'4096x4096'}),'4096x2304');
+  assert.equal(v.quoteGateway(flux,{aspectRatio:'16:9',imageSize:'1024x1024'},1).sourceUsd,0.024);
+  assert.equal(v.quoteGateway(flux,{aspectRatio:'9:16',imageSize:'4096x4096'},1).sourceUsd,0.3035);
+  assert.throws(()=>v.quoteGateway(flux,{aspectRatio:'21:9',imageSize:'1024x1024'},1),/Unsupported aspect ratio/);
+  // Rows saved by an earlier sync still get the shapes.
+  assert.deepEqual(v.applyModelFixups({...flux,aspectRatios:['1:1']}).aspectRatios.length,7);
+});

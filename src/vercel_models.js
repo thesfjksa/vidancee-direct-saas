@@ -38,6 +38,28 @@ function publishedImageTiers(providerModelId) {
   }));
 }
 
+// FLUX 3 is priced by resolution class (768 px to 4K); the catalog lists the
+// classes as squares. Other shapes keep the class's pixel count and price.
+// Not yet confirmed with a paid request: if the gateway rejects a shape,
+// remove it here.
+const FLUX3_SHAPES={'bfl/flux-3-image':['1:1','16:9','9:16','4:3','3:4','3:2','2:3']};
+
+function classDimensions(squareSize,ratio) {
+  const side=Number(String(squareSize).split('x')[0]);
+  const [a,b]=String(ratio).split(':').map(Number);
+  if (!side||!a||!b||a===b) return squareSize;
+  // Same pixel count as the square class, but never longer than 4096 px.
+  const fit=Math.min(1,4096/(side*Math.sqrt(Math.max(a,b)/Math.min(a,b))));
+  const w=Math.round(side*fit*Math.sqrt(a/b)/16)*16,h=Math.round(side*fit*Math.sqrt(b/a)/16)*16;
+  return w+'x'+h;
+}
+
+// Models synced before a change keep their stored options; apply current rules.
+function applyModelFixups(model) {
+  if (model && FLUX3_SHAPES[model.providerModelId]) model.aspectRatios=[...FLUX3_SHAPES[model.providerModelId]];
+  return model;
+}
+
 function isGatewayModel(id) { return String(id||'').startsWith('studio_gw_'); }
 function publicId(id) { return 'studio_gw_'+String(id).replace(/[^a-zA-Z0-9]/g,'_'); }
 function mediaModels(catalog) {
@@ -63,7 +85,7 @@ function discoverModel(raw) {
   let imageSizes=id.startsWith('google/')?unique(tiers.map(t=>t.size).filter(s=>s&&s!=='default')):[];
   if (!imageSizes.length && id.startsWith('google/')) imageSizes=['1K'];
   if (id==='bfl/flux-3-image') imageSizes=unique(tiers.map(t=>t.size).filter(s=>/^\d+x\d+$/.test(s)));
-  if (imageSizes.some(s=>/^\d+x\d+$/.test(s))) aspectRatios=['1:1'];
+  if (imageSizes.some(s=>/^\d+x\d+$/.test(s))) aspectRatios=FLUX3_SHAPES[id]||['1:1'];
   if(id.startsWith('bytedance/seedream-'))imageSizes=/5\.0-pro/.test(id)?['1K','2K']:/4\.0/.test(id)?['1K','2K','4K']:['2K','4K'];
   const qualities=id.startsWith('openai/')?['low','medium','high']:
     tiers.some(t=>t.quality==='low')?['low','medium']:[];
@@ -198,7 +220,8 @@ function recraftSize(id,ratio) {
 }
 
 function imageDimensions(model,chosen) {
-  if (chosen.imageSize&&/^\d+x\d+$/.test(chosen.imageSize)) return chosen.imageSize;
+  if (chosen.imageSize&&/^\d+x\d+$/.test(chosen.imageSize))
+    return FLUX3_SHAPES[model.providerModelId]?classDimensions(chosen.imageSize,chosen.aspectRatio):chosen.imageSize;
   if (model.providerModelId?.startsWith('openai/')) return SMART_IMAGE_SIZES[chosen.aspectRatio];
   if (model.providerModelId?.startsWith('recraft/')) {
     const size=recraftSize(model.providerModelId,chosen.aspectRatio);
@@ -242,5 +265,5 @@ function validateReferences(model,input={}) {
   if (model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
 }
 
-module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,isGatewayModel,publicId,mediaModels,discoverModel,
+module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,isGatewayModel,publicId,mediaModels,discoverModel,
   normalizePriceOverride,modelReady,selection,quoteGateway,imageDimensions,videoDimensions,validateReferences};

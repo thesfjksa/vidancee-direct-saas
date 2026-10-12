@@ -1582,7 +1582,9 @@ function renderImageRatios(){
 function renderGatewayImageSizes(model){
   const sizes=model?.imageSizes||[],select=$('imageSize'),previous=select.value;
   $('imageSizeBlock').classList.toggle('hide',!sizes.length);
-  select.innerHTML=sizes.map(size=>'<option value="'+escapeHtml(size)+'">'+escapeHtml(size)+'</option>').join('');
+  // Square sizes are resolution classes (FLUX 3 renders every shape in them).
+  const sizeLabel=size=>{const m=/^(\d+)x\1$/.exec(size);if(!m)return size;const n=Number(m[1]);return n>=4096?'4K':n>=2048?'2K':n>=1536?'1.5K':n>=1024?'1K':n+' px';};
+  select.innerHTML=sizes.map(size=>'<option value="'+escapeHtml(size)+'">'+escapeHtml(sizeLabel(size))+'</option>').join('');
   select.value=sizes.includes(previous)?previous:(model?.defaultImageSize||sizes[0]||'');
   rebuildCustomSelect('imageSize');
 }
