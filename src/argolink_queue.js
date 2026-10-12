@@ -13,6 +13,7 @@ const { FalClient } = require('./provider/fal.js');
 const { providerOutputUrl } = require('./provider/assets.js');
 const { saveVideoOutput } = require('./video_outputs.js');
 const { errorDetails } = require('./activity_log.js');
+const { dimensions } = require('./image_canvas.js');
 
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
@@ -49,7 +50,7 @@ class ArgoLinkQueue extends VercelQueue {
     const params = { ...options, resolution: options.sourceResolution || options.resolution };
     let requestBody = null;
     try { requestBody = client.videoBody?.(model, params, references); } catch {}
-    this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: references.map(r => ({ role: r.role, mimeType: r.mimeType })) });
+    this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: await this.referenceInfo(db, job, references) });
     const requestId = await client.startVideo(model, params, references);
     this.log(job, 'argolink.accepted', 'ArgoLink request ' + requestId, { requestId });
     // The request id is saved before the first poll, so a restart resumes the
@@ -86,6 +87,21 @@ class ArgoLinkQueue extends VercelQueue {
       await this.refund(job.id, 'failed', (reason ? 'The video model could not complete this request: ' + reason : 'The video model could not complete this request.') + ' Credits were refunded.', null);
     } else if (result.status === 'pending') await this.markProcessing(db, job);
     else throw Object.assign(new Error('The video status was temporarily unavailable.'), { retryable: true });
+  }
+
+  // Size and format of each reference, for the activity log (ArgoLink rejects
+  // some sizes, e.g. Seedance 2.5 images must be 300-6000 px with a 0.4-2.5 ratio).
+  async referenceInfo(db, job, references) {
+    if (!references.length) return [];
+    try {
+      const [rows] = await db.execute('SELECT position_index,media_kind,mime_type,LENGTH(media_data) AS bytes,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+      return rows.map((r, i) => {
+        let size = null;
+        if (r.media_kind === 'image') { try { size = dimensions(r.media_data, r.mime_type); } catch {} }
+        return { role: references[i]?.role, kind: r.media_kind, mimeType: r.mime_type, bytes: Number(r.bytes),
+          ...(size ? { width: size.width, height: size.height, ratio: Math.round(size.width / size.height * 1000) / 1000 } : {}) };
+      });
+    } catch { return references.map(r => ({ role: r.role, mimeType: r.mimeType })); }
   }
 
   // Resubmits a retryable failure once; the new request id replaces the old one.
