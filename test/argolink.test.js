@@ -143,9 +143,10 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   process.env.APP_URL = 'https://cmmtools.site'; process.env.PROVIDER_ASSET_SECRET = 'test-secret';
   const { argoVideoView, hdPlan } = require('../src/argo_hd.js');
   // Display resolutions and their renders.
-  // 720p is always rendered natively: a 480p render upscaled to 720p damaged small text.
-  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', true), { source: '720p', upscale: false });
-  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '1080p', true), { source: '720p', upscale: true });
+  // With fal both resolutions are delivered as 1080p: 720p from a 480p render, 1080p from 720p.
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', true), { source: '480p', upscale: true, target: '1080p' });
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '1080p', true), { source: '720p', upscale: true, target: '1080p' });
+  assert.deepEqual(hdPlan(['768p', '2k'], '720p', true), { source: '768p', upscale: true, target: '1080p' });
   assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', false), { source: '720p', upscale: false });
   assert.deepEqual(hdPlan(['480p', '720p'], '1080p', false), null);
   assert.deepEqual(argoVideoView(model('seedance-2.0'), true).resolutions, ['720p', '1080p']);

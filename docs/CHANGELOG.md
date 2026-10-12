@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — HD enhancement delivers 1080p for both resolutions
+
+- With fal configured, Video Studio's 720p renders at 480p and 1080p at 720p, and both are upscaled to 1080p with fal's default settings (`target_resolution: 1080p`, general preset, high fidelity, fal's frame rate). This replaces the earlier ×1.5 to 720p, which produced 1296×744 output with damaged text. Prices: 480p or 720p render + $0.0072/s upscale.
+
 ## 2026-10-12 — 720p rendered natively again
 
 - The first HD-enhanced 720p video (rendered at 480p, upscaled ×1.5) came back at 1296×744 with mangled small text and waxy textures. 720p is now always rendered natively by ArgoLink (its native price). 1080p is still a 720p render upscaled by fal, now with `target_resolution: 1080p` (an exact 1080p frame), the `general` preset and `fidelity: high`, the mildest enhancement. Not yet checked on a paid 1080p job.

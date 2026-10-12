@@ -56,13 +56,14 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   assert.deepEqual(config.pricing.find(m => m.id === 'argo_seedance_2_0_fast').resolutions.map(r => r.id), ['720p']);
   assert.deepEqual(seedance.resolutions.map(r => r.id), ['720p', '1080p']);
 
-  // With fal: 720p is still rendered natively; 1080p renders at 720p, plus the upscale.
+  // With fal: 720p renders at 480p and 1080p at 720p; both are upscaled to 1080p.
   settings.set('fal_api_key', { setting_key: 'fal_api_key', setting_value: 'fal-key', is_secret: 0 });
   settings.set('fal_customer_credits_per_usd', { setting_key: 'fal_customer_credits_per_usd', setting_value: '6000', is_secret: 0 });
   const hd = await (await fetch(origin + '/api/config')).json();
   assert.ok(hd.pricing.every(m => m.resolutions.every(r => ['720p', '1080p'].includes(r.id))));
   assert.deepEqual(hd.pricing.find(m => m.id === 'argo_seedance_2_0_fast').resolutions.map(r => r.id), ['720p', '1080p']);
-  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '720p', aspectRatio: '16:9' })).data.cost, 6600);
+  // 10 s at 480p ($0.53) + 10 s upscale ($0.072), each x 6000
+  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '720p', aspectRatio: '16:9' })).data.cost, 3180 + 432);
   // 10 s at 720p ($1.10) + 10 s upscale ($0.072), each x 6000
   assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '1080p', aspectRatio: '16:9' })).data.cost, 6600 + 432);
   assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '480p', aspectRatio: '16:9' })).status, 400);
@@ -76,12 +77,12 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   const saved = created[1][2].generationOptions;
   assert.equal(saved.model.providerModelId, 'seedance-2.5');
   assert.deepEqual([saved.resolution, saved.sourceResolution, saved.enhance.credits], ['1080p', '720p', 216]);
-  assert.deepEqual(saved.enhance.upscale.input, { target_resolution: '1080p', enhancement_preset: 'general', fidelity: 'high', target_fps: 24 });
+  assert.deepEqual(saved.enhance.upscale.input, { target_resolution: '1080p', enhancement_preset: 'general', fidelity: 'high' });
   assert.equal(created[1][1].resolution, '1080p');
-  // MiniMax H3 renders 768p, so 720p needs no upscale and 1080p upscales 768p.
+  // MiniMax H3 renders 768p for both; both are upscaled to 1080p.
   await post('/api/generations', { model: 'argo_minimax_h3', prompt: 'A fox', duration: 5, resolution: '720p', aspectRatio: '16:9' });
   await post('/api/generations', { model: 'argo_minimax_h3', prompt: 'A fox', duration: 5, resolution: '1080p', aspectRatio: '16:9' });
-  assert.deepEqual([created[2][2].generationOptions.sourceResolution, created[2][2].generationOptions.enhance], ['768p', null]);
+  assert.deepEqual([created[2][2].generationOptions.sourceResolution, created[2][2].generationOptions.enhance.upscale.input.target_resolution], ['768p', '1080p']);
   assert.deepEqual([created[3][2].generationOptions.sourceResolution, created[3][2].generationOptions.enhance.upscale.input.target_resolution], ['768p', '1080p']);
 
   // A customer without ArgoLink access sees none of its models and cannot submit.
