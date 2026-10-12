@@ -113,6 +113,15 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   const legacy = await fetch(origin + '/api/image-generations/' + id, { method: 'DELETE' });
   assert.equal(legacy.status, 200);
 
+  // The admin console arrives with its stylesheets inline and the small logo.
+  const adminHtml = await (await fetch(origin + '/admin-console')).text();
+  assert.equal(/<link rel="stylesheet"/.test(adminHtml), false);
+  assert.match(adminHtml, /<style>[\s\S]*\.brand-logo/);
+  assert.match(adminHtml, /src="\/assets\/cmmtools-logo-sm\.png"/);
+  const logo = await fetch(origin + '/assets/cmmtools-logo-sm.png');
+  assert.equal(logo.status, 200);
+  assert.ok((await logo.arrayBuffer()).byteLength < 20000);
+
   const health = await (await fetch(origin + '/health')).json();
   assert.ok(health.runtime.startedAt);
   assert.equal(typeof health.runtime.worstEventLoopLagMs, 'number');

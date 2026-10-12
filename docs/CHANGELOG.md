@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Faster Admin console
+
+- The console loaded in a chain: the page, then two stylesheets, then the stats (to check the token), then the same stats again, then the config. Each step costs about a second from Pakistan; the server itself answers in about 0.25s. The login check's stats are now reused, stats and config load together, and the server inlines `brand.css` and `admin.css` into the admin page at startup, so the page renders after one request.
+- The header logo was a 1200x408, 200 KB PNG shown about 135 px wide. Admin and the customer dashboard now use `assets/cmmtools-logo-sm.png` (360 px, 6 KB). The original file is kept.
+
 ## 2026-10-12 — GPT Image models from the AI Gateway
 
 - The gateway catalog already contained GPT Image 1, 1 Mini, 1.5, 2, 2.5 Flare and 2.5 Sunburst, but bills them by tokens, so they had no per-image price and stayed hidden until an Admin price was set. They now use OpenAI's published per-image prices (see `docs/VERCEL_AI_GATEWAY.md`), become ready without setup and are marked as estimates because prompt and reference input tokens are extra. GPT Image 2.5 uses GPT Image 2's figures as an estimate; an Admin price still overrides.

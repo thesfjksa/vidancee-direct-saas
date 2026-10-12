@@ -128,7 +128,15 @@ const {
 } = require('./src/provider/higgsfield_mcp.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
-const adminPage = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
+// The admin page carries its stylesheets inline: one request instead of three
+// before anything can render.
+function inlineStylesheets(html) {
+  return html.replace(/<link rel="stylesheet" href="\/(brand|admin)\.css(?:\?[^"]*)?">/g, (tag, name) => {
+    const css = fs.readFileSync(path.join(__dirname, 'public', name + '.css'), 'utf8');
+    return '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>';
+  });
+}
+const adminPage = inlineStylesheets(fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8'));
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
@@ -439,6 +447,7 @@ const server=http.createServer(async (req,res)=>{
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
+      '/assets/cmmtools-logo-sm.png':['assets/cmmtools-logo-sm.png','image/png'],
       '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
       '/favicon.ico':['assets/cmmtools-icon.png','image/png'],
       '/assets/fonts/inter-latin-wght.woff2':['assets/fonts/inter-latin-wght.woff2','font/woff2'],

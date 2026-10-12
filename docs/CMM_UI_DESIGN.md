@@ -40,6 +40,7 @@ Completed video and voice playback elements are preserved during periodic status
 - `public/studio.css`: customer layout, galleries, model picker, authentication and responsive rules.
 - `public/admin.css`: admin controls, tables, provider cards and dialogs.
 - `public/assets/cmmtools-logo.png` and `public/assets/cmmtools-icon.png`: original supplied assets.
+- `public/assets/cmmtools-logo-sm.png`: 360 px copy of the logo (6 KB) used in the page headers; regenerate it from the original if the logo changes.
 - `public/assets/fonts/inter-latin-wght.woff2`: self-hosted Inter variable font (Latin subset) with `OFL.txt`.
 - `server.js`: explicit GET/HEAD routes for these styles and assets, plus a favicon alias. No general filesystem route was added.
 - CSS URLs include a version key. Assets/styles use a one-hour public cache lifetime.
