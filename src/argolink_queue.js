@@ -64,10 +64,30 @@ class ArgoLinkQueue extends VercelQueue {
       if (savedOptions(job).enhance?.upscale) await this.startEnhancement(db, job, output, requestId);
       else await this.complete(db, job, output);
     } else if (result.status === 'failed' || result.status === 'expired') {
-      const reason = String(result.error?.message || '').slice(0, 200);
+      const error = result.error || {};
+      console.error('ArgoLink job failed for', job.id, requestId, error.code || result.status, error.message || '');
+      // ArgoLink marks a failure retryable when nothing was consumed and the
+      // same request can safely run again. Try once more before refunding.
+      if (result.status === 'failed' && error.retryable === true && !op.retried && await this.retry(db, client, job, op)) return;
+      const reason = String(error.message || '').slice(0, 200);
       await this.refund(job.id, 'failed', (reason ? 'The video model could not complete this request: ' + reason : 'The video model could not complete this request.') + ' Credits were refunded.', null);
     } else if (result.status === 'pending') await this.markProcessing(db, job);
     else throw Object.assign(new Error('The video status was temporarily unavailable.'), { retryable: true });
+  }
+
+  // Resubmits a retryable failure once; the new request id replaces the old one.
+  async retry(db, client, job, op) {
+    try {
+      const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
+      if (!model?.ready) return false;
+      const requestId = await client.startVideo(model, { ...options, resolution: options.sourceResolution || options.resolution }, await this.references(db, job));
+      await db.execute("UPDATE generations SET status='processing',provider_operation=?,provider_job_id=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
+        [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id }), requestId.slice(0, 191), job.id]);
+      return true;
+    } catch (error) {
+      console.error('ArgoLink retry could not start for', job.id, error.message);
+      return false;
+    }
   }
 
   // Stores ArgoLink's render (fal downloads it from a signed link) and starts the upscale.

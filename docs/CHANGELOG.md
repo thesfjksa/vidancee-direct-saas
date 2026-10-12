@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — ArgoLink retries safe failures once
+
+- When ArgoLink fails a video and marks the failure `retryable` (nothing consumed, safe to resend), the worker resubmits the same request once before refunding. Every ArgoLink failure is logged with its code and request id. A customer reported "The result could not be generated." (a generic ArgoLink render failure, not the fal upscale); such jobs now get one more attempt when ArgoLink allows it.
+
 ## 2026-10-12 — HD enhancement delivers 1080p for both resolutions
 
 - With fal configured, Video Studio's 720p renders at 480p and 1080p at 720p, and both are upscaled to 1080p with fal's default settings (`target_resolution: 1080p`, general preset, high fidelity, fal's frame rate). This replaces the earlier ×1.5 to 720p, which produced 1296×744 output with damaged text. Prices: 480p or 720p render + $0.0072/s upscale.

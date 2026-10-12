@@ -205,3 +205,25 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   await queue.pollJob(qdb, argo, job);
   assert.ok(sql.some(([t]) => t.includes('credits_cost=credits_cost-?')));
 });
+
+test('a retryable ArgoLink failure is resubmitted once, then refunded', async () => {
+  const { ArgoLinkQueue } = require('../src/argolink_queue.js');
+  const writes = [], refunds = [];
+  const qdb = { async execute(sql, args) { writes.push([sql, args]); return [{ affectedRows: 1 }]; } };
+  const queue = new ArgoLinkQueue({ refund: async (...a) => refunds.push(a) });
+  queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true }); queue.references = async () => [];
+  let started = 0;
+  const failed = retryable => ({ videoStatus: async () => ({ status: 'failed', error: { code: 'generation_failed', message: 'The result could not be generated.', retryable } }),
+    startVideo: async (_m, params) => { started++; assert.equal(params.resolution, '480p'); return 'r2'; } });
+  const options = JSON.stringify({ model: model('seedance-2.5'), duration: 5, resolution: '720p', sourceResolution: '480p', aspectRatio: '9:16' });
+  const job = { id: 'j1', media_type: 'video', model: 'argo_seedance_2_5', prompt: 'p', generation_options: options, provider_operation: JSON.stringify({ requestId: 'r1' }) };
+
+  await queue.pollJob(qdb, failed(true), job);
+  assert.deepEqual([started, refunds.length], [1, 0]);
+  assert.deepEqual(JSON.parse(writes.at(-1)[1][0]), { requestId: 'r2', retried: true, firstRequestId: 'r1' });
+  // The second failure is refunded, and so is a failure ArgoLink does not mark retryable.
+  await queue.pollJob(qdb, failed(true), { ...job, provider_operation: writes.at(-1)[1][0] });
+  await queue.pollJob(qdb, failed(false), job);
+  assert.deepEqual([started, refunds.length], [1, 2]);
+  assert.match(refunds[0][2], /The result could not be generated\. Credits were refunded\./);
+});
