@@ -84,6 +84,9 @@ test('Cartoon Studio jobs are accepted only for Seedance and keep the style on t
   assert.equal(config.cartoon.enabled, true);
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['seedance_2.5', 'seedance_2.0_fast']);
+  // Video Studio no longer lists the Vidancee/CreatePulse Seedance models.
+  assert.equal(config.pricing.some(m => m.id.startsWith('seedance')), false);
+  assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16' })).status, 400);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'anime' })).status, 400);

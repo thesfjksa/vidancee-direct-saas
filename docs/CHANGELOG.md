@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Seedance only in Cartoon Studio
+
+- Video Studio no longer lists Seedance 2.5 and Seedance 2.0 Fast from Vidancee/CreatePulse; those sources are used through Cartoon Studio. A video request for them without a cartoon style is refused with "Seedance is available in Cartoon Studio." Seedance models from other sources (Higgsfield, AI Gateway) are unaffected. Existing Seedance videos stay in the gallery.
+
 ## 2026-10-12 — Provider usage and a compact SmartAIPI card
 
 - Admin → Provider starts with **Usage & limits**: per provider, the remaining balance where one is reported, plus last-24-hour jobs, 30-day completed/failed jobs, 30-day provider cost (as recorded on each job) and customer credits, and jobs in progress (`GET /admin/provider-usage`, `src/provider_usage.js`).

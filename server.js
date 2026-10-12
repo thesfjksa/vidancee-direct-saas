@@ -51,7 +51,7 @@ const promptEnhancementGate = new PromptEnhancementGate();
 const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
 const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
-const { normalizeCartoonRequest, publicCartoonConfig } = require('./src/cartoon.js');
+const { normalizeCartoonRequest, publicCartoonConfig, CARTOON_MODELS } = require('./src/cartoon.js');
 const { providerUsage } = require('./src/provider_usage.js');
 const diagnostics = new RuntimeDiagnostics().start();
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
@@ -601,7 +601,8 @@ const server=http.createServer(async (req,res)=>{
 
           videoPricing=videoPricing.filter(model=>{
             if (model.id==='minimax_h3') return h3FallbackActive;
-            if (model.id==='seedance_2.5' || model.id==='seedance_2.0_fast') return seedanceFallbackActive;
+            // Vidancee/CreatePulse Seedance lives in Cartoon Studio only.
+            if (CARTOON_MODELS.includes(model.id)) return false;
             return true;
           });
 
@@ -1175,6 +1176,7 @@ const server=http.createServer(async (req,res)=>{
             return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
           }
         } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
+          if (!cartoonOptions) return sendJson(res,400,{ok:false,error:'Seedance is available in Cartoon Studio.'});
           const vidanceeActive=Boolean(
             customerAccess.vidancee &&
             providerSettings.vidanceeEnabled &&
