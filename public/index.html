@@ -2257,7 +2257,12 @@ function imageGenerationCard(g){
 }
 
 function imageModelLabel(id){
-  return config?.imagePricing?.find(model=>model.id===id)?.label||id;
+  const known=config?.imagePricing?.find(model=>model.id===id)?.label;
+  if(known)return known;
+  // A model no longer offered to this account still gets a readable name, e.g.
+  // gpt_image_2_5_flare_studio -> GPT Image 2.5 Flare.
+  return String(id||'').replace(/^studio_gw_[a-z]+_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
+    .split('_').filter(Boolean).map(w=>w==='gpt'?'GPT':w.charAt(0).toUpperCase()+w.slice(1)).join(' ')||String(id||'');
 }
 
 function openImagePreview(id){

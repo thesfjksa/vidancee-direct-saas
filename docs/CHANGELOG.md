@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Gallery order
+
+- Galleries used CSS columns, which fill each column top to bottom, so new items appeared down the first column. They now use a grid that fills row by row, newest first from left to right. Cards in a row align to their top; a short card leaves space below it.
+- A completed image whose model is no longer offered to the account showed the raw ID (for example `gpt_image_2_5_flare_studio`). It now shows a readable name (GPT Image 2.5 Flare).
+
 ## 2026-10-12 — Faster Admin console
 
 - The console loaded in a chain: the page, then two stylesheets, then the stats (to check the token), then the same stats again, then the config. Each step costs about a second from Pakistan; the server itself answers in about 0.25s. The login check's stats are now reused, stats and config load together, and the server inlines `brand.css` and `admin.css` into the admin page at startup, so the page renders after one request.

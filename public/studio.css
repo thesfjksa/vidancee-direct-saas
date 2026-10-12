@@ -77,8 +77,9 @@ textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
 .filter-btn:hover { color: var(--text); }
 
 /* ---------- Gallery cards ---------- */
-.gallery { columns: 3 280px; column-gap: 20px; }
-.job { break-inside: avoid; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; box-shadow: var(--shadow-xs); transition: box-shadow .2s, border-color .2s, transform .2s; }
+/* Row by row, newest first: left to right, then the next row. */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; align-items: start; }
+.job { margin: 0; border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; box-shadow: var(--shadow-xs); transition: box-shadow .2s, border-color .2s, transform .2s; }
 .job:hover { border-color: var(--line-2); box-shadow: var(--shadow); transform: translateY(-1px); }
 .job-media { position: relative; display: grid; place-items: center; overflow: hidden; background: #eef1f4; }
 .job-media img, .job-media video { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -358,7 +359,7 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
 .prompt-enhancer input:focus-visible + .enhancer-track { outline: 2px solid var(--turquoise); outline-offset: 2px; }
 
 /* ---------- Responsive ---------- */
-@media (min-width: 1700px) { .create-layout { grid-template-columns: 380px minmax(0,1fr); gap: 40px; } .gallery { columns: 4 280px; } }
+@media (min-width: 1700px) { .create-layout { grid-template-columns: 380px minmax(0,1fr); gap: 40px; } }
 @media (max-width: 1200px) {
   #shell { --app-header-height: 108px; }
   .topnav { flex-wrap: wrap; height: auto; min-height: 0; gap: 0 16px; padding: 0 24px; }
@@ -418,7 +419,7 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
   .studio-intro h1 { font-size: 26px; }
   .studio-intro p { font-size: 14px; }
   .canvas-head { flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .gallery { columns: 1; }
+  .gallery { grid-template-columns: 1fr; }
   .empty { min-height: 300px; }
   .page-head h1 { font-size: 24px; }
   .page-head p { font-size: 14px; }
