@@ -847,7 +847,8 @@ function ensureCustomSelect(id){
           filterCustomSelectOptions(wrap,'');
           requestAnimationFrame(()=>{
             positionCustomSelect(wrap);
-            search.focus({preventScroll:true});
+            // On touch screens the keyboard would cover the list; tap Search to type.
+            if(!matchMedia('(pointer: coarse)').matches)search.focus({preventScroll:true});
           });
         }else{
           requestAnimationFrame(()=>{
@@ -953,7 +954,12 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeCustomSelects();
 });
-window.addEventListener('resize',()=>closeCustomSelects());
+// Phones resize the window when the on-screen keyboard opens or the address
+// bar hides; closing here made the model picker vanish right after a tap.
+window.addEventListener('resize',()=>{
+  const open=document.querySelector('.custom-select.open');
+  if(open)positionCustomSelect(open);
+});
 document.addEventListener('scroll',e=>{
   const open=document.querySelector('.custom-select.open');
   if(!open)return;

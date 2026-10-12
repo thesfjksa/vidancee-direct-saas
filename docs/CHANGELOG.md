@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Model picker closed itself on phones
+
+- Every picker closed on any window resize. Opening the model picker focused its search box, which raises the phone keyboard; the keyboard resizes the window, so the picker closed immediately (also when the address bar hid). Reproduced by tapping the picker and then shrinking the viewport: the old code closed all three model pickers, the new code keeps them open. Resizing now only re-places small dropdowns, and on touch screens the search box is no longer focused automatically (tap it to type), so the keyboard does not cover the list.
+
 ## 2026-10-12 — Dropdowns on short phone screens
 
 - Checked every picker (video/image/cartoon model, aspect ratio, duration, resolution, quality, image size) at 390x844 and 360x640 with the live model list. Model and aspect-ratio pickers were fine. Small dropdowns chose their direction from the form panel's edges, but on phones the panel is taller than the screen, so a field near the bottom opened its list below the visible area (Video Studio duration, Cartoon Studio model at 360x640). The direction now uses the panel and the visible screen together, the list height is capped to the available room (it scrolls inside), and if there is no room either way the field is scrolled to the middle first.
