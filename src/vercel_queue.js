@@ -8,6 +8,7 @@ const {providerAssetUrl}=require('./provider/assets.js');
 const {refundGeneration}=require('./generations.js');
 const {saveVideoOutput}=require('./video_outputs.js');
 const {looksOutOfCredits}=require('./cartoon.js');
+const {logActivity,errorDetails}=require('./activity_log.js');
 
 function savedOptions(job) {
   let options;
@@ -21,7 +22,7 @@ class VercelQueue {
     clientFactory=opts=>new VercelGatewayClient(opts),provider='vercel',failover=null}={}) {
     // failover: {isOut(source), markOut(source), move(db,job)} moves image jobs
     // to ArgoLink when this source has run out of credits.
-    this.provider=provider;this.failover=failover;this.videoTimeoutMs=45*60*1000;this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
+    this.provider=provider;this.failover=failover;this.loggedPollErrors=new Set();this.videoTimeoutMs=45*60*1000;this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
     this.stopped=true;this.running=false;this.tasks=new Set();this.client=null;this.fingerprint='';
     this.lastStartedAt=null;this.lastFinishedAt=null;this.lastSuccessfulAt=null;this.sourceReady=false;
   }
@@ -39,7 +40,8 @@ class VercelQueue {
     if(this.running)return;
     this.running=true;this.lastStartedAt=new Date().toISOString();
     try{await this.runOnce();this.lastSuccessfulAt=new Date().toISOString();}
-    catch(error){console.error(this.provider+' queue tick failed:',error.message);}
+    catch(error){console.error(this.provider+' queue tick failed:',error.message);
+      logActivity({level:'error',category:'system',event:'queue.tick_failed',provider:this.provider,message:error.message,details:errorDetails(error)});}
     finally{this.running=false;this.lastFinishedAt=new Date().toISOString();this.schedule();}
   }
   health(){return {enabled:!this.stopped,running:this.running,lastStartedAt:this.lastStartedAt,
@@ -96,10 +98,12 @@ class VercelQueue {
     } finally {if(locked)await conn.query(`SELECT RELEASE_LOCK('cmm_${provider}_queue')`);conn.release();}
     for(const job of claimed) {
       this.tasks.add(job.id);
+      this.log(job,'job.started','Sent to '+this.provider+' ('+job.model+')');
       // Long requests run outside the polling loop. Catch every task failure so
       // an unavailable model cannot terminate the worker or strand the wallet.
       Promise.resolve().then(()=>this.submit(db,job,client))
-        .catch(async error=>{try{await this.refund(job.id,'failed',error.message||'Generation failed. Credits were refunded.',null);}
+        .catch(async error=>{this.log(job,'job.submit_failed',error.message,errorDetails(error),'error');
+          try{await this.refund(job.id,'failed',error.message||'Generation failed. Credits were refunded.',null);}
           catch{console.error(this.provider+' generation refund will be retried by recovery:',job.id);}})
         .finally(()=>this.tasks.delete(job.id));
     }
@@ -141,6 +145,10 @@ class VercelQueue {
       if(age>this.videoTimeoutMs){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
       this.tasks.add(job.id);
       Promise.resolve().then(()=>this.pollJob(db,client,job)).catch(async error=>{
+        // Logged once per distinct message, not on every 5-second poll.
+        const key=job.id+':'+error.message;
+        if(!this.loggedPollErrors.has(key)){this.loggedPollErrors.add(key);if(this.loggedPollErrors.size>500)this.loggedPollErrors.clear();
+          this.log(job,'job.poll_failed',error.message,errorDetails(error),'warn');}
         // Poll/download failures keep the saved operation for another read.
         // No new generation is submitted while waiting for the original job.
         await db.execute("UPDATE generations SET updated_at=UTC_TIMESTAMP(),error_message=? WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
@@ -173,7 +181,11 @@ class VercelQueue {
       await conn.execute("UPDATE generations SET status='completed',output_url=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?",
         [job.media_type==='image'?'db:image':'db:video',job.id]);
       await conn.commit();
+      this.log(job,'job.completed','Completed',{bytes:output.data?.length,mimeType:output.mimeType});
     } catch(error){await conn.rollback();throw error;}finally{conn.release();}
+  }
+  log(job,event,message,details=null,level='info') {
+    logActivity({level,category:'provider',event,userId:job?.user_id,generationId:job?.id,provider:this.provider,message,details});
   }
 }
 

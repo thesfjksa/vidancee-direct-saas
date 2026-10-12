@@ -6,7 +6,7 @@
 <div id="loginBox" class="card login"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div class="brand">CMM Tools Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
 <div id="adminApp" class="hide">
   <div class="top"><div class="admin-brand"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div><div class="brand">Admin console</div><div class="muted">Production control center</div></div></div><button class="secondary" onclick="adminLogout()">Lock admin</button></div>
-  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button></div>
+  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button><button data-tab="activity" onclick="tab('activity',this)">Activity</button></div>
 
   <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>Server health</h2><div id="healthInfo" class="muted">Loading...</div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
@@ -38,6 +38,28 @@
   <section id="generations" class="section"><div class="card"><div class="top"><h2>Generations</h2><button class="secondary" onclick="loadGenerations()">Refresh</button></div><div class="row"><input id="genSearch" placeholder="Email, local ID, or provider job ID"><select id="genStatus"><option value="">All statuses</option><option>queued</option><option>submitting</option><option>submitted</option><option>processing</option><option>completed</option><option>failed</option><option>submit_error</option></select><button class="btn" onclick="loadGenerations()">Filter</button></div><div class="tablewrap"><table><thead><tr><th>User</th><th>Type</th><th>Status</th><th>Provider</th><th>Model</th><th>Duration</th><th>Resolution</th><th>Credits</th><th>Provider job</th><th>Created</th><th>Prompt/Error</th></tr></thead><tbody id="generationRows"></tbody></table></div></div></section>
 
   <section id="credits" class="section"><div class="card"><div class="top"><h2>Credit ledger</h2><button class="secondary" onclick="loadCredits()">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>User</th><th>Generation</th><th>Type</th><th>Note</th><th>Amount</th></tr></thead><tbody id="creditRows"></tbody></table></div></div></section>
+
+  <section id="activity" class="section">
+    <div class="card">
+      <div class="top"><div><h2 style="margin:0">Activity log</h2><div class="muted">Every action in CMM Tools: sign-ins, generations, provider requests and replies, retries, upscales, refunds and Admin changes. Keys and passwords are always masked. Kept for 30 days.</div></div><button class="secondary" onclick="loadActivity()">Refresh</button></div>
+      <div class="row" style="margin-top:12px">
+        <input id="actSearch" type="search" placeholder="Search message or details" onkeydown="if(event.key==='Enter')loadActivity()">
+        <input id="actGeneration" placeholder="Generation ID" onkeydown="if(event.key==='Enter')loadActivity()">
+        <select id="actLevel" onchange="loadActivity()"><option value="">All levels</option><option value="error">Errors</option><option value="warn">Warnings</option><option value="info">Info</option></select>
+        <select id="actCategory" onchange="loadActivity()"><option value="">All categories</option><option value="generation">Generations</option><option value="provider">Providers</option><option value="refund">Refunds</option><option value="request">Customer actions</option><option value="admin">Admin</option><option value="system">System</option></select>
+        <label class="muted" style="display:flex;align-items:center;gap:6px"><input id="actLive" type="checkbox" style="width:auto" onchange="toggleActivityLive()"> Live</label>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Event</th><th>User</th><th>Provider</th><th>Generation</th><th>Message</th></tr></thead><tbody id="activityRows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>
+      <div style="margin-top:10px"><button class="secondary" id="actMore" onclick="loadActivity(true)">Load older</button></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2 style="margin:0">Support access</h2>
+      <div class="muted" style="margin-top:6px">A read-only key for whoever helps you fix problems (for example Claude). It can read this activity log and generation details, with customer emails masked. It cannot change anything, see API keys or spend credits. Revoke it any time.</div>
+      <div id="supportKeyStatus" class="muted" style="margin-top:10px">Checking...</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="secondary" onclick="createSupportKey()">Create new key</button><button class="danger" onclick="revokeSupportKey()">Revoke key</button></div>
+      <pre id="supportKeyOut" class="hide" style="margin-top:10px;white-space:pre-wrap;word-break:break-all"></pre>
+    </div>
+  </section>
 
   <section id="provider" class="section">
     <div class="card">
@@ -258,7 +280,7 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderUsage();loadProviderSettings();loadProviderConfig()}}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -446,6 +468,43 @@ async function saveProviderSettings(){
 }
 
 let vercelModels=[],argoModels=[];
+let activityRows=[],activityTimer=null;
+function activityQuery(older){
+  const p=new URLSearchParams({limit:'200'});
+  for(const [k,id] of [['q','actSearch'],['generation','actGeneration'],['level','actLevel'],['category','actCategory']]){const v=$(id).value.trim();if(v)p.set(k,v);}
+  if(older&&activityRows.length)p.set('before',activityRows[activityRows.length-1].id);
+  return p.toString();
+}
+async function loadActivity(older=false){
+  try{
+    const d=await api('/admin/activity?'+activityQuery(older));
+    activityRows=older?activityRows.concat(d.entries):d.entries;
+    $('actMore').classList.toggle('hide',d.entries.length<200);
+    const lvl={error:'err',warn:'warn',info:'muted'};
+    $('activityRows').innerHTML=activityRows.length?activityRows.map((e,i)=>'<tr class="act-row" onclick="toggleActivityDetails('+i+')" style="cursor:pointer"><td title="'+esc(e.at)+'">'+fmt(e.at)+'</td><td class="'+(lvl[e.level]||'')+'">'+esc(e.level)+'</td><td>'+esc(e.category)+'</td><td>'+esc(e.event)+'</td><td>'+esc(e.email||(e.userId?'#'+e.userId:''))+'</td><td>'+esc(e.provider||'')+'</td><td>'+(e.generationId?'<a href="#" onclick="event.stopPropagation();$(\'actGeneration\').value=\''+esc(e.generationId)+'\';loadActivity();return false">'+esc(e.generationId.slice(0,8))+'</a>':'')+'</td><td style="max-width:520px">'+esc(e.message)+'</td></tr><tr id="actDetails'+i+'" class="hide"><td colspan="8"><pre style="max-height:360px;overflow:auto;white-space:pre-wrap;word-break:break-word">'+esc(JSON.stringify({id:e.id,service:e.service,generationId:e.generationId,details:e.details},null,2))+'</pre></td></tr>').join(''):'<tr><td colspan="8" class="muted">No activity matches these filters.</td></tr>';
+  }catch(e){$('activityRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>';}
+}
+function toggleActivityDetails(i){$('actDetails'+i)?.classList.toggle('hide');}
+function toggleActivityLive(on){
+  if(on===false)$('actLive').checked=false;
+  clearInterval(activityTimer);activityTimer=null;
+  if($('actLive').checked)activityTimer=setInterval(()=>loadActivity(),5000);
+}
+async function loadSupportKey(){
+  try{const d=await api('/admin/support-key');$('supportKeyStatus').textContent=d.active?'A support key is active (created '+fmt(d.createdAt)+').':'No support key is active.';}
+  catch(e){$('supportKeyStatus').textContent=e.message;}
+}
+async function createSupportKey(){
+  if(!confirm('Create a new read-only support key? Any previous key stops working.'))return;
+  try{const d=await api('/admin/support-key',{method:'POST',body:'{}'});const out=$('supportKeyOut');out.classList.remove('hide');
+    out.textContent='Support key (shown once — copy it now):\n'+d.key+'\n\nRead the log: '+location.origin+'/ops/activity  (header x-support-key)\nRevoke it here when the problem is fixed.';loadSupportKey();}
+  catch(e){alert(e.message);}
+}
+async function revokeSupportKey(){
+  if(!confirm('Revoke the support key?'))return;
+  try{await api('/admin/support-key/revoke',{method:'POST',body:'{}'});$('supportKeyOut').classList.add('hide');loadSupportKey();}
+  catch(e){alert(e.message);}
+}
 async function checkFal(){
   const msg=$('falActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
   try{await api('/admin/fal/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · fal.ai accepted the key';}

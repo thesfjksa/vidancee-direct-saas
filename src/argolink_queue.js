@@ -12,6 +12,7 @@ const { ArgoLinkClient } = require('./provider/argolink.js');
 const { FalClient } = require('./provider/fal.js');
 const { providerOutputUrl } = require('./provider/assets.js');
 const { saveVideoOutput } = require('./video_outputs.js');
+const { errorDetails } = require('./activity_log.js');
 
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
@@ -45,7 +46,12 @@ class ArgoLinkQueue extends VercelQueue {
       return;
     }
     // Rendered at the source resolution when HD enhancement follows.
-    const requestId = await client.startVideo(model, { ...options, resolution: options.sourceResolution || options.resolution }, references);
+    const params = { ...options, resolution: options.sourceResolution || options.resolution };
+    let requestBody = null;
+    try { requestBody = client.videoBody?.(model, params, references); } catch {}
+    this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: references.map(r => ({ role: r.role, mimeType: r.mimeType })) });
+    const requestId = await client.startVideo(model, params, references);
+    this.log(job, 'argolink.accepted', 'ArgoLink request ' + requestId, { requestId });
     // The request id is saved before the first poll, so a restart resumes the
     // same job instead of paying for a second one.
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
@@ -59,6 +65,13 @@ class ArgoLinkQueue extends VercelQueue {
     const requestId = op.requestId || job.provider_job_id;
     if (!requestId) throw new Error('The video operation could not be resumed.');
     const result = await client.videoStatus(requestId);
+    // One log line per status change (not on every poll).
+    const seen = job.id + ':' + requestId + ':' + result.status;
+    if (!this.loggedStatus) this.loggedStatus = new Set();
+    if (!this.loggedStatus.has(seen)) {
+      this.loggedStatus.add(seen); if (this.loggedStatus.size > 2000) this.loggedStatus.clear();
+      this.log(job, 'argolink.status', requestId + ' → ' + result.status, result, result.status === 'failed' || result.status === 'expired' ? 'error' : 'info');
+    }
     if (result.status === 'done') {
       const output = await client.videoContent(requestId);
       if (savedOptions(job).enhance?.upscale) await this.startEnhancement(db, job, output, requestId);
@@ -81,6 +94,7 @@ class ArgoLinkQueue extends VercelQueue {
       const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
       if (!model?.ready) return false;
       const requestId = await client.startVideo(model, { ...options, resolution: options.sourceResolution || options.resolution }, await this.references(db, job));
+      this.log(job, 'argolink.retry', 'Retrying once as ' + requestId + ' (ArgoLink marked the failure retryable)', { firstRequestId: op.requestId || job.provider_job_id, requestId });
       await db.execute("UPDATE generations SET status='processing',provider_operation=?,provider_job_id=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
         [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id }), requestId.slice(0, 191), job.id]);
       return true;
@@ -97,9 +111,11 @@ class ArgoLinkQueue extends VercelQueue {
     if (!fal) return this.finishWithoutEnhancement(db, job);
     const plan = savedOptions(job).enhance.upscale;
     let falOp;
+    this.log(job, 'enhance.request', 'fal upscale ' + plan.path, { input: plan.input, renderBytes: output.data?.length });
     try { falOp = await fal.submit(plan.path, { video_url: providerOutputUrl(job.id), ...plan.input }); }
     catch (error) {
       console.error('HD enhancement could not start for', job.id, error.message);
+      this.log(job, 'enhance.failed', 'fal upscale could not start: ' + error.message, errorDetails(error), 'error');
       return this.finishWithoutEnhancement(db, job);
     }
     await db.execute("UPDATE generations SET status='processing',provider_operation=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
@@ -110,9 +126,13 @@ class ArgoLinkQueue extends VercelQueue {
     const fal = this.fal();
     if (!fal) return this.finishWithoutEnhancement(db, job);
     const result = await fal.check(op.fal);
-    if (result.state === 'done') await this.storeOutput(db, job, await fal.download(result.url), true);
-    else if (result.state === 'failed') {
+    if (result.state === 'done') {
+      const output = await fal.download(result.url);
+      await this.storeOutput(db, job, output, true);
+      this.log(job, 'enhance.completed', 'Upscaled video saved', { bytes: output.data.length, falRequestId: op.fal?.requestId });
+    } else if (result.state === 'failed') {
       console.error('HD enhancement failed for', job.id, result.error);
+      this.log(job, 'enhance.failed', 'fal upscale failed: ' + result.error, { falRequestId: op.fal?.requestId, error: result.error }, 'error');
       await this.finishWithoutEnhancement(db, job);
     } else await this.markProcessing(db, job);
   }
@@ -135,6 +155,7 @@ class ArgoLinkQueue extends VercelQueue {
 
   // Delivers ArgoLink's render and refunds the upscale part of the price.
   async finishWithoutEnhancement(db, job) {
+    this.log(job, 'enhance.skipped', 'Delivered without HD enhancement; upscale credits refunded', null, 'warn');
     const credits = Number(savedOptions(job).enhance?.credits || 0);
     const conn = await db.getConnection();
     try {

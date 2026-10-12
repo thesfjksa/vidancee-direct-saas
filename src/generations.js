@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
 const { roundCredits } = require('./billing.js');
@@ -486,6 +487,9 @@ async function createGenerationForUser(userId, input, options = {}) {
     conn.release();
   }
 
+  logActivity({ category: 'generation', event: 'video.created', userId, generationId: id, provider,
+    message: model + ' · ' + duration + 's · ' + (resolution || 'default') + ' · ' + aspectRatio + ' · ' + cost + ' credits',
+    details: { prompt: String(input.prompt || '').slice(0, 500), options: options.generationOptions || null } });
   const [rows] = await db.execute('SELECT * FROM generations WHERE id = ?', [id]);
   return serializeGeneration(rows[0]);
 }
@@ -644,6 +648,9 @@ async function refundGeneration(generationId, status, message, providerCost = nu
     }
 
     await conn.commit();
+    logActivity({ level: 'warn', category: 'refund', event: row.refunded_at ? 'job.failed' : 'job.refunded', userId: row.user_id, generationId,
+      provider: row.provider, message: (row.refunded_at ? '' : Number(row.credits_cost) + ' credits refunded · ') + (message || status),
+      details: { status, model: row.model, mediaType: row.media_type, providerJobId: row.provider_job_id } });
     return true;
   } catch (error) {
     await conn.rollback();

@@ -12,6 +12,7 @@ const { providerAssetUrl } = require('./provider/assets.js');
 const { isCartoonJob, providerPrompt, vidanceeCreditsNeeded, looksOutOfCredits } = require('./cartoon.js');
 const { recordProviderStatus, readProviderStatus } = require('./provider_usage.js');
 const { moveImageJobToArgo } = require('./image_failover.js');
+const { logActivity, errorDetails } = require('./activity_log.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
@@ -247,7 +248,9 @@ class GenerationWorker {
             row.id,
           ]
         );
+        logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'vidancee', message: 'Completed', details: { providerJobId: row.provider_job_id } });
       } else if (providerJob.status === 'failed') {
+        logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'vidancee', message: 'Vidancee reported the job failed', details: providerJob });
         await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.',
           providerJob.cost_credits == null ? null : Number(providerJob.cost_credits));
       } else if (providerJob.status === 'processing') {
@@ -273,7 +276,9 @@ class GenerationWorker {
             "UPDATE generations SET status='completed', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
             [status.url, row.id]
           );
+          logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'createpulse', message: 'Completed', details: { providerJobId: row.provider_job_id } });
         } else if (status.status === 'failed') {
+          logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'createpulse', message: 'CreatePulse reported the job failed', details: status });
           await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.', status.amount);
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
         } else {
@@ -284,6 +289,7 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error('Overflow provider status sync failed for', row.id, error.message);
+        logActivity({ level: 'warn', category: 'provider', event: 'job.poll_failed', userId: row.user_id, generationId: row.id, provider: 'createpulse', message: error.message, details: errorDetails(error) });
       }
     }
   }
@@ -304,7 +310,9 @@ class GenerationWorker {
             "UPDATE generations SET status='completed', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='usd', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
             [video.price, video.outputUrl, row.id]
           );
+          logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'Completed', details: { providerJobId: row.provider_job_id, price: video.price } });
         } else if (video.status === 'failed' || video.status === 'cancelled') {
+          logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'vgenv reported ' + video.status, details: video });
           await refundGeneration(
             row.id,
             'failed',
@@ -400,6 +408,7 @@ class GenerationWorker {
         images:images.map(image=>({data:image.image_data}))});
     } catch (error) {
       console.error('GPT image request failed for', job.id, error.message);
+      logActivity({ level: 'error', category: 'provider', event: 'job.failed', userId: job.user_id, generationId: job.id, provider: 'smartaipi', message: error.message, details: errorDetails(error) });
       if (looksOutOfCredits(error)) {
         this.imageFailover.markOut('smartaipi');
         if (await this.imageFailover.move(db, job).catch(() => false)) return;
@@ -421,6 +430,7 @@ class GenerationWorker {
         await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type),image_data=VALUES(image_data)',[job.id,result.mimeType,result.data]);
         await conn.execute("UPDATE generations SET status='completed',output_url='db:image',completed_at=UTC_TIMESTAMP(),error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=?",[job.id]);
         await conn.commit();
+        logActivity({ category: 'provider', event: 'job.completed', userId: job.user_id, generationId: job.id, provider: 'smartaipi', message: 'Completed', details: { bytes: result.data.length } });
         return;
       } catch (error) {
         if (conn) await conn.rollback();
@@ -459,6 +469,7 @@ class GenerationWorker {
   }
 
   markOutOfCredits(key) {
+    logActivity({ level: 'warn', category: 'provider', event: 'source.out_of_credits', provider: key, message: key + ' is out of credits; skipped for 10 minutes' });
     this.outOfCreditsUntil = { ...(this.outOfCreditsUntil || {}), [key]: Date.now() + 10 * 60 * 1000 };
     if (key === 'vidancee') this.vidanceeBalance = 0;
     if (dbConfigured()) recordProviderStatus(getPool(), { outOfCredits: this.outOfCreditsUntil }).catch(() => {});
@@ -852,8 +863,10 @@ class GenerationWorker {
           vidSlots -= 1;
           if (isCartoonJob(job) && this.vidanceeBalance != null) this.vidanceeBalance -= vidanceeCreditsNeeded(job);
         }
+        logActivity({ category: 'provider', event: 'job.submitted', userId: job.user_id, generationId: job.id, provider: chosen, message: 'Sent to ' + chosen + ' (' + job.model + ', ' + job.duration + 's)' });
       } catch (error) {
         console.error('Generation submission failed for', job.id, error);
+        logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: chosen, message: error.message, details: errorDetails(error) });
         let submitted = false;
         if (looksOutOfCredits(error)) {
           this.markOutOfCredits(chosen);

@@ -5,6 +5,7 @@
 // Customers pay fal's USD price times the fal credits-per-USD rate.
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { mp4Seconds } = require('./vercel_models.js');
 const { planUpscale, upscaleCredits, dimensionsFor, mp4Dimensions } = require('./enhance.js');
@@ -125,7 +126,10 @@ async function createUpscaleJob(userId, { resolution, source }, settings) {
     conn.release();
   }
   const [rows] = await db.execute('SELECT * FROM generations WHERE id = ?', [id]);
-  return rows[0];
+  const job = rows[0];
+  logActivity({ category: 'generation', event: 'upscale.created', userId, generationId: id, provider: 'fal',
+    message: 'Upscale to ' + job?.resolution + ' · ' + job?.duration + 's · ' + job?.credits_cost + ' credits', details: { options: job?.generation_options } });
+  return job;
 }
 
 module.exports = { UPSCALE_MODEL, RESOLUTIONS, UPLOAD_TYPES, upscaleQuote, publicUpscalerConfig, sourceSeconds, quoteForCustomer, createUpscaleJob };

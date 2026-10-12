@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Activity log and support access
+
+- New `activity_log`: every customer action, job, provider request and reply (including ArgoLink's full error object), retry, upscale, refund and Admin change, with secrets masked. Admin → **Activity** tab with filters and live refresh. A revocable read-only **support key** opens `/ops/activity`, `/ops/generations` and `/ops/health` (emails masked) so problems can be investigated without Admin access. Details in `docs/ACTIVITY_LOG.md`.
+
 ## 2026-10-12 — ArgoLink retries safe failures once
 
 - When ArgoLink fails a video and marks the failure `retryable` (nothing consumed, safe to resend), the worker resubmits the same request once before refunding. Every ArgoLink failure is logged with its code and request id. A customer reported "The result could not be generated." (a generic ArgoLink render failure, not the fal upscale); such jobs now get one more attempt when ArgoLink allows it.

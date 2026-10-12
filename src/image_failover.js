@@ -8,6 +8,7 @@ const { quoteGateway, validateReferences } = require('./vercel_models.js');
 const { smartImageModel } = require('./smartaipi_images.js');
 const { listProviderModels } = require('./provider_models.js');
 const { readProviderStatus } = require('./provider_usage.js');
+const { logActivity } = require('./activity_log.js');
 
 const FIRST_SOURCES = ['vercel', 'smartaipi'];
 
@@ -78,6 +79,8 @@ async function moveImageJobToArgo(db, job, settings) {
      WHERE id=? AND provider=? AND status IN ('submitting','processing') AND refunded_at IS NULL`,
     [model.publicModelId, JSON.stringify({ ...quote, model }), quote.quality || null, quote.sourceUsd, job.id, job.provider],
   );
+  if (result.affectedRows === 1) logActivity({ level: 'warn', category: 'provider', event: 'image.moved_to_argolink', userId: job.user_id, generationId: job.id,
+    provider: job.provider, message: job.provider + ' is out of credits; moved to ArgoLink ' + model.label, details: { argoModel: model.providerModelId, sourceUsd: quote.sourceUsd } });
   return result.affectedRows === 1;
 }
 

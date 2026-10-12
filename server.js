@@ -50,9 +50,50 @@ const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, ENHA
 const promptEnhancementGate = new PromptEnhancementGate();
 const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
-const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
+const { RuntimeDiagnostics, recordBoot, listBoots, routeLabel } = require('./src/runtime_diagnostics.js');
 const { normalizeCartoonRequest, publicCartoonConfig, CARTOON_MODELS } = require('./src/cartoon.js');
 const { providerUsage, readProviderStatus } = require('./src/provider_usage.js');
+const { logActivity, errorDetails, listActivity, pruneActivity, maskEmail, SUPPORT_KEY_SETTING, newSupportKey, hashSupportKey, supportKeyMatches } = require('./src/activity_log.js');
+const authModule = require('./src/auth.js');
+// Remembers who made the request, for the activity log.
+async function requireUser(req) {
+  const user = await authModule.requireUser(req);
+  req.activityUserId = user?.id;
+  return user;
+}
+// Job details for support: everything except media bytes; the saved model
+// definition is cut down to the fields that matter for debugging.
+const JOB_FIELDS='id,user_id,provider,media_type,mode,model,duration,resolution,aspect_ratio,image_quality,prompt,status,credits_cost,provider_cost,provider_cost_unit,provider_job_id,provider_operation,generation_options,error_message,output_url,created_at,submitted_at,started_at,completed_at,refunded_at,updated_at';
+function jobSnapshot(row){
+  const parse=v=>{try{return v?JSON.parse(v):null;}catch{return v;}};
+  const options=parse(row.generation_options);
+  if(options?.model&&typeof options.model==='object'){const m=options.model;options.model={providerModelId:m.providerModelId,publicModelId:m.publicModelId,label:m.label,resolutions:m.resolutions,adaptiveFrames:m.adaptiveFrames};}
+  return {...row,user_id:Number(row.user_id),credits_cost:Number(row.credits_cost),provider_cost:row.provider_cost==null?null:Number(row.provider_cost),
+    generation_options:options,provider_operation:parse(row.provider_operation)};
+}
+async function supportAuthorized(req,url){
+  const supplied=String(req.headers['x-support-key']||url.searchParams.get('key')||'');
+  if(!supplied||!dbConfigured())return false;
+  return supportKeyMatches(supplied,await getSettingValue(SUPPORT_KEY_SETTING,''));
+}
+function activityFilters(url){
+  const p=name=>url.searchParams.get(name)||undefined;
+  return {limit:p('limit'),beforeId:p('before'),sinceMinutes:p('minutes'),level:p('level'),category:p('category'),provider:p('provider'),generationId:p('generation'),userId:p('user'),q:p('q')};
+}
+
+// Quotes and status polls run constantly; they are logged only when they fail.
+const QUIET_ROUTES = new Set(['/api/model-cost', '/api/upscales/quote']);
+function logRequest(req, routePath, res, ms) {
+  if (!/^\/(api|admin)\//.test(routePath)) return;
+  const status = res.statusCode, error = res.activityError;
+  if (req.method === 'GET' && status < 400) return;
+  if (QUIET_ROUTES.has(routePath) && status < 400) return;
+  if (status === 401 && req.method === 'GET') return;
+  logActivity({ level: status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info', category: routePath.startsWith('/admin/') ? 'admin' : 'request',
+    event: routeLabel(req.method, routePath).slice(0, 60), userId: req.activityUserId,
+    message: req.method + ' ' + routePath + ' → ' + status + ' (' + Math.round(ms) + ' ms)' + (error ? ' · ' + error.message : ''),
+    details: error ? errorDetails(error) : null });
+}
 const diagnostics = new RuntimeDiagnostics().start();
 const { appUrl, PRIMARY_URL, RETIRED_HOSTS } = require('./src/app_url.js');
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
@@ -70,7 +111,7 @@ function wakeGenerationWorker(req) {
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
-  createSession, destroySession, userFromRequest, requireUser,
+  createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
 const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
@@ -106,6 +147,9 @@ const {
   getAdminProviderSettings,
   updateProviderSettings,
   migrateLegacyProviderEnvSettings,
+  getSettingValue,
+  setSettingValue,
+  deleteSettingValue,
 } = require('./src/settings.js');
 const { verifyAssetSignature, verifyOutputSignature } = require('./src/provider/assets.js');
 const { createUpscaleJob, publicUpscalerConfig, quoteForCustomer } = require('./src/upscaler.js');
@@ -438,9 +482,9 @@ async function proxyMedia(req,res,row,type) {
 
 const server=http.createServer(async (req,res)=>{
   const requestStarted=performance.now();
-  res.once('finish',()=>diagnostics.recordRequest(req.method,req.url,performance.now()-requestStarted,res.statusCode));
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
   const routePath = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
+  res.once('finish',()=>{const ms=performance.now()-requestStarted;diagnostics.recordRequest(req.method,req.url,ms,res.statusCode);logRequest(req,routePath,res,ms);});
   const canonical=canonicalRedirect(req,routePath,url);
   if(canonical){res.writeHead(301,{location:canonical,'cache-control':'no-store'});return res.end();}
 
@@ -737,6 +781,7 @@ const server=http.createServer(async (req,res)=>{
       if (!user || user.status!=='active' || !(await verifyPassword(body.password,user.password_hash))) {
         return sendJson(res,401,{ok:false,error:'Invalid email or password.'});
       }
+      req.activityUserId=user.id;
       await createSession(res,user.id);
       return sendJson(res,200,{ok:true,user:userPayload(user)});
     }
@@ -1221,6 +1266,37 @@ const server=http.createServer(async (req,res)=>{
       return proxyMedia(req,res,row,type);
     }
 
+    // Read-only support access (activity log and job details) with the support
+    // key created in Admin → Activity. Emails are masked; nothing can be changed.
+    if (routePath.startsWith('/ops/')) {
+      if (req.method!=='GET') return sendJson(res,405,{ok:false,error:'Read only.'});
+      if (!(await supportAuthorized(req,url))) return sendJson(res,401,{ok:false,error:'A valid support key is required.'});
+      const db=getPool();
+      const mask=entry=>({...entry,email:entry.email?maskEmail(entry.email):null});
+      if (routePath==='/ops/activity') {
+        return sendJson(res,200,{ok:true,entries:(await listActivity(db,activityFilters(url))).map(mask)});
+      }
+      if (routePath==='/ops/generations') {
+        const status=url.searchParams.get('status'),provider=url.searchParams.get('provider');
+        const where=[],args=[];
+        if(status){where.push('status=?');args.push(status);}
+        if(provider){where.push('provider=?');args.push(provider);}
+        const n=Math.min(200,Math.max(1,Number(url.searchParams.get('limit'))||30));
+        const [rows]=await db.query('SELECT '+JOB_FIELDS+' FROM generations '+(where.length?'WHERE '+where.join(' AND '):'')+' ORDER BY created_at DESC LIMIT '+n,args);
+        return sendJson(res,200,{ok:true,generations:rows.map(jobSnapshot)});
+      }
+      const opsJob=routePath.match(/^\/ops\/generations\/([0-9a-f-]{36})$/i);
+      if (opsJob) {
+        const [[row]]=await db.execute('SELECT '+JOB_FIELDS+' FROM generations WHERE id=?',[opsJob[1]]);
+        if(!row)return sendJson(res,404,{ok:false,error:'Generation not found.'});
+        return sendJson(res,200,{ok:true,generation:jobSnapshot(row),activity:(await listActivity(db,{generationId:row.id,limit:500})).map(mask)});
+      }
+      if (routePath==='/ops/health') {
+        return sendJson(res,200,{ok:true,web:{...runtimeSnapshot(),...diagnostics.details()},boots:await listBoots(db).catch(()=>[]),settings:await getAdminProviderSettings()});
+      }
+      return sendJson(res,404,{ok:false,error:'Not found.'});
+    }
+
     if (routePath.startsWith('/admin/')) {
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
@@ -1323,6 +1399,30 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,connected:true,models:SMART_IMAGE_MODELS.map(m=>({id:m.apiModel,available:available.includes(m.apiModel)}))});
       }
 
+      if (req.method==='GET' && routePath==='/admin/activity') {
+        requireDatabase();
+        return sendJson(res,200,{ok:true,entries:await listActivity(getPool(),activityFilters(url))});
+      }
+      if (req.method==='GET' && routePath==='/admin/support-key') {
+        requireDatabase();
+        const hash=await getSettingValue(SUPPORT_KEY_SETTING,'');
+        return sendJson(res,200,{ok:true,active:Boolean(hash),createdAt:hash?await getSettingValue(SUPPORT_KEY_SETTING+'_created',''):null});
+      }
+      if (req.method==='POST' && routePath==='/admin/support-key') {
+        requireDatabase();
+        const key=newSupportKey();
+        await setSettingValue(SUPPORT_KEY_SETTING,hashSupportKey(key));
+        await setSettingValue(SUPPORT_KEY_SETTING+'_created',new Date().toISOString());
+        logActivity({level:'warn',category:'admin',event:'support_key.created',message:'Read-only support key created'});
+        return sendJson(res,200,{ok:true,key});
+      }
+      if (req.method==='POST' && routePath==='/admin/support-key/revoke') {
+        requireDatabase();
+        await deleteSettingValue(SUPPORT_KEY_SETTING);await deleteSettingValue(SUPPORT_KEY_SETTING+'_created');
+        logActivity({level:'warn',category:'admin',event:'support_key.revoked',message:'Read-only support key revoked'});
+        return sendJson(res,200,{ok:true,active:false});
+      }
+
       if (req.method==='GET' && routePath==='/admin/provider-settings') {
         requireDatabase();
         return sendJson(res,200,{ok:true,settings:await getAdminProviderSettings()});
@@ -1332,6 +1432,8 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const settings=await updateProviderSettings(body);
+        // Keys and passwords are masked by the activity log.
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:body}});
         return sendJson(res,200,{ok:true,settings});
       }
 
@@ -1633,6 +1735,7 @@ const server=http.createServer(async (req,res)=>{
     return sendJson(res,404,{ok:false,error:'Not found'});
   } catch(error) {
     console.error(error);
+    res.activityError=error;
     return sendJson(res,error.statusCode||500,safeError(error));
   }
 });
@@ -1709,6 +1812,7 @@ function bootstrap() {
     .then(async () => {
       console.log('MySQL schema ready.');
       await recordBoot(getPool(),'web').catch(error=>console.error('Boot record failed:',error.message));
+      logActivity({category:'system',event:'web.started',message:'Web app started (pid '+process.pid+')'});
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));

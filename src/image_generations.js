@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
+const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
 const { roundCredits } = require('./billing.js');
@@ -166,6 +167,9 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     conn.release();
   }
 
+  logActivity({ category: 'generation', event: 'image.created', userId, generationId: id, provider,
+    message: model + ' · ' + aspectRatio + (imageQuality ? ' · ' + imageQuality : '') + ' · ' + cost + ' credits',
+    details: { mode, prompt: prompt.slice(0, 500), referenceImages: images.length, options: options.generationOptions ? { ...options.generationOptions, model: options.generationOptions.model?.providerModelId } : null } });
   const [rows] = await db.execute('SELECT * FROM generations WHERE id=?', [id]);
   return serializeImageGeneration(rows[0]);
 }

@@ -40,7 +40,10 @@ class UpscaleQueue extends VercelQueue {
   async submit(db, job, client) {
     const options = jobOptions(job), plan = options.upscale;
     if (!plan?.path) throw new Error('This upscale has no saved settings.');
-    const op = await client.submit(plan.path, { video_url: await this.sourceUrl(db, job, options), ...plan.input });
+    const input = { video_url: await this.sourceUrl(db, job, options), ...plan.input };
+    this.log(job, 'fal.request', 'POST ' + plan.path, { input });
+    const op = await client.submit(plan.path, input);
+    this.log(job, 'fal.accepted', 'fal request ' + op.requestId, { requestId: op.requestId });
     // Saved before the first poll, so a restart resumes this job instead of paying again.
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify(op), op.requestId.slice(0, 191), job.id]);
@@ -51,6 +54,7 @@ class UpscaleQueue extends VercelQueue {
     try { op = JSON.parse(job.provider_operation || 'null'); } catch {}
     if (!op?.statusUrl) throw new Error('The upscale could not be resumed.');
     const result = await client.check(op);
+    if (result.state !== 'pending') this.log(job, 'fal.status', op.requestId + ' → ' + result.state, result, result.state === 'failed' ? 'error' : 'info');
     if (result.state === 'done') await this.complete(db, job, await client.download(result.url));
     else if (result.state === 'failed') {
       const reason = String(result.error || '').trim().replace(/[.!]?$/, '.');

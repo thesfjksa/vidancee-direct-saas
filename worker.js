@@ -5,6 +5,8 @@ const { dbConfigured, initDb, getPool } = require('./src/db.js');
 const { recordBoot } = require('./src/runtime_diagnostics.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const { ensureGatewayCatalog } = require('./src/provider_models.js');
+const { setActivityService, logActivity, pruneActivity } = require('./src/activity_log.js');
+setActivityService('worker');
 const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
 
 let worker=null;
@@ -37,6 +39,7 @@ function shutdown(signal){
   if(stopping)return;
   stopping=true;
   console.warn('[worker] shutdown',signal);
+  logActivity({category:'system',event:'worker.stopping',message:'Worker stopping ('+signal+')'});
   try{worker?.stop?.()}catch{}
   try{healthServer?.close?.()}catch{}
   // Give in-flight image requests a short window to finish and save. Anything
@@ -59,6 +62,9 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
   if(!dbConfigured()) throw new Error('Worker cannot start because MySQL is not configured.');
   await initDb();
   await recordBoot(getPool(),'worker').catch(error=>console.error('[worker] boot record failed:',error.message));
+  logActivity({category:'system',event:'worker.started',message:'Worker started (pid '+process.pid+')'});
+  // Activity older than 30 days is removed hourly.
+  pruneActivity(getPool());setInterval(()=>pruneActivity(getPool()),60*60*1000).unref();
   await migrateLegacyProviderEnvSettings();
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();

@@ -88,3 +88,4 @@ pre { overflow: auto; max-height: 430px; padding: 18px; background: var(--panel-
 .smart-price-row > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
 .smart-price-row input[type=number] { width: 100%; min-width: 0; padding: 6px 4px; font-size: 12px; -moz-appearance: textfield; }
 .smart-price-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.warn { color: #b45309; }

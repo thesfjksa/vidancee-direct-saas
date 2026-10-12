@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node -e \"console.log('No build step required')\"",
     "start": "node server.js",
-    "test": "node --test",
+    "test": "ACTIVITY_LOG=off node --test",
     "worker": "node worker.js"
   },
   "engines": {

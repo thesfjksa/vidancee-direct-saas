@@ -216,6 +216,26 @@ async function initDb() {
       CONSTRAINT fk_user_provider_access_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS activity_log (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      service VARCHAR(20) NOT NULL,
+      level VARCHAR(8) NOT NULL,
+      category VARCHAR(30) NOT NULL,
+      event VARCHAR(60) NOT NULL,
+      user_id BIGINT UNSIGNED NULL,
+      generation_id CHAR(36) NULL,
+      provider VARCHAR(30) NULL,
+      message VARCHAR(500) NOT NULL DEFAULT '',
+      details MEDIUMTEXT NULL,
+      host VARCHAR(60) NULL,
+      PRIMARY KEY (id),
+      KEY idx_activity_created (created_at),
+      KEY idx_activity_generation (generation_id, id),
+      KEY idx_activity_user (user_id, id),
+      KEY idx_activity_level (level, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS runtime_boots (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       service VARCHAR(20) NOT NULL,
