@@ -2348,7 +2348,7 @@ function downloadImageGeneration(id){
 async function deleteImageGeneration(id){
   if(!window.confirm('Delete this generated image? This cannot be undone.'))return;
   try{
-    await api('/api/image-generations/'+encodeURIComponent(id),{method:'DELETE'});
+    await api('/api/image-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});
     imageGenerations=imageGenerations.filter(item=>String(item.id)!==String(id));
     renderImageGallery();
     await loadDashboard();
@@ -2633,7 +2633,7 @@ async function deleteGeneration(id){
   if(!confirmed)return;
 
   try{
-    await api('/api/generations/'+encodeURIComponent(id),{method:'DELETE'});
+    await api('/api/generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});
     generations=generations.filter(item=>String(item.id)!==String(id));
     renderCreateGallery();
     renderLibrary();
@@ -2855,7 +2855,7 @@ function downloadVoiceGeneration(id){
 
 async function deleteVoiceGeneration(id){
   if(!window.confirm('Delete this generated audio? This cannot be undone.'))return;
-  try{await api('/api/voice-generations/'+encodeURIComponent(id),{method:'DELETE'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
+  try{await api('/api/voice-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
   catch(e){window.alert(e.message)}
 }
 

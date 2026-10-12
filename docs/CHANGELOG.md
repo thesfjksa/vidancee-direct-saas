@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Outages after Admin actions
+
+- Report: the site went offline for a few minutes after Admin actions such as assigning a customer to the AI Gateway source. The web process had in fact been running without a restart for 12.7 hours (since the 17:08 UTC deploy on 11 October, 97 MB RSS), so these outages did not come from an application crash. The browser error seen earlier (`ERR_CONNECTION_TIMED_OUT`) means the connection to Hostinger's edge itself failed.
+- Hostinger's edge firewall has challenged `PUT` requests from this site before (see 2026-10-05). The Sources assignment still sent `PUT`; Disable/Enable user sent `PATCH`; customer deletes sent `DELETE`. All browser requests now use `POST`: `POST /admin/users/:id/providers`, `POST /admin/users/:id` (status/role) and `POST /api/{generations|image-generations|voice-generations}/:id/delete`. The old methods remain accepted for clients that have not reloaded. A test from outside Pakistan was not blocked for any method, so the firewall's behaviour for the owner's connection is not directly verified.
+- Diagnostics, so the next report can be answered with evidence: `runtime_boots` stores every web and worker start; the web process measures event-loop freezes (over 1s) and requests slower than 5s. `/health` and `/live` include `startedAt`, current and worst event-loop lag and the stall count. `GET /admin/diagnostics` (admin token) returns details and the boot history; the Admin Overview shows it as "Server health". Deploys count as starts.
+
 ## 2026-10-11 — Instant credit estimates
 
 - `/api/config` includes a price table (`costTable`, keyed `ratio|quality|size`, plus `costEstimates`) for every AI Gateway image model, computed with the same `quoteGateway` used by `/api/model-cost` and the current Admin conversion rate. The Image Studio shows the cost immediately without a request; 97 sampled combinations matched `/api/model-cost` exactly.

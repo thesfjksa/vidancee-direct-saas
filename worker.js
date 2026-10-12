@@ -1,7 +1,8 @@
 'use strict';
 
 const http = require('node:http');
-const { dbConfigured, initDb } = require('./src/db.js');
+const { dbConfigured, initDb, getPool } = require('./src/db.js');
+const { recordBoot } = require('./src/runtime_diagnostics.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const { ensureGatewayCatalog } = require('./src/provider_models.js');
 const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
@@ -55,6 +56,7 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
 (async()=>{
   if(!dbConfigured()) throw new Error('Worker cannot start because MySQL is not configured.');
   await initDb();
+  await recordBoot(getPool(),'worker').catch(error=>console.error('[worker] boot record failed:',error.message));
   await migrateLegacyProviderEnvSettings();
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();

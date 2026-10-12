@@ -50,6 +50,8 @@ const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, ENHA
 const promptEnhancementGate = new PromptEnhancementGate();
 const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
+const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
+const diagnostics = new RuntimeDiagnostics().start();
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
 function wakeGenerationWorker(req) {
   const host=String(req.headers.host||'').toLowerCase().split(':')[0];
@@ -425,6 +427,8 @@ async function proxyMedia(req,res,row,type) {
 }
 
 const server=http.createServer(async (req,res)=>{
+  const requestStarted=performance.now();
+  res.once('finish',()=>diagnostics.recordRequest(req.method,req.url,performance.now()-requestStarted,res.statusCode));
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
   const routePath = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
 
@@ -507,7 +511,7 @@ const server=http.createServer(async (req,res)=>{
         ok:true,
         app:'mehroz-ai',
         startedAt:new Date(PROCESS_STARTED_AT).toISOString(),
-        runtime:runtimeSnapshot(),
+        runtime:{...runtimeSnapshot(),...diagnostics.summary()},
       });
     }
 
@@ -558,7 +562,7 @@ const server=http.createServer(async (req,res)=>{
           adminTokenConfigured:Boolean(adminToken),
           signupsEnabled:allowSignups,
         },
-        runtime:runtimeSnapshot(),
+        runtime:{...runtimeSnapshot(),...diagnostics.summary()},
       });
     }
 
@@ -905,10 +909,11 @@ const server=http.createServer(async (req,res)=>{
     }
 
     const voiceGenMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})$/i);
-    if (req.method==='DELETE' && voiceGenMatch) {
+    const voiceDeleteMatch=req.method==='DELETE'?voiceGenMatch:req.method==='POST'?routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/delete$/i):null;
+    if (voiceDeleteMatch) {
       requireDatabase();const user=await requireUser(req);
-      await deleteUserVoiceGeneration(user.id,voiceGenMatch[1]);
-      return sendJson(res,200,{ok:true,deleted:true,id:voiceGenMatch[1]});
+      await deleteUserVoiceGeneration(user.id,voiceDeleteMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:voiceDeleteMatch[1]});
     }
 
     const voiceMediaMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/media$/i);
@@ -1047,11 +1052,12 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,generation:{...serializeImageGeneration(row),reference_images:referenceImages}});
     }
 
-    if (req.method==='DELETE' && imageGenMatch) {
+    const imageDeleteMatch=req.method==='DELETE'?imageGenMatch:req.method==='POST'?routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})\/delete$/i):null;
+    if (imageDeleteMatch) {
       requireDatabase();
       const user=await requireUser(req);
-      await deleteUserImageGeneration(user.id,imageGenMatch[1]);
-      return sendJson(res,200,{ok:true,deleted:true,id:imageGenMatch[1]});
+      await deleteUserImageGeneration(user.id,imageDeleteMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:imageDeleteMatch[1]});
     }
 
     const imageMediaMatch=routePath.match(/^\/api\/image-generations\/([0-9a-f-]{36})\/(media|thumbnail)$/i);
@@ -1183,11 +1189,12 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,generation:{...serializeGeneration(row),reference_images:referenceImages}});
     }
 
-    if (req.method==='DELETE' && genMatch) {
+    const genDeleteMatch=req.method==='DELETE'?genMatch:req.method==='POST'?routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/delete$/i):null;
+    if (genDeleteMatch) {
       requireDatabase();
       const user=await requireUser(req);
-      await deleteUserGeneration(user.id,genMatch[1]);
-      return sendJson(res,200,{ok:true,deleted:true,id:genMatch[1]});
+      await deleteUserGeneration(user.id,genDeleteMatch[1]);
+      return sendJson(res,200,{ok:true,deleted:true,id:genDeleteMatch[1]});
     }
 
     const referenceImageMatch=routePath.match(/^\/api\/generations\/([0-9a-f-]{36})\/reference-images\/(\d+)$/i);
@@ -1376,6 +1383,12 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,model});
       }
 
+      if (req.method==='GET' && routePath==='/admin/diagnostics') {
+        let boots=[];
+        if(dbConfigured())boots=await listBoots(getPool()).catch(error=>[{error:error.message}]);
+        return sendJson(res,200,{ok:true,web:{...runtimeSnapshot(),...diagnostics.details()},boots});
+      }
+
       if (req.method==='GET' && routePath==='/admin/stats') {
         requireDatabase();
         const db=getPool();
@@ -1500,7 +1513,8 @@ const server=http.createServer(async (req,res)=>{
       }
 
       const userPatchMatch=routePath.match(/^\/admin\/users\/(\d+)$/);
-      if (req.method==='PATCH' && userPatchMatch) {
+      // POST is the browser method; PATCH stays for older clients.
+      if ((req.method==='PATCH'||req.method==='POST') && userPatchMatch) {
         requireDatabase();
         const body=await readJson(req);
         const db=getPool();
@@ -1718,6 +1732,7 @@ function bootstrap() {
   initDb()
     .then(async () => {
       console.log('MySQL schema ready.');
+      await recordBoot(getPool(),'web').catch(error=>console.error('Boot record failed:',error.message));
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));

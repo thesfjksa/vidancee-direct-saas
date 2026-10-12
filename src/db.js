@@ -216,6 +216,16 @@ async function initDb() {
       CONSTRAINT fk_user_provider_access_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS runtime_boots (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      service VARCHAR(20) NOT NULL,
+      pid INT UNSIGNED NOT NULL,
+      node_version VARCHAR(20) NOT NULL,
+      started_at DATETIME NOT NULL,
+      PRIMARY KEY (id),
+      KEY idx_runtime_boots_service (service, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS user_voice_clones (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       user_id BIGINT UNSIGNED NOT NULL,
