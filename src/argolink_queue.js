@@ -15,6 +15,18 @@ const { saveVideoOutput } = require('./video_outputs.js');
 const { errorDetails } = require('./activity_log.js');
 const { dimensions } = require('./image_canvas.js');
 
+const SHORT_SIDE = { '480p': 480, '720p': 720, '768p': 768, '1080p': 1080 };
+
+// The source resolution for the one retry: the next native resolution up, no
+// higher than what the customer chose; otherwise the same as the first try.
+function retryResolution(options, model) {
+  const first = options.sourceResolution || options.resolution, chosen = options.resolution;
+  if (!SHORT_SIDE[first] || !SHORT_SIDE[chosen] || SHORT_SIDE[first] >= SHORT_SIDE[chosen]) return first;
+  const up = (model.resolutions || []).filter(r => SHORT_SIDE[r] > SHORT_SIDE[first] && SHORT_SIDE[r] <= SHORT_SIDE[chosen])
+    .sort((a, b) => SHORT_SIDE[a] - SHORT_SIDE[b]);
+  return up[0] || first;
+}
+
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
     super({ clientFactory: opts => new ArgoLinkClient(opts), ...options, provider: 'argolink' });
@@ -105,14 +117,17 @@ class ArgoLinkQueue extends VercelQueue {
   }
 
   // Resubmits a retryable failure once; the new request id replaces the old one.
+  // A render below the customer's resolution (HD enhancement) is retried one
+  // step up, since some models (Seedance 2.5) fail at small portrait sizes.
   async retry(db, client, job, op) {
     try {
       const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
       if (!model?.ready) return false;
-      const requestId = await client.startVideo(model, { ...options, resolution: options.sourceResolution || options.resolution }, await this.references(db, job));
-      this.log(job, 'argolink.retry', 'Retrying once as ' + requestId + ' (ArgoLink marked the failure retryable)', { firstRequestId: op.requestId || job.provider_job_id, requestId });
+      const resolution = retryResolution(options, model);
+      const requestId = await client.startVideo(model, { ...options, resolution }, await this.references(db, job));
+      this.log(job, 'argolink.retry', 'Retrying once as ' + requestId + ' at ' + resolution + ' (ArgoLink marked the failure retryable)', { firstRequestId: op.requestId || job.provider_job_id, requestId, resolution });
       await db.execute("UPDATE generations SET status='processing',provider_operation=?,provider_job_id=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
-        [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id }), requestId.slice(0, 191), job.id]);
+        [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id, resolution }), requestId.slice(0, 191), job.id]);
       return true;
     } catch (error) {
       console.error('ArgoLink retry could not start for', job.id, error.message);
@@ -192,4 +207,4 @@ class ArgoLinkQueue extends VercelQueue {
   }
 }
 
-module.exports = { ArgoLinkQueue };
+module.exports = { ArgoLinkQueue, retryResolution };

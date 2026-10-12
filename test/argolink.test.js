@@ -214,18 +214,28 @@ test('a retryable ArgoLink failure is resubmitted once, then refunded', async ()
   queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true }); queue.references = async () => [];
   let started = 0;
   const failed = retryable => ({ videoStatus: async () => ({ status: 'failed', error: { code: 'generation_failed', message: 'The result could not be generated.', retryable } }),
-    startVideo: async (_m, params) => { started++; assert.equal(params.resolution, '480p'); return 'r2'; } });
+    startVideo: async (_m, params) => { started++; assert.equal(params.resolution, '720p'); return 'r2'; } });
   const options = JSON.stringify({ model: model('seedance-2.5'), duration: 5, resolution: '720p', sourceResolution: '480p', aspectRatio: '9:16' });
   const job = { id: 'j1', media_type: 'video', model: 'argo_seedance_2_5', prompt: 'p', generation_options: options, provider_operation: JSON.stringify({ requestId: 'r1' }) };
 
   await queue.pollJob(qdb, failed(true), job);
   assert.deepEqual([started, refunds.length], [1, 0]);
-  assert.deepEqual(JSON.parse(writes.at(-1)[1][0]), { requestId: 'r2', retried: true, firstRequestId: 'r1' });
+  // The 480p render for a 720p job is retried at 720p.
+  assert.deepEqual(JSON.parse(writes.at(-1)[1][0]), { requestId: 'r2', retried: true, firstRequestId: 'r1', resolution: '720p' });
   // The second failure is refunded, and so is a failure ArgoLink does not mark retryable.
   await queue.pollJob(qdb, failed(true), { ...job, provider_operation: writes.at(-1)[1][0] });
   await queue.pollJob(qdb, failed(false), job);
   assert.deepEqual([started, refunds.length], [1, 2]);
   assert.match(refunds[0][2], /The result could not be generated\. Credits were refunded\./);
+});
+
+test('the retry steps up to the next native resolution, never above the chosen one', () => {
+  const { retryResolution } = require('../src/argolink_queue.js');
+  const m = { resolutions: ['480p', '720p', '1080p'] };
+  assert.equal(retryResolution({ resolution: '720p', sourceResolution: '480p' }, m), '720p');
+  assert.equal(retryResolution({ resolution: '1080p', sourceResolution: '720p' }, m), '1080p');
+  assert.equal(retryResolution({ resolution: '1080p', sourceResolution: '720p' }, { resolutions: ['480p', '720p'] }), '720p');
+  assert.equal(retryResolution({ resolution: '720p' }, m), '720p');
 });
 
 test('two worker processes polling the same job act on it only once', async () => {
