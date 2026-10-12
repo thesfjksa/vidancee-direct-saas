@@ -605,19 +605,25 @@ function positionCustomSelect(wrap){
   // The generator panel is scrollable. Pick the direction that has enough
   // visible room inside that panel so the menu never disappears behind the footer.
   wrap.classList.remove('drop-up');
-  const triggerRect=trigger.getBoundingClientRect();
-  const scrollParent=wrap.closest('.creator-scroll');
-  const bounds=scrollParent
-    ? scrollParent.getBoundingClientRect()
-    : {top:8,bottom:window.innerHeight-8};
-
+  menu.style.maxHeight='';
   const menuHeight=Math.min(220,Math.max(44,menu.scrollHeight||([...menu.children].length*34+10)));
-  const roomBelow=Math.max(0,bounds.bottom-triggerRect.bottom-6);
-  const roomAbove=Math.max(0,triggerRect.top-bounds.top-6);
-
-  if(roomBelow<menuHeight && roomAbove>roomBelow){
-    wrap.classList.add('drop-up');
+  // Room is limited by the scrollable panel AND the visible screen: on phones
+  // the panel is taller than the screen, so its own edges are not enough.
+  const room=()=>{
+    const triggerRect=trigger.getBoundingClientRect();
+    const panel=wrap.closest('.creator-scroll')?.getBoundingClientRect();
+    const top=Math.max(8,panel?panel.top:8),bottom=Math.min(window.innerHeight-8,panel?panel.bottom:window.innerHeight-8);
+    return {below:Math.max(0,bottom-triggerRect.bottom-6),above:Math.max(0,triggerRect.top-top-6)};
+  };
+  let space=room();
+  if(Math.max(space.below,space.above)<Math.min(menuHeight,140)){
+    trigger.scrollIntoView({block:'center'});
+    space=room();
   }
+  const up=space.below<menuHeight && space.above>space.below;
+  if(up)wrap.classList.add('drop-up');
+  // Never let the list run past the visible area; it scrolls inside instead.
+  menu.style.maxHeight=Math.max(96,Math.floor(up?space.above:space.below))+'px';
 }
 
 function customSelectSearchable(id){

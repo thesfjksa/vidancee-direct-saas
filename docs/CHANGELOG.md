@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Dropdowns on short phone screens
+
+- Checked every picker (video/image/cartoon model, aspect ratio, duration, resolution, quality, image size) at 390x844 and 360x640 with the live model list. Model and aspect-ratio pickers were fine. Small dropdowns chose their direction from the form panel's edges, but on phones the panel is taller than the screen, so a field near the bottom opened its list below the visible area (Video Studio duration, Cartoon Studio model at 360x640). The direction now uses the panel and the visible screen together, the list height is capped to the available room (it scrolls inside), and if there is no room either way the field is scrolled to the middle first.
+
 ## 2026-10-12 — One MiniMax H3 in Video Studio
 
 - The AI Gateway's MiniMax H3 is hidden while the direct MiniMax (vgenv) source offers MiniMax H3 to the customer, the same one-entry-per-name rule used for GPT images. It appears again when the direct source is off or unassigned.
