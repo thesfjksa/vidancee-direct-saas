@@ -34,9 +34,9 @@ Health routes are `/live` and `/health` on the web app, and `/health` on the wor
 
 The private Admin interface is https://cmmtools.site/admin-console and uses `ADMIN_TOKEN`. Provider API keys and passwords are managed in Admin and stored encrypted in MySQL. Infrastructure secrets remain in Hostinger environment settings.
 
-Pricing has source-specific rules: legacy source units use the shared multiplier, Higgsfield credits are passed through at 1:1, and SmartAIPI and Vercel use separate direct USD-to-customer-credit factors. The SmartAIPI default is `160 / 0.0265`; a Medium 1024 x 1024 GPT Image 2 is 160 credits, and a Medium 4:5 image is 200 credits. The global 2.5 multiplier is not added to SmartAIPI or Higgsfield quotes. See the handoff and SmartAIPI document for estimates, Admin overrides and refund behavior.
+Pricing has source-specific rules: legacy source units use the shared multiplier, and SmartAIPI, Vercel and ArgoLink use separate direct USD-to-customer-credit factors. The SmartAIPI default is `160 / 0.0265`; a Medium 1024 x 1024 GPT Image 2 is 160 credits, and a Medium 4:5 image is 200 credits. The global 2.5 multiplier is not added to SmartAIPI or Higgsfield quotes. See the handoff and SmartAIPI document for estimates, Admin overrides and refund behavior.
 
-The implemented sources are Vidancee, CreatePulse, vgenv, Atlas Cloud, Higgsfield MCP, SmartAIPI, Vercel AI Gateway and Vibi. Gemini enhancement runs in the web process. Source configuration and customer permissions determine what is available; implementation alone does not guarantee live access to every model.
+Video Studio uses ArgoLink; Image Studio uses Vercel AI Gateway and SmartAIPI with ArgoLink as the out-of-credits backup; Cartoon Studio uses Vidancee, CreatePulse and vgenv; Voice Studio uses Vibi. Gemini enhancement runs in the web process. Source configuration and customer permissions determine what is available; implementation alone does not guarantee live access to every model.
 
 ## Documentation
 

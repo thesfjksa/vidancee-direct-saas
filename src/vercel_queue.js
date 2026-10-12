@@ -7,6 +7,7 @@ const {VercelGatewayClient}=require('./provider/vercel.js');
 const {providerAssetUrl}=require('./provider/assets.js');
 const {refundGeneration}=require('./generations.js');
 const {saveVideoOutput}=require('./video_outputs.js');
+const {looksOutOfCredits}=require('./cartoon.js');
 
 function savedOptions(job) {
   let options;
@@ -17,8 +18,10 @@ function savedOptions(job) {
 
 class VercelQueue {
   constructor({getSettings=getProviderSettings,getModel=getProviderModelByPublicId,refund=refundGeneration,
-    clientFactory=opts=>new VercelGatewayClient(opts),provider='vercel'}={}) {
-    this.provider=provider;this.videoTimeoutMs=45*60*1000;this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
+    clientFactory=opts=>new VercelGatewayClient(opts),provider='vercel',failover=null}={}) {
+    // failover: {isOut(source), markOut(source), move(db,job)} moves image jobs
+    // to ArgoLink when this source has run out of credits.
+    this.provider=provider;this.failover=failover;this.videoTimeoutMs=45*60*1000;this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
     this.stopped=true;this.running=false;this.tasks=new Set();this.client=null;this.fingerprint='';
     this.lastStartedAt=null;this.lastFinishedAt=null;this.lastSuccessfulAt=null;this.sourceReady=false;
   }
@@ -107,7 +110,14 @@ class VercelQueue {
     if(!model?.ready)throw new Error('This model is currently unavailable. Credits were refunded.');
     const references=await this.references(db,job);
     if(job.media_type==='image') {
-      const output=await client.generateImage(options.model,options,references);
+      const handOver=async()=>Boolean(this.failover&&await this.failover.move(db,job));
+      if(this.failover?.isOut(this.provider)&&await handOver())return;
+      let output;
+      try{output=await client.generateImage(options.model,options,references);}
+      catch(error){
+        if(this.failover&&looksOutOfCredits(error)){this.failover.markOut(this.provider);if(await handOver())return;}
+        throw error;
+      }
       await this.complete(db,job,output);return;
     }
     const result=await client.startVideo(options.model,options,references);

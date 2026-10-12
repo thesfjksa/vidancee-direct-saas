@@ -3,22 +3,15 @@ const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
 const { CreatePulseClient } = require('./provider/createpulse.js');
-const { AtlasCloudClient } = require('./provider/atlascloud.js');
 const { VgenvClient } = require('./provider/vgenv.js');
 const { SmartAipiClient } = require('./provider/smartaipi.js');
 const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
 const { isCartoonJob, providerPrompt, vidanceeCreditsNeeded, looksOutOfCredits } = require('./cartoon.js');
-const { recordProviderStatus } = require('./provider_usage.js');
+const { recordProviderStatus, readProviderStatus } = require('./provider_usage.js');
+const { moveImageJobToArgo } = require('./image_failover.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
-const {
-  submitHiggsfieldGeneration,
-  uploadHiggsfieldMedia,
-  uploadHiggsfieldImages,
-  mediaReferencesForModel,
-  waitForHiggsfieldJob,
-} = require('./provider/higgsfield_mcp.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
 const { sourceToCustomerCredits } = require('./billing.js');
@@ -30,7 +23,13 @@ function truthy(value, fallback = false) {
 
 class GenerationWorker {
   constructor() {
-    this.vercelQueue = new VercelQueue();
+    // Image Studio: AI Gateway and SmartAIPI first, ArgoLink when they run out of credits.
+    this.imageFailover = {
+      isOut: key => Number(this.outOfCreditsUntil?.[key] || 0) > Date.now(),
+      markOut: key => this.markOutOfCredits(key),
+      move: async (db, job) => moveImageJobToArgo(db, job, await getProviderSettings()),
+    };
+    this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
     this.argoLinkQueue = new ArgoLinkQueue();
     this.running = false;
     this.timer = null;
@@ -46,7 +45,6 @@ class GenerationWorker {
     this.smartImageAllowCharges = false;
     this.vidancee = null;
     this.createPulse = null;
-    this.atlasCloud = null;
     this.vgenv = null;
     this.vibi = null;
     this.smartAipi = null;
@@ -59,21 +57,15 @@ class GenerationWorker {
     this.refundSmartImage = refundGeneration;
     this.vidanceeFingerprint = '';
     this.createPulseFingerprint = '';
-    this.atlasCloudFingerprint = '';
     this.vgenvFingerprint = '';
     this.vibiFingerprint = '';
     this.interval = Math.max(3000, Number(process.env.WORKER_POLL_MS || 5000));
     this.createPulseMaxInflight = 3;
-    this.atlasCloudMaxInflight = 4;
     this.vgenvMaxInflight = 4;
-    this.higgsfieldMaxInflight = 4;
     this.vibiMaxInflight = 4;
-    this.higgsfieldConnected = false;
     this.vidanceeEnabled = true;
     this.createPulseEnabled = true;
-    this.atlasCloudEnabled = true;
     this.vgenvEnabled = true;
-    this.higgsfieldEnabled = true;
     this.vibiEnabled = true;
     this.routing = 'overflow';
     this.allowProviderCharges = false;
@@ -157,18 +149,19 @@ class GenerationWorker {
 
   async refreshProviderSettings() {
     const settings = await getProviderSettings();
+    if (!this.creditStatusLoaded && dbConfigured()) {
+      // Out-of-credits marks survive a worker restart.
+      const status = await readProviderStatus(getPool()).catch(() => ({}));
+      this.outOfCreditsUntil = { ...(status.outOfCredits || {}), ...(this.outOfCreditsUntil || {}) };
+      this.creditStatusLoaded = true;
+    }
     this.routing = settings.routing;
     this.createPulseMaxInflight = settings.createPulseMaxInflight;
-    this.atlasCloudMaxInflight = settings.atlasCloudMaxInflight;
     this.vgenvMaxInflight = settings.vgenvMaxInflight;
-    this.higgsfieldMaxInflight = settings.higgsfieldMaxInflight;
     this.vibiMaxInflight = settings.vibiMaxInflight;
-    this.higgsfieldConnected = Boolean(settings.higgsfieldOauthTokens);
     this.vidanceeEnabled = Boolean(settings.vidanceeEnabled);
     this.createPulseEnabled = Boolean(settings.createPulseEnabled);
-    this.atlasCloudEnabled = Boolean(settings.atlasCloudEnabled);
     this.vgenvEnabled = Boolean(settings.vgenvEnabled);
-    this.higgsfieldEnabled = Boolean(settings.higgsfieldEnabled);
     this.vibiEnabled = Boolean(settings.vibiEnabled);
     this.allowProviderCharges = settings.allowProviderCharges;
     this.applySmartImageSettings(settings);
@@ -192,17 +185,6 @@ class GenerationWorker {
         ? new CreatePulseClient({
             baseUrl: settings.createPulseBaseUrl,
             apiKey: settings.createPulseApiKey,
-          })
-        : null;
-    }
-
-    const atlasFingerprint = JSON.stringify([settings.atlasCloudBaseUrl, settings.atlasCloudApiKey]);
-    if (atlasFingerprint !== this.atlasCloudFingerprint) {
-      this.atlasCloudFingerprint = atlasFingerprint;
-      this.atlasCloud = settings.atlasCloudApiKey
-        ? new AtlasCloudClient({
-            baseUrl: settings.atlasCloudBaseUrl,
-            apiKey: settings.atlasCloudApiKey,
           })
         : null;
     }
@@ -338,41 +320,6 @@ class GenerationWorker {
     }
   }
 
-  async syncAtlasImages(db) {
-    if (!this.atlasCloud) return;
-    const [rows] = await db.query(
-      "SELECT * FROM generations WHERE media_type='image' AND provider='atlascloud' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
-    );
-
-    for (const row of rows) {
-      try {
-        const prediction = await this.atlasCloud.getPrediction(row.provider_job_id);
-        if (prediction.status === 'completed') {
-          const output = prediction.outputs[0] || null;
-          if (!output) throw new Error('Atlas Cloud completed without an output image URL.');
-          await db.execute(
-            "UPDATE generations SET status='completed', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [output, row.id]
-          );
-        } else if (prediction.status === 'failed' || prediction.status === 'timeout') {
-          await refundGeneration(
-            row.id,
-            'failed',
-            prediction.error || 'Image generation failed. Credits were refunded.',
-            null
-          );
-        } else {
-          await db.execute(
-            "UPDATE generations SET status='processing', started_at=COALESCE(started_at, UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [row.id]
-          );
-        }
-      } catch (error) {
-        console.error('Atlas Cloud image status sync failed for', row.id, error.message);
-      }
-    }
-  }
-
   async syncSmartImages(db) {
     // Synchronous image requests have no resumable provider job ID. Every pass
     // marks this worker's in-flight requests as alive; a claim that has not been
@@ -440,6 +387,7 @@ class GenerationWorker {
   }
 
   async processSmartImage(db, job, client) {
+    if (this.imageFailover.isOut('smartaipi') && await this.imageFailover.move(db, job)) return;
     let result;
     try {
       const [images] = await db.execute('SELECT image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',[job.id]);
@@ -448,6 +396,10 @@ class GenerationWorker {
         images:images.map(image=>({data:image.image_data}))});
     } catch (error) {
       console.error('GPT image request failed for', job.id, error.message);
+      if (looksOutOfCredits(error)) {
+        this.imageFailover.markOut('smartaipi');
+        if (await this.imageFailover.move(db, job).catch(() => false)) return;
+      }
       const message = error.code === 'IMAGE_ASPECT_RATIO_MISMATCH'
         ? 'The image service returned the wrong aspect ratio for your '+job.aspect_ratio+' image. Credits were refunded. Use Reuse prompt to try again.'
         : 'Image generation failed. Credits were refunded.';
@@ -476,193 +428,15 @@ class GenerationWorker {
     }
   }
 
-  async submitAtlasImages(db) {
-    if (!this.atlasCloud || !this.atlasCloudEnabled) return;
-
-    const [[activeRow]] = await db.query(
-      "SELECT COUNT(*) AS total FROM generations WHERE media_type='image' AND provider='atlascloud' AND status IN ('submitting','submitted','processing')"
-    );
-    let slots = Math.max(0, this.atlasCloudMaxInflight - Number(activeRow?.total || 0));
-    if (slots <= 0) return;
-
-    const [queued] = await db.query(
-      "SELECT * FROM generations WHERE media_type='image' AND provider='atlascloud' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25"
-    );
-
-    for (const job of queued) {
-      if (slots <= 0) break;
-
-      const [claim] = await db.execute(
-        "UPDATE generations SET status='submitting', provider='atlascloud', error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=? AND media_type='image' AND status='queued'",
-        [job.id]
-      );
-      if (!claim.affectedRows) continue;
-
-      try {
-        const [images] = await db.execute(
-          'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
-          [job.id]
-        );
-        const imageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
-
-        const result = await this.atlasCloud.generateImage({
-          model: job.model,
-          prompt: job.prompt,
-          aspectRatio: job.aspect_ratio,
-          imageUrls,
-        });
-
-        await db.execute(
-          "UPDATE generations SET status='submitted', provider_job_id=?, submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at, UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-          [result.id, job.id]
-        );
-        slots -= 1;
-      } catch (error) {
-        console.error('Atlas Cloud image submission failed for', job.id, error);
-        await refundGeneration(job.id, 'submit_error', 'Image generation could not be submitted. Credits were refunded.', null);
-      }
-    }
-  }
-
-  async syncHiggsfield(db) {
-    if (!this.higgsfieldConnected) return;
-    const [rows] = await db.query(
-      "SELECT * FROM generations WHERE provider='higgsfield' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY updated_at ASC LIMIT 12"
-    );
-
+  // Atlas Cloud and Higgsfield were removed. Jobs still open on them can no
+  // longer be followed, so they are refunded (once; refundGeneration is idempotent).
+  async retireRemovedSources(db) {
+    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','higgsfield')
+      AND status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 50`);
     for (const row of rows) {
-      try {
-        const result = await waitForHiggsfieldJob(row.provider_job_id, 4500);
-        const status = String(result.status || '').toLowerCase();
-
-        if (['completed','succeeded','success','done'].includes(status)) {
-          if (!result.outputUrl) {
-            await db.execute(
-              "UPDATE generations SET status='processing', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', updated_at=UTC_TIMESTAMP() WHERE id=?",
-              [result.cost, row.id]
-            );
-            continue;
-          }
-          await db.execute(
-            "UPDATE generations SET status='completed', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, poster_url=NULL, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [result.cost, result.outputUrl, row.id]
-          );
-        } else if (['failed','error','cancelled','canceled','nsfw'].includes(status)) {
-          await refundGeneration(
-            row.id,
-            'failed',
-            'Generation failed during processing. Credits were refunded.',
-            result.cost
-          );
-          await db.execute("UPDATE generations SET provider_cost_unit='credits' WHERE id=?", [row.id]);
-        } else {
-          await db.execute(
-            "UPDATE generations SET status='processing', provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-            [result.cost, row.id]
-          );
-        }
-      } catch (error) {
-        console.error('Higgsfield MCP status sync failed for', row.id, error.message);
-      }
+      await refundGeneration(row.id, 'failed', 'This generation source was retired. Credits were refunded.', null)
+        .catch(error => console.error('Refund for a retired source failed:', row.id, error.message));
     }
-  }
-
-  async submitHiggsfieldJob(db, job) {
-    const mediaType = job.media_type === 'image' ? 'image' : 'video';
-    const model = await getProviderModelByPublicId('higgsfield', job.model, mediaType);
-    if (!model) throw new Error('The selected model is no longer available from this source.');
-
-    const [storedMedia] = await db.execute(
-      'SELECT position_index,media_kind,media_role,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index ASC',
-      [job.id]
-    );
-
-    let mediaReferences = [];
-    if (storedMedia.length) {
-      const mediaIds = await uploadHiggsfieldMedia(
-        storedMedia.map(item => ({
-          filename:item.filename,
-          mimeType:item.mime_type,
-          mediaKind:item.media_kind,
-          data:item.media_data,
-        }))
-      );
-      mediaReferences = storedMedia.map((item,index) => ({
-        value: mediaIds[index],
-        role: item.media_role,
-      }));
-    } else {
-      const [images] = await db.execute(
-        'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
-        [job.id]
-      );
-      if (images.length) {
-        const mediaIds = await uploadHiggsfieldImages(
-          images.map(image => ({
-            filename: image.filename,
-            mimeType: image.mime_type,
-            data: image.image_data,
-          }))
-        );
-        mediaReferences = mediaReferencesForModel(model, mediaIds);
-      }
-    }
-
-    const result = await submitHiggsfieldGeneration(
-      model,
-      {
-        prompt: job.prompt,
-        duration: Number(job.duration),
-        resolution: job.resolution || '',
-        aspectRatio: job.aspect_ratio,
-        mode: job.mode,
-      },
-      mediaReferences,
-    );
-
-    if (result.outputUrl && ['completed','succeeded','success','done'].includes(String(result.status || '').toLowerCase())) {
-      await db.execute(
-        "UPDATE generations SET status='completed', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', output_url=?, poster_url=NULL, submitted_at=COALESCE(submitted_at,UTC_TIMESTAMP()), started_at=COALESCE(started_at,UTC_TIMESTAMP()), completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
-        [result.jobId, result.cost, result.outputUrl, job.id]
-      );
-      await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
-      return;
-    }
-
-    if (!result.jobId) throw new Error('The generation source accepted the request but returned no job ID.');
-
-    await db.execute(
-      "UPDATE generations SET status='submitted', provider_job_id=?, provider_cost=COALESCE(?,provider_cost), provider_cost_unit='credits', submitted_at=UTC_TIMESTAMP(), started_at=COALESCE(started_at,UTC_TIMESTAMP()), updated_at=UTC_TIMESTAMP() WHERE id=?",
-      [result.jobId, result.cost, job.id]
-    );
-    await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
-  }
-
-  async submitHiggsfieldQueued(db, slots) {
-    if (!this.higgsfieldEnabled || !this.higgsfieldConnected || slots <= 0) return slots;
-
-    const [queued] = await db.query(
-      "SELECT * FROM generations WHERE provider='higgsfield' AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25"
-    );
-
-    for (const job of queued) {
-      if (slots <= 0) break;
-      const [claim] = await db.execute(
-        "UPDATE generations SET status='submitting', error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='higgsfield' AND status='queued'",
-        [job.id]
-      );
-      if (!claim.affectedRows) continue;
-
-      try {
-        await this.submitHiggsfieldJob(db, job);
-        slots -= 1;
-      } catch (error) {
-        console.error('Higgsfield MCP submission failed for', job.id, error);
-        await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
-        await db.execute('DELETE FROM generation_media WHERE generation_id=?', [job.id]);
-      }
-    }
-    return slots;
   }
 
   async imageCount(db, generationId) {
@@ -983,28 +757,17 @@ class GenerationWorker {
     const db = getPool();
     await this.refreshProviderSettings();
 
+    await this.retireRemovedSources(db);
     const vidSnapshot = await this.syncVidancee(db);
     await this.syncCreatePulse(db);
     await this.syncVgenv(db);
-    await this.syncAtlasImages(db);
     if (!this.smartImageLaneActive) await this.syncSmartImages(db);
-    await this.syncHiggsfield(db);
     await this.syncVibi(db);
     await this.syncVibiClones(db);
 
     if (!this.allowProviderCharges) return;
 
-    let higgsfieldSlots = 0;
-    if (this.higgsfieldEnabled && this.higgsfieldConnected) {
-      const [[row]] = await db.query(
-        "SELECT COUNT(*) AS total FROM generations WHERE provider='higgsfield' AND status IN ('submitting','submitted','processing')"
-      );
-      higgsfieldSlots = Math.max(0, this.higgsfieldMaxInflight - Number(row?.total || 0));
-      higgsfieldSlots = await this.submitHiggsfieldQueued(db, higgsfieldSlots);
-    }
-
     if (!this.smartImageLaneActive) await this.submitSmartImages(db);
-    await this.submitAtlasImages(db);
     await this.submitVibiQueued(db);
     await this.submitVibiCloneQueue(db);
 
@@ -1044,7 +807,7 @@ class GenerationWorker {
     }
 
     if (vidSlots <= 0 && cpSlots <= 0 && vgenvSlots <= 0) return;
-    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND provider NOT IN ('higgsfield','vercel','argolink') AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
+    const [queued] = await db.query("SELECT * FROM generations WHERE media_type='video' AND provider IN ('vidancee','createpulse','vgenv') AND status='queued' ORDER BY queue_priority DESC, created_at ASC LIMIT 25");
 
     const queuedUserIds=[...new Set(queued.map(job=>Number(job.user_id)).filter(Boolean))];
     const accessByUser=new Map();

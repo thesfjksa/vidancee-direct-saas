@@ -1,5 +1,6 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
+const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
@@ -377,10 +378,10 @@ function imageCostTable(model,creditsPerUsd) {
   return {costTable:table,costEstimates:estimates};
 }
 
-// One entry per model name: models already in the list (direct sources) keep
-// their place and gateway copies with the same name are left out.
+// One entry per model: models already in the list keep their place and later
+// copies of the same model (see model_families.js) are left out.
 function addMissingImageModels(list, extra) {
-  const key = model => String(model?.label || '').trim().toLowerCase();
+  const key = model => modelFamily(model?.label);
   const taken = new Set(list.map(key));
   return [...list, ...extra.filter(model => !taken.has(key(model)))];
 }

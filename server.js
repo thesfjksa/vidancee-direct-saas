@@ -52,7 +52,7 @@ const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementG
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
 const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
 const { normalizeCartoonRequest, publicCartoonConfig, CARTOON_MODELS } = require('./src/cartoon.js');
-const { providerUsage } = require('./src/provider_usage.js');
+const { providerUsage, readProviderStatus } = require('./src/provider_usage.js');
 const diagnostics = new RuntimeDiagnostics().start();
 const { appUrl, PRIMARY_URL, RETIRED_HOSTS } = require('./src/app_url.js');
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
@@ -111,6 +111,7 @@ const { verifyAssetSignature } = require('./src/provider/assets.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
+const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -123,15 +124,6 @@ const {
   setProviderModelEnabled,
   syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog,
 } = require('./src/provider_models.js');
-const {
-  beginHiggsfieldAuthorization,
-  finishHiggsfieldAuthorization,
-  clearHiggsfieldAuth,
-  syncHiggsfieldModels,
-  getHiggsfieldConnectionStatus,
-  getHiggsfieldToolDiagnostics,
-  estimateHiggsfieldCost,
-} = require('./src/provider/higgsfield_mcp.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 // The admin page carries its stylesheets inline: one request instead of three
@@ -334,22 +326,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-function dynamicModelSupportsImageReferences(model) {
-  const cap=model?.referenceCapabilities?.image;
-  if(cap && typeof cap==='object') return cap.supported===true || Number(cap.max||0)>0;
-  const roles=Array.isArray(model?.mediaRoles)?model.mediaRoles:[];
-  if(model?.mediaType==='image') return roles.some(role=>['image','input_images','image_references'].includes(String(role)));
-  return roles.some(role=>['image','start_image','end_image','input_images','image_references'].includes(String(role)));
-}
-
-function dynamicModelSupportsVideoReferences(model) {
-  const cap=model?.referenceCapabilities?.video;
-  if(cap && typeof cap==='object') return cap.supported===true || Number(cap.max||0)>0;
-  const roles=Array.isArray(model?.mediaRoles)?model.mediaRoles:[];
-  return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
-}
-
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi','vercel','argolink'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -484,26 +461,6 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
 
-    if (req.method==='GET' && routePath==='/admin/higgsfield/oauth/callback') {
-      requireDatabase();
-      try {
-        const callbackUrl=publicOrigin(req)+'/admin/higgsfield/oauth/callback';
-        await finishHiggsfieldAuthorization({params:url.searchParams,redirectUrl:callbackUrl});
-        let syncMessage='Your account is connected.';
-        try {
-          const synced=await syncHiggsfieldModels();
-          syncMessage='Connected and synced '+synced.modelCount+' available models.';
-        } catch(syncError) {
-          console.error('Initial Higgsfield model sync failed:',syncError?.message||syncError);
-          syncMessage='Connected successfully. If models do not appear yet, use Sync models in Admin.';
-        }
-        return sendHtml(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/admin-console?higgsfield=connected"><title>Connected</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Account connected</h2><p>${syncMessage}</p></body></html>`);
-      } catch(error) {
-        console.error('Higgsfield OAuth callback failed:',error?.message||error);
-        return sendHtml(res,400,`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=/admin-console?higgsfield=failed"><title>Connection failed</title></head><body style="font-family:system-ui;background:#0b0c0f;color:#fff;padding:40px"><h2>Connection failed</h2><p>Return to Admin and start the connection again.</p></body></html>`);
-      }
-    }
-
     const providerAssetMatch=routePath.match(/^\/provider-assets\/([0-9a-f-]{36})\/(\d+)$/i);
     if (req.method==='GET' && providerAssetMatch) {
       requireDatabase();
@@ -555,22 +512,13 @@ const server=http.createServer(async (req,res)=>{
       let imageGenerationReady=false;
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
-        let higgsfieldImageReady=false;
-        if (providerSettings.higgsfield.active) {
-          try {
-            const catalog=await publicProviderCatalog('higgsfield');
-            higgsfieldImageReady=catalog.image.length>0;
-          } catch {}
-        }
         generationBackendReady=Boolean(
           providerSettings.vidancee.active ||
           providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
-          providerSettings.atlascloud.active ||
-          providerSettings.higgsfield.active ||
           providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active
         );
-        imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
+        imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -600,8 +548,12 @@ const server=http.createServer(async (req,res)=>{
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
-      let videoPricing=publicPricing();
-      let imagePricing=publicImagePricing();
+      // Video Studio: ArgoLink. Cartoon Studio: Vidancee, CreatePulse (Seedance)
+      // and vgenv (MiniMax H3). Image Studio: AI Gateway and SmartAIPI first,
+      // then ArgoLink models they do not offer. Voice Studio: Vibi.
+      let videoPricing=[];
+      let imagePricing=[];
+      let cartoonPricing=[];
       let voiceConfig={enabled:false};
       let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
@@ -613,59 +565,37 @@ const server=http.createServer(async (req,res)=>{
           if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
           promptEnhancerConfig.enabled=Boolean(currentUser?.status==='active' && providerSettings.promptEnhancer.active);
-          const seedanceFallbackActive=Boolean(
+          const seedanceActive=Boolean(
             (customerProviderAccess.vidancee && providerSettings.vidancee.active) ||
             (customerProviderAccess.createpulse && providerSettings.createpulse.active)
           );
-          const h3FallbackActive=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
-          cartoonEnabled=seedanceFallbackActive;
+          const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
+          cartoonPricing=publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive);
+          cartoonEnabled=cartoonPricing.length>0;
 
-          videoPricing=videoPricing.filter(model=>{
-            if (model.id==='minimax_h3') return h3FallbackActive;
-            // Vidancee/CreatePulse Seedance lives in Cartoon Studio only.
-            if (CARTOON_MODELS.includes(model.id)) return false;
-            return true;
-          });
+          // A source that is out of credits is left out, so ArgoLink's copy of
+          // the same model takes its place.
+          const creditStatus=await readProviderStatus(getPool()).catch(()=>({}));
+          const argoReady=Boolean(customerProviderAccess.argolink && providerSettings.argolink.active);
+          const usable=source=>!(argoReady&&isOutOfCredits(creditStatus,source));
 
-          if (!customerProviderAccess.atlascloud || !providerSettings.atlascloud.active) imagePricing=[];
-
-          if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active) {
+          if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active && usable('smartaipi')) {
             imagePricing.push(...publicSmartImagePricing(await getProviderSettings()));
           }
 
-          if(customerProviderAccess.argolink && providerSettings.argolink.active){
-            // ArgoLink comes before the AI Gateway, so a model both offer
-            // (Seedance, Nano Banana, GPT Image) uses ArgoLink's copy.
-            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd});
-            videoPricing=addMissingImageModels(videoPricing,catalog.video);
+          if(customerProviderAccess.vercel && providerSettings.vercel.active && usable('vercel')){
+            const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
             imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
-          if(customerProviderAccess.vercel && providerSettings.vercel.active){
-            const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
-            // The gateway also offers models another source already provides here
-            // (GPT Image 2, MiniMax H3); its copy appears when that source is unavailable.
-            videoPricing=addMissingImageModels(videoPricing,catalog.video);
+          if(customerProviderAccess.argolink && providerSettings.argolink.active){
+            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd});
+            videoPricing=catalog.video;
             imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
             voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
-          }
-
-          if (customerProviderAccess.higgsfield && providerSettings.higgsfield.active) {
-            const catalog=await publicProviderCatalog('higgsfield');
-            const mergeById=(base,extra)=>{
-              const out=[...base];
-              for(const item of extra){
-                const index=out.findIndex(existing=>existing.id===item.id);
-                if(index>=0)out[index]=item;
-                else out.push(item);
-              }
-              return out;
-            };
-            videoPricing=mergeById(videoPricing,catalog.video);
-            imagePricing=mergeById(imagePricing,catalog.image);
           }
         } catch {
           // Keep public config usable during transient database/provider-setting issues.
@@ -682,7 +612,7 @@ const server=http.createServer(async (req,res)=>{
         voice:voiceConfig,
         promptEnhancer:promptEnhancerConfig,
         providerAccess:customerProviderAccess,
-        cartoon:publicCartoonConfig(cartoonEnabled,publicPricing()),
+        cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
         plans:publicPlans(),
       });
     }
@@ -745,25 +675,7 @@ const server=http.createServer(async (req,res)=>{
         const quote=quoteGateway(model,body,providerSettings.vercel.customerCreditsPerUsd);
         return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
       }
-      if (!costAccess.higgsfield || !providerSettings.higgsfield.active) {
-        return sendJson(res,403,{ok:false,error:'This model source is not assigned to your account.'});
-      }
-
-      const model=await getProviderModelByPublicId('higgsfield',String(body.model||''),mediaType);
-      if (!model) return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
-
-      const sourceCost=await estimateHiggsfieldCost(model.publicModelId,mediaType,{
-        prompt:String(body.prompt||'Cost estimate'),
-        duration:Number(body.duration||0),
-        resolution:String(body.resolution||''),
-        aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
-        mode:mediaType==='image'?'text-to-image':'text-to-video',
-      });
-      const customerCost=roundCredits(sourceCost);
-      if (!Number.isFinite(Number(customerCost)) || Number(customerCost)<0) {
-        return sendJson(res,502,{ok:false,error:'The model cost could not be calculated.'});
-      }
-      return sendJson(res,200,{ok:true,cost:Number(customerCost)});
+      return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
     }
 
     if (req.method==='POST' && routePath==='/api/auth/register') {
@@ -1031,9 +943,21 @@ const server=http.createServer(async (req,res)=>{
 
       const body=await readGenerationRequest(req);
       await attachReusedImageReferences(getPool(),user.id,body);
-      const requestedModel=String(body.model||'');
+      let requestedModel=String(body.model||'');
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
+
+      // AI Gateway and SmartAIPI come first; while one is out of credits its
+      // models run on the same ArgoLink model instead.
+      const firstSource=isGatewayModel(requestedModel)?'vercel':smartImageModel(requestedModel)?'smartaipi':null;
+      if(firstSource){
+        const label=firstSource==='vercel'?(await getProviderModelByPublicId('vercel',requestedModel,'image'))?.label:smartImageModel(requestedModel).label;
+        const swap=await submissionFailover(getPool(),{source:firstSource,label,body,settings:providerSettings,access:customerAccess});
+        if(swap){
+          requestedModel=swap.model.publicModelId;
+          for(const key of ['imageSize','quality'])if(key in swap.body)body[key]=swap.body[key];else delete body[key];
+        }
+      }
 
       if(isGatewayModel(requestedModel)){
         if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
@@ -1073,35 +997,7 @@ const server=http.createServer(async (req,res)=>{
         });
       }
 
-      if (!generation && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
-        const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'image');
-        if (dynamicModel) {
-          if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
-            return sendJson(res,400,{ok:false,error:'This image model does not accept reference images.'});
-          }
-          const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'image',{
-            prompt:String(body.prompt||''),
-            aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
-            mode:Array.isArray(body.images)&&body.images.length?'reference-to-image':'text-to-image',
-          });
-          const customerCost=roundCredits(sourceCost);
-          generation=await createImageGenerationForUser(user.id,body,{
-            provider:'higgsfield',
-            dynamicModel:true,
-            referenceCapabilities:dynamicModel.referenceCapabilities,
-            costOverride:customerCost,
-            providerCost:sourceCost,
-            providerCostUnit:'credits',
-          });
-        }
-      }
-
-      if (!generation) {
-        if (!customerAccess.atlascloud || !providerSettings.atlasCloudEnabled || !providerSettings.atlasCloudApiKey) {
-          return sendJson(res,503,{ok:false,error:'Image generation is currently unavailable.'});
-        }
-        generation=await createImageGenerationForUser(user.id,body);
-      }
+      if (!generation) return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
 
       wakeGenerationWorker(req);
       const db=getPool();
@@ -1177,18 +1073,6 @@ const server=http.createServer(async (req,res)=>{
       // Cartoon Studio always runs on Vidancee or CreatePulse, never a catalog source.
       const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
-      if(!cartoonOptions&&isGatewayModel(requestedModel)){
-        if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
-        const model=await getProviderModelByPublicId('vercel',requestedModel,'video');
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
-        validateReferences(model,body);
-        const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
-        generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vercel',dynamicModel:true,
-          defaultResolution:model.defaultResolution,referenceCapabilities:model.referenceCapabilities,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',generationOptions:{...quote,model},
-        });
-      }
-
       if(!cartoonOptions&&isArgoModel(requestedModel)){
         if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
         const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
@@ -1201,38 +1085,12 @@ const server=http.createServer(async (req,res)=>{
         });
       }
 
-      if (!generation && !cartoonOptions && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
-        const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
-        if (dynamicModel) {
-          if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
-            return sendJson(res,400,{ok:false,error:'This video model does not accept image references.'});
-          }
-          if (Array.isArray(body.videos) && body.videos.length && !dynamicModelSupportsVideoReferences(dynamicModel)) {
-            return sendJson(res,400,{ok:false,error:'This video model does not accept video references.'});
-          }
-          const hasReferences=(Array.isArray(body.images)&&body.images.length)||(Array.isArray(body.videos)&&body.videos.length);
-          const sourceCost=await estimateHiggsfieldCost(dynamicModel.publicModelId,'video',{
-            prompt:String(body.prompt||''),
-            duration:Number(body.duration||0),
-            resolution:String(body.resolution||''),
-            aspectRatio:String(body.aspectRatio||body.aspect_ratio||''),
-            mode:hasReferences?'reference-to-video':'text-to-video',
-          });
-          const customerCost=roundCredits(sourceCost);
-          generation=await createGenerationForUser(user.id,body,{
-            provider:'higgsfield',
-            dynamicModel:true,
-            defaultResolution:dynamicModel.defaultResolution,
-            referenceCapabilities:dynamicModel.referenceCapabilities,
-            costOverride:customerCost,
-            providerCost:sourceCost,
-            providerCostUnit:'credits',
-          });
-        }
-      }
+      // Video Studio runs on ArgoLink only; the other video sources serve Cartoon Studio.
+      if (!generation && !cartoonOptions) return sendJson(res,400,{ok:false,error:'This video model is not available. Choose a model from the list.'});
 
       if (!generation) {
         if (requestedModel==='minimax_h3') {
+          if (!cartoonOptions) return sendJson(res,400,{ok:false,error:'MiniMax H3 is available in Cartoon Studio.'});
           if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
             return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
           }
@@ -1417,52 +1275,10 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,settings});
       }
 
-      if (req.method==='POST' && routePath==='/admin/higgsfield/oauth/start') {
-        requireDatabase();
-        const body=await readJson(req);
-        const redirectUrl=publicOrigin(req)+'/admin/higgsfield/oauth/callback';
-        const result=await beginHiggsfieldAuthorization({
-          redirectUrl,
-          force:body.force===true,
-        });
-        return sendJson(res,200,{ok:true,...result});
-      }
-
-      if (req.method==='POST' && routePath==='/admin/higgsfield/disconnect') {
-        requireDatabase();
-        await clearHiggsfieldAuth({keepClientRegistration:true});
-        return sendJson(res,200,{ok:true,connected:false});
-      }
-
-      if (req.method==='GET' && routePath==='/admin/higgsfield/status') {
-        requireDatabase();
-        return sendJson(res,200,{ok:true,status:await getHiggsfieldConnectionStatus()});
-      }
-
-      if (req.method==='POST' && routePath==='/admin/higgsfield/sync') {
-        requireDatabase();
-        const result=await syncHiggsfieldModels();
-        return sendJson(res,200,{
-          ok:true,
-          modelCount:result.modelCount,
-          videoCount:result.videoCount,
-          imageCount:result.imageCount,
-          toolCount:result.toolCount,
-          catalogSource:result.catalogSource,
-          jobsWaitConfigured:result.jobsWaitConfigured,
-        });
-      }
-
-      if (req.method==='GET' && routePath==='/admin/higgsfield/tools') {
-        requireDatabase();
-        const tools=await getHiggsfieldToolDiagnostics();
-        return sendJson(res,200,{ok:true,tools});
-      }
-
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
-        const provider=String(url.searchParams.get('provider')||'higgsfield');
-        if (!['higgsfield','vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        const provider=String(url.searchParams.get('provider')||'vercel');
+        if (!['vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1471,8 +1287,8 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='POST' && providerModelMatch) {
         requireDatabase();
         const body=await readJson(req);
-        const provider=String(body.provider||'higgsfield');
-        if(!['higgsfield','vercel','argolink'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        const provider=String(body.provider||'vercel');
+        if(!['vercel','argolink'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -1530,9 +1346,7 @@ const server=http.createServer(async (req,res)=>{
           providers:{
             vidancee:providerSettings.vidancee.configured,
             createpulse:providerSettings.createpulse.configured,
-            atlascloud:providerSettings.atlascloud.configured,
             vgenv:providerSettings.vgenv.configured,
-            higgsfield:providerSettings.higgsfield.configured,
             vibi:providerSettings.vibi.configured,
             smartaipi:providerSettings.smartaipi.configured,
             vercel:providerSettings.vercel.configured,
@@ -1541,9 +1355,7 @@ const server=http.createServer(async (req,res)=>{
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
             createpulse:providerSettings.createpulse.enabled,
-            atlascloud:providerSettings.atlascloud.enabled,
             vgenv:providerSettings.vgenv.enabled,
-            higgsfield:providerSettings.higgsfield.enabled,
             vibi:providerSettings.vibi.enabled,
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
@@ -1552,9 +1364,7 @@ const server=http.createServer(async (req,res)=>{
           providerActive:{
             vidancee:providerSettings.vidancee.active,
             createpulse:providerSettings.createpulse.active,
-            atlascloud:providerSettings.atlascloud.active,
             vgenv:providerSettings.vgenv.active,
-            higgsfield:providerSettings.higgsfield.active,
             vibi:providerSettings.vibi.active,
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
@@ -1562,9 +1372,7 @@ const server=http.createServer(async (req,res)=>{
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
-          atlasCloudMaxInflight:providerSettings.atlascloud.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
-          higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           vibiMaxInflight:providerSettings.vibi.maxInflight,
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,

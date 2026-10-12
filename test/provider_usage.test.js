@@ -33,7 +33,8 @@ test('usage combines provider balances with 30-day consumption from job records'
   const admin = { vidancee: { active: true, configured: true }, vercel: { active: true, configured: true }, createpulse: { active: true, configured: true } };
   const rows = await usage.providerUsage(db, settings, admin, { fetchImpl });
   const by = Object.fromEntries(rows.map(r => [r.key, r]));
-  assert.equal(rows.length, 9);
+  assert.equal(rows.length, 7);
+  assert.deepEqual(rows.map(r => r.key), ['argolink', 'vercel', 'smartaipi', 'vidancee', 'createpulse', 'vgenv', 'vibi']);
   assert.deepEqual([by.argolink.balance.remaining, by.argolink.balance.unit], [12.34, 'USD']);
   assert.equal(by.vidancee.balance.remaining, 318);
   assert.equal(by.vidancee.balance.reserved, 9);
@@ -41,10 +42,10 @@ test('usage combines provider balances with 30-day consumption from job records'
   assert.deepEqual([by.smartaipi.balance.remaining, by.smartaipi.balance.limit, by.smartaipi.balance.used], [37.5, 50, 12.5]);
   assert.ok(by.createpulse.balance.outOfCreditsUntil);
   assert.equal(by.vgenv.balance.outOfCreditsUntil, undefined);
-  assert.match(by.atlascloud.balance.note, /does not report/);
+  assert.match(by.vibi.balance.note, /does not report/);
   assert.equal(by.vercel.usage.completed30d, 8);
   assert.deepEqual(by.vercel.usage.sourceCost30d, [{ unit: 'usd-estimate', total: 0.42 }]);
-  assert.equal(by.higgsfield.usage.jobs30d, 0);
+  assert.equal(by.vgenv.usage.jobs30d, 0);
   assert.equal(by.vercel.active, true);
   assert.equal(by.smartaipi.active, false);
 });

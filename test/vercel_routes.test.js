@@ -71,7 +71,8 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal(JSON.stringify(saved).includes('gateway-secret-only'),false);assert.match(values.get('vercel_api_key').setting_value,/^v1:/);assert.equal(values.get('vercel_api_key').is_secret,1);
   const config=await request('/api/config');
   assert.equal(config.data.imagePricing.filter(m=>m.id.startsWith('studio_gw_')).length,2);
-  assert.equal(config.data.pricing.filter(m=>m.id.startsWith('studio_gw_')).length,1);
+  // Video Studio runs on ArgoLink only; gateway video models are not offered.
+  assert.equal(config.data.pricing.filter(m=>m.id.startsWith('studio_gw_')).length,0);
   const nano=modelRows.find(m=>m.provider_model_id==='google/gemini-nano-banana-2.1');
   const input={model:nano.public_model_id,prompt:'A flower',aspectRatio:'4:5',imageSize:'2K'};
   const quote=await request('/api/model-cost',{method:'POST',body:{...input,mediaType:'image'}});assert.equal(quote.data.cost,51);
@@ -82,10 +83,13 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal(users.get(1).credits,balance);
   const veo=modelRows.find(m=>m.provider_model_id==='google/veo-3.0-fast-generate-001');
   const videoInput={model:veo.public_model_id,prompt:'A sunrise',duration:8,resolution:'720p',aspectRatio:'16:9',generateAudio:true};
-  const video=await request('/api/generations',{method:'POST',body:videoInput});assert.equal(video.status,201);assert.equal(video.data.generation.credits_cost,1200);assert.equal(video.data.generation.generation_options.generateAudio,true);
+  assert.equal((await request('/api/generations',{method:'POST',body:videoInput})).status,400);
+  // A gateway video made before the change still plays.
+  const videoId='6f9619ff-8b86-4011-b42d-00c04fc964ff';
+  jobs.set(videoId,{id:videoId,user_id:1,provider:'vercel',model:veo.public_model_id,media_type:'video',status:'completed',output_url:'db:video',duration:8,aspect_ratio:'16:9',prompt:'A sunrise',credits_cost:1200});
   const bytes=Buffer.from('000000186674797069736f6d0000020069736f6d69736f32','hex');
-  jobs.get(video.data.generation.id).output_url='db:video';outputs.set(video.data.generation.id,{byte_length:bytes.length,mime_type:'video/mp4',bytes});
-  const mediaPath='/api/generations/'+video.data.generation.id+'/media';
+  outputs.set(videoId,{byte_length:bytes.length,mime_type:'video/mp4',bytes});
+  const mediaPath='/api/generations/'+videoId+'/media';
   const playback=await fetch(origin+mediaPath,{headers:{'x-test-user':'1',range:'bytes=4-7'}});assert.equal(playback.status,206);assert.deepEqual(Buffer.from(await playback.arrayBuffer()),bytes.subarray(4,8));
   assert.equal((await request(mediaPath,{user:2})).status,404);
   const gpt=modelRows.find(m=>m.provider_model_id==='openai/gpt-image-2');
@@ -99,7 +103,7 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal((await request('/api/model-cost',{method:'POST',body:{...input,mediaType:'image'}})).status,403);
   assert.equal((await request('/api/image-generations',{method:'POST',body:input})).status,503);
   assert.equal((await request('/api/config')).data.imagePricing.filter(m=>m.id.startsWith('studio_gw_')).length,0);
-  assert.equal(transactions.length,2);
+  assert.equal(transactions.length,1);
   await request('/admin/provider-settings',{admin:true,method:'POST',body:{vercelApiKey:''}});assert.equal(values.has('vercel_api_key'),true);
   assert.equal((await request('/admin/vercel/check',{admin:true,method:'POST'})).data.balance,'12.00');
   const invalid=await request('/admin/provider-settings',{admin:true,method:'POST',body:{vercelApiKey:'replacement-secret',vercelCustomerCreditsPerUsd:0}});assert.equal(invalid.status,400);

@@ -1,9 +1,9 @@
 'use strict';
 
-// Cartoon Studio: Seedance video in a chosen cartoon style, sent to Vidancee or
-// CreatePulse (whichever has provider credits). The customer's own prompt is
+// Cartoon Studio: video in a chosen cartoon style. Seedance goes to Vidancee or
+// CreatePulse (whichever has provider credits); MiniMax H3 goes to vgenv. The customer's own prompt is
 // stored on the job; the style direction is added only when it is submitted.
-const CARTOON_MODELS = ['seedance_2.5', 'seedance_2.0_fast'];
+const CARTOON_MODELS = ['seedance_2.5', 'seedance_2.0_fast', 'minimax_h3'];
 
 const CARTOON_STYLES = [
   { id: '3d', label: '3D Animation', hint: 'Feature-film 3D characters',
@@ -26,7 +26,7 @@ function normalizeCartoonRequest(body) {
   const style = cartoonStyle(body.cartoonStyle);
   if (!style) throw Object.assign(new Error('Choose a cartoon style.'), { statusCode: 400 });
   if (!CARTOON_MODELS.includes(String(body.model || ''))) {
-    throw Object.assign(new Error('Cartoon Studio supports Seedance 2.5 and Seedance 2.0 Fast.'), { statusCode: 400 });
+    throw Object.assign(new Error('Cartoon Studio supports Seedance 2.5, Seedance 2.0 Fast and MiniMax H3.'), { statusCode: 400 });
   }
   return { studio: 'cartoon', cartoonStyle: style.id };
 }

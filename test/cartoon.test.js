@@ -21,14 +21,15 @@ test('cartoon styles shape the provider prompt but not the stored prompt', () =>
   assert.equal(cartoon.providerPrompt({ prompt: 'plain video', generation_options: '{}' }), 'plain video');
   assert.deepEqual(cartoon.normalizeCartoonRequest({ cartoonStyle: 'clay', model: 'seedance_2.0_fast' }), { studio: 'cartoon', cartoonStyle: 'clay' });
   assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'oil', model: 'seedance_2.5' }), /Choose a cartoon style/);
-  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'minimax_h3' }), /supports Seedance/);
+  assert.deepEqual(cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'minimax_h3' }), { studio: 'cartoon', cartoonStyle: 'anime' });
+  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'argo_wan_3' }), /supports Seedance 2.5, Seedance 2.0 Fast and MiniMax H3/);
   assert.equal(cartoon.vidanceeCreditsNeeded({ duration: 10 }), 6);
   assert.equal(cartoon.vidanceeCreditsNeeded({ duration: 15 }), 9);
   assert.equal(cartoon.looksOutOfCredits(Object.assign(new Error('Vidancee generate failed'), { details: { data: { error: 'Not enough credits' } } })), true);
   assert.equal(cartoon.looksOutOfCredits(new Error('CreatePulse HTTP 402')), true);
   assert.equal(cartoon.looksOutOfCredits(new Error('Network timeout')), false);
   const config = cartoon.publicCartoonConfig(true, [{ id: 'seedance_2.5' }, { id: 'minimax_h3' }]);
-  assert.deepEqual(config.pricing.map(m => m.id), ['seedance_2.5']);
+  assert.deepEqual(config.pricing.map(m => m.id), ['seedance_2.5', 'minimax_h3']);
   assert.equal(config.styles.length, 5);
   assert.equal(JSON.stringify(config).includes('directive'), false);
 });
@@ -54,7 +55,7 @@ test('cartoon jobs go to whichever source has credits', () => {
   w.stop?.();
 });
 
-test('Cartoon Studio jobs are accepted only for Seedance and keep the style on the job', async t => {
+test('Cartoon Studio jobs are accepted for its models only and keep the style on the job', async t => {
   process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'cartoon-admin';
   const user = { id: 1, email: 'c@example.com', credits: 500, status: 'active', plan_code: 'pro', role: 'user' };
   const settings = new Map(Object.entries({ vidancee_email: 'v@example.com', vidancee_password: 'x', vidancee_enabled: 'true', allow_provider_charges: 'true' })
@@ -84,12 +85,14 @@ test('Cartoon Studio jobs are accepted only for Seedance and keep the style on t
   assert.equal(config.cartoon.enabled, true);
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['seedance_2.5', 'seedance_2.0_fast']);
-  // Video Studio no longer lists the Vidancee/CreatePulse Seedance models.
-  assert.equal(config.pricing.some(m => m.id.startsWith('seedance')), false);
+  // Video Studio lists ArgoLink models only (none here: ArgoLink is not configured).
+  assert.deepEqual(config.pricing, []);
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16' })).status, 400);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
-  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'anime' })).status, 400);
+  // MiniMax H3 belongs to Cartoon Studio; it needs vgenv, which is not configured here.
+  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'anime' })).status, 503);
+  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16' })).status, 400);
   assert.equal(inserted, null);
   const ok = await post({ prompt: 'A dragon learns to fly', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'clay' });
   assert.equal(ok.status, 201);

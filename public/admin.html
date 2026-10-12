@@ -62,7 +62,7 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Primary engine</h3>
+            <h3>Cartoon Studio · Vidancee</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="vidEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
               <span class="source-switch-track"></span>
@@ -79,7 +79,7 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Overflow engine</h3>
+            <h3>Cartoon Studio · CreatePulse</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="cpEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
               <span class="source-switch-track"></span>
@@ -94,22 +94,7 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Image engine · Atlas Cloud</h3>
-            <label class="source-switch" title="Enable or disable this backend source">
-              <input id="atlasEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
-              <span class="source-switch-track"></span>
-            </label>
-          </div>
-          <div id="atlasEnabledText" class="source-state"></div>
-          <div class="muted">Base URL</div><input id="atlasBaseUrl" style="width:100%;margin:6px 0 10px">
-          <div class="muted">API key</div><input id="atlasApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearAtlasApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
-          <div id="atlasSecretStatus" class="muted" style="margin-top:8px"></div>
-          <div class="muted" style="margin-top:12px">Max inflight image jobs</div><input id="atlasInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
-        </div>
-        <div class="card">
-          <div class="source-head">
-            <h3>GPT images · SmartAIPI</h3>
+            <h3>Image Studio · SmartAIPI</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="smartEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span>
             </label>
@@ -131,7 +116,7 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Video engine · MiniMax H3</h3>
+            <h3>Cartoon Studio · MiniMax H3 (vgenv)</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="vgenvEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
               <span class="source-switch-track"></span>
@@ -145,7 +130,7 @@
           <div class="muted" style="margin-top:12px">Max inflight H3 jobs</div><input id="vgenvInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
-          <div class="source-head"><h3>Images + video · ArgoLink</h3><label class="source-switch"><input id="argoEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div class="source-head"><h3>Video Studio + image backup · ArgoLink</h3><label class="source-switch"><input id="argoEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="argoEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://argolink.io/v1</div>
           <label class="muted" for="argoApiKey">ArgoLink API key</label><input id="argoApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
@@ -158,7 +143,7 @@
           <div id="argoActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
-          <div class="source-head"><h3>Images + video · Vercel AI Gateway</h3><label class="source-switch"><input id="vercelEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div class="source-head"><h3>Image Studio · Vercel AI Gateway</h3><label class="source-switch"><input id="vercelEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="vercelEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://ai-gateway.vercel.sh/v1</div>
           <label class="muted" for="vercelApiKey">AI Gateway API key</label><input id="vercelApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
@@ -172,28 +157,7 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Higgsfield MCP</h3>
-            <label class="source-switch" title="Enable or disable this backend source">
-              <input id="higgsfieldEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
-              <span class="source-switch-track"></span>
-            </label>
-          </div>
-          <div id="higgsfieldEnabledText" class="source-state"></div>
-          <div class="muted">MCP endpoint</div><input id="higgsfieldMcpUrl" style="width:100%;margin:6px 0 10px" value="https://mcp.higgsfield.ai/mcp">
-          <div id="higgsfieldConnectionStatus" class="muted" style="margin:4px 0 10px">Account: checking...</div>
-          <div class="muted">Max inflight jobs</div><input id="higgsfieldInflight" type="number" min="1" max="50" value="4" style="width:100%;margin:6px 0 10px">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="secondary" onclick="connectHiggsfield()">Connect / Reconnect</button>
-            <button class="secondary" onclick="syncHiggsfieldModels()">Sync models</button>
-            <button class="secondary" onclick="inspectHiggsfieldTools()">Inspect MCP tools</button>
-            <button class="danger" onclick="disconnectHiggsfield()">Disconnect</button>
-          </div>
-          <div id="higgsfieldActionMsg" class="muted" style="margin-top:10px"></div>
-          <pre id="higgsfieldToolsOut" class="hide" style="max-height:260px;overflow:auto;margin-top:10px">Not inspected.</pre>
-        </div>
-        <div class="card">
-          <div class="source-head">
-            <h3>Voice engine · Vibi</h3>
+            <h3>Voice Studio · Vibi</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="vibiEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
               <span class="source-switch-track"></span>
@@ -219,7 +183,7 @@
 
     <div class="card" style="margin-top:12px">
       <div class="top"><div><h2 style="margin:0">ArgoLink image and video models</h2><div id="argoModelSummary" class="muted">Loading models...</div></div><button class="secondary" onclick="loadArgoModels()">Refresh models</button></div>
-      <div class="muted" style="margin-top:10px">Visible models appear for customers when ArgoLink is enabled and assigned. A model with the same name from another source keeps that source's copy; hide it there to use ArgoLink's.</div>
+      <div class="muted" style="margin-top:10px">Visible models appear for customers when ArgoLink is enabled and assigned. Video Studio uses every visible video model. In Image Studio, Vercel and SmartAIPI models come first; ArgoLink's copy of a model takes over while that source is out of credits, and ArgoLink-only models are always listed.</div>
       <div class="tablewrap"><table><thead><tr><th>Model</th><th>Type and settings</th><th>ArgoLink price (USD)</th><th>Customer visibility</th></tr></thead><tbody id="argoModelRows"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody></table></div>
       <div id="argoCatalogMsg" class="muted" role="status"></div>
     </div>
@@ -230,22 +194,6 @@
       <div class="row" style="margin-top:12px"><input id="vercelModelSearch" type="search" placeholder="Search models" oninput="renderVercelModels()" aria-label="Search Vercel models"><select id="vercelModelType" onchange="renderVercelModels()" aria-label="Filter model type"><option value="">All models</option><option value="image">Image</option><option value="video">Video</option></select></div>
       <div class="tablewrap"><table><thead><tr><th>Model</th><th>Type and settings</th><th>Generation readiness</th><th>USD price override</th><th>Customer visibility</th></tr></thead><tbody id="vercelModelRows"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table></div>
       <div id="vercelCatalogMsg" class="muted" role="status"></div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <div class="top">
-        <div>
-          <h2 style="margin:0">Higgsfield model catalog</h2>
-          <div id="higgsfieldModelSummary" class="muted">Connect the account, then sync models.</div>
-        </div>
-        <button class="secondary" onclick="loadHiggsfieldModels()">Refresh models</button>
-      </div>
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>Model</th><th>Type</th><th>References</th><th>Available</th><th>Customer visibility</th><th>Action</th></tr></thead>
-          <tbody id="higgsfieldModelRows"><tr><td colspan="6" class="muted">No synced models yet.</td></tr></tbody>
-        </table>
-      </div>
     </div>
 
     <div class="grid" style="grid-template-columns:1fr 1fr">
@@ -262,14 +210,12 @@
     </div>
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
-      <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Seedance, Wan, Grok, Nano Banana and GPT Image models</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image and video model catalog</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Higgsfield MCP models and your connected subscription</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Primary Seedance generation source</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Overflow Seedance generation source</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">MiniMax H3 generation source</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>SmartAIPI</strong><span class="muted">GPT image generation source</span></div><span class="source-switch"><input id="accessSmartaipi" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Atlas Cloud</strong><span class="muted">Image generation source</span></div><span class="source-switch"><input id="accessAtlascloud" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Cartoon Studio · Seedance</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Cartoon Studio · Seedance (overflow)</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>SmartAIPI</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessSmartaipi" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Voice Studio</strong><span class="muted">Voice generation source</span></div><span class="source-switch"><input id="accessVibi" type="checkbox"><span class="source-switch-track"></span></span></label>
     </div>
     <div id="providerAccessMsg" class="muted"></div>
@@ -296,7 +242,7 @@ async function api(path,options={}){
   if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
   return d;
 }
-async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);const hf=new URLSearchParams(location.search).get('higgsfield');if(hf){const btn=document.querySelector('.tabs button[data-tab="provider"]');tab('provider',btn);setTimeout(()=>{const m=$('higgsfieldActionMsg');if(!m)return;if(hf==='connected'){m.className='ok';m.textContent='Account connected. The model catalog was synced automatically when possible.'}else if(hf==='failed'){m.className='err';m.textContent='Account connection failed. Click Connect / Reconnect to try again.'}},250)}}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
+async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
 function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderUsage();loadProviderSettings();loadProviderConfig()}}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
@@ -322,7 +268,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['argolink','ArgoLink'],['vercel','Vercel'],['higgsfield','Higgsfield'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['atlascloud','Atlas'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['argolink','ArgoLink'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -337,12 +283,10 @@ function openProviderAccess(id){
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
   $('accessArgolink').checked=a.argolink!==false;
-  $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessCreatepulse').checked=a.createpulse!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessSmartaipi').checked=a.smartaipi!==false;
-  $('accessAtlascloud').checked=a.atlascloud!==false;
   $('accessVibi').checked=a.vibi!==false;
   $('providerAccessMsg').className='muted';$('providerAccessMsg').textContent='';
   $('providerAccessModal').classList.remove('hide');
@@ -354,12 +298,10 @@ async function saveProviderAccess(){
   const providers={
     vercel:$('accessVercel').checked,
     argolink:$('accessArgolink').checked,
-    higgsfield:$('accessHiggsfield').checked,
     vidancee:$('accessVidancee').checked,
     createpulse:$('accessCreatepulse').checked,
     vgenv:$('accessVgenv').checked,
     smartaipi:$('accessSmartaipi').checked,
-    atlascloud:$('accessAtlascloud').checked,
     vibi:$('accessVibi').checked,
   };
   try{
@@ -412,10 +354,8 @@ function updateSourceSwitchLabels(){
     ['enhancerEnabled','enhancerEnabledText'],
     ['vidEnabled','vidEnabledText'],
     ['cpEnabled','cpEnabledText'],
-    ['atlasEnabled','atlasEnabledText'],
     ['smartEnabled','smartEnabledText'],
     ['vgenvEnabled','vgenvEnabledText'],
-    ['higgsfieldEnabled','higgsfieldEnabledText'],
     ['vercelEnabled','vercelEnabledText'],
     ['argoEnabled','argoEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
@@ -436,9 +376,7 @@ async function loadProviderSettings(){try{
   $('vidEnabled').checked=s.vidancee?.enabled!==false;
   $('cpEnabled').checked=s.createpulse?.enabled!==false;
   $('smartEnabled').checked=s.smartaipi?.enabled!==false;
-  $('atlasEnabled').checked=s.atlascloud?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
-  $('higgsfieldEnabled').checked=s.higgsfield?.enabled!==false;
   $('vercelEnabled').checked=s.vercel?.enabled!==false;
   $('vercelApiKey').value='';$('clearVercelApiKey').checked=false;
   $('vercelSecretStatus').textContent=s.vercel?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -455,7 +393,6 @@ async function loadProviderSettings(){try{
   updateSourceSwitchLabels();
   $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
   $('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;
-  $('atlasBaseUrl').value=s.atlascloud?.baseUrl||'https://api.atlascloud.ai';$('atlasApiKey').value='';$('clearAtlasApiKey').checked=false;$('atlasSecretStatus').textContent=s.atlascloud?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('atlasInflight').value=s.atlascloud?.maxInflight||4;
   $('smartBaseUrl').value=s.smartaipi?.baseUrl||'https://api.smartaipi.com/v1';$('smartApiKey').value='';$('clearSmartApiKey').checked=false;
   $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('smartInflight').value=s.smartaipi?.maxInflight||2;$('smartCreditsPerUsd').value=s.smartaipi?.customerCreditsPerUsd||(160/0.0265);
@@ -463,26 +400,22 @@ async function loadProviderSettings(){try{
   $('smartPricesSummary').textContent='Model prices · '+smartModels.filter(m=>m.enabled).length+' of '+smartModels.length+' models on';
   $('smartModelPrices').innerHTML=smartModels.map(model=>'<div class="smart-price-row" data-smart-model="'+esc(model.id)+'"><label><input class="smart-model-enabled" type="checkbox" style="width:auto"'+(model.enabled?' checked':'')+'> '+esc(model.label)+'</label><div>'+['low','medium','high'].map(q=>'<input aria-label="'+esc(model.label)+' '+q+' USD" data-smart-quality="'+q+'" class="smart-quality-price'+(q==='medium'?' smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+usd(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'">').join('')+'</div></div>').join('');
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
-  $('higgsfieldMcpUrl').value=s.higgsfield?.mcpUrl||'https://mcp.higgsfield.ai/mcp';$('higgsfieldInflight').value=s.higgsfield?.maxInflight||4;$('higgsfieldConnectionStatus').textContent=s.higgsfield?.connected?'Account: connected':'Account: not connected';$('higgsfieldConnectionStatus').className=s.higgsfield?.connected?'ok':'muted';
   $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
   $('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false';
-  loadHiggsfieldModels();
 }catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
 async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
   const body={
     promptEnhancerEnabled:$('enhancerEnabled').checked,promptEnhancerApiKey:$('enhancerApiKey').value.trim(),clearPromptEnhancerApiKey:$('clearEnhancerApiKey').checked,
-    vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,atlasCloudEnabled:$('atlasEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,higgsfieldEnabled:$('higgsfieldEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
+    vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
     smartAipiEnabled:$('smartEnabled').checked,smartAipiBaseUrl:$('smartBaseUrl').value.trim(),smartAipiApiKey:$('smartApiKey').value.trim(),clearSmartAipiApiKey:$('clearSmartApiKey').checked,
     smartAipiMaxInflight:Number($('smartInflight').value),smartAipiCustomerCreditsPerUsd:Number($('smartCreditsPerUsd').value),
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
     vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,
     createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),
-    atlasCloudBaseUrl:$('atlasBaseUrl').value.trim(),atlasCloudApiKey:$('atlasApiKey').value.trim(),clearAtlasCloudApiKey:$('clearAtlasApiKey').checked,atlasCloudMaxInflight:Number($('atlasInflight').value),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
-    higgsfieldMcpUrl:$('higgsfieldMcpUrl').value.trim(),higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
@@ -582,90 +515,6 @@ async function checkVibi(){
     const d=await api('/admin/vibi/check',{method:'POST',body:'{}'});
     m.className='ok';m.textContent='Connected'+(d.account?' as '+d.account:'')+' · '+Number(d.creditBalance||0)+' provider credits available.';
   }catch(e){m.className='err';m.textContent=e.message}
-}
-
-async function connectHiggsfield(){
-  const m=$('higgsfieldActionMsg');
-  m.className='muted';m.textContent='Opening account authorization...';
-  try{
-    await saveProviderSettings();
-    const d=await api('/admin/higgsfield/oauth/start',{method:'POST',body:JSON.stringify({force:true})});
-    if(d.connected){m.className='ok';m.textContent='Account already connected.';await loadProviderSettings();return}
-    if(!d.authorizationUrl)throw new Error('Authorization URL was not returned.');
-    location.href=d.authorizationUrl;
-  }catch(e){m.className='err';m.textContent=e.message}
-}
-
-async function disconnectHiggsfield(){
-  if(!confirm('Disconnect this account from the backend? Existing submitted jobs will keep their saved status but new jobs cannot use this source.'))return;
-  const m=$('higgsfieldActionMsg');m.className='muted';m.textContent='Disconnecting...';
-  try{
-    await api('/admin/higgsfield/disconnect',{method:'POST',body:'{}'});
-    m.className='ok';m.textContent='Account disconnected.';
-    await Promise.all([loadProviderSettings(),loadProviderConfig()]);
-  }catch(e){m.className='err';m.textContent=e.message}
-}
-
-async function syncHiggsfieldModels(){
-  const m=$('higgsfieldActionMsg');m.className='muted';m.textContent='Syncing live model catalog...';
-  try{
-    const d=await api('/admin/higgsfield/sync',{method:'POST',body:'{}'});
-    m.className='ok';m.textContent='Synced '+d.modelCount+' models ('+d.videoCount+' video, '+d.imageCount+' image)'+(d.catalogSource?' via '+d.catalogSource:'')+'.';
-    await Promise.all([loadHiggsfieldModels(),loadProviderConfig()]);
-  }catch(e){m.className='err';m.textContent=e.message}
-}
-
-async function inspectHiggsfieldTools(){
-  const m=$('higgsfieldActionMsg'),out=$('higgsfieldToolsOut');
-  m.className='muted';m.textContent='Reading live MCP tool schemas...';
-  out.classList.remove('hide');out.textContent='Loading...';
-  try{
-    const d=await api('/admin/higgsfield/tools');
-    out.textContent=JSON.stringify(d.tools||[],null,2);
-    m.className='ok';m.textContent='Loaded '+(d.tools||[]).length+' MCP tool definitions. This output contains schemas, not your password or OAuth token.';
-  }catch(e){
-    out.textContent='ERROR: '+e.message;
-    m.className='err';m.textContent=e.message;
-  }
-}
-
-async function loadHiggsfieldModels(){
-  const rows=$('higgsfieldModelRows'),summary=$('higgsfieldModelSummary');
-  if(!rows)return;
-  try{
-    const d=await api('/admin/provider-models?provider=higgsfield');
-    const models=(d.models||[]).filter(x=>x.available&&x.catalogVerified===true);
-    const videos=models.filter(x=>x.mediaType==='video').length;
-    const images=models.filter(x=>x.mediaType==='image').length;
-    summary.textContent=models.length+' synced models · '+videos+' video · '+images+' image';
-    rows.innerHTML=models.length?models.map(model=>{
-      const caps=model.referenceCapabilities||{};
-      const refs=[];
-      const image=caps.image||{},video=caps.video||{},audio=caps.audio||{};
-      if(image.supported||Number(image.max||0)>0)refs.push('Images ≤ '+(image.max||'?'));
-      if(video.supported||Number(video.max||0)>0)refs.push('Videos ≤ '+(video.max||'?'));
-      if(audio.supported||Number(audio.max||0)>0)refs.push('Audio ≤ '+(audio.max||'?'));
-      if(!refs.length)refs.push('Text only');
-      return '<tr>'+
-        '<td><strong>'+esc(model.label)+'</strong><div class="muted">'+esc(model.providerModelId||'')+'</div></td>'+
-        '<td>'+esc(model.mediaType)+'</td>'+
-        '<td>'+esc(refs.join(' · '))+'</td>'+
-        '<td><span class="badge">'+(model.available?'yes':'not in latest sync')+'</span></td>'+
-        '<td class="'+(model.enabled&&model.available?'ok':'muted')+'">'+(model.enabled&&model.available?'Visible when source is ON':'Hidden')+'</td>'+
-        '<td><button class="'+(model.enabled?'danger':'secondary')+'" onclick="toggleHiggsfieldModel('+model.id+','+(!model.enabled)+')">'+(model.enabled?'Hide':'Show')+'</button></td>'+
-      '</tr>';
-    }).join(''):'<tr><td colspan="6" class="muted">No synced models yet. Connect the account and click Sync models.</td></tr>';
-  }catch(e){
-    summary.textContent='Could not load model catalog.';
-    rows.innerHTML='<tr><td colspan="5" class="err">'+esc(e.message)+'</td></tr>';
-  }
-}
-
-async function toggleHiggsfieldModel(id,enabled){
-  try{
-    await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({enabled})});
-    await Promise.all([loadHiggsfieldModels(),loadProviderConfig()]);
-  }catch(e){alert(e.message)}
 }
 
 async function checkProvider(){const o=$('providerOut');o.textContent='Checking...';try{o.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}catch(e){o.textContent='ERROR: '+e.message}}

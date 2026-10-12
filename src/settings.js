@@ -25,10 +25,6 @@ const DEFAULTS = {
   createpulse_api_key: '',
   createpulse_max_inflight: '3',
   createpulse_enabled: 'true',
-  atlascloud_base_url: 'https://api.atlascloud.ai',
-  atlascloud_api_key: '',
-  atlascloud_max_inflight: '4',
-  atlascloud_enabled: 'true',
   smartaipi_base_url: 'https://api.smartaipi.com/v1',
   smartaipi_api_key: '',
   smartaipi_enabled: 'true',
@@ -40,9 +36,6 @@ const DEFAULTS = {
   vgenv_api_key: '',
   vgenv_max_inflight: '4',
   vgenv_enabled: 'true',
-  higgsfield_mcp_url: 'https://mcp.higgsfield.ai/mcp',
-  higgsfield_max_inflight: '4',
-  higgsfield_enabled: 'true',
   vibi_base_url: 'https://api.vibi.pro',
   vibi_api_key: '',
   vibi_enabled: 'true',
@@ -131,13 +124,6 @@ function normalizeUrl(value, fallback) {
   return parsed.origin;
 }
 
-function normalizeEndpoint(value, fallback) {
-  const parsed = new URL(String(value || fallback));
-  if (parsed.protocol !== 'https:') throw new Error('Provider URLs must use HTTPS.');
-  parsed.hash = '';
-  return parsed.toString().replace(/\/$/, '');
-}
-
 function asBool(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ''));
 }
@@ -169,10 +155,6 @@ async function getProviderSettings() {
     createPulseApiKey: String(read('createpulse_api_key') || '').trim(),
     createPulseMaxInflight: Math.max(1, Math.min(50, Number(read('createpulse_max_inflight') || 3))),
     createPulseEnabled: asBool(read('createpulse_enabled')),
-    atlasCloudBaseUrl: normalizeUrl(read('atlascloud_base_url'), DEFAULTS.atlascloud_base_url),
-    atlasCloudApiKey: String(read('atlascloud_api_key') || '').trim(),
-    atlasCloudMaxInflight: Math.max(1, Math.min(50, Number(read('atlascloud_max_inflight') || 4))),
-    atlasCloudEnabled: asBool(read('atlascloud_enabled')),
     smartAipiBaseUrl: smartAipiBaseUrl(read('smartaipi_base_url')),
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
@@ -186,10 +168,6 @@ async function getProviderSettings() {
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
     vgenvMaxInflight: Math.max(1, Math.min(50, Number(read('vgenv_max_inflight') || 4))),
     vgenvEnabled: asBool(read('vgenv_enabled')),
-    higgsfieldMcpUrl: normalizeEndpoint(read('higgsfield_mcp_url'), DEFAULTS.higgsfield_mcp_url),
-    higgsfieldMaxInflight: Math.max(1, Math.min(50, Number(read('higgsfield_max_inflight') || 4))),
-    higgsfieldEnabled: asBool(read('higgsfield_enabled')),
-    higgsfieldOauthTokens: String(read('higgsfield_oauth_tokens') || ''),
     vibiBaseUrl: normalizeUrl(read('vibi_base_url'), DEFAULTS.vibi_base_url),
     vibiApiKey: String(read('vibi_api_key') || '').trim(),
     vibiEnabled: asBool(read('vibi_enabled')),
@@ -236,14 +214,6 @@ async function getAdminProviderSettings() {
       enabled: Boolean(s.createPulseEnabled),
       active: Boolean(s.createPulseEnabled && s.createPulseApiKey),
     },
-    atlascloud: {
-      baseUrl: s.atlasCloudBaseUrl,
-      apiKeyConfigured: Boolean(s.atlasCloudApiKey),
-      maxInflight: s.atlasCloudMaxInflight,
-      configured: Boolean(s.atlasCloudApiKey),
-      enabled: Boolean(s.atlasCloudEnabled),
-      active: Boolean(s.atlasCloudEnabled && s.atlasCloudApiKey),
-    },
     smartaipi: {
       baseUrl: s.smartAipiBaseUrl,
       apiKeyConfigured: Boolean(s.smartAipiApiKey),
@@ -261,14 +231,6 @@ async function getAdminProviderSettings() {
       configured: Boolean(s.vgenvApiKey),
       enabled: Boolean(s.vgenvEnabled),
       active: Boolean(s.vgenvEnabled && s.vgenvApiKey),
-    },
-    higgsfield: {
-      mcpUrl: s.higgsfieldMcpUrl,
-      maxInflight: s.higgsfieldMaxInflight,
-      connected: Boolean(s.higgsfieldOauthTokens),
-      configured: Boolean(s.higgsfieldOauthTokens),
-      enabled: Boolean(s.higgsfieldEnabled),
-      active: Boolean(s.higgsfieldEnabled && s.higgsfieldOauthTokens),
     },
     vibi: {
       baseUrl: s.vibiBaseUrl,
@@ -358,17 +320,6 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Max inflight must be 1 to 50.');
     await put('createpulse_max_inflight', String(n));
   }
-  if ('atlasCloudBaseUrl' in input) await put('atlascloud_base_url', normalizeUrl(input.atlasCloudBaseUrl, DEFAULTS.atlascloud_base_url));
-  if ('atlasCloudEnabled' in input) await put('atlascloud_enabled', input.atlasCloudEnabled ? 'true' : 'false');
-  if (input.clearAtlasCloudApiKey === true) await del('atlascloud_api_key');
-  else if (String(input.atlasCloudApiKey || '').trim()) await put('atlascloud_api_key', String(input.atlasCloudApiKey).trim(), true);
-
-  if ('atlasCloudMaxInflight' in input) {
-    const n = Number(input.atlasCloudMaxInflight);
-    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Atlas Cloud max inflight must be 1 to 50.');
-    await put('atlascloud_max_inflight', String(n));
-  }
-
   if ('vgenvBaseUrl' in input) await put('vgenv_base_url', normalizeUrl(input.vgenvBaseUrl, DEFAULTS.vgenv_base_url));
   if ('vgenvEnabled' in input) await put('vgenv_enabled', input.vgenvEnabled ? 'true' : 'false');
   if (input.clearVgenvApiKey === true) await del('vgenv_api_key');
@@ -378,14 +329,6 @@ async function updateProviderSettings(input = {}) {
     const n = Number(input.vgenvMaxInflight);
     if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('vgenv max inflight must be 1 to 50.');
     await put('vgenv_max_inflight', String(n));
-  }
-
-  if ('higgsfieldMcpUrl' in input) await put('higgsfield_mcp_url', normalizeEndpoint(input.higgsfieldMcpUrl, DEFAULTS.higgsfield_mcp_url));
-  if ('higgsfieldEnabled' in input) await put('higgsfield_enabled', input.higgsfieldEnabled ? 'true' : 'false');
-  if ('higgsfieldMaxInflight' in input) {
-    const n = Number(input.higgsfieldMaxInflight);
-    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Higgsfield max inflight must be 1 to 50.');
-    await put('higgsfield_max_inflight', String(n));
   }
 
   if ('vibiBaseUrl' in input) await put('vibi_base_url', normalizeUrl(input.vibiBaseUrl, DEFAULTS.vibi_base_url));
@@ -451,17 +394,10 @@ async function migrateLegacyProviderEnvSettings() {
   secret('createpulse_api_key', 'CREATEPULSE_API_KEY');
   plain('createpulse_max_inflight', 'CREATEPULSE_MAX_INFLIGHT');
   plain('createpulse_enabled', 'CREATEPULSE_ENABLED');
-  plain('atlascloud_base_url', 'ATLASCLOUD_BASE_URL');
-  secret('atlascloud_api_key', 'ATLASCLOUD_API_KEY');
-  plain('atlascloud_max_inflight', 'ATLASCLOUD_MAX_INFLIGHT');
-  plain('atlascloud_enabled', 'ATLASCLOUD_ENABLED');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');
   plain('vgenv_max_inflight', 'VGENV_MAX_INFLIGHT');
   plain('vgenv_enabled', 'VGENV_ENABLED');
-  plain('higgsfield_mcp_url', 'HIGGSFIELD_MCP_URL');
-  plain('higgsfield_max_inflight', 'HIGGSFIELD_MAX_INFLIGHT');
-  plain('higgsfield_enabled', 'HIGGSFIELD_ENABLED');
   plain('vibi_base_url', 'VIBI_BASE_URL');
   secret('vibi_api_key', 'VIBI_API_KEY');
   plain('vibi_enabled', 'VIBI_ENABLED');

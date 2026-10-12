@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — One set of sources per studio
+
+- **Video Studio:** ArgoLink only (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3). AI Gateway video models are no longer offered; earlier gateway videos still play.
+- **Image Studio:** Vercel AI Gateway and SmartAIPI first. When one returns an out-of-credits error (HTTP 402, "insufficient credits"), it is marked for 10 minutes: the job moves to the same model on ArgoLink at the price the customer already paid, new requests go straight to ArgoLink, and the page lists ArgoLink's copy instead. Models with no ArgoLink copy (FLUX, Seedream, Recraft...) are refunded as before. Names are matched by model family, so "Nano Banana Pro (Gemini 3 Pro Image)" matches ArgoLink's "Nano Banana Pro". ArgoLink-only models are always listed.
+- **Cartoon Studio:** Vidancee and CreatePulse (Seedance) plus vgenv (MiniMax H3, moved here from Video Studio).
+- **Voice Studio:** Vibi. **Prompt enhancer:** Gemini 3.8 Flash.
+- **Removed:** Atlas Cloud and Higgsfield (code, Admin cards, settings, customer Sources and usage rows). Jobs still open on them are refunded by the worker. Admin cards are now titled by studio.
+
 ## 2026-10-12 — cmmtools.site is the main domain
 
 - `ai.mehroz.online` no longer serves HTTPS, so every link the app gives out now uses `https://cmmtools.site`, even if `APP_URL` still holds the old address: signed reference-image links for providers (CreatePulse, Vidancee, Atlas, AI Gateway, ArgoLink, Higgsfield) and the Higgsfield OAuth return address (a saved old-domain callback is rewritten).

@@ -13,7 +13,6 @@ Updated 11 October 2026.
 All plans use one customer balance, with source-specific generation pricing:
 
 - Legacy/static source billing units use `CUSTOMER_CREDIT_MULTIPLIER`, default 2.5, rounded to two decimals.
-- Higgsfield uses the provider-reported amount at 1:1; valid zero-credit quotes are accepted.
 - SmartAIPI uses `ceil(estimated source USD * customer credits per USD)`, default `160 / 0.0265`. It does not add the shared multiplier.
 - Vibi TTS reserves an estimate and reconciles to the reported source credits times the shared multiplier. Voice cloning has an Admin-configurable customer cost.
 

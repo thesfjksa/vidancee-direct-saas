@@ -68,22 +68,32 @@ Customers can register, sign in, sign out, view their credit ledger and change t
 
 These names are operational details for the owner and developer. Customer generation responses and UI avoid exposing provider credentials and internal output URLs.
 
+### Sources by studio
+
+| Studio | Sources |
+| --- | --- |
+| Video Studio | ArgoLink (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3) |
+| Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
+| Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
+| Voice Studio | Vibi |
+| Prompt enhancer | Google Gemini 3.8 Flash |
+
+Atlas Cloud and Higgsfield were removed on 12 October 2026; jobs still open on them are refunded by the worker.
+
 | Source | Implemented role | Configuration method |
 | --- | --- | --- |
 | Vidancee | Seedance video generation through its authenticated website HTTP protocol | Admin login email and password |
 | CreatePulse | Compatible Seedance overflow and routing | Admin API key |
 | vgenv | MiniMax H3 video generation | Admin API key |
-| Atlas Cloud | Seedream 5.0 Lite and Nano Banana 2 image generation | Admin API key |
-| Higgsfield MCP | Synced image and video catalog with capability-driven inputs | Admin OAuth connection |
 | SmartAIPI | GPT image generation and reference edits | Admin API key and model pricing |
-| Vercel AI Gateway | Live catalog of image and video models | Admin API key, model eligibility and positive USD pricing |
-| ArgoLink | Image and video models (Seedance, Wan, Grok, MiniMax H3, Nano Banana, GPT Image) | Admin API key and wallet balance; prices from ArgoLink's public catalog. See `docs/ARGOLINK.md` |
+| Vercel AI Gateway | Image Studio (its video models are no longer offered) | Admin API key, model eligibility and positive USD pricing |
+| ArgoLink | Video Studio, and Image Studio backup when Vercel or SmartAIPI run out of credits | Admin API key and wallet balance; prices from ArgoLink's public catalog. See `docs/ARGOLINK.md` |
 | Vibi | Text-to-speech and MiniMax voice cloning | Admin API key |
 | Google Gemini | Optional image and video prompt enhancement in the web process | Admin API key |
 
 Vidancee integration uses server-side login, cookies and CSRF tokens. Generation submits to `POST /api/generate.php`; status comes from `GET /api/jobs.php`. Image-to-video uses multipart `images[]` and `max_retries=3`. The project owner's authorization statement is preserved in `docs/VIDANCEE_PROTOCOL.md`. Keep evidence of that authorization with the project owner's business records.
 
-Legacy Seedance routing can use Vidancee as primary and CreatePulse as overflow where the selected job is compatible. Higgsfield definitions take precedence for overlapping public model IDs while their source and model are available; static sources remain available as configured fallbacks. Higgsfield uses OAuth and a catalog sync, with the documented official CLI catalog fallback when MCP discovery returns no usable model entries. Fixed model counts should not be assumed.
+Legacy Seedance routing can use Vidancee as primary and CreatePulse as overflow where the selected job is compatible.
 
 A source can provide models only when it is configured, globally enabled and permitted for that customer. Dynamic catalog entries also need their own model switch enabled. Server-side cost and submission checks enforce this hierarchy. Queued work may wait when its source, model or customer assignment has been disabled. Switching a source off prevents new starts; already submitted jobs are handled according to their provider lifecycle.
 
@@ -134,8 +144,7 @@ There are separate billing rules by source. The former universal description of 
 
 | Source family | Customer credit rule |
 | --- | --- |
-| Legacy Seedance video, vgenv video and Atlas images | Configured source billing units multiplied by CUSTOMER_CREDIT_MULTIPLIER, default 2.5, rounded to two decimal places |
-| Higgsfield image and video | Provider-reported credit amount at 1:1, rounded to two decimals; a legitimate zero cost is accepted |
+| Cartoon Studio Seedance and vgenv video | Configured source billing units multiplied by CUSTOMER_CREDIT_MULTIPLIER, default 2.5, rounded to two decimal places |
 | SmartAIPI images | Estimated source USD multiplied by the direct customer-credits-per-USD setting, then rounded up to a whole credit |
 | Vibi TTS | Conservative submission estimate, followed by reconciliation to reported source credits multiplied by the shared multiplier |
 | Vibi cloning | Configurable customer clone cost in Admin |
@@ -234,11 +243,11 @@ The admin can inspect users, enable or disable accounts, add or subtract credits
 
 API keys and provider passwords are encrypted in MySQL. The encryption root is SETTINGS_ENCRYPTION_KEY, falling back to ADMIN_TOKEN. The same root must be supplied to both Hostinger applications. Admin read responses report whether a secret is configured and do not return its saved value. A blank secret input keeps its current value; explicit clear controls remove it.
 
-Provider settings include Vercel credentials, catalog controls and USD price overrides, base URLs, global enable switches, inflight limits, Seedance routing, SmartAIPI model and quality prices, the direct SmartAIPI conversion factor, Gemini enhancement, and Vibi clone pricing. Higgsfield connects through OAuth and supports model synchronization and per-model Show or Hide controls. Saving settings normally requires no code deployment; the worker refreshes its clients from MySQL.
+Provider settings include Vercel credentials, catalog controls and USD price overrides, base URLs, global enable switches, inflight limits, Seedance routing, SmartAIPI model and quality prices, the direct SmartAIPI conversion factor, Gemini enhancement, and Vibi clone pricing.
 
 ### Customer source assignments
 
-Use Admin Users and the Sources action to grant or remove access to Higgsfield, Vidancee, CreatePulse, vgenv, Atlas Cloud, SmartAIPI and Voice Studio. Voice access is opt-in. The source assignment is checked on the server as well as in the customer catalog.
+Use Admin Users and the Sources action to grant or remove access to ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv and Voice Studio. Voice access is opt-in. The source assignment is checked on the server as well as in the customer catalog.
 
 Use the connection checks appropriate to the source. A successful model-list or account-read check proves only the checked read operation. It does not demonstrate a paid generation, provider queue speed or sufficient quota for every model.
 
@@ -272,7 +281,6 @@ Hostinger supplies PORT. The server supports `process.env.PORT` with a fallback;
 | ALLOW_SIGNUPS, STARTING_CREDITS, SESSION_DAYS | Account setup; default starting credits 0 and session lifetime 30 days |
 | CUSTOMER_CREDIT_MULTIPLIER | Shared source-unit conversion; default 2.5, with source-specific exceptions |
 | PRICE_SEEDANCE and SOURCE_MINIMAX settings | Static source billing estimates used by video pricing |
-| PRICE_IMAGE settings | Static Atlas source billing estimates |
 
 Provider credentials belong in Admin settings. Legacy provider environment values can seed settings when a corresponding database value is missing. Infrastructure secrets remain in Hostinger environment settings. Do not replace an established encryption root casually; existing encrypted provider values depend on it.
 
@@ -346,7 +354,7 @@ The following are operational route groups. Customer routes require a valid cust
 | GET /api/prompts/enhance/:jobId | Read enhancement state |
 | GET /api/prompts/enhance/requests/:requestId | Recover a lost acknowledgement |
 
-Admin routes require `X-Admin-Token`. Key groups include GET /admin/stats, GET /admin/config, GET /admin/users, POST /admin/users/credits, PATCH /admin/users/:id, source-assignment routes, GET /admin/generations, GET /admin/credits and plan-request approval or rejection. Provider settings support GET and POST or PUT /admin/provider-settings. Connection checks include /admin/provider/check, /admin/vibi/check, /admin/smartaipi/check and /admin/prompt-enhancer/check. Higgsfield has OAuth start, callback, status, disconnect, sync and tool-inspection routes, plus /admin/provider-models controls. Vercel routes are POST /admin/vercel/check, POST /admin/vercel/sync and POST /admin/vercel/models/:id/price; model visibility updates accept provider=vercel.
+Admin routes require `X-Admin-Token`. Key groups include GET /admin/stats, GET /admin/config, GET /admin/users, POST /admin/users/credits, PATCH /admin/users/:id, source-assignment routes, GET /admin/generations, GET /admin/credits and plan-request approval or rejection. Provider settings support GET and POST or PUT /admin/provider-settings. Connection checks include /admin/provider/check, /admin/vibi/check, /admin/smartaipi/check and /admin/prompt-enhancer/check. Vercel routes are POST /admin/vercel/check, POST /admin/vercel/sync and POST /admin/vercel/models/:id/price; model visibility updates accept provider=vercel.
 
 Use the current `server.js` route handlers when implementing an API client; this summary does not define every request field. The worker exposes GET /health and /live at its separate origin. Call the worker paths without query strings in the current implementation.
 
@@ -400,7 +408,7 @@ Automatic payments, recurring plan renewal, Google customer sign-in, a multi-ins
 | src/generations.js | Video records, owned references, queue validation and refunds |
 | src/image_generations.js | Image records and stored output |
 | src/voice_generations.js | Voice queue records |
-| src/pricing.js and src/image_pricing.js | Static video and Atlas pricing |
+| src/pricing.js | Static Cartoon Studio video pricing |
 | src/smartaipi_images.js | GPT IDs, sizes, quality estimates and direct conversion |
 | src/billing.js and src/plans.js | Shared conversion and plan definitions |
 | src/prompt_enhancer.js | Gemini request, async records, limits and error handling |

@@ -5,9 +5,11 @@
 const { VercelGatewayClient } = require('./provider/vercel.js');
 const { ArgoLinkClient } = require('./provider/argolink.js');
 
+// Grouped by studio: Video (ArgoLink), Image (AI Gateway, SmartAIPI, then
+// ArgoLink), Cartoon (Vidancee, CreatePulse, vgenv) and Voice (Vibi).
 const PROVIDERS = [
-  ['vidancee', 'Vidancee'], ['createpulse', 'CreatePulse'], ['vgenv', 'MiniMax (vgenv)'], ['atlascloud', 'Atlas Cloud'],
-  ['higgsfield', 'Higgsfield'], ['smartaipi', 'SmartAIPI'], ['vercel', 'Vercel AI Gateway'], ['argolink', 'ArgoLink'], ['vibi', 'Vibi voice'],
+  ['argolink', 'ArgoLink'], ['vercel', 'Vercel AI Gateway'], ['smartaipi', 'SmartAIPI'],
+  ['vidancee', 'Vidancee'], ['createpulse', 'CreatePulse'], ['vgenv', 'MiniMax (vgenv)'], ['vibi', 'Vibi voice'],
 ];
 const STATUS_KEY = 'status_provider_runtime';
 

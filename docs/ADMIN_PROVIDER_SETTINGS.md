@@ -16,13 +16,11 @@ The Provider section stores and manages:
 - Overflow engine base URL
 - Overflow engine API key
 - Overflow max-inflight jobs
-- Atlas Cloud image API base URL / encrypted API key / max-inflight jobs
 - vgenv MiniMax H3 API base URL / encrypted API key / max-inflight jobs
 - SmartAIPI API base URL / encrypted key / max-inflight jobs / per-model Low, Medium and High square prices / direct customer credits per USD
 - Vercel AI Gateway encrypted API key, live image/video catalog, model visibility, USD overrides, max inflight and direct credit conversion
 - Gemini prompt-enhancer encrypted API key and global enable switch
 - Vibi encrypted API key, max-inflight jobs and customer clone cost
-- Higgsfield OAuth connection, model sync and per-model visibility
 - Routing policy
 - Generation submission enable/pause state
 
@@ -43,7 +41,7 @@ Leaving a password/API-key field blank keeps the saved value.
 
 On the first deployment of this version, existing provider values from the old hPanel environment configuration are imported into the Admin-managed settings when the matching database value does not already exist.
 
-After confirming the Provider page shows the required engines as configured, legacy provider credential variables can be removed from hPanel. Legacy migration also recognizes Atlas Cloud and vgenv settings.
+After confirming the Provider page shows the required engines as configured, legacy provider credential variables can be removed from hPanel.
 
 Infrastructure variables such as MySQL credentials, `APP_URL`, `ADMIN_TOKEN`, and the optional `SETTINGS_ENCRYPTION_KEY` remain server environment settings.
 
@@ -54,15 +52,15 @@ The generation worker reads provider settings from MySQL and refreshes provider 
 
 ## Current provider roles
 
-- Vidancee — primary Seedance video source
-- CreatePulse — Seedance overflow source
-- Atlas Cloud — image generation source
-- vgenv — MiniMax H3 video source
-- Higgsfield MCP — dynamic image/video catalog; available overlapping definitions take precedence
-- SmartAIPI — GPT image generation and edits
-- Vercel AI Gateway — live image/video catalog and independent queue
-- Vibi — TTS and voice cloning
-- Google Gemini — prompt enhancement in the web process
+| Studio | Sources |
+| --- | --- |
+| Video Studio | ArgoLink (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3) |
+| Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
+| Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
+| Voice Studio | Vibi |
+| Prompt enhancer | Google Gemini 3.8 Flash |
+
+Atlas Cloud and Higgsfield were removed on 12 October 2026; jobs still open on them are refunded by the worker.
 
 vgenv settings are stored as `vgenv_base_url`, encrypted `vgenv_api_key`, and `vgenv_max_inflight`. The default API origin is `https://api.vgenv.com`.
 
@@ -74,7 +72,7 @@ Admin can additionally assign sources per customer from:
 
 `/admin-console` → **Users** → **Sources**
 
-Assignable sources include Higgsfield, Vidancee, CreatePulse, vgenv/MiniMax, Atlas Cloud, SmartAIPI, Vercel AI Gateway and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
+Assignable sources are ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv/MiniMax and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
 
 A customer's model catalog is built only from sources that are both globally available and assigned to that customer. The server also checks the assignment during cost lookup and submission, so this is not only a frontend filter.
 
@@ -86,7 +84,6 @@ Provider settings and customer pricing are separate concerns.
 
 Legacy/static providers continue to use the shared billing/pricing configuration where applicable.
 
-**Higgsfield is currently an exception:** its provider-reported credit cost is exposed and charged 1:1 with no 2.5× multiplier. A provider-reported cost of 0 is valid for subscription-covered generations and is displayed/charged as 0 credits.
 
 SmartAIPI is another exception. Its default direct conversion is `160 / 0.0265` customer credits per estimated source USD, rounded up to whole credits. The shared 2.5 multiplier is not added. Per-quality prices and model switches are Admin-managed. The `gpt2-medium-160` revision supersedes earlier saved conversion factors; an override saved at this revision persists.
 
@@ -102,7 +99,7 @@ For a model to be offered to a customer:
 1. the backend source must be configured
 2. the provider-wide source switch must allow it
 3. the customer must have that source assigned
-4. for dynamic Higgsfield models, the model itself must also be enabled/available in the synced catalog
+4. for catalog models (Vercel, ArgoLink), the model itself must also be visible in Admin
 
 This hierarchy lets Admin disable a provider globally or selectively grant providers to individual customers.
 
