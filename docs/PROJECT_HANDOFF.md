@@ -77,6 +77,7 @@ These names are operational details for the owner and developer. Customer genera
 | Higgsfield MCP | Synced image and video catalog with capability-driven inputs | Admin OAuth connection |
 | SmartAIPI | GPT image generation and reference edits | Admin API key and model pricing |
 | Vercel AI Gateway | Live catalog of image and video models | Admin API key, model eligibility and positive USD pricing |
+| ArgoLink | Image and video models (Seedance, Wan, Grok, MiniMax H3, Nano Banana, GPT Image) | Admin API key and wallet balance; prices from ArgoLink's public catalog. See `docs/ARGOLINK.md` |
 | Vibi | Text-to-speech and MiniMax voice cloning | Admin API key |
 | Google Gemini | Optional image and video prompt enhancement in the web process | Admin API key |
 

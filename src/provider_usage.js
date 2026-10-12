@@ -3,10 +3,11 @@
 // Admin "Usage & limits": remaining balance where a provider reports one, and
 // consumption from this app's own job records for every provider.
 const { VercelGatewayClient } = require('./provider/vercel.js');
+const { ArgoLinkClient } = require('./provider/argolink.js');
 
 const PROVIDERS = [
   ['vidancee', 'Vidancee'], ['createpulse', 'CreatePulse'], ['vgenv', 'MiniMax (vgenv)'], ['atlascloud', 'Atlas Cloud'],
-  ['higgsfield', 'Higgsfield'], ['smartaipi', 'SmartAIPI'], ['vercel', 'Vercel AI Gateway'], ['vibi', 'Vibi voice'],
+  ['higgsfield', 'Higgsfield'], ['smartaipi', 'SmartAIPI'], ['vercel', 'Vercel AI Gateway'], ['argolink', 'ArgoLink'], ['vibi', 'Vibi voice'],
 ];
 const STATUS_KEY = 'status_provider_runtime';
 
@@ -102,6 +103,9 @@ async function remoteBalances(settings, status, { fetchImpl } = {}) {
   if (settings.smartAipiApiKey) tasks.push(withTimeout(smartAipiBalance(settings.smartAipiBaseUrl, settings.smartAipiApiKey, fetchImpl))
     .then(b => { out.smartaipi = b; })
     .catch(() => { out.smartaipi = { note: 'SmartAIPI does not report a balance through its API.' }; }));
+  if (settings.argoLinkApiKey) tasks.push(withTimeout(new ArgoLinkClient({ apiKey: settings.argoLinkApiKey, ...(fetchImpl ? { fetchImpl } : {}) }).balance())
+    .then(b => { out.argolink = b || { note: 'ArgoLink did not report a balance. Check the wallet in the ArgoLink console.' }; })
+    .catch(e => { out.argolink = { error: e.message }; }));
   await Promise.all(tasks);
   for (const [key] of PROVIDERS) if (!out[key]) out[key] = { note: 'This provider does not report a balance through its API.' };
   return out;

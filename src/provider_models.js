@@ -1,4 +1,5 @@
 const { getPool } = require('./db.js');
+const { argoMediaModels } = require('./argolink_models.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
@@ -133,6 +134,9 @@ async function syncProviderModels(provider, discoveredModels) {
 }
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
+// Sources whose models are priced locally from a USD catalog (quoteGateway).
+const PRICED_SOURCES=['vercel','argolink'];
+const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 function serializeProviderModel(row, { includeInternal = true } = {}) {
   const options = safeJson(row.options_json, {});
@@ -158,7 +162,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       : {},
     catalogVerified: options.catalogVerified === true,
     lastSeenAt: row.last_seen_at,
-    ...(row.provider==='vercel'?{
+    ...(isPricedSource(row.provider)?{
       adapterSupported:options.adapterSupported===true, setupReason:options.setupReason||'',
       gatewayType:options.gatewayType,pricing:options.pricing||{},priceOverride:safeJson(row.price_override,null),
       inputLimits:options.inputLimits||{},supportedOperations:options.supportedOperations||[],
@@ -167,6 +171,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       imageSizes:options.imageSizes||[],defaultImageSize:options.defaultImageSize,
       supportsAudio:options.supportsAudio===true,
     }:{}),
+    ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -175,7 +180,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.inputSchema = safeJson(row.input_schema, {});
   }
   if(row.provider==='vercel')applyModelFixups(base);
-  if(row.provider==='vercel'){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
+  if(isPricedSource(row.provider)){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
   // Token-billed GPT Image models are priced from OpenAI's published per-image table.
   if(row.provider==='vercel'&&!base.priceOverride&&!positiveNumber(base.pricing?.image)&&!(base.pricing?.image_dimension_quality_pricing||[]).length&&publishedImageTiers(base.providerModelId).length)base.publishedPrices=true;
   return base;
@@ -333,8 +338,9 @@ function publicVideoModel(model) {
     durations: durationEntries,
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
+    defaultDuration: model.defaultDuration || null,
     capabilities: normalizedReferenceCapabilities(model),
-    ...(model.provider==='vercel'?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
+    ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }
 
@@ -347,7 +353,7 @@ function publicImageModel(model) {
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
     capabilities: normalizedReferenceCapabilities(model),
-    ...(model.provider==='vercel'?{qualities:model.qualities,defaultQuality:model.defaultQuality,imageSizes:model.imageSizes,defaultImageSize:model.defaultImageSize}:{}),
+    ...(isPricedSource(model.provider)?{qualities:model.qualities,defaultQuality:model.defaultQuality,imageSizes:model.imageSizes,defaultImageSize:model.defaultImageSize}:{}),
   };
 }
 
@@ -381,8 +387,8 @@ function addMissingImageModels(list, extra) {
 
 async function publicProviderCatalog(provider, { creditsPerUsd } = {}) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
-    .filter(isPlausibleCustomerModel).filter(model=>provider!=='vercel'||model.ready);
-  const withCosts = model => provider==='vercel' && creditsPerUsd
+    .filter(isPlausibleCustomerModel).filter(model=>!isPricedSource(provider)||model.ready);
+  const withCosts = model => isPricedSource(provider) && creditsPerUsd
     ? { ...publicImageModel(model), ...imageCostTable(model,creditsPerUsd) } : publicImageModel(model);
   return {
     video: models.filter(model => model.mediaType === 'video').map(publicVideoModel),
@@ -411,7 +417,22 @@ async function ensureGatewayCatalog() {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_vercel_catalog_seed')");conn.release();}
 }
 
+// First start: ArgoLink's models come from the bundled catalog snapshot until
+// an admin syncs the live catalog.
+async function ensureArgoCatalog() {
+  const db=getPool();
+  const conn=await db.getConnection();let locked=false;
+  try {
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_argolink_catalog_seed',10) AS acquired");
+    locked=Number(lock?.acquired)===1;if(!locked)return;
+    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='argolink'");
+    if(!Number(count.total))await syncProviderModels('argolink',argoMediaModels(require('./provider/argolink_catalog.json')));
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_argolink_catalog_seed')");conn.release();}
+}
+
 module.exports = {
+  ensureArgoCatalog,
+  isPricedSource,
   setGatewayPrice,
   ensureGatewayCatalog,
   safeJson,

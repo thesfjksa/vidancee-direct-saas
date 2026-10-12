@@ -17,8 +17,8 @@ function savedOptions(job) {
 
 class VercelQueue {
   constructor({getSettings=getProviderSettings,getModel=getProviderModelByPublicId,refund=refundGeneration,
-    clientFactory=opts=>new VercelGatewayClient(opts)}={}) {
-    this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
+    clientFactory=opts=>new VercelGatewayClient(opts),provider='vercel'}={}) {
+    this.provider=provider;this.videoTimeoutMs=45*60*1000;this.getSettings=getSettings;this.getModel=getModel;this.refund=refund;this.clientFactory=clientFactory;
     this.stopped=true;this.running=false;this.tasks=new Set();this.client=null;this.fingerprint='';
     this.lastStartedAt=null;this.lastFinishedAt=null;this.lastSuccessfulAt=null;this.sourceReady=false;
   }
@@ -36,57 +36,62 @@ class VercelQueue {
     if(this.running)return;
     this.running=true;this.lastStartedAt=new Date().toISOString();
     try{await this.runOnce();this.lastSuccessfulAt=new Date().toISOString();}
-    catch(error){console.error('Gateway queue tick failed:',error.message);}
+    catch(error){console.error(this.provider+' queue tick failed:',error.message);}
     finally{this.running=false;this.lastFinishedAt=new Date().toISOString();this.schedule();}
   }
   health(){return {enabled:!this.stopped,running:this.running,lastStartedAt:this.lastStartedAt,
     lastFinishedAt:this.lastFinishedAt,lastSuccessfulAt:this.lastSuccessfulAt,sourceReady:this.sourceReady,activeTasks:this.tasks.size};}
+  // Source settings; ArgoLinkQueue overrides these three.
+  apiKey(s){return s.vercelApiKey||'';}
+  sourceEnabled(s){return Boolean(s.vercelEnabled);}
+  maxInflight(s){return s.vercelMaxInflight||2;}
   async runOnce(db=getPool(),settings=null) {
     const current=settings||await this.getSettings();
-    const fingerprint=current.vercelApiKey||'';
+    const fingerprint=this.apiKey(current);
     if(fingerprint!==this.fingerprint){this.fingerprint=fingerprint;this.client=fingerprint?this.clientFactory({apiKey:fingerprint}):null;}
-    this.sourceReady=Boolean(this.client&&current.vercelEnabled&&current.allowProviderCharges);
+    this.sourceReady=Boolean(this.client&&this.sourceEnabled(current)&&current.allowProviderCharges);
+    const provider=this.provider;
     // Heartbeat: every tick marks this worker's in-flight requests as alive, so a
     // claim left behind by a restarted or killed worker is recognised quickly
     // instead of showing "Processing" for ten minutes.
-    if(this.tasks.size)await db.query(`UPDATE generations SET updated_at=UTC_TIMESTAMP() WHERE provider='vercel'
+    if(this.tasks.size)await db.query(`UPDATE generations SET updated_at=UTC_TIMESTAMP() WHERE provider='${provider}'
       AND status IN ('submitting','processing') AND refunded_at IS NULL AND id IN (?)`,[[...this.tasks]]);
     // Recovery never repeats a paid start request. Resumable operations are
     // persisted before the first poll; ambiguous starts are refunded instead.
-    const [stale]=await db.query(`SELECT id FROM generations WHERE provider='vercel'
+    const [stale]=await db.query(`SELECT id FROM generations WHERE provider='${provider}'
       AND refunded_at IS NULL AND ((status='submitting' AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))
       OR (media_type='image' AND status='processing' AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))) LIMIT 20`);
     for(const job of stale)if(!this.tasks.has(job.id))await this.refund(job.id,'submit_error','Generation was interrupted. Credits were refunded.',null);
     if(this.client)await this.pollVideos(db,this.client);
-    if(this.sourceReady)await this.claim(db,current.vercelMaxInflight||2,this.client);
+    if(this.sourceReady)await this.claim(db,this.maxInflight(current),this.client);
   }
   async claim(db,maxInflight,client) {
-    const conn=await db.getConnection();let locked=false;const claimed=[];
+    const conn=await db.getConnection();let locked=false;const claimed=[];const provider=this.provider;
     try {
-      const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_vercel_queue',0) AS acquired");
+      const [[lock]]=await conn.query(`SELECT GET_LOCK('cmm_${provider}_queue',0) AS acquired`);
       locked=Number(lock?.acquired)===1;if(!locked)return;
-      const [[active]]=await conn.query("SELECT COUNT(*) AS total FROM generations WHERE provider='vercel' AND status IN ('submitting','submitted','processing')");
+      const [[active]]=await conn.query(`SELECT COUNT(*) AS total FROM generations WHERE provider='${provider}' AND status IN ('submitting','submitted','processing')`);
       let slots=Math.max(0,maxInflight-Number(active?.total||0));if(!slots)return;
       const [queued]=await conn.query(`SELECT g.* FROM generations g
         JOIN users u ON u.id=g.user_id AND u.status='active'
-        JOIN provider_models m ON m.public_model_id=g.model AND m.provider='vercel' AND m.media_type=g.media_type AND m.enabled=1 AND m.available=1
-        LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='vercel'
-        WHERE g.provider='vercel' AND g.status='queued' AND COALESCE(a.enabled,1)=1
+        JOIN provider_models m ON m.public_model_id=g.model AND m.provider='${provider}' AND m.media_type=g.media_type AND m.enabled=1 AND m.available=1
+        LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='${provider}'
+        WHERE g.provider='${provider}' AND g.status='queued' AND COALESCE(a.enabled,1)=1
         ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 20`);
       for(const job of queued) {
         if(slots<=0)break;
-        const [result]=await conn.execute("UPDATE generations SET status=?,submitted_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND provider='vercel' AND status='queued'",
+        const [result]=await conn.execute(`UPDATE generations SET status=?,submitted_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND provider='${provider}' AND status='queued'`,
           [job.media_type==='image'?'processing':'submitting',job.id]);
         if(result.affectedRows){claimed.push(job);slots--;}
       }
-    } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_vercel_queue')");conn.release();}
+    } finally {if(locked)await conn.query(`SELECT RELEASE_LOCK('cmm_${provider}_queue')`);conn.release();}
     for(const job of claimed) {
       this.tasks.add(job.id);
       // Long requests run outside the polling loop. Catch every task failure so
       // an unavailable model cannot terminate the worker or strand the wallet.
       Promise.resolve().then(()=>this.submit(db,job,client))
         .catch(async error=>{try{await this.refund(job.id,'failed',error.message||'Generation failed. Credits were refunded.',null);}
-          catch{console.error('Gateway generation refund will be retried by recovery:',job.id);}})
+          catch{console.error(this.provider+' generation refund will be retried by recovery:',job.id);}})
         .finally(()=>this.tasks.delete(job.id));
     }
   }
@@ -98,7 +103,7 @@ class VercelQueue {
       mimeType:m.mime_type,role:m.media_role}));
   }
   async submit(db,job,client) {
-    const options=savedOptions(job),model=await this.getModel('vercel',job.model,job.media_type);
+    const options=savedOptions(job),model=await this.getModel(this.provider,job.model,job.media_type);
     if(!model?.ready)throw new Error('This model is currently unavailable. Credits were refunded.');
     const references=await this.references(db,job);
     if(job.media_type==='image') {
@@ -111,32 +116,35 @@ class VercelQueue {
       [JSON.stringify(result.operation),jobId?String(jobId).slice(0,191):null,job.id]);
   }
   async pollVideos(db,client) {
-    const [jobs]=await db.query(`SELECT * FROM generations WHERE provider='vercel' AND media_type='video'
+    const [jobs]=await db.query(`SELECT * FROM generations WHERE provider='${this.provider}' AND media_type='video'
       AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY updated_at ASC LIMIT 12`);
     for(const job of jobs) {
       if(this.tasks.has(job.id))continue;
       const stamp=job.submitted_at||job.created_at;
       const age=Date.now()-(stamp instanceof Date?stamp.getTime():Date.parse(String(stamp).replace(' ','T')+'Z'));
-      if(age>45*60*1000){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
+      if(age>this.videoTimeoutMs){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
       this.tasks.add(job.id);
-      Promise.resolve().then(async()=>{
-        const options=savedOptions(job);
-        if(!job.provider_operation)throw new Error('The video operation could not be resumed.');
-        const result=await client.videoStatus(options.model.providerModelId,JSON.parse(job.provider_operation));
-        if(result.status==='completed') {
-          const output=await client.videoOutput(result.videos?.[0]);await this.complete(db,job,output);
-        } else if(result.status==='error'||result.status==='cancelled') {
-          await this.refund(job.id,'failed','The video model could not complete this request. Credits were refunded.',null);
-        } else if(result.status==='pending') {
-          await db.execute("UPDATE generations SET status='processing',updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",[job.id]);
-        } else throw Object.assign(new Error('The video status was temporarily unavailable.'),{retryable:true});
-      }).catch(async error=>{
+      Promise.resolve().then(()=>this.pollJob(db,client,job)).catch(async error=>{
         // Poll/download failures keep the saved operation for another read.
         // No new generation is submitted while waiting for the original job.
         await db.execute("UPDATE generations SET updated_at=UTC_TIMESTAMP(),error_message=? WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
           ['Waiting for the video service. Your generation will resume automatically.',job.id]).catch(()=>{});
       }).finally(()=>this.tasks.delete(job.id));
     }
+  }
+  async pollJob(db,client,job) {
+    const options=savedOptions(job);
+    if(!job.provider_operation)throw new Error('The video operation could not be resumed.');
+    const result=await client.videoStatus(options.model.providerModelId,JSON.parse(job.provider_operation));
+    if(result.status==='completed') {
+      const output=await client.videoOutput(result.videos?.[0]);await this.complete(db,job,output);
+    } else if(result.status==='error'||result.status==='cancelled') {
+      await this.refund(job.id,'failed','The video model could not complete this request. Credits were refunded.',null);
+    } else if(result.status==='pending') await this.markProcessing(db,job);
+    else throw Object.assign(new Error('The video status was temporarily unavailable.'),{retryable:true});
+  }
+  async markProcessing(db,job) {
+    await db.execute("UPDATE generations SET status='processing',updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",[job.id]);
   }
   async complete(db,job,output) {
     const conn=await db.getConnection();

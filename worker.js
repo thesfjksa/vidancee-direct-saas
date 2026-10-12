@@ -43,8 +43,9 @@ function shutdown(signal){
   // still running is recovered (refunded) by the next worker via its heartbeat.
   const smartTasks=[...(worker?.smartImageTasks||[])];
   const smartDone=Promise.race([Promise.allSettled(smartTasks),new Promise(resolve=>setTimeout(resolve,SHUTDOWN_DRAIN_MS).unref())]);
-  Promise.all([Promise.resolve(worker?.vercelQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),smartDone]).then(([left])=>{
-    left=(left||0)+(worker?.smartImageTasks?.size||0);
+  Promise.all([Promise.resolve(worker?.vercelQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),smartDone,
+    Promise.resolve(worker?.argoLinkQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft])=>{
+    left=(left||0)+(argoLeft||0)+(worker?.smartImageTasks?.size||0);
     if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
     setTimeout(()=>process.exit(0),150).unref();
   });
@@ -71,6 +72,7 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
         uptimeSeconds:Math.round(process.uptime()),
         revision:5,
         gatewayPolling:worker.vercelQueue.health(),
+        argoLinkPolling:worker.argoLinkQueue.health(),
         workerEnabled:worker.enabled(),
         polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
         imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,

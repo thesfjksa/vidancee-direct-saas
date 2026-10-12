@@ -195,7 +195,13 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
       (t.audio===undefined||t.audio===chosen.generateAudio)&&!t.voice_control&&positive(t.cost_per_second));
     const exact=matches.filter(t=>t.resolution===chosen.resolution);
     const applicable=exact.length?exact:matches;
-    if (applicable.length) sourceUsd=Math.max(...applicable.map(t=>Number(t.cost_per_second)))*chosen.duration;
+    if (applicable.length) {
+      // Some sources (ArgoLink) also bill each reference video's length at the
+      // output rate, at a reduced rate for every second when one is sent.
+      const refSeconds=p.reference_videos_billed?referenceVideoSeconds(model,input):0;
+      const multiplier=refSeconds&&positive(p.reference_video_multiplier)?Number(p.reference_video_multiplier):1;
+      sourceUsd=Math.max(...applicable.map(t=>Number(t.cost_per_second)))*(chosen.duration+refSeconds)*multiplier;
+    }
     else if (p.video_token_pricing?.tiers?.length) {
       const quote=videoTokenQuote(model,chosen,input);
       if (quote) {sourceUsd=quote;isEstimate=true;}
@@ -224,11 +230,15 @@ function videoTokenQuote(model,chosen,input={}) {
     return positive(rate)?perSecond*chosen.duration*rate/1e6:null;
   }
   const rate=Number(tier.with_video_input?.cost_per_million_tokens||tier.no_video_input?.cost_per_million_tokens);
+  return positive(rate)?perSecond*(chosen.duration+referenceVideoSeconds(model,input))*rate/1e6:null;
+}
+
+// Reference clips are billed by their own length (read from the MP4 header,
+// or the longest allowed clip when it cannot be read), rounded up.
+function referenceVideoSeconds(model,input={}) {
+  const videos=Array.isArray(input.videos)?input.videos:[];
   const maxInput=Number(model.inputLimits?.video?.max_duration_seconds||30);
-  // Reference clips are billed by their own length (read from the MP4 header,
-  // or the longest allowed clip when it cannot be read) at the same frame size.
-  const inputSeconds=videos.reduce((sum,v)=>sum+Math.min(maxInput,mp4Seconds(v?.data)??maxInput),0);
-  return positive(rate)?perSecond*(chosen.duration+inputSeconds)*rate/1e6:null;
+  return Math.ceil(videos.reduce((sum,v)=>sum+Math.min(maxInput,mp4Seconds(v?.data)??maxInput),0));
 }
 
 // Duration from the 'mvhd' box of an MP4/MOV file, or null.

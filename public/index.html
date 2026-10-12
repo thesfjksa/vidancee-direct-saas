@@ -1253,6 +1253,8 @@ function renderDurations(resetResolution=false){
 
   if(!resetResolution && Number.isFinite(previousDuration) && durations.some(d=>Number(d.seconds)===previousDuration)){
     $('duration').value=String(previousDuration);
+  }else if(durations.some(d=>Number(d.seconds)===Number(m.defaultDuration))){
+    $('duration').value=String(m.defaultDuration);
   }
 
   ensureCustomSelect('duration');
@@ -1280,7 +1282,7 @@ function renderGatewayVideoSettings(model){
 const quoteCache=new Map();
 async function fetchQuote(body){
   // Gateway prices never depend on the prompt; other sources may.
-  const key=JSON.stringify(String(body.model||'').startsWith('studio_gw_')?{...body,prompt:undefined}:body);
+  const key=JSON.stringify(/^(studio_gw_|argo_)/.test(String(body.model||''))?{...body,prompt:undefined}:body);
   if(quoteCache.has(key))return quoteCache.get(key);
   let lastError;
   for(let attempt=0;attempt<2;attempt++){
@@ -2333,7 +2335,7 @@ function imageModelLabel(id){
   if(known)return known;
   // A model no longer offered to this account still gets a readable name, e.g.
   // gpt_image_2_5_flare_studio -> GPT Image 2.5 Flare.
-  return String(id||'').replace(/^studio_gw_[a-z]+_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
+  return String(id||'').replace(/^studio_gw_[a-z]+_|^argo_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
     .split('_').filter(Boolean).map(w=>w==='gpt'?'GPT':w.charAt(0).toUpperCase()+w.slice(1)).join(' ')||String(id||'');
 }
 

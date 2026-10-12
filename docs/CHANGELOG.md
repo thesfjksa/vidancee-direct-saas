@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-12 — ArgoLink source
+
+- New image + video source ArgoLink (argolink.io), set up in Admin → Provider with its own key, switch, max inflight and credits-per-USD rate, plus per-customer access in Sources. 17 models: GPT Image 2 / 2.5 Flare / 2.5 Sunburst, Grok Imagine Image / 2.0, Nano Banana 2 / 2 Lite / 2.1 / Pro, Seedance 2.5 / 2.0 / 2.0 Fast / 2.0 Mini, Grok Imagine Video 1.5, MiniMax H3, Wan 3.0 / 3.0 Prime. Prices come from ArgoLink's public catalog (bundled snapshot, refreshed by **Sync live models**). Reference video seconds are added to the price as ArgoLink bills them. Admin lists the models with their USD prices and a Hide/Show switch; the wallet balance appears in Usage & limits. Details in `docs/ARGOLINK.md`.
+- Models with the same name from an existing source (SmartAIPI, MiniMax/vgenv) keep that source; ArgoLink's copy comes before the AI Gateway's.
+- Video models now open on their default duration (5 s) instead of the shortest one.
+- Not verified with a paid ArgoLink request.
+
 ## 2026-10-12 — Ready for cmmtools.site
 
 - `cmmtools.site` and `www.cmmtools.site` are recognised production hosts for waking the worker. New optional `CANONICAL_URL` setting: the old domain's `/` and `/admin-console` redirect (301) to the same page on the new domain; provider image links, API calls, OAuth callbacks, `/health` and `/live` are not redirected. Steps are in `docs/HPANEL_DEPLOYMENT.md` ("Moving to a new domain"). Nothing changes until the settings are made in hPanel.

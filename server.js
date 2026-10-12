@@ -108,6 +108,8 @@ const {
 } = require('./src/settings.js');
 const { verifyAssetSignature } = require('./src/provider/assets.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
+const { ArgoLinkClient } = require('./src/provider/argolink.js');
+const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -118,7 +120,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog,
 } = require('./src/provider_models.js');
 const {
   beginHiggsfieldAuthorization,
@@ -346,7 +348,7 @@ function dynamicModelSupportsVideoReferences(model) {
   return roles.some(role=>['video','video_references','input_videos','reference_video'].includes(String(role)));
 }
 
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi','vercel'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','atlascloud','vgenv','higgsfield','vibi','smartaipi','vercel','argolink'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -565,9 +567,9 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vgenv.active ||
           providerSettings.atlascloud.active ||
           providerSettings.higgsfield.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active
         );
-        imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
+        imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.atlascloud.active || higgsfieldImageReady || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
       }
       return sendJson(res,200,{
@@ -628,6 +630,14 @@ const server=http.createServer(async (req,res)=>{
 
           if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active) {
             imagePricing.push(...publicSmartImagePricing(await getProviderSettings()));
+          }
+
+          if(customerProviderAccess.argolink && providerSettings.argolink.active){
+            // ArgoLink comes before the AI Gateway, so a model both offer
+            // (Seedance, Nano Banana, GPT Image) uses ArgoLink's copy.
+            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd});
+            videoPricing=addMissingImageModels(videoPricing,catalog.video);
+            imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
           if(customerProviderAccess.vercel && providerSettings.vercel.active){
@@ -720,6 +730,13 @@ const server=http.createServer(async (req,res)=>{
       const body=await readJson(req);
       const mediaType=body.mediaType==='image'?'image':'video';
       const providerSettings=await getAdminProviderSettings();
+      if(isArgoModel(body.model)){
+        if(!costAccess.argolink||!providerSettings.argolink.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
+        const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This model is currently unavailable.'});
+        const quote=quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
+        return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
+      }
       if(isGatewayModel(body.model)){
         if(!costAccess.vercel||!providerSettings.vercel.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
         const model=await getProviderModelByPublicId('vercel',String(body.model),mediaType);
@@ -1030,6 +1047,19 @@ const server=http.createServer(async (req,res)=>{
         });
       }
 
+      if(isArgoModel(requestedModel)){
+        if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
+        const model=await getProviderModelByPublicId('argolink',requestedModel,'image');
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This image model is currently unavailable.'});
+        validateReferences(model,body);
+        const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
+        generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+          provider:'argolink',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
+          generationOptions:{...quote,model},
+        });
+      }
+
       if (smartImageModel(requestedModel)) {
         if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
           return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
@@ -1155,6 +1185,18 @@ const server=http.createServer(async (req,res)=>{
         generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vercel',dynamicModel:true,
           defaultResolution:model.defaultResolution,referenceCapabilities:model.referenceCapabilities,
           costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',generationOptions:{...quote,model},
+        });
+      }
+
+      if(!cartoonOptions&&isArgoModel(requestedModel)){
+        if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
+        const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
+        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
+        validateReferences(model,body);
+        const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
+        generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
+          defaultResolution:model.defaultResolution,referenceCapabilities:model.referenceCapabilities,
+          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
         });
       }
 
@@ -1336,6 +1378,17 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vercel',mediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='POST'&&routePath==='/admin/argolink/check'){
+        requireDatabase();const s=await getProviderSettings();
+        const balance=await new ArgoLinkClient({apiKey:s.argoLinkApiKey}).balance();
+        return sendJson(res,200,{ok:true,balance});
+      }
+      if(req.method==='POST'&&routePath==='/admin/argolink/sync'){
+        requireDatabase();
+        const live=await new ArgoLinkClient().catalog();
+        const models=await syncProviderModels('argolink',argoMediaModels(live));
+        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
       const gatewayPriceMatch=routePath.match(/^\/admin\/vercel\/models\/(\d+)\/price$/);
       if(req.method==='POST'&&gatewayPriceMatch){
         requireDatabase();const body=await readJson(req);
@@ -1408,7 +1461,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'higgsfield');
-        if (!['higgsfield','vercel'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['higgsfield','vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1418,7 +1471,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'higgsfield');
-        if(!['higgsfield','vercel'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['higgsfield','vercel','argolink'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -1482,6 +1535,7 @@ const server=http.createServer(async (req,res)=>{
             vibi:providerSettings.vibi.configured,
             smartaipi:providerSettings.smartaipi.configured,
             vercel:providerSettings.vercel.configured,
+            argolink:providerSettings.argolink.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1492,6 +1546,7 @@ const server=http.createServer(async (req,res)=>{
             vibi:providerSettings.vibi.enabled,
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
+            argolink:providerSettings.argolink.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1502,6 +1557,7 @@ const server=http.createServer(async (req,res)=>{
             vibi:providerSettings.vibi.active,
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
+            argolink:providerSettings.argolink.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
@@ -1511,6 +1567,7 @@ const server=http.createServer(async (req,res)=>{
           vibiMaxInflight:providerSettings.vibi.maxInflight,
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,
+          argoLinkMaxInflight:providerSettings.argolink.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,
@@ -1782,6 +1839,7 @@ function bootstrap() {
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
+      await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       startWorkerChild();
     })
     .catch((error) => {
