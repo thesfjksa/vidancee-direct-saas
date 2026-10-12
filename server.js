@@ -54,13 +54,14 @@ const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_dia
 const { normalizeCartoonRequest, publicCartoonConfig, CARTOON_MODELS } = require('./src/cartoon.js');
 const { providerUsage } = require('./src/provider_usage.js');
 const diagnostics = new RuntimeDiagnostics().start();
+const { appUrl, PRIMARY_URL, RETIRED_HOSTS } = require('./src/app_url.js');
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
 function wakeGenerationWorker(req) {
   const host=String(req.headers.host||'').toLowerCase().split(':')[0];
   // The default belongs only to this production deployment; other deployments
   // must explicitly configure their own standalone worker's health endpoint.
-  const origin=String(process.env.APP_URL||'').toLowerCase().replace(/\/$/,'');
-  const productionHosts=['ai.mehroz.online','cmmtools.site','www.cmmtools.site'];
+  const origin=appUrl().toLowerCase();
+  const productionHosts=['cmmtools.site','www.cmmtools.site',...RETIRED_HOSTS];
   if(process.env.WORKER_WAKE_URL===undefined && !productionHosts.includes(host) && !productionHosts.some(h=>origin==='https://'+h))return;
   void workerWakeup.wake().then(result=>{
     if(!result.ok&&!result.skipped)console.warn('[worker-wakeup]',result.error);
@@ -188,23 +189,23 @@ function sendHtml(res, status, body) {
   });
   res.end(body);
 }
-// After a domain move, CANONICAL_URL (for example https://cmmtools.site) sends
-// people who open the old address to the same page on the new one. Provider
+// CANONICAL_URL (default https://cmmtools.site for the retired ai.mehroz.online)
+// sends people who open another address to the same page on the main one. Provider
 // downloads, health checks, OAuth callbacks and API calls are never redirected,
 // so jobs and integrations that still use the old address keep working.
 function canonicalRedirect(req,routePath,url) {
-  const target=String(process.env.CANONICAL_URL||'').trim().replace(/\/$/,'');
+  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').split(',')[0].trim().toLowerCase();
+  const target=String(process.env.CANONICAL_URL||(RETIRED_HOSTS.includes(host)?PRIMARY_URL:'')).trim().replace(/\/$/,'');
   if(!target||!['GET','HEAD'].includes(req.method))return null;
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
-  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').split(',')[0].trim().toLowerCase();
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
   if(!['/','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
 function publicOrigin(req) {
-  const configured = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
+  const configured = appUrl();
   if (configured) return configured;
   const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
   const proto = forwardedProto || 'https';

@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { appUrl: currentAppUrl, currentUrl } = require('../app_url.js');
 const dns = require('node:dns');
 
 // Hostinger/Linux VPS environments can resolve Cloudflare-fronted MCP hosts to
@@ -1179,10 +1180,11 @@ function makeClient(provider, mcpUrl) {
 }
 
 async function storedRedirectUrl() {
-  const saved = String(await getSettingValue(AUTH_KEYS.redirect, '') || '').trim();
+  // A callback saved on the old domain is moved to the current one.
+  const saved = currentUrl(await getSettingValue(AUTH_KEYS.redirect, '') || '');
   if (saved) return saved;
 
-  const appUrl = String(process.env.APP_URL || '').replace(/\/$/, '');
+  const appUrl = currentAppUrl();
   if (!appUrl) throw new Error('APP_URL is required before connecting Higgsfield MCP.');
   return appUrl + '/admin/higgsfield/oauth/callback';
 }

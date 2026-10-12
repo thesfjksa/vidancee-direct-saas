@@ -21,10 +21,10 @@ Documentation updated 11 October 2026, including Vercel AI Gateway image and vid
 
 | Application | URL | Entry | WORKER_ENABLED |
 | --- | --- | --- | --- |
-| Customer web and API | https://ai.mehroz.online | server.js | false |
+| Customer web and API | https://cmmtools.site | server.js | false |
 | Standalone worker | https://worker.mehroz.online | worker.js | true |
 
-Both Hostinger applications use `main`, the same MySQL database and the same encryption settings. `APP_URL` remains `https://ai.mehroz.online` on both. Use `npm run build` as the build command, and the correct entry file for each application. Keep CommonJS runtime compatibility.
+Both Hostinger applications use `main`, the same MySQL database and the same encryption settings. `APP_URL` remains `https://cmmtools.site` on both. Use `npm run build` as the build command, and the correct entry file for each application. Keep CommonJS runtime compatibility.
 
 Node.js 20 or later is required. Install dependencies with `npm install`. Start the web app using `npm start`; a separately configured worker uses `npm run worker`. Run automated checks with `npm test`.
 
@@ -32,7 +32,7 @@ Health routes are `/live` and `/health` on the web app, and `/health` on the wor
 
 ## Admin and billing
 
-The private Admin interface is https://ai.mehroz.online/admin-console and uses `ADMIN_TOKEN`. Provider API keys and passwords are managed in Admin and stored encrypted in MySQL. Infrastructure secrets remain in Hostinger environment settings.
+The private Admin interface is https://cmmtools.site/admin-console and uses `ADMIN_TOKEN`. Provider API keys and passwords are managed in Admin and stored encrypted in MySQL. Infrastructure secrets remain in Hostinger environment settings.
 
 Pricing has source-specific rules: legacy source units use the shared multiplier, Higgsfield credits are passed through at 1:1, and SmartAIPI and Vercel use separate direct USD-to-customer-credit factors. The SmartAIPI default is `160 / 0.0265`; a Medium 1024 x 1024 GPT Image 2 is 160 credits, and a Medium 4:5 image is 200 credits. The global 2.5 multiplier is not added to SmartAIPI or Higgsfield quotes. See the handoff and SmartAIPI document for estimates, Admin overrides and refund behavior.
 

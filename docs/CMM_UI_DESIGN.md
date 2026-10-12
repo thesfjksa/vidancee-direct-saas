@@ -1,6 +1,6 @@
 # CMM Tools creation studio
 
-Brand system implemented on 2026-10-07; documentation updated 2026-10-11 for the current Hostinger app at `ai.mehroz.online`.
+Brand system implemented on 2026-10-07; documentation updated 2026-10-11 for the current Hostinger app at `cmmtools.site`.
 
 ## Brand and visual system
 

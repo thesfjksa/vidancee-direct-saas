@@ -8,8 +8,8 @@ CMM Tools is a deployed, multi-user application for video generation, image gene
 
 | Item | Current value |
 | --- | --- |
-| Customer application | https://ai.mehroz.online |
-| Private admin interface | https://ai.mehroz.online/admin-console |
+| Customer application | https://cmmtools.site |
+| Private admin interface | https://cmmtools.site/admin-console |
 | Generation worker | https://worker.mehroz.online |
 | GitHub repository | https://github.com/thesfjksa/vidancee-direct-saas |
 | Application branch | main |
@@ -246,14 +246,14 @@ Use the connection checks appropriate to the source. A successful model-list or 
 
 | Hostinger setting | Customer web app | Generation worker |
 | --- | --- | --- |
-| Domain | ai.mehroz.online | worker.mehroz.online |
+| Domain | cmmtools.site | worker.mehroz.online |
 | Framework | Other | Other |
 | Node version | 20.x or compatible later version | Same compatible version |
 | Branch and root | main and ./ | main and ./ |
 | Build command | npm run build | npm run build |
 | Entry file | server.js | worker.js |
 | WORKER_ENABLED | false | true |
-| APP_URL | https://ai.mehroz.online | https://ai.mehroz.online |
+| APP_URL | https://cmmtools.site | https://cmmtools.site |
 
 `npm run build` is a lightweight no-bundle command. Hostinger starts the configured entry file. Do not place `npm run worker` in the build-command field. Keep CommonJS compatibility with Hostinger LiteSpeed; do not add an ESM graph with top-level await to the entry without changing the hosting runtime.
 
@@ -354,7 +354,7 @@ Use the current `server.js` route handlers when implementing an API client; this
 
 ### Site offline or HTTP 503
 
-Start with https://ai.mehroz.online/live, then https://ai.mehroz.online/health. Liveness does not depend on MySQL or providers. If liveness fails, inspect Hostinger routing, deployment status, entry file and runtime logs. If liveness works but database.connected is false, check MySQL configuration and availability. Repeated PID changes, low uptime or SIGTERM logs indicate restarts that need hosting investigation. The Admin Overview "Server health" panel (from `GET /admin/diagnostics`) lists recent web and worker starts, the longest event-loop freeze and slow requests; if the site was unreachable but no start was recorded and no freeze appears, the outage was outside the application (for example Hostinger's edge firewall). Ask the person to retry on another network such as mobile data: if that works, their IP was blocked at the edge. Browser actions use POST only, because the edge firewall has challenged PUT requests. Check the exact customer's browser error and network as well; a successful check from another location does not explain every regional connection failure.
+Start with https://cmmtools.site/live, then https://cmmtools.site/health. Liveness does not depend on MySQL or providers. If liveness fails, inspect Hostinger routing, deployment status, entry file and runtime logs. If liveness works but database.connected is false, check MySQL configuration and availability. Repeated PID changes, low uptime or SIGTERM logs indicate restarts that need hosting investigation. The Admin Overview "Server health" panel (from `GET /admin/diagnostics`) lists recent web and worker starts, the longest event-loop freeze and slow requests; if the site was unreachable but no start was recorded and no freeze appears, the outage was outside the application (for example Hostinger's edge firewall). Ask the person to retry on another network such as mobile data: if that works, their IP was blocked at the edge. Browser actions use POST only, because the edge firewall has challenged PUT requests. Check the exact customer's browser error and network as well; a successful check from another location does not explain every regional connection failure.
 
 ### A job stays queued with no other users
 

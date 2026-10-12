@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-12 — cmmtools.site is the main domain
+
+- `ai.mehroz.online` no longer serves HTTPS, so every link the app gives out now uses `https://cmmtools.site`, even if `APP_URL` still holds the old address: signed reference-image links for providers (CreatePulse, Vidancee, Atlas, AI Gateway, ArgoLink, Higgsfield) and the Higgsfield OAuth return address (a saved old-domain callback is rewritten).
+- `/` and `/admin-console` on `ai.mehroz.online` redirect (301) to cmmtools.site without any setting; `CANONICAL_URL` still overrides. API calls, provider links and health checks are not redirected.
+- The worker stays at `worker.mehroz.online` (`worker.cmmtools.site` has no DNS record).
+- README, `.env.example`, hPanel, handoff, design and SmartAIPI docs now name cmmtools.site. The archived handoff keeps its history.
+
 ## 2026-10-12 — ArgoLink source
 
 - New image + video source ArgoLink (argolink.io), set up in Admin → Provider with its own key, switch, max inflight and credits-per-USD rate, plus per-customer access in Sources. 17 models: GPT Image 2 / 2.5 Flare / 2.5 Sunburst, Grok Imagine Image / 2.0, Nano Banana 2 / 2 Lite / 2.1 / Pro, Seedance 2.5 / 2.0 / 2.0 Fast / 2.0 Mini, Grok Imagine Video 1.5, MiniMax H3, Wan 3.0 / 3.0 Prime. Prices come from ArgoLink's public catalog (bundled snapshot, refreshed by **Sync live models**). Reference video seconds are added to the price as ArgoLink bills them. Admin lists the models with their USD prices and a Hide/Show switch; the wallet balance appears in Usage & limits. Details in `docs/ARGOLINK.md`.

@@ -20,7 +20,7 @@ Use the `main` branch for both Hostinger applications.
 
 | Component | Origin | Entry | Worker flag |
 | --- | --- | --- | --- |
-| Customer web and API | https://ai.mehroz.online | server.js | WORKER_ENABLED=false |
+| Customer web and API | https://cmmtools.site | server.js | WORKER_ENABLED=false |
 | Standalone generation worker | https://worker.mehroz.online | worker.js | WORKER_ENABLED=true |
 
 Both applications connect to the shared MySQL queue and encrypted Admin settings. The worker handles Higgsfield, Vidancee, CreatePulse, vgenv, Atlas Cloud, SmartAIPI and Vibi work. Gemini prompt enhancement runs asynchronously in the web process. Its in-memory records are not persistent across restarts.
@@ -29,7 +29,7 @@ The web app and worker use the same database and Admin-managed provider settings
 
 The main app writes queued generations into MySQL. The worker app picks up those jobs, submits them to the configured providers, polls provider status, and writes completion/failure state back into MySQL.
 
-The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On ai.mehroz.online this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 5 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
+The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On cmmtools.site this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 5 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
 
 ---
 
@@ -38,7 +38,7 @@ The web app also wakes the standalone worker with a non-blocking GET to its heal
 Production domain:
 
 ```text
-https://ai.mehroz.online
+https://cmmtools.site
 ```
 
 Recommended Hostinger settings:
@@ -73,7 +73,7 @@ GET /admin-console
 ### Main app liveness check
 
 ```text
-https://ai.mehroz.online/live
+https://cmmtools.site/live
 ```
 
 `/live` is intentionally lightweight. It does not depend on MySQL or any AI provider.
@@ -83,7 +83,7 @@ If `/live` is unavailable, the Node process or Hostinger routing to that process
 ### Main app health check
 
 ```text
-https://ai.mehroz.online/health
+https://cmmtools.site/health
 ```
 
 `/health` includes database/service readiness and runtime diagnostics.
@@ -163,7 +163,7 @@ Typical shared values:
 
 ```env
 NODE_ENV=production
-APP_URL=https://ai.mehroz.online
+APP_URL=https://cmmtools.site
 
 DB_HOST=
 DB_PORT=3306
@@ -188,7 +188,7 @@ Hostinger supplies `PORT`. Do not normally define `PORT` manually.
 Even though the worker has its own domain, keep:
 
 ```env
-APP_URL=https://ai.mehroz.online
+APP_URL=https://cmmtools.site
 ```
 
 Do not set `APP_URL` to `https://worker.mehroz.online`.
@@ -242,7 +242,7 @@ A second Hostinger Node application was then created for `worker.js`. The standa
 Current conclusion:
 
 - keep the web process and generation worker separated
-- do not re-enable the worker inside the main `ai.mehroz.online` application
+- do not re-enable the worker inside the main `cmmtools.site` application
 - treat Hostinger `SIGTERM` as a platform/process-supervisor event rather than a provider API exception
 
 ---
@@ -270,8 +270,8 @@ The worker also logs startup/shutdown/runtime information.
 Useful production checks:
 
 ```text
-https://ai.mehroz.online/live
-https://ai.mehroz.online/health
+https://cmmtools.site/live
+https://cmmtools.site/health
 https://worker.mehroz.online/health
 ```
 
@@ -328,15 +328,14 @@ Keep both applications on CommonJS and Node 20 or later. No new SDK dependency o
 
 Verify web `services.mediaGatewayRevision=1`, worker `revision=5` and the `gatewayPolling` timestamps. `gatewayPolling.sourceReady=false` is expected until an API key is saved, the source is enabled and generation submissions are enabled. Catalog presence and HTTP health do not prove paid generation or account quota.
 
-## Moving to a new domain (cmmtools.site)
+## Domain: cmmtools.site
 
-The customer app can move to `https://cmmtools.site` while `ai.mehroz.online` keeps working during the switch. The worker can stay at `worker.mehroz.online` or move to `worker.cmmtools.site`.
+The customer app lives at `https://cmmtools.site` (and `www.cmmtools.site`). It moved from `ai.mehroz.online`, whose HTTPS no longer works. The worker stays at `worker.mehroz.online`.
 
-1. In hPanel, connect `cmmtools.site` (and optionally `www.cmmtools.site`) to the existing **web** Node.js app, and wait for its SSL certificate. Optionally add `worker.cmmtools.site` to the **worker** app.
-2. Web app environment: set `APP_URL=https://cmmtools.site`. If the worker moved, set `WORKER_WAKE_URL=https://worker.cmmtools.site/live` (otherwise the default `worker.mehroz.online` is used; `cmmtools.site` is a recognised production host). Set `CANONICAL_URL=https://cmmtools.site` once the new domain loads, so `/` and `/admin-console` on the old domain redirect (301) to the new one.
-3. Worker app environment: set `APP_URL=https://cmmtools.site` (it builds the signed reference-image links that CreatePulse and other providers download).
-4. Redeploy both apps. Keep `ADMIN_TOKEN` and `PROVIDER_ASSET_SECRET` unchanged, or links already handed to providers stop verifying.
-5. Higgsfield: Admin → Provider → Higgsfield → Connect / Reconnect, so its OAuth return address uses the new domain.
-6. Keep `ai.mehroz.online` connected for at least a few days. Provider image links, API calls, `/health` and `/live` are never redirected, so jobs already submitted with the old address finish normally.
+- Both apps: `APP_URL=https://cmmtools.site`. The code also treats an old `APP_URL=https://cmmtools.site` as `https://cmmtools.site`, so provider reference-image links and the Higgsfield OAuth return address always use the new domain, but update the setting anyway.
+- Web app: `WORKER_WAKE_URL` can stay unset (default `https://worker.mehroz.online/live`).
+- Visits to `ai.mehroz.online` (if its SSL comes back) redirect `/` and `/admin-console` to cmmtools.site without any setting. `CANONICAL_URL` overrides the target.
+- Keep `ADMIN_TOKEN` and `PROVIDER_ASSET_SECRET` unchanged, or links already handed to providers stop verifying.
+- Higgsfield: a callback address saved on the old domain is rewritten to cmmtools.site automatically. If a reconnect still fails, use Admin → Provider → Higgsfield → Connect / Reconnect.
 
-Customers sign in again once on the new domain (login cookies belong to a domain). The Admin token is re-entered once for the same reason. The database, credits, images and videos are shared, so nothing else moves.
+Customers sign in again once on the new domain (login cookies belong to a domain); the Admin token is re-entered once too. The database, credits, images and videos are shared.

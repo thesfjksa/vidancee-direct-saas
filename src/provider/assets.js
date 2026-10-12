@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 
 function assetSecret() { return String(process.env.PROVIDER_ASSET_SECRET || process.env.ADMIN_TOKEN || ''); }
-function appUrl() { return String(process.env.APP_URL || '').replace(/\/$/, ''); }
+const { appUrl } = require('../app_url.js');
 
 function assetSignature(generationId, position) {
   const secret = assetSecret();
