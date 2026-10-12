@@ -126,6 +126,23 @@ class ArgoLinkClient {
     return body;
   }
 
+  // Seedance reads references from ArgoLink's own storage, as the Playground
+  // does: ask for an upload ticket, PUT the bytes, then send media_url.
+  async uploadMedia(model, { data, mimeType }) {
+    const type = String(mimeType || '').split('/')[0];
+    if (!['image', 'video', 'audio'].includes(type) || !data?.length) throw new Error('This file cannot be uploaded to ArgoLink.');
+    const ticket = await this.json('/v1/media/uploads', { body: { model: model.providerModelId, type, content_type: mimeType, size_bytes: data.length }, timeoutMs: 20000 });
+    if (!/^https:\/\//.test(ticket?.upload_url || '') || !/^https:\/\//.test(ticket?.media_url || '')) throw new Error('ArgoLink did not return an upload link.');
+    let response;
+    try {
+      response = await this.fetch(ticket.upload_url, { method: 'PUT', headers: { 'content-type': mimeType }, body: data,
+        signal: AbortSignal.timeout(type === 'image' ? 60000 : 300000), redirect: 'error' });
+    } catch { throw new Error('The upload to ArgoLink storage could not be completed.'); }
+    await response.body?.cancel?.().catch(() => {});
+    if (!response.ok) throw new Error('ArgoLink storage rejected the upload (HTTP ' + response.status + ').');
+    return ticket.media_url;
+  }
+
   async startVideo(model, params, references = []) {
     const result = await this.json('/v1/videos/generations', { body: this.videoBody(model, params, references), timeoutMs: 120000 });
     if (!result?.request_id) throw new Error('ArgoLink did not return a video job.');

@@ -22,7 +22,7 @@ function enabled() { return process.env.ACTIVITY_LOG !== 'off' || Boolean(sink);
 function redact(value, depth = 0) {
   if (value == null || depth > 6) return value;
   if (typeof value === 'string') {
-    let s = value.replace(/([?&](sig|signature|token|key)=)[^&\s"]+/gi, '$1***');
+    let s = value.replace(/([?&](sig|signature|token|key|[\w.-]*(signature|credential|security-token)[\w.-]*)=)[^&\s"]+/gi, '$1***');
     if (/^data:[^;]+;base64,/.test(s) || (/^[A-Za-z0-9+/=]{400,}$/.test(s))) s = '[' + s.length + ' bytes of data]';
     return s.length > 4000 ? s.slice(0, 4000) + '…' : s;
   }

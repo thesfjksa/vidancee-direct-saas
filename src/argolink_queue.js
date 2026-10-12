@@ -15,18 +15,6 @@ const { saveVideoOutput } = require('./video_outputs.js');
 const { errorDetails } = require('./activity_log.js');
 const { dimensions } = require('./image_canvas.js');
 
-const SHORT_SIDE = { '480p': 480, '720p': 720, '768p': 768, '1080p': 1080 };
-
-// The source resolution for the one retry: the next native resolution up, no
-// higher than what the customer chose; otherwise the same as the first try.
-function retryResolution(options, model) {
-  const first = options.sourceResolution || options.resolution, chosen = options.resolution;
-  if (!SHORT_SIDE[first] || !SHORT_SIDE[chosen] || SHORT_SIDE[first] >= SHORT_SIDE[chosen]) return first;
-  const up = (model.resolutions || []).filter(r => SHORT_SIDE[r] > SHORT_SIDE[first] && SHORT_SIDE[r] <= SHORT_SIDE[chosen])
-    .sort((a, b) => SHORT_SIDE[a] - SHORT_SIDE[b]);
-  return up[0] || first;
-}
-
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
     super({ clientFactory: opts => new ArgoLinkClient(opts), ...options, provider: 'argolink' });
@@ -53,13 +41,14 @@ class ArgoLinkQueue extends VercelQueue {
   async submit(db, job, client) {
     const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
     if (!model?.ready) throw new Error('This model is currently unavailable. Credits were refunded.');
-    const references = await this.references(db, job);
+    let references = await this.references(db, job);
     if (job.media_type === 'image') {
       await this.complete(db, job, await client.generateImage(model, options, references));
       return;
     }
     // Rendered at the source resolution when HD enhancement follows.
     const params = { ...options, resolution: options.sourceResolution || options.resolution };
+    references = await this.uploadReferences(db, job, client, model, references);
     let requestBody = null;
     try { requestBody = client.videoBody?.(model, params, references); } catch {}
     this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: await this.referenceInfo(db, job, references) });
@@ -116,18 +105,35 @@ class ArgoLinkQueue extends VercelQueue {
     } catch { return references.map(r => ({ role: r.role, mimeType: r.mimeType })); }
   }
 
+  // Seedance fails jobs whose references it fetches from our signed links,
+  // while the same files uploaded to ArgoLink's storage work (that is what the
+  // Playground does). Each reference is uploaded and its media_url sent instead;
+  // if an upload fails, the job keeps the signed links.
+  async uploadReferences(db, job, client, model, references) {
+    if (!references.length || !/^seedance-/.test(model.providerModelId || '') || typeof client.uploadMedia !== 'function') return references;
+    try {
+      const [rows] = await db.execute('SELECT position_index,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+      if (rows.length !== references.length) throw new Error('The reference files could not be read.');
+      const uploaded = [];
+      for (const [i, ref] of references.entries()) uploaded.push({ ...ref, url: await client.uploadMedia(model, { data: rows[i].media_data, mimeType: rows[i].mime_type }) });
+      this.log(job, 'argolink.upload', uploaded.length + ' reference file(s) uploaded to ArgoLink storage', { files: rows.map(r => ({ mimeType: r.mime_type, bytes: r.media_data?.length })) });
+      return uploaded;
+    } catch (error) {
+      this.log(job, 'argolink.upload_failed', 'Upload to ArgoLink storage failed; sending signed links instead: ' + error.message, errorDetails(error), 'warn');
+      return references;
+    }
+  }
+
   // Resubmits a retryable failure once; the new request id replaces the old one.
-  // A render below the customer's resolution (HD enhancement) is retried one
-  // step up, since some models (Seedance 2.5) fail at small portrait sizes.
   async retry(db, client, job, op) {
     try {
       const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
       if (!model?.ready) return false;
-      const resolution = retryResolution(options, model);
-      const requestId = await client.startVideo(model, { ...options, resolution }, await this.references(db, job));
-      this.log(job, 'argolink.retry', 'Retrying once as ' + requestId + ' at ' + resolution + ' (ArgoLink marked the failure retryable)', { firstRequestId: op.requestId || job.provider_job_id, requestId, resolution });
+      const references = await this.uploadReferences(db, job, client, model, await this.references(db, job));
+      const requestId = await client.startVideo(model, { ...options, resolution: options.sourceResolution || options.resolution }, references);
+      this.log(job, 'argolink.retry', 'Retrying once as ' + requestId + ' (ArgoLink marked the failure retryable)', { firstRequestId: op.requestId || job.provider_job_id, requestId });
       await db.execute("UPDATE generations SET status='processing',provider_operation=?,provider_job_id=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
-        [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id, resolution }), requestId.slice(0, 191), job.id]);
+        [JSON.stringify({ requestId, retried: true, firstRequestId: op.requestId || job.provider_job_id }), requestId.slice(0, 191), job.id]);
       return true;
     } catch (error) {
       console.error('ArgoLink retry could not start for', job.id, error.message);
@@ -207,4 +213,4 @@ class ArgoLinkQueue extends VercelQueue {
   }
 }
 
-module.exports = { ArgoLinkQueue, retryResolution };
+module.exports = { ArgoLinkQueue };

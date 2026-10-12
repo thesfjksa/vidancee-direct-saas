@@ -19,6 +19,7 @@ test('activity entries mask secrets, signed links and media data', () => {
   assert.deepEqual(details.nested, { password: '***', ok: 1 });
   assert.match(details.image, /^\[\d+ bytes of data\]$/);
   assert.equal(details.body.start_image.url, 'https://cmmtools.site/provider-assets/g1/0?sig=***');
+  assert.equal(log.redact('https://s.example/1.png?X-Amz-Credential=abc&X-Amz-Signature=def&w=1'), 'https://s.example/1.png?X-Amz-Credential=***&X-Amz-Signature=***&w=1');
   assert.deepEqual(details.error, { code: 'generation_failed', retryable: true });
   assert.equal(JSON.stringify(rows).includes('argo-secret'), false);
 });

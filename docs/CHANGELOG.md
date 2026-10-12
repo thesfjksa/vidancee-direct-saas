@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Seedance references go through ArgoLink storage
+
+- Seedance 2.5 failed every job with our signed reference links, while the same image and settings worked in ArgoLink's Playground, which uploads files to ArgoLink's storage first. Seedance reference files (images, videos, audio) are now uploaded with `POST /v1/media/uploads` and sent as `media_url`; the signed links remain the fallback. Logged as `argolink.upload` / `argolink.upload_failed`. Storage-link signatures (`X-Amz-*`) are masked in the activity log.
+- The one retry of a retryable failure again repeats the same request (the 720p step-up was reverted: 480p works on Seedance 2.5).
+
 ## 2026-10-12 — One worker acts on a job at a time
 
 - The activity log showed every ArgoLink status read twice and each retry sent twice (two worker processes polled the same job; only job pickup was locked). Polling, retries and the HD-enhancement step now hold a per-job MySQL lock (`GET_LOCK('cmm_job_<id>')`) and work on a fresh copy of the job row, so a second worker skips the job.

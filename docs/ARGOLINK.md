@@ -39,6 +39,7 @@ Customer credits = ArgoLink USD price × credits per USD, rounded up.
 
 - Images: `POST /v1/images/generations`, or `/v1/images/edits` with references sent as signed HTTPS links to the app. The answer is base64. The returned image must match the requested ratio, otherwise the job is refunded.
 - Video: `POST /v1/videos/generations` → `request_id` (saved before the first poll), `GET /v1/videos/{id}` until `done`, then `GET /v1/videos/{id}/content` into database storage. `failed`/`expired` jobs are refunded with ArgoLink's reason; a failure ArgoLink marks `retryable` is resubmitted once first. Seedance 2.5 and MiniMax H3 frame requests are sent with `aspect_ratio: adaptive` (the video takes the first frame's shape). Grok uses `image` / `last_frame` for frames.
+- Seedance references are uploaded to ArgoLink's storage first (`POST /v1/media/uploads` ticket, `PUT` the bytes, send `media_url`), as ArgoLink's Playground does; signed links to the app are the fallback if an upload fails. Seedance 2.5 failed every job (`generation_failed`) with the signed links while the same image uploaded in the Playground worked.
 - Jobs run in their own worker loop (`src/argolink_queue.js`), with the same claim, heartbeat, restart recovery and refund rules as the AI Gateway queue. A video is refunded if it has not finished after 3 hours.
 
 ## Not verified
