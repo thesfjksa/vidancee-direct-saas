@@ -8,6 +8,7 @@ const { SmartAipiClient } = require('./provider/smartaipi.js');
 const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
 const { providerAssetUrl } = require('./provider/assets.js');
+const { isCartoonJob, providerPrompt, vidanceeCreditsNeeded, looksOutOfCredits } = require('./cartoon.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const {
   submitHiggsfieldGeneration,
@@ -658,8 +659,23 @@ class GenerationWorker {
     return Number(row?.total || 0);
   }
 
+  // Cartoon jobs only go to a source that can pay for them: Vidancee needs its
+  // reported balance (credits minus reserved) to cover the job, and a source that
+  // just refused a job for lack of credits is skipped for 10 minutes.
+  hasProviderCredits(key, job) {
+    if (!isCartoonJob(job)) return true;
+    if (Number(this.outOfCreditsUntil?.[key] || 0) > Date.now()) return false;
+    if (key === 'vidancee' && this.vidanceeBalance != null) return this.vidanceeBalance >= vidanceeCreditsNeeded(job);
+    return true;
+  }
+
+  markOutOfCredits(key) {
+    this.outOfCreditsUntil = { ...(this.outOfCreditsUntil || {}), [key]: Date.now() + 10 * 60 * 1000 };
+    if (key === 'vidancee') this.vidanceeBalance = 0;
+  }
+
   chooseProvider(job, imageCount, vidSlots, cpSlots, vgenvSlots, access = {}) {
-    const allowed = key => access[key] !== false;
+    const allowed = key => access[key] !== false && this.hasProviderCredits(key, job);
     if (job.model === 'minimax_h3') {
       return allowed('vgenv') && this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
     }
@@ -698,7 +714,7 @@ class GenerationWorker {
       );
       if (!imageRows.length) throw new Error('Reference images are missing for this image-to-video job.');
       result = await this.vidancee.generateImage({
-        prompt: job.prompt,
+        prompt: providerPrompt(job),
         model: job.model,
         duration: Number(job.duration),
         aspectRatio: job.aspect_ratio,
@@ -708,7 +724,7 @@ class GenerationWorker {
       });
     } else {
       result = await this.vidancee.generateText({
-        prompt: job.prompt,
+        prompt: providerPrompt(job),
         model: job.model,
         duration: Number(job.duration),
         aspectRatio: job.aspect_ratio,
@@ -743,7 +759,7 @@ class GenerationWorker {
     }
 
     const result = await this.vgenv.generateVideo({
-      prompt: job.prompt,
+      prompt: providerPrompt(job),
       duration: Number(job.duration),
       aspectRatio: job.aspect_ratio,
       referenceImageUrls,
@@ -771,7 +787,7 @@ class GenerationWorker {
     }
 
     const result = await this.createPulse.generateVideo({
-      prompt: job.prompt,
+      prompt: providerPrompt(job),
       model: job.model,
       duration: Number(job.duration),
       aspectRatio: job.aspect_ratio,
@@ -986,6 +1002,9 @@ class GenerationWorker {
       !(this.vgenvEnabled && this.vgenv)
     ) return;
 
+    this.vidanceeBalance = vidSnapshot && Number.isFinite(Number(vidSnapshot.credits))
+      ? Number(vidSnapshot.credits) - Math.max(0, Number(vidSnapshot.reserved || 0))
+      : null;
     let vidSlots = 0;
     if (this.vidanceeEnabled && this.vidancee && vidSnapshot) {
       const concurrency = Math.max(1, Number(vidSnapshot.concurrency || 1));
@@ -1052,10 +1071,30 @@ class GenerationWorker {
         } else {
           await this.submitVidancee(db, job);
           vidSlots -= 1;
+          if (isCartoonJob(job) && this.vidanceeBalance != null) this.vidanceeBalance -= vidanceeCreditsNeeded(job);
         }
       } catch (error) {
         console.error('Generation submission failed for', job.id, error);
-        await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
+        let submitted = false;
+        if (looksOutOfCredits(error)) {
+          this.markOutOfCredits(chosen);
+          // Cartoon Studio switches to the other source when one runs out of credits.
+          const other = isCartoonJob(job) && (chosen === 'vidancee' || chosen === 'createpulse')
+            ? this.chooseProvider(job, count, chosen === 'vidancee' ? 0 : vidSlots, chosen === 'createpulse' ? 0 : cpSlots, 0, accessByUser.get(Number(job.user_id)) || {})
+            : null;
+          if (other) {
+            try {
+              await db.execute("UPDATE generations SET provider=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'", [other, job.id]);
+              if (other === 'createpulse') { await this.submitCreatePulse(db, job, count); cpSlots -= 1; }
+              else { await this.submitVidancee(db, job); vidSlots -= 1; }
+              submitted = true;
+            } catch (second) {
+              console.error('Fallback submission failed for', job.id, second);
+              if (looksOutOfCredits(second)) this.markOutOfCredits(other);
+            }
+          }
+        }
+        if (!submitted) await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
       }
     }
   }

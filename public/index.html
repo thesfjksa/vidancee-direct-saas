@@ -56,6 +56,7 @@
     <nav class="main-nav" aria-label="Workspace navigation">
       <button class="create-tab active" data-section="create" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg><span>Video studio</span></button>
       <button data-section="images" onclick="go('images')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg><span>Image studio</span></button>
+      <button id="cartoonNav" class="hide" data-section="cartoon" onclick="go('cartoon')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/><circle cx="15" cy="10" r="1.2" fill="currentColor"/><path d="M8 14.5c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/></svg><span>Cartoon studio</span></button>
       <button id="voiceNav" class="hide" data-section="voices" onclick="go('voices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span>Voice studio</span></button>
       <button data-section="library" onclick="go('library')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg><span>Library</span></button>
       <button data-section="plans" onclick="go('plans')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z"/></svg><span>Plans</span></button>
@@ -285,6 +286,58 @@
           <div class="panel-sub">Completed audio can be played or downloaded here.</div>
           <div id="voiceHistory" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px"></div>
         </div>
+      </div>
+    </section>
+
+    <section id="cartoon" class="section">
+      <div class="create-layout">
+        <aside class="creator">
+          <div class="creator-head">
+            <div><strong>Create cartoon</strong><div class="sub">Pick a style, describe the scene</div></div>
+            <div class="kicker">Studio</div>
+          </div>
+          <div class="creator-scroll">
+            <div class="block">
+              <div class="block-title">Style</div>
+              <div id="cartoonStyles" class="cartoon-styles" role="radiogroup" aria-label="Cartoon style"></div>
+            </div>
+            <div class="block">
+              <div class="block-title">Character image</div>
+              <div class="reference-capability-note">Optional · one image of the character to animate</div>
+              <input id="cartoonImageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" onchange="setCartoonImage(this.files)">
+              <label id="cartoonDrop" class="ref-drop" for="cartoonImageInput">
+                <div>
+                  <div class="ref-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></div>
+                  <strong>Add a character</strong>
+                  <span>JPEG, PNG or WebP · up to 10 MB</span>
+                </div>
+              </label>
+              <div id="cartoonImagePreview" class="image-preview"></div>
+            </div>
+            <div class="block">
+              <label class="block-title" for="cartoonPrompt">Scene</label>
+              <textarea id="cartoonPrompt" placeholder="Who is in the scene, what happens and where. For example: a curious fox cub chases fireflies through a moonlit forest."></textarea>
+              <label class="meta" for="cartoonModel">Model</label>
+              <select id="cartoonModel" onchange="renderCartoonDurations()"></select>
+              <div class="control-grid">
+                <div><label class="meta" for="cartoonDuration">Duration</label><select id="cartoonDuration" onchange="updateCartoonCost()"></select></div>
+                <div><label class="meta" for="cartoonRatio">Aspect ratio</label><select id="cartoonRatio" onchange="updateCartoonCost()"></select></div>
+              </div>
+            </div>
+          </div>
+          <div class="creator-footer">
+            <div class="cost-row"><span>Generation cost</span><strong><span id="cartoonCost">—</span> credits</strong></div>
+            <button id="cartoonGenerateBtn" class="generate" onclick="createCartoon()">Generate cartoon</button>
+            <div id="cartoonMsg" class="msg muted"></div>
+          </div>
+        </aside>
+        <main class="canvas">
+          <div class="studio-intro"><div><div class="studio-eyebrow">DRAW. ANIMATE. SHARE.</div><h1>Your stories, animated.</h1><p>Turn an idea into a short cartoon in the style you love.</p></div><div class="studio-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/><circle cx="15" cy="10" r="1.2" fill="currentColor"/><path d="M8 14.5c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/></svg></div></div>
+          <div class="canvas-head">
+            <div><h1>Your cartoons</h1><p>Every cartoon you have made.</p></div>
+          </div>
+          <div id="cartoonGallery" class="gallery"></div>
+        </main>
       </div>
     </section>
 
@@ -524,6 +577,7 @@ function go(name){
     nav.scrollLeft+=tabBox.left-navBox.left-(navBox.width-tabBox.width)/2;
   }
   if(name==='images')renderImageGallery();
+  if(name==='cartoon')renderCartoonGallery();
   if(name==='voices')refreshVoiceStudio();
   if(name==='library')renderLibrary();
   if(name==='plans')loadPlanStatus();
@@ -571,7 +625,7 @@ function customSelectSearchable(id){
 }
 
 function customSelectRatioPicker(id){
-  return ['ratio','imageRatio'].includes(String(id));
+  return ['ratio','imageRatio','cartoonRatio'].includes(String(id));
 }
 
 function ratioShapeSvg(ratio){
@@ -1137,6 +1191,7 @@ function renderConfig(){
   renderDurations(true);
   renderVideoReferenceControls(false);
   refreshModelCapabilitySummaries();
+  renderCartoonConfig();
 }
 
 function renderDurations(resetResolution=false){
@@ -1749,6 +1804,7 @@ async function loadGenerations(){
     const d=await api('/api/generations');
     generations=d.generations;
     renderCreateGallery();
+    renderCartoonGallery();
     renderLibrary();
   }catch(e){
     if(e.status===401)location.reload();
@@ -1757,10 +1813,12 @@ async function loadGenerations(){
   }
 }
 
+function isCartoonGeneration(g){return g?.generation_options?.studio==='cartoon'}
 function filteredGenerations(){
-  if(currentFilter==='completed')return generations.filter(g=>g.status==='completed');
-  if(currentFilter==='active')return generations.filter(g=>['queued','submitting','submitted','processing'].includes(g.status));
-  return generations;
+  const list=generations.filter(g=>!isCartoonGeneration(g));
+  if(currentFilter==='completed')return list.filter(g=>g.status==='completed');
+  if(currentFilter==='active')return list.filter(g=>['queued','submitting','submitted','processing'].includes(g.status));
+  return list;
 }
 
 function generationFingerprint(g){
@@ -2572,6 +2630,7 @@ function applyVideoReuseSettings(g){
 
 async function reuseGeneration(id){
   const g=findGeneration(id),b=$('generateBtn'),m=$('genMsg');
+  if(isCartoonGeneration(g))return reuseCartoon(g);
   // Leave the form alone while a generation is being submitted.
   if(!g||b.closest('.creator').querySelector('.creator-scroll').inert)return;
   const token=++videoReuseToken;
@@ -2678,11 +2737,100 @@ function jobCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
+      '<div class="job-title">'+(isCartoonGeneration(g)?escapeHtml(cartoonStyleLabel(g.generation_options.cartoon_style))+' · ':'')+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio)+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+reuseButton+downloadButton+deleteButton+'</div>'+
     '</div></article>';
+}
+
+// ---------- Cartoon Studio ----------
+let cartoonStyleId='',cartoonImageFile=null,cartoonImageUrl='';
+function cartoonStyleLabel(id){return (config?.cartoon?.styles||[]).find(s=>s.id===id)?.label||'Cartoon'}
+function renderCartoonConfig(){
+  const cfg=config?.cartoon,enabled=Boolean(cfg?.enabled&&cfg.pricing?.length);
+  $('cartoonNav').classList.toggle('hide',!enabled);
+  if(!enabled)return;
+  if(!cfg.styles.some(s=>s.id===cartoonStyleId))cartoonStyleId=cfg.styles[0]?.id||'';
+  $('cartoonStyles').innerHTML=cfg.styles.map(s=>
+    '<button type="button" class="cartoon-style style-'+escapeHtml(s.id)+(s.id===cartoonStyleId?' selected':'')+'" role="radio" aria-checked="'+(s.id===cartoonStyleId)+'" onclick="selectCartoonStyle(\''+escapeHtml(s.id)+'\')">'+
+    '<span class="cartoon-swatch" aria-hidden="true"></span><strong>'+escapeHtml(s.label)+'</strong><small>'+escapeHtml(s.hint)+'</small></button>').join('');
+  const previous=$('cartoonModel').value;
+  $('cartoonModel').innerHTML=cfg.pricing.map(m=>'<option value="'+escapeHtml(m.id)+'">'+escapeHtml(m.label)+'</option>').join('');
+  if(cfg.pricing.some(m=>m.id===previous))$('cartoonModel').value=previous;
+  ensureCustomSelect('cartoonModel');syncCustomSelect('cartoonModel');
+  const ratios=config.aspectRatios||['9:16','16:9','1:1','4:3'],ratio=$('cartoonRatio').value;
+  $('cartoonRatio').innerHTML=ratios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
+  $('cartoonRatio').value=ratios.includes(ratio)?ratio:(ratios.includes('9:16')?'9:16':ratios[0]);
+  ensureCustomSelect('cartoonRatio');
+  renderCartoonDurations();
+}
+function selectCartoonStyle(id){
+  cartoonStyleId=id;
+  document.querySelectorAll('#cartoonStyles .cartoon-style').forEach(b=>{const on=b.classList.contains('style-'+id);b.classList.toggle('selected',on);b.setAttribute('aria-checked',String(on))});
+}
+function renderCartoonDurations(){
+  const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value),previous=$('cartoonDuration').value;
+  const durations=m?.durations||[];
+  $('cartoonDuration').innerHTML=durations.map(d=>'<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>').join('');
+  if(durations.some(d=>String(d.seconds)===previous))$('cartoonDuration').value=previous;
+  ensureCustomSelect('cartoonDuration');rebuildCustomSelect('cartoonDuration');
+  syncCustomSelect('cartoonModel');rebuildCustomSelect('cartoonRatio');
+  updateCartoonCost();
+}
+function updateCartoonCost(){
+  const o=$('cartoonDuration').options[$('cartoonDuration').selectedIndex];
+  $('cartoonCost').textContent=o?.dataset.cost||'—';
+  syncCustomSelect('cartoonDuration');syncCustomSelect('cartoonRatio');
+}
+function setCartoonImage(files){
+  const file=files?.[0];
+  if(cartoonImageUrl)URL.revokeObjectURL(cartoonImageUrl);
+  cartoonImageFile=null;cartoonImageUrl='';
+  if(file){
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)){$('cartoonMsg').className='msg err';$('cartoonMsg').textContent='Use a JPEG, PNG or WebP image.';}
+    else if(file.size>10*1024*1024){$('cartoonMsg').className='msg err';$('cartoonMsg').textContent='The image must be 10 MB or smaller.';}
+    else{cartoonImageFile=file;cartoonImageUrl=URL.createObjectURL(file);$('cartoonMsg').textContent='';}
+  }
+  $('cartoonImageInput').value='';
+  $('cartoonImagePreview').innerHTML=cartoonImageFile?'<div class="image-chip"><img src="'+cartoonImageUrl+'" alt="Character"><button type="button" class="remove-reference" onclick="setCartoonImage(null)" aria-label="Remove character image">×</button><div class="image-name">'+escapeHtml(cartoonImageFile.name||'Character')+'</div></div>':'';
+}
+function renderCartoonGallery(){
+  updateGallery('cartoonGallery',generations.filter(isCartoonGeneration),'Your cartoons will appear here. Pick a style and describe a scene.');
+}
+async function createCartoon(){
+  const b=$('cartoonGenerateBtn'),m=$('cartoonMsg');
+  if(b.disabled)return;
+  const prompt=String($('cartoonPrompt').value||'').trim();
+  if(!prompt){m.className='msg err';m.textContent='Describe the scene first.';return}
+  b.disabled=true;m.className='msg muted';m.textContent='Submitting cartoon...';
+  try{
+    const form=new FormData();
+    form.append('prompt',prompt);
+    form.append('cartoonStyle',cartoonStyleId);
+    form.append('model',$('cartoonModel').value);
+    form.append('duration',$('cartoonDuration').value);
+    form.append('aspectRatio',$('cartoonRatio').value);
+    if(cartoonImageFile){form.append('images',cartoonImageFile,cartoonImageFile.name||'character.png');form.append('referenceOrder',JSON.stringify([{kind:'fresh',index:0}]));}
+    const d=await api('/api/generations',{method:'POST',body:form});
+    me=d.user;syncUser();
+    $('cartoonPrompt').value='';setCartoonImage(null);
+    m.className='msg ok';m.textContent='Cartoon queued.';
+    await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
+  }catch(e){m.className='msg err';m.textContent=e.message}
+  finally{b.disabled=false}
+}
+function reuseCartoon(g){
+  go('cartoon');
+  selectCartoonStyle(g.generation_options.cartoon_style);
+  if((config?.cartoon?.pricing||[]).some(x=>x.id===g.model)){$('cartoonModel').value=g.model;renderCartoonDurations();}
+  if([...$('cartoonDuration').options].some(o=>Number(o.value)===Number(g.duration))){$('cartoonDuration').value=String(g.duration);}
+  if([...$('cartoonRatio').options].some(o=>o.value===g.aspect_ratio))$('cartoonRatio').value=g.aspect_ratio;
+  updateCartoonCost();
+  $('cartoonPrompt').value=g.prompt||'';
+  const m=$('cartoonMsg');m.className='msg muted';
+  m.textContent=g.mode==='image-to-video'?'Prompt and settings restored. Add the character image again.':'Prompt and settings restored.';
+  $('cartoonPrompt').focus();
 }
 
 function renderVoiceConfig(){

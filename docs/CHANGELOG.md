@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-12 — Cartoon Studio
+
+- New customer tab for cartoon videos. The customer picks a style (3D Animation, Anime, 2D Cartoon, Claymation or Comic), describes the scene, optionally adds one character image and chooses Seedance 2.5 or 2.0 Fast, duration and ratio. Prices are the normal Seedance prices. The tab appears when Vidancee or CreatePulse is active for the customer.
+- The customer's prompt is stored as written; `src/cartoon.js` adds the style direction only when the job is sent to the provider. The job keeps `studio: "cartoon"` and the style in `generation_options`. Cartoon jobs show in Cartoon Studio and the Library, not in the Video Studio gallery; Reuse prompt returns to Cartoon Studio.
+- Cartoon jobs run only on Vidancee or CreatePulse, whichever has provider credits. Each worker pass reads Vidancee's balance (credits minus reserved); Vidancee is used only if it covers the job (about 0.6 credits per second, from observed charges), otherwise CreatePulse. If a source rejects a job for lack of credits it is skipped for 10 minutes and the job is sent to the other source instead of being refunded. CreatePulse has no balance endpoint, so it is detected only by such a rejection. If both are out, the job waits in the queue. Video Studio routing is unchanged.
+- Not verified with paid provider requests from this environment; the out-of-credits detection matches common wording (insufficient, not enough credits, balance, 402).
+
 ## 2026-10-12 — Gallery order
 
 - Galleries used CSS columns, which fill each column top to bottom, so new items appeared down the first column. They now use a grid that fills row by row, newest first from left to right. Cards in a row align to their top; a short card leaves space below it.

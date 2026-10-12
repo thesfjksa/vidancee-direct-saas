@@ -51,6 +51,7 @@ const promptEnhancementGate = new PromptEnhancementGate();
 const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
 const { RuntimeDiagnostics, recordBoot, listBoots } = require('./src/runtime_diagnostics.js');
+const { normalizeCartoonRequest, publicCartoonConfig } = require('./src/cartoon.js');
 const diagnostics = new RuntimeDiagnostics().start();
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
 function wakeGenerationWorker(req) {
@@ -582,6 +583,7 @@ const server=http.createServer(async (req,res)=>{
       let voiceConfig={enabled:false};
       let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
+      let cartoonEnabled=false;
 
       if (dbConfigured()) {
         try {
@@ -594,6 +596,7 @@ const server=http.createServer(async (req,res)=>{
             (customerProviderAccess.createpulse && providerSettings.createpulse.active)
           );
           const h3FallbackActive=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
+          cartoonEnabled=seedanceFallbackActive;
 
           videoPricing=videoPricing.filter(model=>{
             if (model.id==='minimax_h3') return h3FallbackActive;
@@ -648,6 +651,7 @@ const server=http.createServer(async (req,res)=>{
         voice:voiceConfig,
         promptEnhancer:promptEnhancerConfig,
         providerAccess:customerProviderAccess,
+        cartoon:publicCartoonConfig(cartoonEnabled,publicPricing()),
         plans:publicPlans(),
       });
     }
@@ -1119,8 +1123,10 @@ const server=http.createServer(async (req,res)=>{
       const requestedModel=String(body.model||'');
       const customerAccess=await getUserProviderAccess(user.id);
       let generation=null;
+      // Cartoon Studio always runs on Vidancee or CreatePulse, never a catalog source.
+      const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
-      if(isGatewayModel(requestedModel)){
+      if(!cartoonOptions&&isGatewayModel(requestedModel)){
         if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
         const model=await getProviderModelByPublicId('vercel',requestedModel,'video');
         if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
@@ -1132,7 +1138,7 @@ const server=http.createServer(async (req,res)=>{
         });
       }
 
-      if (!generation && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
+      if (!generation && !cartoonOptions && customerAccess.higgsfield && providerSettings.higgsfieldEnabled && providerSettings.higgsfieldOauthTokens) {
         const dynamicModel=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
         if (dynamicModel) {
           if (Array.isArray(body.images) && body.images.length && !dynamicModelSupportsImageReferences(dynamicModel)) {
@@ -1183,7 +1189,7 @@ const server=http.createServer(async (req,res)=>{
             return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
           }
         }
-        generation=await createGenerationForUser(user.id,body);
+        generation=await createGenerationForUser(user.id,body,cartoonOptions?{generationOptions:cartoonOptions}:{});
       }
 
       wakeGenerationWorker(req);
