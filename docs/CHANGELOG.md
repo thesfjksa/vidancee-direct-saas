@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — AI Gateway Seedance 2.x priced from video tokens
+
+- Seedance 2.5, 2.0, 2.0 Fast and 2.0 Mini on the AI Gateway are billed by video tokens and stayed hidden without an Admin price. They are now quoted from the catalog's token rates using ByteDance's count of width x height x fps / 1024 tokens per second (720p 16:9 at 24 fps = 21,600 tokens/s). Without video input the output is billed at the higher rate; with reference videos, input and output tokens are billed at the reduced rate, and each clip's length is read from its MP4 header (the longest allowed clip is assumed if it cannot be read). Quotes are marked as estimates because minimum token floors are not published. Examples: Seedance 2.5 10 s 720p 16:9 = 2.31 USD; Seedance 2.0 Fast 10 s 720p = 1.21 USD. An Admin per-second price still overrides.
+- Not verified against a paid gateway request.
+
 ## 2026-10-12 — FLUX 3 aspect ratios
 
 - FLUX 3 (AI Gateway) was limited to 1:1 because the catalog prices it by five square sizes. It now offers 1:1, 16:9, 9:16, 4:3, 3:4, 3:2 and 2:3. The five sizes are treated as resolution classes: a non-square image keeps the class's pixel count (rounded to 16 px, long side at most 4096) and its price, for example 16:9 at 1K = 1360x768 for 0.024 USD. The Resolution list shows the classes as 768 px, 1K, 1.5K, 2K and 4K. Rows from an earlier catalog sync get the shapes without a re-sync.

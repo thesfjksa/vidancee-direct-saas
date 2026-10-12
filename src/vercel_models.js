@@ -196,14 +196,50 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
     const exact=matches.filter(t=>t.resolution===chosen.resolution);
     const applicable=exact.length?exact:matches;
     if (applicable.length) sourceUsd=Math.max(...applicable.map(t=>Number(t.cost_per_second)))*chosen.duration;
-    // Video token floors and input duration are not fully exposed by the public
-    // catalog. Require an Admin per-second rate rather than silently underquote.
+    else if (p.video_token_pricing?.tiers?.length) {
+      const quote=videoTokenQuote(model,chosen,input);
+      if (quote) {sourceUsd=quote;isEstimate=true;}
+    }
   }
   if (!positive(sourceUsd)) fail('Set a USD price for this model in Admin before enabling generation.');
   if (!positive(factor)||Number(factor)>1000000) fail('The source credit conversion is invalid.');
   const raw=sourceUsd*Number(factor),cost=Math.ceil(raw-Number.EPSILON*Math.abs(raw)*4);
   if (!positive(cost)||cost>999999999) fail('The generation credit price is invalid.');
   return {cost,sourceUsd,isEstimate,...chosen};
+}
+
+// Seedance 2.x on the gateway is billed by video tokens. ByteDance counts
+// width x height x fps / 1024 tokens per second of video. Without video input
+// the output is billed at the higher rate; with video input every token (input
+// and output) is billed at the reduced rate. Minimum token floors are not
+// published, so the quote stays an estimate.
+function videoTokenQuote(model,chosen,input={}) {
+  const tier=(model.pricing?.video_token_pricing?.tiers||[]).find(t=>t.resolution===chosen.resolution);
+  if (!tier) return null;
+  const [w,h]=videoDimensions(chosen.resolution,chosen.aspectRatio).split('x').map(Number);
+  const perSecond=w*h*Number(model.fps||24)/1024;
+  const videos=Array.isArray(input.videos)?input.videos:[];
+  if (!videos.length) {
+    const rate=Number(tier.no_video_input?.cost_per_million_tokens);
+    return positive(rate)?perSecond*chosen.duration*rate/1e6:null;
+  }
+  const rate=Number(tier.with_video_input?.cost_per_million_tokens||tier.no_video_input?.cost_per_million_tokens);
+  const maxInput=Number(model.inputLimits?.video?.max_duration_seconds||30);
+  // Reference clips are billed by their own length (read from the MP4 header,
+  // or the longest allowed clip when it cannot be read) at the same frame size.
+  const inputSeconds=videos.reduce((sum,v)=>sum+Math.min(maxInput,mp4Seconds(v?.data)??maxInput),0);
+  return positive(rate)?perSecond*(chosen.duration+inputSeconds)*rate/1e6:null;
+}
+
+// Duration from the 'mvhd' box of an MP4/MOV file, or null.
+function mp4Seconds(buffer) {
+  if (!Buffer.isBuffer(buffer)) return null;
+  const at=buffer.indexOf('mvhd');
+  if (at<4||at+24>buffer.length) return null;
+  const version=buffer[at+4];
+  const scale=version===1?buffer.readUInt32BE(at+24):buffer.readUInt32BE(at+16);
+  const duration=version===1?Number(buffer.readBigUInt64BE(at+28)):buffer.readUInt32BE(at+20);
+  return scale>0&&duration>0?duration/scale:null;
 }
 
 // Recraft accepts only fixed sizes per aspect ratio (Recraft API appendix);
@@ -265,5 +301,5 @@ function validateReferences(model,input={}) {
   if (model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
 }
 
-module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,isGatewayModel,publicId,mediaModels,discoverModel,
+module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,mp4Seconds,isGatewayModel,publicId,mediaModels,discoverModel,
   normalizePriceOverride,modelReady,selection,quoteGateway,imageDimensions,videoDimensions,validateReferences};

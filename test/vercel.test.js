@@ -20,7 +20,7 @@ test('live media catalog includes multimodal image models and preserves distinct
   assert.equal(model('quiverai/arrow-2').adapterSupported,false);
   assert.equal(model('openai/gpt-image-2').adapterSupported,true);
   assert.equal(v.modelReady(model('openai/gpt-image-2')),true);
-  assert.equal(v.modelReady(model('bytedance/seedance-2.5')),false);
+  assert.equal(v.modelReady(model('bytedance/seedance-2.5')),true);
   assert.equal(model('alibaba/wan-v2.6-t2v').referenceCapabilities.image.max,0);
   assert.throws(()=>v.mediaModels({data:[]}),/previous catalog has been kept/);
 });
@@ -233,4 +233,21 @@ test('FLUX 3 offers common shapes, priced by resolution class',()=>{
   assert.throws(()=>v.quoteGateway(flux,{aspectRatio:'21:9',imageSize:'1024x1024'},1),/Unsupported aspect ratio/);
   // Rows saved by an earlier sync still get the shapes.
   assert.deepEqual(v.applyModelFixups({...flux,aspectRatios:['1:1']}).aspectRatios.length,7);
+});
+
+test('Seedance 2.x is priced from video tokens, including reference clips',()=>{
+  const seed=model('bytedance/seedance-2.5');
+  // 1280x720 at 24 fps = 21,600 tokens per second; 10 s at 10.7 USD per million tokens.
+  assert.equal(v.quoteGateway(seed,{duration:10,resolution:'720p',aspectRatio:'16:9'},1).sourceUsd.toFixed(4),'2.3112');
+  assert.equal(v.quoteGateway(seed,{duration:10,resolution:'720p',aspectRatio:'16:9'},1).isEstimate,true);
+  assert.equal(v.quoteGateway(seed,{duration:5,resolution:'1080p',aspectRatio:'16:9'},1).sourceUsd.toFixed(4),(1920*1080*24/1024*5*11.7/1e6).toFixed(4));
+  // A 4 s reference clip: input and output tokens at the reduced 6.4 rate.
+  const mvhd=Buffer.alloc(40);mvhd.write('mvhd',4);mvhd.writeUInt32BE(1000,20);mvhd.writeUInt32BE(4000,24);
+  const clip=Buffer.concat([Buffer.from('000000186674797069736f6d','hex'),mvhd]);
+  assert.equal(v.mp4Seconds(clip),4);
+  assert.equal(v.mp4Seconds(Buffer.from('not a video')),null);
+  assert.equal(v.quoteGateway(seed,{duration:10,resolution:'720p',aspectRatio:'16:9',videos:[{data:clip}]},1).sourceUsd.toFixed(4),(21600*14*6.4/1e6).toFixed(4));
+  // Unreadable clip: billed as the longest allowed input (30 s).
+  assert.equal(v.quoteGateway(seed,{duration:10,resolution:'720p',aspectRatio:'16:9',videos:[{data:Buffer.from('x')}]},1).sourceUsd.toFixed(4),(21600*40*6.4/1e6).toFixed(4));
+  assert.equal(v.modelReady(model('bytedance/seedance-2.0-mini')),true);
 });
