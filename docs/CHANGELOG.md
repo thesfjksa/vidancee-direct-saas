@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — One worker acts on a job at a time
+
+- The activity log showed every ArgoLink status read twice and each retry sent twice (two worker processes polled the same job; only job pickup was locked). Polling, retries and the HD-enhancement step now hold a per-job MySQL lock (`GET_LOCK('cmm_job_<id>')`) and work on a fresh copy of the job row, so a second worker skips the job.
+- Seedance 2.5 failures (`generation_failed`, retryable) on a valid request with a 1122×1402 PNG reference; the same request succeeds on Seedance 2.0 Mini.
+
 ## 2026-10-12 — Activity log and support access
 
 - New `activity_log`: every customer action, job, provider request and reply (including ArgoLink's full error object), retry, upscale, refund and Admin change, with secrets masked. Admin → **Activity** tab with filters and live refresh. A revocable read-only **support key** opens `/ops/activity`, `/ops/generations` and `/ops/health` (emails masked) so problems can be investigated without Admin access. Details in `docs/ACTIVITY_LOG.md`.

@@ -227,3 +227,31 @@ test('a retryable ArgoLink failure is resubmitted once, then refunded', async ()
   assert.deepEqual([started, refunds.length], [1, 2]);
   assert.match(refunds[0][2], /The result could not be generated\. Credits were refunded\./);
 });
+
+test('two worker processes polling the same job act on it only once', async () => {
+  const { ArgoLinkQueue } = require('../src/argolink_queue.js');
+  const held = new Set();
+  const row = { id: 'j9', status: 'processing', refunded_at: null, media_type: 'video', provider_operation: JSON.stringify({ requestId: 'r1' }) };
+  const conn = () => ({
+    async query(sql, args) {
+      if (sql.startsWith('SELECT GET_LOCK')) { if (held.has(args[0])) return [[{ acquired: 0 }]]; held.add(args[0]); return [[{ acquired: 1 }]]; }
+      if (sql.startsWith('SELECT RELEASE_LOCK')) { held.delete(args[0]); return [[{}]]; }
+      if (sql.startsWith('SELECT * FROM generations')) return [[row]];
+      throw new Error(sql);
+    }, release() {} });
+  const db = { getConnection: async () => conn() };
+  const queue = new ArgoLinkQueue();
+  let polls = 0, release;
+  const gate = new Promise(r => { release = r; });
+  queue.pollJob = async () => { polls++; await gate; };
+  const first = queue.exclusive(db, row, fresh => queue.pollJob(db, null, fresh));
+  const second = queue.exclusive(db, row, fresh => queue.pollJob(db, null, fresh));
+  await new Promise(r => setImmediate(r));
+  release(); await Promise.all([first, second]);
+  assert.equal(polls, 1);
+  assert.equal(held.size, 0);
+  // A job finished by the other process is left alone.
+  row.status = 'completed';
+  await queue.exclusive(db, row, () => { polls++; });
+  assert.equal(polls, 1);
+});

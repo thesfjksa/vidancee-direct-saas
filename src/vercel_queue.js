@@ -144,7 +144,7 @@ class VercelQueue {
       const age=Date.now()-(stamp instanceof Date?stamp.getTime():Date.parse(String(stamp).replace(' ','T')+'Z'));
       if(age>this.videoTimeoutMs){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
       this.tasks.add(job.id);
-      Promise.resolve().then(()=>this.pollJob(db,client,job)).catch(async error=>{
+      Promise.resolve().then(()=>this.exclusive(db,job,fresh=>this.pollJob(db,client,fresh))).catch(async error=>{
         // Logged once per distinct message, not on every 5-second poll.
         const key=job.id+':'+error.message;
         if(!this.loggedPollErrors.has(key)){this.loggedPollErrors.add(key);if(this.loggedPollErrors.size>500)this.loggedPollErrors.clear();
@@ -154,6 +154,23 @@ class VercelQueue {
         await db.execute("UPDATE generations SET updated_at=UTC_TIMESTAMP(),error_message=? WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",
           ['Waiting for the video service. Your generation will resume automatically.',job.id]).catch(()=>{});
       }).finally(()=>this.tasks.delete(job.id));
+    }
+  }
+  // Hostinger can run more than one worker process. Polling, retries and the
+  // HD-enhancement step must happen once per job, so each poll holds a
+  // per-job MySQL lock and works on a fresh copy of the job row.
+  async exclusive(db,job,fn) {
+    if(typeof db.getConnection!=='function')return fn(job);
+    const conn=await db.getConnection(),name='cmm_job_'+job.id;let locked=false;
+    try {
+      const [[row]]=await conn.query('SELECT GET_LOCK(?,0) AS acquired',[name]);
+      locked=Number(row?.acquired)===1;if(!locked)return;
+      const [[fresh]]=await conn.query('SELECT * FROM generations WHERE id=?',[job.id]);
+      if(!fresh||fresh.refunded_at||!['submitted','processing'].includes(fresh.status))return;
+      return await fn(fresh);
+    } finally {
+      if(locked)await conn.query('SELECT RELEASE_LOCK(?)',[name]).catch(()=>{});
+      conn.release();
     }
   }
   async pollJob(db,client,job) {
