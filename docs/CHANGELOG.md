@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Video jobs wake the worker
+
+- Hostinger stops the idle worker app. The video list the browser polls (`GET /api/generations`) did not wake it (the image list and single-job routes did), so a video job stalled until another job was created; a Seedance 2.5 job sat 17 minutes after ArgoLink had finished. The video list now wakes the worker while a job is running, and the web app also wakes it every minute while any job is queued or running, so jobs finish after the customer closes the tab.
+
 ## 2026-10-12 — Seedance references go through ArgoLink storage
 
 - Seedance 2.5 failed every job with our signed reference links, while the same image and settings worked in ArgoLink's Playground, which uploads files to ArgoLink's storage first. Seedance reference files (images, videos, audio) are now uploaded with `POST /v1/media/uploads` and sent as `media_url`; the signed links remain the fallback. Logged as `argolink.upload` / `argolink.upload_failed`. Storage-link signatures (`X-Amz-*`) are masked in the activity log.

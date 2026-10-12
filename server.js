@@ -97,16 +97,31 @@ function logRequest(req, routePath, res, ms) {
 const diagnostics = new RuntimeDiagnostics().start();
 const { appUrl, PRIMARY_URL, RETIRED_HOSTS } = require('./src/app_url.js');
 const workerWakeup = new WorkerWakeup({url:process.env.WORKER_WAKE_URL ?? 'https://worker.mehroz.online/live'});
-function wakeGenerationWorker(req) {
-  const host=String(req.headers.host||'').toLowerCase().split(':')[0];
-  // The default belongs only to this production deployment; other deployments
-  // must explicitly configure their own standalone worker's health endpoint.
+const PRODUCTION_HOSTS=['cmmtools.site','www.cmmtools.site',...RETIRED_HOSTS];
+// The default wake URL belongs only to this production deployment; other
+// deployments must explicitly configure their own standalone worker's health endpoint.
+function wakeAllowed(host='') {
   const origin=appUrl().toLowerCase();
-  const productionHosts=['cmmtools.site','www.cmmtools.site',...RETIRED_HOSTS];
-  if(process.env.WORKER_WAKE_URL===undefined && !productionHosts.includes(host) && !productionHosts.some(h=>origin==='https://'+h))return;
+  return process.env.WORKER_WAKE_URL!==undefined || PRODUCTION_HOSTS.includes(host) || PRODUCTION_HOSTS.some(h=>origin==='https://'+h);
+}
+function wakeWorker() {
   void workerWakeup.wake().then(result=>{
     if(!result.ok&&!result.skipped)console.warn('[worker-wakeup]',result.error);
   });
+}
+function wakeGenerationWorker(req) {
+  if(wakeAllowed(String(req.headers.host||'').toLowerCase().split(':')[0]))wakeWorker();
+}
+// Hostinger stops an idle worker. While any job is running the worker is woken
+// every minute, so jobs finish even when no customer tab is polling.
+function wakeWhileJobsRun() {
+  if(!wakeAllowed())return;
+  setInterval(async()=>{
+    try {
+      const [[row]]=await getPool().query("SELECT 1 AS active FROM generations WHERE status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 1");
+      if(row)wakeWorker();
+    } catch {}
+  },60000).unref();
 }
 const { dbConfigured, getPool, initDb, dbHealth } = require('./src/db.js');
 const {
@@ -1127,7 +1142,9 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
-      return sendJson(res,200,{ok:true,generations:await listUserGenerations(user.id,50)});
+      const generations=await listUserGenerations(user.id,50);
+      if(generations.some(row=>['queued','submitting','submitted','processing'].includes(row.status)))wakeGenerationWorker(req);
+      return sendJson(res,200,{ok:true,generations});
     }
 
     if (req.method==='POST' && routePath==='/api/generations') {
@@ -1818,6 +1835,7 @@ function bootstrap() {
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       startWorkerChild();
+      wakeWhileJobsRun();
     })
     .catch((error) => {
       console.error('MySQL initialization failed:',error);
