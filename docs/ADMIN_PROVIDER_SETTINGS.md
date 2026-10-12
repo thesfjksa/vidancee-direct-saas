@@ -54,10 +54,10 @@ The generation worker reads provider settings from MySQL and refreshes provider 
 
 | Studio | Sources |
 | --- | --- |
-| Video Studio | ArgoLink (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3) |
+| Video Studio | ArgoLink at 720p/1080p (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3); rendered lower and upscaled by fal.ai |
 | Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
 | Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
-| Upscaler | WaveSpeed (ByteDance Video Upscaler). See `docs/WAVESPEED_UPSCALER.md` |
+| Upscaler and Video Studio HD enhancement | fal.ai (ByteDance Video Upscaler). See `docs/FAL_UPSCALER.md` |
 | Voice Studio | Vibi |
 | Prompt enhancer | Google Gemini 3.8 Flash |
 
@@ -73,7 +73,7 @@ Admin can additionally assign sources per customer from:
 
 `/admin-console` → **Users** → **Sources**
 
-Assignable sources are ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv/MiniMax, WaveSpeed/Upscaler and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
+Assignable sources are ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv/MiniMax, fal.ai/Upscaler and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
 
 A customer's model catalog is built only from sources that are both globally available and assigned to that customer. The server also checks the assignment during cost lookup and submission, so this is not only a frontend filter.
 

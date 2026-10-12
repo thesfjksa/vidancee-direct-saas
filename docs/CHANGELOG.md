@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — fal.ai upscaling; ArgoLink 720p/1080p with HD enhancement
+
+- **WaveSpeed removed.** The Upscaler tab now runs the ByteDance Video Upscaler on fal.ai (same prices: $0.0072 / $0.0144 / $0.0288 per second for 1080p / 2K / 4K). Prices come from the server (`POST /api/upscales/quote`), and a video already at the chosen size is refused. Admin card: **Upscaler + HD enhancement · fal.ai**; customer Sources: **fal.ai**. Kandinsky 6.0 VSR was considered and left out on request.
+- **ArgoLink video models offer 720p and 1080p only.** 720p renders at 480p and 1080p at 720p, then fal upscales (×1.5, `aigc` preset, 24 fps). MiniMax H3 renders 768p (720p as is, 1080p upscaled). The price is the lower render plus the upscale, e.g. Seedance 2.0 5 s 720p = 1,818 credits instead of 3,321. If the upscale cannot run, the render is delivered and the upscale credits are refunded. Without a fal key, 720p is rendered natively and 1080p is offered only where ArgoLink renders it.
+- Not verified with paid fal requests. Details in `docs/FAL_UPSCALER.md`.
+
 ## 2026-10-12 — Video Upscaler (WaveSpeed)
 
 - New **Upscaler** tab: upscale a finished video (or an uploaded MP4/MOV up to 25 MB) to 1080p, 2K or 4K with ByteDance Video Upscaler on WaveSpeedAI. Every finished video card has an **Upscale** button. Priced per source second ($0.0072 / $0.0144 / $0.0288, at most 600 s) times the WaveSpeed credits-per-USD rate.

@@ -138,3 +138,68 @@ test('the queue saves the request id, resumes polling and refunds failed jobs', 
   assert.equal(queue.apiKey({ argoLinkApiKey: 'z', vercelApiKey: 'v' }), 'z');
   assert.ok(queue.videoTimeoutMs > 45 * 60 * 1000);
 });
+
+test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale refunds only its part', async () => {
+  process.env.APP_URL = 'https://cmmtools.site'; process.env.PROVIDER_ASSET_SECRET = 'test-secret';
+  const { argoVideoView, hdPlan } = require('../src/argo_hd.js');
+  // Display resolutions and their renders.
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', true), { source: '480p', upscale: true });
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '1080p', true), { source: '720p', upscale: true });
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', false), { source: '720p', upscale: false });
+  assert.deepEqual(hdPlan(['480p', '720p'], '1080p', false), null);
+  assert.deepEqual(argoVideoView(model('seedance-2.0'), true).resolutions, ['720p', '1080p']);
+
+  const sql = [];
+  let row = { user_id: 9, status: 'processing', refunded_at: null, credits_cost: 3000 };
+  const conn = { async execute(text, args) { sql.push([text.replace(/\s+/g, ' '), args]); if (text.includes('FOR UPDATE')) return [[row]]; return [{ affectedRows: 1 }]; },
+    beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {} };
+  const qdb = { getConnection: async () => conn, execute: conn.execute };
+  const plan = { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { scale_ratio: 1.5, enhancement_preset: 'aigc', target_fps: 24 }, usd: 0.036 };
+  const options = { model: model('seedance-2.5'), duration: 5, resolution: '720p', sourceResolution: '480p', aspectRatio: '9:16', enhance: { sourceResolution: '480p', upscale: plan, credits: 216 } };
+  const job = { id: 'v1', media_type: 'video', model: 'argo_seedance_2_5', prompt: 'A fox', generation_options: JSON.stringify(options), provider_operation: JSON.stringify({ requestId: 'r1' }) };
+  const falCalls = [];
+  let falState = { state: 'pending' };
+  const fal = { submit: async (path, input) => { falCalls.push([path, input]); return { requestId: 'f1', statusUrl: 'https://queue.fal.run/x/requests/f1/status', responseUrl: 'https://queue.fal.run/x/requests/f1' }; },
+    check: async () => falState, download: async () => ({ data: Buffer.from('ftypHD'), mimeType: 'video/mp4' }) };
+  const { ArgoLinkQueue } = require('../src/argolink_queue.js');
+  const queue = new ArgoLinkQueue({ falFactory: () => fal });
+  queue.settings = { falEnabled: true, falApiKey: 'k' };
+  const argo = { videoStatus: async () => ({ status: 'done' }), videoContent: async () => ({ data: Buffer.from('ftyp480'), mimeType: 'video/mp4' }),
+    startVideo: async (_m, params) => { argo.started = params.resolution; return 'r1'; } };
+
+  // The render is requested at the source resolution.
+  queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true }); queue.references = async () => [];
+  await queue.submit({ execute: async () => [{ affectedRows: 1 }] }, { ...job, status: 'submitting' }, argo);
+  assert.equal(argo.started, '480p');
+
+  // ArgoLink done: render stored, upscale started from the signed link, job stays processing.
+  await queue.pollJob(qdb, argo, job);
+  assert.ok(sql.some(([t]) => t.startsWith('INSERT INTO generation_video_outputs')));
+  assert.ok(!sql.some(([t]) => t.includes("status='completed'")));
+  assert.equal(falCalls[0][0], plan.path);
+  assert.match(falCalls[0][1].video_url, /^https:\/\/cmmtools\.site\/provider-outputs\/v1\?sig=/);
+  assert.equal(falCalls[0][1].scale_ratio, 1.5);
+  const op = JSON.parse(sql.at(-1)[1][0]);
+  assert.deepEqual([op.stage, op.fal.requestId], ['enhance', 'f1']);
+
+  // Upscale done: the upscaled video replaces the render and the job completes.
+  sql.length = 0; falState = { state: 'done', url: 'https://v3.fal.media/hd.mp4' };
+  await queue.pollJob(qdb, argo, { ...job, provider_operation: JSON.stringify(op) });
+  assert.ok(sql.some(([t]) => t.startsWith('DELETE FROM generation_video_chunks')));
+  assert.equal(sql.find(([t]) => t.includes('INSERT INTO generation_video_chunks'))[1][2].toString(), 'ftypHD');
+  assert.ok(sql.some(([t]) => t.includes("SET status='completed',output_url='db:video'")));
+
+  // Upscale failed: the render is delivered and only the 216 upscale credits are refunded.
+  sql.length = 0; falState = { state: 'failed', error: 'busy' };
+  await queue.pollJob(qdb, argo, { ...job, provider_operation: JSON.stringify(op) });
+  const done = sql.find(([t]) => t.includes('credits_cost=credits_cost-?'));
+  assert.equal(done[1][0], 216);
+  assert.match(done[1][1], /original resolution\. 216 credits were refunded\./);
+  assert.deepEqual(sql.find(([t]) => t.startsWith('UPDATE users SET credits'))[1], [216, 9]);
+  assert.equal(sql.find(([t]) => t.includes('INSERT INTO credit_transactions'))[1][2], 216);
+
+  // Without a fal key the render is delivered the same way.
+  sql.length = 0; queue.settings = {};
+  await queue.pollJob(qdb, argo, job);
+  assert.ok(sql.some(([t]) => t.includes('credits_cost=credits_cost-?')));
+});

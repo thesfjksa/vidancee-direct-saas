@@ -24,6 +24,10 @@ Left out: Grok Imagine Image Quality (xAI retires it on 2 November 2026) and Gem
 
 When another source offers a model with the same name (for example SmartAIPI's GPT Image 2 or Nano Banana 2), that source keeps its place and ArgoLink's copy is not shown. ArgoLink's copy is listed before the AI Gateway's. To use ArgoLink's copy, turn the model off in the other source.
 
+## Video resolutions
+
+Video Studio offers ArgoLink models at 720p and 1080p only: 720p is rendered at 480p and 1080p at 720p, then upscaled by fal.ai (HD enhancement). See `docs/FAL_UPSCALER.md`.
+
 ## Pricing
 
 Customer credits = ArgoLink USD price × credits per USD, rounded up.

@@ -1,48 +1,37 @@
 'use strict';
 
-// Video Upscaler: ByteDance Video Upscaler on WaveSpeed. A customer upscales a
-// finished video from their library, or an uploaded clip, to 1080p, 2K or 4K.
-// WaveSpeed bills per second of the source (at most 600 s per job); customers
-// pay that USD amount times the Admin credits-per-USD rate.
+// Upscaler tab: a customer upscales a finished video from their library, or an
+// uploaded clip, to 1080p, 2K or 4K with the ByteDance upscaler on fal.ai.
+// Customers pay fal's USD price times the fal credits-per-USD rate.
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { getPlanProfile } = require('./plans.js');
 const { mp4Seconds } = require('./vercel_models.js');
+const { planUpscale, upscaleCredits, dimensionsFor, mp4Dimensions } = require('./enhance.js');
 
 const UPSCALE_MODEL = 'video_upscaler';
-const RESOLUTIONS = [
-  { id: '1080p', label: '1080p', usdPerSecond: 0.0072 },
-  { id: '2k', label: '2K', usdPerSecond: 0.0144 },
-  { id: '4k', label: '4K', usdPerSecond: 0.0288 },
-];
-const MAX_BILLED_SECONDS = 600;
+const RESOLUTIONS = [{ id: '1080p', label: '1080p' }, { id: '2k', label: '2K' }, { id: '4k', label: '4K' }];
 const UPLOAD_TYPES = ['video/mp4', 'video/quicktime'];
 
 const fail = (message, statusCode = 400) => { throw Object.assign(new Error(message), { statusCode }); };
 
-function upscaleQuote(seconds, resolution, creditsPerUsd) {
+// source: {width, height, seconds}. Returns the fal plan and the customer price.
+function upscaleQuote(source, resolution, creditsPerUsd) {
   const tier = RESOLUTIONS.find(r => r.id === String(resolution || ''));
   if (!tier) fail('Choose 1080p, 2K or 4K.');
-  const length = Number(seconds);
-  if (!Number.isFinite(length) || length <= 0) fail('The video length could not be read.');
-  const billedSeconds = Math.min(MAX_BILLED_SECONDS, Math.ceil(length - 1e-9));
-  const sourceUsd = billedSeconds * tier.usdPerSecond;
-  const factor = Number(creditsPerUsd);
-  if (!Number.isFinite(factor) || factor <= 0) fail('The upscaler price is not configured.', 503);
-  return { resolution: tier.id, billedSeconds, sourceUsd, cost: Math.ceil(sourceUsd * factor - 1e-9) };
+  if (!(Number(source?.seconds) > 0)) fail('The video length could not be read.');
+  if (!(Number(creditsPerUsd) > 0)) fail('The upscaler price is not configured.', 503);
+  const plan = planUpscale(source, tier.id);
+  if (!plan) fail('This video is already ' + tier.label + ' or larger. Choose a higher resolution.');
+  return { resolution: tier.id, plan, sourceUsd: plan.usd, cost: upscaleCredits(plan, creditsPerUsd) };
 }
 
-function publicUpscalerConfig(enabled, creditsPerUsd) {
+function publicUpscalerConfig(enabled) {
   return {
     enabled: Boolean(enabled),
-    maxBilledSeconds: MAX_BILLED_SECONDS,
     uploadTypes: UPLOAD_TYPES,
-    resolutions: RESOLUTIONS.map(r => ({ id: r.id, label: r.label, creditsPerSecond: r.usdPerSecond * Number(creditsPerUsd || 0) })),
+    resolutions: RESOLUTIONS,
   };
-}
-
-function isUpscaleJob(row) {
-  try { return JSON.parse(row?.generation_options || '{}').studio === 'upscale'; } catch { return false; }
 }
 
 // Length of a finished library video: its saved duration, or the MP4 header
@@ -54,8 +43,37 @@ async function sourceSeconds(conn, row) {
   return mp4Seconds(Buffer.concat(chunks.map(c => c.video_data)));
 }
 
+async function libraryVideo(conn, userId, generationId) {
+  const [[row]] = await conn.execute(
+    "SELECT * FROM generations WHERE id=? AND user_id=? AND media_type='video' AND status='completed' AND output_url IS NOT NULL LIMIT 1",
+    [String(generationId || ''), userId]);
+  if (!row) fail('Choose a finished video from your library.', 404);
+  const seconds = await sourceSeconds(conn, row);
+  if (!seconds) fail('The length of this video could not be read.');
+  return { row, source: { ...dimensionsFor(row.resolution, row.aspect_ratio), seconds } };
+}
+
+function uploadedVideo(video) {
+  if (!UPLOAD_TYPES.includes(String(video?.mimeType || ''))) fail('Upload an MP4 or MOV video.');
+  const seconds = mp4Seconds(video.data), size = mp4Dimensions(video.data);
+  if (!seconds || !size) fail('The size or length of this video could not be read. Upload an MP4 or MOV file.');
+  return { ...size, seconds };
+}
+
+// Price shown before submitting: a library video, or an upload's size and length.
+async function quoteForCustomer(userId, body, settings) {
+  const opts = settings.falCustomerCreditsPerUsd;
+  if (body.sourceGenerationId) {
+    const { source } = await libraryVideo(getPool(), userId, body.sourceGenerationId);
+    return upscaleQuote(source, body.resolution, opts);
+  }
+  const source = { width: Number(body.width), height: Number(body.height), seconds: Number(body.seconds) };
+  if (!(source.width > 0 && source.height > 0)) fail('The video size could not be read.');
+  return upscaleQuote(source, body.resolution, opts);
+}
+
 // source: {generationId} for a library video, or {video:{data,mimeType,filename}} for an upload.
-async function createUpscaleJob(userId, { resolution, source }, creditsPerUsd) {
+async function createUpscaleJob(userId, { resolution, source }, settings) {
   const db = getPool();
   const conn = await db.getConnection();
   const id = crypto.randomUUID();
@@ -69,34 +87,27 @@ async function createUpscaleJob(userId, { resolution, source }, creditsPerUsd) {
       fail(plan.code ? plan.name + ' allows up to ' + plan.concurrency + ' simultaneous generations.' : 'Choose a plan to run more than one generation at a time.', 429);
     }
 
-    let seconds, aspectRatio = '16:9', prompt = 'Uploaded video', options = { studio: 'upscale' };
+    let video, aspectRatio = '16:9', prompt = 'Uploaded video', options = { studio: 'upscale' };
     if (source?.generationId) {
-      const [[row]] = await conn.execute(
-        "SELECT * FROM generations WHERE id=? AND user_id=? AND media_type='video' AND status='completed' AND output_url IS NOT NULL LIMIT 1",
-        [String(source.generationId), userId]);
-      if (!row) fail('Choose a finished video from your library.', 404);
-      seconds = await sourceSeconds(conn, row);
-      if (!seconds) fail('The length of this video could not be read.');
-      aspectRatio = row.aspect_ratio || aspectRatio;
-      prompt = String(row.prompt || 'Library video');
-      options.sourceGenerationId = row.id;
+      const found = await libraryVideo(conn, userId, source.generationId);
+      video = found.source;
+      aspectRatio = found.row.aspect_ratio || aspectRatio;
+      prompt = String(found.row.prompt || 'Library video');
+      options.sourceGenerationId = found.row.id;
     } else if (source?.video) {
-      const video = source.video;
-      if (!UPLOAD_TYPES.includes(String(video.mimeType || ''))) fail('Upload an MP4 or MOV video.');
-      seconds = mp4Seconds(video.data);
-      if (!seconds) fail('The length of this video could not be read. Upload an MP4 or MOV file.');
-      prompt = String(video.filename || 'Uploaded video');
+      video = uploadedVideo(source.video);
+      prompt = String(source.video.filename || 'Uploaded video');
     } else fail('Choose a video to upscale.');
 
-    const quote = upscaleQuote(seconds, resolution, creditsPerUsd);
+    const quote = upscaleQuote(video, resolution, settings.falCustomerCreditsPerUsd);
     if (Number(user.credits) < quote.cost) fail('Not enough credits.', 402);
-    options = { ...options, targetResolution: quote.resolution, sourceSeconds: Math.round(seconds * 100) / 100 };
+    options = { ...options, targetResolution: quote.resolution, sourceSeconds: Math.round(video.seconds * 100) / 100, upscale: quote.plan };
 
     await conn.execute(
       `INSERT INTO generations
        (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit, generation_options)
-       VALUES (?, ?, 'wavespeed', ?, 'upscale', ?, ?, ?, ?, ?, 'queued', ?, ?, 'usd', ?)`,
-      [id, userId, plan.queuePriority, UPSCALE_MODEL, quote.billedSeconds, quote.resolution, aspectRatio, prompt.slice(0, 4000),
+       VALUES (?, ?, 'fal', ?, 'upscale', ?, ?, ?, ?, ?, 'queued', ?, ?, 'usd', ?)`,
+      [id, userId, plan.queuePriority, UPSCALE_MODEL, Math.ceil(video.seconds - 1e-9), quote.resolution, aspectRatio, prompt.slice(0, 4000),
         quote.cost, quote.sourceUsd, JSON.stringify(options)]);
     if (source?.video) {
       await conn.execute(
@@ -117,4 +128,4 @@ async function createUpscaleJob(userId, { resolution, source }, creditsPerUsd) {
   return rows[0];
 }
 
-module.exports = { UPSCALE_MODEL, RESOLUTIONS, MAX_BILLED_SECONDS, UPLOAD_TYPES, upscaleQuote, publicUpscalerConfig, isUpscaleJob, sourceSeconds, createUpscaleJob };
+module.exports = { UPSCALE_MODEL, RESOLUTIONS, UPLOAD_TYPES, upscaleQuote, publicUpscalerConfig, sourceSeconds, quoteForCustomer, createUpscaleJob };

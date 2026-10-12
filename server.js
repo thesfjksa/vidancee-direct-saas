@@ -108,12 +108,13 @@ const {
   migrateLegacyProviderEnvSettings,
 } = require('./src/settings.js');
 const { verifyAssetSignature, verifyOutputSignature } = require('./src/provider/assets.js');
-const { createUpscaleJob, publicUpscalerConfig } = require('./src/upscaler.js');
-const { WaveSpeedClient } = require('./src/provider/wavespeed.js');
+const { createUpscaleJob, publicUpscalerConfig, quoteForCustomer } = require('./src/upscaler.js');
+const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
+const { argoVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -328,7 +329,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','wavespeed'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','fal'];
 function defaultCustomerProviderAccess(){
   const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
   access.vibi=false;
@@ -493,9 +494,11 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const id=providerOutputMatch[1];
       if(!verifyOutputSignature(id,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
-      const [[row]]=await getPool().execute("SELECT id,output_url,poster_url FROM generations WHERE id=? AND media_type='video' AND status='completed' LIMIT 1",[id]);
-      if(!row?.output_url)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
-      if(row.output_url==='db:video'){
+      // Also serves a stored video before its job completes: ArgoLink HD
+      // enhancement hands its first render to the upscaler this way.
+      const [[row]]=await getPool().execute("SELECT g.id,g.output_url,g.poster_url,o.generation_id AS stored FROM generations g LEFT JOIN generation_video_outputs o ON o.generation_id=g.id WHERE g.id=? AND g.media_type='video' LIMIT 1",[id]);
+      if(!row?.stored&&!row?.output_url)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
+      if(row.stored){
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
@@ -575,7 +578,7 @@ const server=http.createServer(async (req,res)=>{
       let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
       let cartoonEnabled=false;
-      let upscalerConfig=publicUpscalerConfig(false,0);
+      let upscalerConfig=publicUpscalerConfig(false);
 
       if (dbConfigured()) {
         try {
@@ -607,13 +610,14 @@ const server=http.createServer(async (req,res)=>{
           }
 
           if(customerProviderAccess.argolink && providerSettings.argolink.active){
-            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd});
+            const hd=falReady(await getProviderSettings());
+            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd)});
             videoPricing=catalog.video;
             imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
-          if (customerProviderAccess.wavespeed && providerSettings.wavespeed.active) {
-            upscalerConfig=publicUpscalerConfig(true,providerSettings.wavespeed.customerCreditsPerUsd);
+          if (customerProviderAccess.fal && providerSettings.fal.active) {
+            upscalerConfig=publicUpscalerConfig(true);
           }
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
@@ -688,7 +692,7 @@ const server=http.createServer(async (req,res)=>{
         if(!costAccess.argolink||!providerSettings.argolink.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
         const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
         if(!model?.ready)return sendJson(res,404,{ok:false,error:'This model is currently unavailable.'});
-        const quote=quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
+        const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
         return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
       }
       if(isGatewayModel(body.model)){
@@ -1101,9 +1105,10 @@ const server=http.createServer(async (req,res)=>{
         const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
         if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
         validateReferences(model,body);
-        const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
+        // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
+        const quote=quoteArgoVideo(model,body,providerSettings);
         generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
-          defaultResolution:model.defaultResolution,referenceCapabilities:model.referenceCapabilities,
+          defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
           costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
         });
       }
@@ -1143,18 +1148,28 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
     }
 
+    if (req.method==='POST' && routePath==='/api/upscales/quote') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const settings=await getProviderSettings();
+      const access=await getUserProviderAccess(user.id);
+      if (!access.fal || !settings.falEnabled || !settings.falApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
+      const quote=await quoteForCustomer(user.id,await readJson(req),settings);
+      return sendJson(res,200,{ok:true,cost:quote.cost});
+    }
+
     if (req.method==='POST' && routePath==='/api/upscales') {
       requireDatabase();
       const user=await requireUser(req);
       const settings=await getProviderSettings();
       if (!settings.allowProviderCharges) return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
       const access=await getUserProviderAccess(user.id);
-      if (!access.wavespeed || !settings.waveSpeedEnabled || !settings.waveSpeedApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
+      if (!access.fal || !settings.falEnabled || !settings.falApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
       const body=await readGenerationRequest(req);
       const video=Array.isArray(body.videos)?body.videos[0]:null;
       const sourceId=String(body.sourceGenerationId||'');
       if (video && sourceId) return sendJson(res,400,{ok:false,error:'Choose either a library video or an upload.'});
-      const row=await createUpscaleJob(user.id,{resolution:body.resolution,source:video?{video}:{generationId:sourceId}},settings.waveSpeedCustomerCreditsPerUsd);
+      const row=await createUpscaleJob(user.id,{resolution:body.resolution,source:video?{video}:{generationId:sourceId}},settings);
       wakeGenerationWorker(req);
       const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation:serializeGeneration(row),user:userPayload(users[0])});
@@ -1277,10 +1292,10 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vercel',mediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
-      if(req.method==='POST'&&routePath==='/admin/wavespeed/check'){
+      if(req.method==='POST'&&routePath==='/admin/fal/check'){
         requireDatabase();const s=await getProviderSettings();
-        const balance=await new WaveSpeedClient({apiKey:s.waveSpeedApiKey}).balance();
-        return sendJson(res,200,{ok:true,balance});
+        await new FalClient({apiKey:s.falApiKey}).verifyKey();
+        return sendJson(res,200,{ok:true});
       }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();
@@ -1396,7 +1411,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.configured,
             vercel:providerSettings.vercel.configured,
             argolink:providerSettings.argolink.configured,
-            wavespeed:providerSettings.wavespeed.configured,
+            fal:providerSettings.fal.configured,
           },
           providerEnabled:{
             vidancee:providerSettings.vidancee.enabled,
@@ -1406,7 +1421,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
-            wavespeed:providerSettings.wavespeed.enabled,
+            fal:providerSettings.fal.enabled,
           },
           providerActive:{
             vidancee:providerSettings.vidancee.active,
@@ -1416,7 +1431,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
-            wavespeed:providerSettings.wavespeed.active,
+            fal:providerSettings.fal.active,
           },
           routing:providerSettings.routing,
           createPulseMaxInflight:providerSettings.createpulse.maxInflight,
@@ -1425,7 +1440,7 @@ const server=http.createServer(async (req,res)=>{
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
-          waveSpeedMaxInflight:providerSettings.wavespeed.maxInflight,
+          falMaxInflight:providerSettings.fal.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
           generationEnabled:providerSettings.allowProviderCharges,

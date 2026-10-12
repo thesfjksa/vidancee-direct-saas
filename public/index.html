@@ -2824,7 +2824,7 @@ function jobCard(g){
 }
 
 // ---------- Upscaler ----------
-let upscaleSource='library',upscaleFile=null,upscaleFileSeconds=0;
+let upscaleSource='library',upscaleFile=null,upscaleFileInfo=null,upscaleQuoteToken=0;
 function upscaleLabel(id){return (config?.upscaler?.resolutions||[]).find(r=>r.id===id)?.label||String(id||'').toUpperCase()}
 function renderUpscalerConfig(){
   const cfg=config?.upscaler,enabled=Boolean(cfg?.enabled);
@@ -2855,7 +2855,7 @@ function setUpscaleSource(kind){
 }
 function setUpscaleFile(files){
   const file=files?.[0],info=$('upscaleFileInfo'),m=$('upscaleMsg');
-  upscaleFile=null;upscaleFileSeconds=0;info.textContent='';m.textContent='';
+  upscaleFile=null;upscaleFileInfo=null;info.textContent='';m.textContent='';
   $('upscaleFileInput').value='';
   if(file){
     if(!['video/mp4','video/quicktime'].includes(file.type)){m.className='msg err';m.textContent='Use an MP4 or MOV video.';}
@@ -2863,23 +2863,28 @@ function setUpscaleFile(files){
     else{
       const url=URL.createObjectURL(file),probe=document.createElement('video');
       probe.preload='metadata';
-      probe.onloadedmetadata=()=>{upscaleFile=file;upscaleFileSeconds=Number(probe.duration)||0;URL.revokeObjectURL(url);
-        info.textContent=file.name+' · '+(upscaleFileSeconds?Math.round(upscaleFileSeconds*10)/10+'s':'length unknown');updateUpscaleCost();};
+      probe.onloadedmetadata=()=>{upscaleFile=file;URL.revokeObjectURL(url);
+        upscaleFileInfo={width:probe.videoWidth,height:probe.videoHeight,seconds:Number(probe.duration)||0};
+        info.textContent=file.name+' · '+(probe.videoHeight?probe.videoHeight+'p · ':'')+(upscaleFileInfo.seconds?Math.round(upscaleFileInfo.seconds*10)/10+'s':'length unknown');updateUpscaleCost();};
       probe.onerror=()=>{upscaleFile=file;URL.revokeObjectURL(url);info.textContent=file.name;updateUpscaleCost();};
       probe.src=url;
     }
   }
   updateUpscaleCost();
 }
-function upscaleSeconds(){
-  if(upscaleSource==='upload')return upscaleFileSeconds;
-  return Number(findGeneration($('upscaleVideo').value)?.duration||0);
-}
-function updateUpscaleCost(){
-  const tier=(config?.upscaler?.resolutions||[]).find(r=>r.id===$('upscaleResolution').value),seconds=upscaleSeconds();
-  const billed=Math.min(config?.upscaler?.maxBilledSeconds||600,Math.ceil(seconds-1e-9));
-  $('upscaleCost').textContent=tier&&seconds>0?Math.ceil(billed*tier.creditsPerSecond-1e-9):'—';
+// The price comes from the server, which plans the same fal request it will send.
+async function updateUpscaleCost(){
   syncCustomSelect('upscaleResolution');syncCustomSelect('upscaleVideo');
+  const cost=$('upscaleCost'),m=$('upscaleMsg'),token=++upscaleQuoteToken,resolution=$('upscaleResolution').value;
+  let body=null;
+  if(upscaleSource==='upload'&&upscaleFileInfo?.width)body={...upscaleFileInfo,resolution};
+  if(upscaleSource==='library'&&$('upscaleVideo').value)body={sourceGenerationId:$('upscaleVideo').value,resolution};
+  cost.textContent='—';
+  if(!body||!resolution)return;
+  try{
+    const d=await api('/api/upscales/quote',{method:'POST',body:JSON.stringify(body)});
+    if(token===upscaleQuoteToken){cost.textContent=d.cost;if(m.classList.contains('err'))m.textContent='';}
+  }catch(e){if(token===upscaleQuoteToken){m.className='msg err';m.textContent=e.message;}}
 }
 function startUpscale(id){
   go('upscaler');setUpscaleSource('library');

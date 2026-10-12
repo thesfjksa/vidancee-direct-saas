@@ -156,17 +156,17 @@
           <div id="vercelActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
-          <div class="source-head"><h3>Upscaler · WaveSpeed</h3><label class="source-switch"><input id="waveEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
-          <div id="waveEnabledText" class="source-state"></div>
-          <div class="muted">ByteDance Video Upscaler · https://api.wavespeed.ai</div>
-          <label class="muted" for="waveApiKey">WaveSpeed API key</label><input id="waveApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearWaveApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
-          <div id="waveSecretStatus" class="muted" style="margin-top:8px"></div>
-          <label class="muted" for="waveInflight" style="display:block;margin-top:12px">Max inflight upscales</label><input id="waveInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
-          <label class="muted" for="waveCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="waveCreditsPerUsd" type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
-          <div class="muted" style="margin:10px 0">WaveSpeed charges per second of the source: 1080p $0.0072, 2K $0.0144, 4K $0.0288 (at most 600 s per job).</div>
-          <button class="secondary" onclick="checkWave()">Check saved key</button>
-          <div id="waveActionMsg" class="muted" style="margin-top:10px"></div>
+          <div class="source-head"><h3>Upscaler + HD enhancement · fal.ai</h3><label class="source-switch"><input id="falEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="falEnabledText" class="source-state"></div>
+          <div class="muted">ByteDance Video Upscaler · fal-ai/bytedance-upscaler</div>
+          <label class="muted" for="falApiKey">fal.ai API key</label><input id="falApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearFalApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="falSecretStatus" class="muted" style="margin-top:8px"></div>
+          <label class="muted" for="falInflight" style="display:block;margin-top:12px">Max inflight upscales</label><input id="falInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
+          <label class="muted" for="falCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="falCreditsPerUsd" type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin:10px 0">fal charges per second: up to 1080p $0.0072, 2K $0.0144, 4K $0.0288. Also used for Video Studio 720p and 1080p (ArgoLink renders lower and fal upscales).</div>
+          <button class="secondary" onclick="checkFal()">Check saved key</button>
+          <div id="falActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
           <div class="source-head">
@@ -229,7 +229,7 @@
       <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Cartoon Studio · Seedance (overflow)</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>SmartAIPI</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessSmartaipi" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>WaveSpeed</strong><span class="muted">Video Upscaler</span></div><span class="source-switch"><input id="accessWavespeed" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>fal.ai</strong><span class="muted">Upscaler tab</span></div><span class="source-switch"><input id="accessFal" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Voice Studio</strong><span class="muted">Voice generation source</span></div><span class="source-switch"><input id="accessVibi" type="checkbox"><span class="source-switch-track"></span></span></label>
     </div>
     <div id="providerAccessMsg" class="muted"></div>
@@ -282,7 +282,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['argolink','ArgoLink'],['wavespeed','Upscaler'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['argolink','ArgoLink'],['fal','Upscaler'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -297,7 +297,7 @@ function openProviderAccess(id){
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
   $('accessArgolink').checked=a.argolink!==false;
-  $('accessWavespeed').checked=a.wavespeed!==false;
+  $('accessFal').checked=a.fal!==false;
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessCreatepulse').checked=a.createpulse!==false;
   $('accessVgenv').checked=a.vgenv!==false;
@@ -313,7 +313,7 @@ async function saveProviderAccess(){
   const providers={
     vercel:$('accessVercel').checked,
     argolink:$('accessArgolink').checked,
-    wavespeed:$('accessWavespeed').checked,
+    fal:$('accessFal').checked,
     vidancee:$('accessVidancee').checked,
     createpulse:$('accessCreatepulse').checked,
     vgenv:$('accessVgenv').checked,
@@ -374,7 +374,7 @@ function updateSourceSwitchLabels(){
     ['vgenvEnabled','vgenvEnabledText'],
     ['vercelEnabled','vercelEnabledText'],
     ['argoEnabled','argoEnabledText'],
-    ['waveEnabled','waveEnabledText'],
+    ['falEnabled','falEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
   for(const [inputId,textId] of items){
@@ -406,11 +406,11 @@ async function loadProviderSettings(){try{
   $('argoInflight').value=s.argolink?.maxInflight||3;
   $('argoCreditsPerUsd').value=s.argolink?.customerCreditsPerUsd||(160/0.0265);
   loadArgoModels();
-  $('waveEnabled').checked=s.wavespeed?.enabled!==false;
-  $('waveApiKey').value='';$('clearWaveApiKey').checked=false;
-  $('waveSecretStatus').textContent=s.wavespeed?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
-  $('waveInflight').value=s.wavespeed?.maxInflight||3;
-  $('waveCreditsPerUsd').value=s.wavespeed?.customerCreditsPerUsd||(160/0.0265);
+  $('falEnabled').checked=s.fal?.enabled!==false;
+  $('falApiKey').value='';$('clearFalApiKey').checked=false;
+  $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('falInflight').value=s.fal?.maxInflight||3;
+  $('falCreditsPerUsd').value=s.fal?.customerCreditsPerUsd||(160/0.0265);
   $('vibiEnabled').checked=s.vibi?.enabled!==false;
   updateSourceSwitchLabels();
   $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
@@ -438,7 +438,7 @@ async function saveProviderSettings(){
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
-    waveSpeedEnabled:$('waveEnabled').checked,waveSpeedApiKey:$('waveApiKey').value.trim(),clearWaveSpeedApiKey:$('clearWaveApiKey').checked,waveSpeedMaxInflight:Number($('waveInflight').value),waveSpeedCustomerCreditsPerUsd:Number($('waveCreditsPerUsd').value),
+    falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
   };
@@ -446,9 +446,9 @@ async function saveProviderSettings(){
 }
 
 let vercelModels=[],argoModels=[];
-async function checkWave(){
-  const msg=$('waveActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
-  try{const d=await api('/admin/wavespeed/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.balance?'Connected · $'+d.balance.remaining+' available':'Connected · balance not reported';}
+async function checkFal(){
+  const msg=$('falActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  try{await api('/admin/fal/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · fal.ai accepted the key';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function checkArgo(){

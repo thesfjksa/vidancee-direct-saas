@@ -386,9 +386,12 @@ function addMissingImageModels(list, extra) {
   return [...list, ...extra.filter(model => !taken.has(key(model)))];
 }
 
-async function publicProviderCatalog(provider, { creditsPerUsd } = {}) {
+// transform (optional) adjusts each model before it is published, e.g. the
+// 720p/1080p view of ArgoLink video models.
+async function publicProviderCatalog(provider, { creditsPerUsd, transform } = {}) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
-    .filter(isPlausibleCustomerModel).filter(model=>!isPricedSource(provider)||model.ready);
+    .filter(isPlausibleCustomerModel).filter(model=>!isPricedSource(provider)||model.ready)
+    .map(model => transform ? transform(model) : model).filter(model => model.mediaType !== 'video' || model.resolutions.length);
   const withCosts = model => isPricedSource(provider) && creditsPerUsd
     ? { ...publicImageModel(model), ...imageCostTable(model,creditsPerUsd) } : publicImageModel(model);
   return {
