@@ -1,10 +1,10 @@
 'use strict';
 
-// Video Studio offers ArgoLink models at 720p and 1080p only. With fal.ai
-// configured, 720p is rendered at 480p and 1080p at 720p, then upscaled by
-// fal (HD enhancement); a model without those renders uses its nearest native
-// size. Without fal, a resolution is offered only if the model renders it
-// natively.
+// Video Studio offers ArgoLink models at 720p and 1080p only. 720p is always
+// rendered natively: upscaling a 480p render damaged small text and textures
+// (tested 12 October 2026). With fal.ai configured, 1080p is rendered at 720p
+// (or MiniMax H3's 768p) and upscaled by fal (HD enhancement). Without fal,
+// 1080p is offered only if the model renders it natively.
 const { quoteGateway } = require('./vercel_models.js');
 const { planUpscale, upscaleCredits, dimensionsFor, SHORT_SIDE } = require('./enhance.js');
 
@@ -18,7 +18,6 @@ function hdPlan(nativeResolutions, display, withFal) {
   const native = [...nativeResolutions].filter(r => SHORT_SIDE[r]).sort((a, b) => SHORT_SIDE[a] - SHORT_SIDE[b]);
   const has = r => native.includes(r);
   if (display === '720p') {
-    if (withFal && has('480p')) return { source: '480p', upscale: true };
     const near = native.find(r => SHORT_SIDE[r] >= 720 && SHORT_SIDE[r] < 1080);
     return near ? { source: near, upscale: false } : null;
   }
@@ -53,7 +52,7 @@ function quoteArgoVideo(model, body, settings) {
   let enhance = null, extraUsd = 0, extraCredits = 0;
   if (plan.upscale) {
     const ratio = render.aspectRatio === 'adaptive' ? '16:9' : render.aspectRatio;
-    const upscale = planUpscale({ ...dimensionsFor(plan.source, ratio), seconds: render.duration }, display, { preset: 'aigc', fps: 24 });
+    const upscale = planUpscale({ ...dimensionsFor(plan.source, ratio), seconds: render.duration }, display, { preset: 'general', fps: 24 });
     if (upscale) {
       extraUsd = upscale.usd;
       extraCredits = upscaleCredits(upscale, settings.falCustomerCreditsPerUsd);

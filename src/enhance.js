@@ -26,7 +26,8 @@ function planUpscale({ width, height, seconds }, target, { preset = 'general', f
   const input = {
     // Named tiers where fal has them; 720p is reached with a scale ratio.
     ...(['1080p', '2k', '4k'].includes(target) ? { target_resolution: target } : { scale_ratio: Math.max(1.1, Math.round(targetShort / short * 1000) / 1000) }),
-    enhancement_preset: preset, ...(fps ? { target_fps: fps } : {}),
+    // 'high' fidelity is the mildest setting: it keeps texture close to the source.
+    enhancement_preset: preset, fidelity: 'high', ...(fps ? { target_fps: fps } : {}),
   };
   return { path: FAL_UPSCALER.path, input, usd: Math.ceil(seconds - 1e-9) * BYTEDANCE_USD[tier], target };
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — 720p rendered natively again
+
+- The first HD-enhanced 720p video (rendered at 480p, upscaled ×1.5) came back at 1296×744 with mangled small text and waxy textures. 720p is now always rendered natively by ArgoLink (its native price). 1080p is still a 720p render upscaled by fal, now with `target_resolution: 1080p` (an exact 1080p frame), the `general` preset and `fidelity: high`, the mildest enhancement. Not yet checked on a paid 1080p job.
+
 ## 2026-10-12 — fal.ai upscaling; ArgoLink 720p/1080p with HD enhancement
 
 - **WaveSpeed removed.** The Upscaler tab now runs the ByteDance Video Upscaler on fal.ai (same prices: $0.0072 / $0.0144 / $0.0288 per second for 1080p / 2K / 4K). Prices come from the server (`POST /api/upscales/quote`), and a video already at the chosen size is refused. Admin card: **Upscaler + HD enhancement · fal.ai**; customer Sources: **fal.ai**. Kandinsky 6.0 VSR was considered and left out on request.

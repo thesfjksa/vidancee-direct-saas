@@ -143,7 +143,8 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   process.env.APP_URL = 'https://cmmtools.site'; process.env.PROVIDER_ASSET_SECRET = 'test-secret';
   const { argoVideoView, hdPlan } = require('../src/argo_hd.js');
   // Display resolutions and their renders.
-  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', true), { source: '480p', upscale: true });
+  // 720p is always rendered natively: a 480p render upscaled to 720p damaged small text.
+  assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', true), { source: '720p', upscale: false });
   assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '1080p', true), { source: '720p', upscale: true });
   assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', false), { source: '720p', upscale: false });
   assert.deepEqual(hdPlan(['480p', '720p'], '1080p', false), null);
@@ -154,8 +155,8 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   const conn = { async execute(text, args) { sql.push([text.replace(/\s+/g, ' '), args]); if (text.includes('FOR UPDATE')) return [[row]]; return [{ affectedRows: 1 }]; },
     beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {} };
   const qdb = { getConnection: async () => conn, execute: conn.execute };
-  const plan = { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { scale_ratio: 1.5, enhancement_preset: 'aigc', target_fps: 24 }, usd: 0.036 };
-  const options = { model: model('seedance-2.5'), duration: 5, resolution: '720p', sourceResolution: '480p', aspectRatio: '9:16', enhance: { sourceResolution: '480p', upscale: plan, credits: 216 } };
+  const plan = { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { target_resolution: '1080p', enhancement_preset: 'general', fidelity: 'high', target_fps: 24 }, usd: 0.036 };
+  const options = { model: model('seedance-2.5'), duration: 5, resolution: '1080p', sourceResolution: '720p', aspectRatio: '9:16', enhance: { sourceResolution: '720p', upscale: plan, credits: 216 } };
   const job = { id: 'v1', media_type: 'video', model: 'argo_seedance_2_5', prompt: 'A fox', generation_options: JSON.stringify(options), provider_operation: JSON.stringify({ requestId: 'r1' }) };
   const falCalls = [];
   let falState = { state: 'pending' };
@@ -170,7 +171,7 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   // The render is requested at the source resolution.
   queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true }); queue.references = async () => [];
   await queue.submit({ execute: async () => [{ affectedRows: 1 }] }, { ...job, status: 'submitting' }, argo);
-  assert.equal(argo.started, '480p');
+  assert.equal(argo.started, '720p');
 
   // ArgoLink done: render stored, upscale started from the signed link, job stays processing.
   await queue.pollJob(qdb, argo, job);
@@ -178,7 +179,7 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   assert.ok(!sql.some(([t]) => t.includes("status='completed'")));
   assert.equal(falCalls[0][0], plan.path);
   assert.match(falCalls[0][1].video_url, /^https:\/\/cmmtools\.site\/provider-outputs\/v1\?sig=/);
-  assert.equal(falCalls[0][1].scale_ratio, 1.5);
+  assert.equal(falCalls[0][1].target_resolution, '1080p');
   const op = JSON.parse(sql.at(-1)[1][0]);
   assert.deepEqual([op.stage, op.fal.requestId], ['enhance', 'f1']);
 

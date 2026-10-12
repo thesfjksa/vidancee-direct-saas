@@ -23,7 +23,7 @@ function mp4(seconds, width = 1280, height = 720) {
 test('upscales use the ByteDance upscaler on fal, priced per second by output tier', () => {
   const hd = { width: 1280, height: 720, seconds: 10 };
   assert.deepEqual(upscaleQuote(hd, '1080p', 1000), { resolution: '1080p', sourceUsd: 0.072, cost: 72,
-    plan: { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { target_resolution: '1080p', enhancement_preset: 'general' }, usd: 0.072, target: '1080p' } });
+    plan: { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { target_resolution: '1080p', enhancement_preset: 'general', fidelity: 'high' }, usd: 0.072, target: '1080p' } });
   assert.equal(upscaleQuote(hd, '2k', 1000).cost, 144);
   assert.equal(upscaleQuote(hd, '4k', 1000).cost, 288);
   assert.equal(upscaleQuote({ ...hd, seconds: 5.2 }, '1080p', 1000).cost, 44); // part seconds round up
@@ -31,7 +31,7 @@ test('upscales use the ByteDance upscaler on fal, priced per second by output ti
   assert.throws(() => upscaleQuote(hd, '8k', 1000), /1080p, 2K or 4K/);
   assert.throws(() => upscaleQuote({ ...hd, seconds: 0 }, '4k', 1000), /length could not be read/);
   // 720p is reached with a scale ratio; the planner keeps 24 fps for ArgoLink renders.
-  assert.deepEqual(planUpscale({ width: 854, height: 480, seconds: 5 }, '720p', { preset: 'aigc', fps: 24 }).input, { scale_ratio: 1.5, enhancement_preset: 'aigc', target_fps: 24 });
+  assert.deepEqual(planUpscale({ width: 1280, height: 720, seconds: 5 }, '1080p', { fps: 24 }).input, { target_resolution: '1080p', enhancement_preset: 'general', fidelity: 'high', target_fps: 24 });
   assert.equal(planUpscale({ width: 1366, height: 768, seconds: 5 }, '720p'), null);
   assert.deepEqual(mp4Dimensions(mp4(3, 960, 540)), { width: 960, height: 540 });
   assert.deepEqual(publicUpscalerConfig(true).resolutions.map(r => r.id), ['1080p', '2k', '4k']);

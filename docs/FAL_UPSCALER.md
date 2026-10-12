@@ -14,12 +14,12 @@ ArgoLink video models are offered at **720p** and **1080p** only.
 
 | Customer picks | ArgoLink renders | fal upscale |
 | --- | --- | --- |
-| 720p | 480p | ×1.5 to 720p (`scale_ratio`) |
-| 1080p | 720p | to 1080p (`scale_ratio` 1.5) |
-| MiniMax H3 720p | 768p (its smallest) | none |
-| MiniMax H3 1080p | 768p | to 1080p (`target_resolution`) |
+| 720p | 720p (768p on MiniMax H3) | none |
+| 1080p | 720p (768p on MiniMax H3) | to 1080p (`target_resolution`) |
 
-The upscale uses the `aigc` preset at 24 fps. Customer price = ArgoLink's price for the render × ArgoLink credits per USD + fal's price × fal credits per USD. Example at the default rates: Seedance 2.0, 5 s, 720p = 1,600 + 218 = 1,818 credits (rendering 720p natively would be 3,321).
+720p used to be rendered at 480p and upscaled ×1.5. The first real job (12 October 2026, Seedance, 5 s) came back at 1296×744 with mangled small text and waxy textures: a 480p render lacks the detail to rebuild, so the upscaler invents it. 720p is now always rendered natively.
+
+The 1080p upscale uses the `general` preset, `fidelity: high` (the mildest enhancement) and 24 fps. Customer price = ArgoLink's price for the 720p render × ArgoLink credits per USD + fal's price ($0.0072/s) × fal credits per USD. Example at the default rates: Seedance 2.0, 5 s, 1080p = 3,321 + 218 = 3,539 credits.
 
 Flow (`src/argolink_queue.js`): ArgoLink renders → the render is stored → fal downloads it from a signed `/provider-outputs/{id}` link → the upscaled video replaces the render and the job completes. If fal is not configured, cannot start, or fails, the job completes with the render, its message says HD enhancement could not be applied, and the upscale part of the price is refunded.
 
