@@ -327,3 +327,16 @@ Web health `services.queueRevision=1` identifies the non-blocking wake implement
 Keep both applications on CommonJS and Node 20 or later. No new SDK dependency or Node runtime change is required. Startup adds `generations.provider_operation`, `generations.generation_options`, `provider_models.price_override` and the chunked video-output tables. Both processes seed the initial public media catalog when no Vercel entries exist; a catalog-seeding error does not stop existing provider queues. Configure the encrypted API key in Admin after deployment. Alternatively `AI_GATEWAY_API_KEY` is imported once when no saved key exists.
 
 Verify web `services.mediaGatewayRevision=1`, worker `revision=5` and the `gatewayPolling` timestamps. `gatewayPolling.sourceReady=false` is expected until an API key is saved, the source is enabled and generation submissions are enabled. Catalog presence and HTTP health do not prove paid generation or account quota.
+
+## Moving to a new domain (cmmtools.site)
+
+The customer app can move to `https://cmmtools.site` while `ai.mehroz.online` keeps working during the switch. The worker can stay at `worker.mehroz.online` or move to `worker.cmmtools.site`.
+
+1. In hPanel, connect `cmmtools.site` (and optionally `www.cmmtools.site`) to the existing **web** Node.js app, and wait for its SSL certificate. Optionally add `worker.cmmtools.site` to the **worker** app.
+2. Web app environment: set `APP_URL=https://cmmtools.site`. If the worker moved, set `WORKER_WAKE_URL=https://worker.cmmtools.site/live` (otherwise the default `worker.mehroz.online` is used; `cmmtools.site` is a recognised production host). Set `CANONICAL_URL=https://cmmtools.site` once the new domain loads, so `/` and `/admin-console` on the old domain redirect (301) to the new one.
+3. Worker app environment: set `APP_URL=https://cmmtools.site` (it builds the signed reference-image links that CreatePulse and other providers download).
+4. Redeploy both apps. Keep `ADMIN_TOKEN` and `PROVIDER_ASSET_SECRET` unchanged, or links already handed to providers stop verifying.
+5. Higgsfield: Admin → Provider → Higgsfield → Connect / Reconnect, so its OAuth return address uses the new domain.
+6. Keep `ai.mehroz.online` connected for at least a few days. Provider image links, API calls, `/health` and `/live` are never redirected, so jobs already submitted with the old address finish normally.
+
+Customers sign in again once on the new domain (login cookies belong to a domain). The Admin token is re-entered once for the same reason. The database, credits, images and videos are shared, so nothing else moves.

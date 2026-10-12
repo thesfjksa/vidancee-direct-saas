@@ -60,7 +60,8 @@ function wakeGenerationWorker(req) {
   // The default belongs only to this production deployment; other deployments
   // must explicitly configure their own standalone worker's health endpoint.
   const origin=String(process.env.APP_URL||'').toLowerCase().replace(/\/$/,'');
-  if(process.env.WORKER_WAKE_URL===undefined && host!=='ai.mehroz.online' && origin!=='https://ai.mehroz.online')return;
+  const productionHosts=['ai.mehroz.online','cmmtools.site','www.cmmtools.site'];
+  if(process.env.WORKER_WAKE_URL===undefined && !productionHosts.includes(host) && !productionHosts.some(h=>origin==='https://'+h))return;
   void workerWakeup.wake().then(result=>{
     if(!result.ok&&!result.skipped)console.warn('[worker-wakeup]',result.error);
   });
@@ -185,6 +186,21 @@ function sendHtml(res, status, body) {
   });
   res.end(body);
 }
+// After a domain move, CANONICAL_URL (for example https://cmmtools.site) sends
+// people who open the old address to the same page on the new one. Provider
+// downloads, health checks, OAuth callbacks and API calls are never redirected,
+// so jobs and integrations that still use the old address keep working.
+function canonicalRedirect(req,routePath,url) {
+  const target=String(process.env.CANONICAL_URL||'').trim().replace(/\/$/,'');
+  if(!target||!['GET','HEAD'].includes(req.method))return null;
+  let canonicalHost;
+  try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
+  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').split(',')[0].trim().toLowerCase();
+  if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
+  if(!['/','/admin-console'].includes(routePath))return null;
+  return target+url.pathname+url.search;
+}
+
 function publicOrigin(req) {
   const configured = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
   if (configured) return configured;
@@ -442,6 +458,8 @@ const server=http.createServer(async (req,res)=>{
   res.once('finish',()=>diagnostics.recordRequest(req.method,req.url,performance.now()-requestStarted,res.statusCode));
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
   const routePath = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
+  const canonical=canonicalRedirect(req,routePath,url);
+  if(canonical){res.writeHead(301,{location:canonical,'cache-control':'no-store'});return res.end();}
 
   try {
     const studioAssets={

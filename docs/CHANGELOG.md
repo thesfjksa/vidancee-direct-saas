@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — Ready for cmmtools.site
+
+- `cmmtools.site` and `www.cmmtools.site` are recognised production hosts for waking the worker. New optional `CANONICAL_URL` setting: the old domain's `/` and `/admin-console` redirect (301) to the same page on the new domain; provider image links, API calls, OAuth callbacks, `/health` and `/live` are not redirected. Steps are in `docs/HPANEL_DEPLOYMENT.md` ("Moving to a new domain"). Nothing changes until the settings are made in hPanel.
+
 ## 2026-10-12 — AI Gateway Seedance 2.x priced from video tokens
 
 - Seedance 2.5, 2.0, 2.0 Fast and 2.0 Mini on the AI Gateway are billed by video tokens and stayed hidden without an Admin price. They are now quoted from the catalog's token rates using ByteDance's count of width x height x fps / 1024 tokens per second (720p 16:9 at 24 fps = 21,600 tokens/s). Without video input the output is billed at the higher rate; with reference videos, input and output tokens are billed at the reduced rate, and each clip's length is read from its MP4 header (the longest allowed clip is assumed if it cannot be read). Quotes are marked as estimates because minimum token floors are not published. Examples: Seedance 2.5 10 s 720p 16:9 = 2.31 USD; Seedance 2.0 Fast 10 s 720p = 1.21 USD. An Admin per-second price still overrides.

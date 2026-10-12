@@ -131,3 +131,4 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   assert.equal(diag.boots[0].service, 'web');
   assert.equal((await fetch(origin + '/admin/diagnostics')).status, 401);
 });
+
