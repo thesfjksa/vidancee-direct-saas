@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12 — One MiniMax H3 in Video Studio
+
+- The AI Gateway's MiniMax H3 is hidden while the direct MiniMax (vgenv) source offers MiniMax H3 to the customer, the same one-entry-per-name rule used for GPT images. It appears again when the direct source is off or unassigned.
+
 ## 2026-10-12 — Seedance only in Cartoon Studio
 
 - Video Studio no longer lists Seedance 2.5 and Seedance 2.0 Fast from Vidancee/CreatePulse; those sources are used through Cartoon Studio. A video request for them without a cartoon style is refused with "Seedance is available in Cartoon Studio." Seedance models from other sources (Higgsfield, AI Gateway) are unaffected. Existing Seedance videos stay in the gallery.

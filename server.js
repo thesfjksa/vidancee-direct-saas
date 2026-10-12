@@ -614,9 +614,9 @@ const server=http.createServer(async (req,res)=>{
 
           if(customerProviderAccess.vercel && providerSettings.vercel.active){
             const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
-            videoPricing.push(...catalog.video);
             // The gateway also offers models another source already provides here
-            // (for example GPT Image 2); its copy appears when that source is unavailable.
+            // (GPT Image 2, MiniMax H3); its copy appears when that source is unavailable.
+            videoPricing=addMissingImageModels(videoPricing,catalog.video);
             imagePricing=addMissingImageModels(imagePricing,catalog.image);
           }
 
