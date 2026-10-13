@@ -62,6 +62,11 @@
   </section>
 
   <section id="provider" class="section">
+    <div class="card" style="margin-bottom:12px">
+      <div class="top"><div><h2 style="margin:0">Claude connector</h2><div class="muted">Customers add CMM Tools to Claude with this URL, sign in with their CMM Tools account, and create videos and images from chat using their own credits. Turning it off stops every connected app at once; connections resume when it is turned back on.</div></div></div>
+      <div id="connectorAdminStatus" class="muted" style="margin-top:10px">Checking...</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="secondary" id="connectorOnBtn" onclick="setConnector(true)">Turn on</button><button class="danger" id="connectorOffBtn" onclick="setConnector(false)">Turn off</button></div>
+    </div>
     <div class="card">
       <div class="top"><div><h2 style="margin:0">Usage &amp; limits</h2><div class="muted">Remaining balance where the provider reports one, and the last 30 days of jobs from this app's records.</div></div><button class="secondary" onclick="loadProviderUsage()">Refresh</button></div>
       <div class="tablewrap"><table><thead><tr><th>Provider</th><th>Remaining</th><th>Last 24 h</th><th>30 days: done / failed</th><th>30 days: provider cost</th><th>30 days: customer credits</th><th>In progress</th></tr></thead><tbody id="usageRows"><tr><td colspan="7" class="muted">Loading...</td></tr></tbody></table></div>
@@ -280,7 +285,7 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadConnectorAdmin();loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -489,6 +494,16 @@ function toggleActivityLive(on){
   if(on===false)$('actLive').checked=false;
   clearInterval(activityTimer);activityTimer=null;
   if($('actLive').checked)activityTimer=setInterval(()=>loadActivity(),5000);
+}
+async function loadConnectorAdmin(data){
+  try{const d=data||await api('/admin/connector');
+    $('connectorAdminStatus').innerHTML=(d.enabled?'<b>On</b>':'<b>Off</b>')+' · URL <code>'+esc(d.url)+'</code> · '+d.connections+' connected app'+(d.connections===1?'':'s')+' from '+d.customers+' customer'+(d.customers===1?'':'s');
+    $('connectorOnBtn').disabled=d.enabled;$('connectorOffBtn').disabled=!d.enabled;}
+  catch(e){$('connectorAdminStatus').textContent=e.message;}
+}
+async function setConnector(enabled){
+  if(!enabled&&!confirm('Turn off the Claude connector for every customer?'))return;
+  try{loadConnectorAdmin(await api('/admin/connector',{method:'POST',body:JSON.stringify({enabled})}));}catch(e){alert(e.message);}
 }
 async function loadSupportKey(){
   try{const d=await api('/admin/support-key');$('supportKeyStatus').textContent=d.active?'A support key is active (created '+fmt(d.createdAt)+').':'No support key is active.';}

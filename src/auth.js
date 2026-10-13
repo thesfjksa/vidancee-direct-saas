@@ -109,6 +109,12 @@ async function userFromRequest(req) {
   return rows[0] || null;
 }
 
+// Hash of the signed-in session, for binding forms to it (Claude connector consent).
+function sessionTokenHash(req) {
+  const token = parseCookies(req)[COOKIE_NAME];
+  return token ? sessionHash(token) : '';
+}
+
 async function requireUser(req) {
   const user = await userFromRequest(req);
   if (!user) {
@@ -128,4 +134,5 @@ module.exports = {
   destroySession,
   userFromRequest,
   requireUser,
+  sessionTokenHash,
 };

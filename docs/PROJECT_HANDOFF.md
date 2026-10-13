@@ -34,6 +34,10 @@ The reviewed revision identifies the application code behind this documentation.
 
 The customer interface uses the supplied CMM Tools logo and icon, light surfaces, deep-blue headings and turquoise accents. Workspace navigation is a sticky horizontal row beneath the header. It scrolls horizontally on narrow screens; there is no workspace sidebar column. Long generation histories remain reachable through normal page scrolling.
 
+### Use with Claude
+
+Customers can connect Claude to their account (`https://cmmtools.site/mcp`) and create videos, images and upscales from chat with their own credits. The page shows the URL, setup steps and connected apps with Disconnect. See `docs/CLAUDE_CONNECTOR.md`.
+
 ### Video Studio
 
 The video composer accepts a prompt and model-specific settings. Adding image references selects the appropriate reference-driven generation path. The backend validates the selected model, duration, aspect ratio, resolution and references before reserving credits.
@@ -429,8 +433,8 @@ Keep future changes scoped to the intended files. Inspect the remote branch befo
 
 ## 16 Reference documents and official sources
 
-Repository documents: `docs/HPANEL_DEPLOYMENT.md`, `docs/ADMIN_PROVIDER_SETTINGS.md`, `docs/SMARTAIPI.md`, `docs/VERCEL_AI_GATEWAY.md`, `docs/PROMPT_ENHANCER.md`, `docs/CMM_UI_DESIGN.md`, `docs/PLANS.md`, `docs/VIDANCEE_PROTOCOL.md` and `docs/CHANGELOG.md`. Historical milestone detail is in `docs/archive/PROJECT_HANDOFF_2026-10-09.md`.
+Repository documents: `docs/CLAUDE_CONNECTOR.md`, `docs/HPANEL_DEPLOYMENT.md`, `docs/ADMIN_PROVIDER_SETTINGS.md`, `docs/SMARTAIPI.md`, `docs/VERCEL_AI_GATEWAY.md`, `docs/PROMPT_ENHANCER.md`, `docs/CMM_UI_DESIGN.md`, `docs/PLANS.md`, `docs/VIDANCEE_PROTOCOL.md` and `docs/CHANGELOG.md`. Historical milestone detail is in `docs/archive/PROJECT_HANDOFF_2026-10-09.md`.
 
-Official SmartAIPI source pricing: https://smartaipi.com/pricing. GPT Image 2 size documentation: https://smartaipi.com/blog/gpt-image-2-now-available. GPT Image 2.5 documentation: https://smartaipi.com/blog/gpt-image-2-5-now-available. Gemini API errors: https://ai.google.dev/gemini-api/docs/api-errors. Gemini thinking controls: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels.
+Claude connectors: https://claude.com/docs/connectors/building and https://claude.com/docs/connectors/building/authentication. MCP specification: https://modelcontextprotocol.io/specification. Official SmartAIPI source pricing: https://smartaipi.com/pricing. GPT Image 2 size documentation: https://smartaipi.com/blog/gpt-image-2-now-available. GPT Image 2.5 documentation: https://smartaipi.com/blog/gpt-image-2-5-now-available. Gemini API errors: https://ai.google.dev/gemini-api/docs/api-errors. Gemini thinking controls: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels.
 
 All customer-credit examples in this handoff describe the reviewed application settings or explicitly identified defaults. Before changing commercial pricing, check the current Admin settings and the provider's current official prices.

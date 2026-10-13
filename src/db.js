@@ -236,6 +236,67 @@ async function initDb() {
       KEY idx_activity_level (level, id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    // Claude connector (MCP) sign-in. Codes and tokens are stored as SHA-256 hashes.
+    `CREATE TABLE IF NOT EXISTS oauth_clients (
+      client_id VARCHAR(64) NOT NULL,
+      client_secret_hash CHAR(64) NULL,
+      client_name VARCHAR(120) NOT NULL,
+      redirect_uris TEXT NOT NULL,
+      auth_method VARCHAR(30) NOT NULL DEFAULT 'none',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (client_id),
+      KEY idx_oauth_clients_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS oauth_codes (
+      code_hash CHAR(64) NOT NULL,
+      client_id VARCHAR(500) NOT NULL,
+      client_name VARCHAR(120) NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      redirect_uri VARCHAR(1000) NOT NULL,
+      code_challenge VARCHAR(128) NOT NULL,
+      scope VARCHAR(100) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME NULL,
+      PRIMARY KEY (code_hash),
+      KEY idx_oauth_codes_expiry (expires_at),
+      CONSTRAINT fk_oauth_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS oauth_grants (
+      id CHAR(36) NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      client_id VARCHAR(500) NOT NULL,
+      client_name VARCHAR(120) NOT NULL,
+      scope VARCHAR(100) NOT NULL,
+      access_hash CHAR(64) NULL,
+      access_expires_at DATETIME NULL,
+      refresh_hash CHAR(64) NULL,
+      refresh_expires_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at DATETIME NULL,
+      revoked_at DATETIME NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_oauth_grants_access (access_hash),
+      UNIQUE KEY uq_oauth_grants_refresh (refresh_hash),
+      KEY idx_oauth_grants_user (user_id, created_at),
+      CONSTRAINT fk_oauth_grants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    // Images a customer uploads for Claude to use as references (kept 7 days).
+    `CREATE TABLE IF NOT EXISTS connector_uploads (
+      id CHAR(36) NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(100) NULL,
+      image_data MEDIUMBLOB NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      uploaded_at DATETIME NULL,
+      PRIMARY KEY (id),
+      KEY idx_connector_uploads_user (user_id, created_at),
+      CONSTRAINT fk_connector_uploads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS runtime_boots (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       service VARCHAR(20) NOT NULL,

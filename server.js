@@ -112,6 +112,12 @@ function wakeWorker() {
 function wakeGenerationWorker(req) {
   if(wakeAllowed(String(req.headers.host||'').toLowerCase().split(':')[0]))wakeWorker();
 }
+// New work wakes the worker; without a request (the Claude connector) the
+// production address decides whether waking is allowed.
+function wakeForNewWork(req){
+  if(req)wakeGenerationWorker(req);
+  else if(wakeAllowed())wakeWorker();
+}
 // Hostinger stops an idle worker. While any job is running the worker is woken
 // every minute, so jobs finish even when no customer tab is polling.
 function wakeWhileJobsRun() {
@@ -178,6 +184,7 @@ const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = requir
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const { attachReusedImageReferences } = require('./src/reference_reuse.js');
+const { createConnector } = require('./src/connector.js');
 const {
   publicProviderCatalog,
   addMissingImageModels,
@@ -427,6 +434,193 @@ async function setUserProviderAccess(userId,providers){
   return getUserProviderAccess(userId);
 }
 
+// Video, image and upscaler models a customer can use, as Video Studio, Image
+// Studio and the Upscaler show them (the Claude connector lists the same).
+// A source that is out of credits is left out, so ArgoLink's copy of the same
+// model takes its place.
+async function customerMediaCatalog(access,adminSettings=null){
+  const providerSettings=adminSettings||await getAdminProviderSettings();
+  let video=[],image=[];
+  const creditStatus=await readProviderStatus(getPool()).catch(()=>({}));
+  const argoReady=Boolean(access.argolink && providerSettings.argolink.active);
+  const usable=source=>!(argoReady&&isOutOfCredits(creditStatus,source));
+  if (access.smartaipi && providerSettings.smartaipi.active && usable('smartaipi')) {
+    image.push(...publicSmartImagePricing(await getProviderSettings()));
+  }
+  if(access.vercel && providerSettings.vercel.active && usable('vercel')){
+    const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
+    image=addMissingImageModels(image,catalog.image);
+  }
+  if(access.argolink && providerSettings.argolink.active){
+    const hd=falReady(await getProviderSettings());
+    const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd)});
+    video=catalog.video;
+    image=addMissingImageModels(image,catalog.image);
+  }
+  return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
+}
+
+const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
+
+// Live price of an ArgoLink or AI Gateway model ({cost,isEstimate}).
+async function quoteModelForUser(userId,body){
+  const access=await getUserProviderAccess(userId);
+  const mediaType=body.mediaType==='image'?'image':'video';
+  const providerSettings=await getAdminProviderSettings();
+  if(isArgoModel(body.model)){
+    if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
+  if(isGatewayModel(body.model)){
+    if(!access.vercel||!providerSettings.vercel.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('vercel',String(body.model),mediaType);
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    const quote=quoteGateway(model,body,providerSettings.vercel.customerCreditsPerUsd);
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
+  throw httpError(404,'Live pricing is unavailable for this model.');
+}
+
+// Video Studio and Cartoon Studio submissions (the website and the Claude connector).
+async function submitVideoGeneration(user,body,req=null){
+  const providerSettings=await getProviderSettings();
+  if (!providerSettings.allowProviderCharges) {
+    throw httpError(503,'Generation submissions are currently paused.');
+  }
+
+  const requestedModel=String(body.model||'');
+  const customerAccess=await getUserProviderAccess(user.id);
+  let generation=null;
+  // Cartoon Studio always runs on Vidancee or CreatePulse, never a catalog source.
+  const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
+
+  if(!cartoonOptions&&isArgoModel(requestedModel)){
+    if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
+    const quote=quoteArgoVideo(model,body,providerSettings);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
+    });
+  }
+
+  // Video Studio runs on ArgoLink only; the other video sources serve Cartoon Studio.
+  if (!generation && !cartoonOptions) throw httpError(400,'This video model is not available. Choose a model from the list.');
+
+  if (!generation) {
+    if (requestedModel==='minimax_h3') {
+      if (!cartoonOptions) throw httpError(400,'MiniMax H3 is available in Cartoon Studio.');
+      if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
+        throw httpError(503,'This model is currently unavailable.');
+      }
+    } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
+      if (!cartoonOptions) throw httpError(400,'Seedance is available in Cartoon Studio.');
+      const vidanceeActive=Boolean(
+        customerAccess.vidancee &&
+        providerSettings.vidanceeEnabled &&
+        providerSettings.vidanceeEmail &&
+        providerSettings.vidanceePassword
+      );
+      const createPulseActive=Boolean(
+        customerAccess.createpulse &&
+        providerSettings.createPulseEnabled &&
+        providerSettings.createPulseApiKey
+      );
+      if (!vidanceeActive && !createPulseActive) {
+        throw httpError(503,'This model is currently unavailable.');
+      }
+    }
+    generation=await createGenerationForUser(user.id,body,cartoonOptions?{generationOptions:cartoonOptions}:{});
+  }
+
+  wakeForNewWork(req);
+  return generation;
+}
+
+// Image Studio submissions (the website and the Claude connector).
+async function submitImageGeneration(user,body,req=null){
+  const providerSettings=await getProviderSettings();
+  if (!providerSettings.allowProviderCharges) {
+    throw httpError(503,'Generation submissions are currently paused.');
+  }
+
+  await attachReusedImageReferences(getPool(),user.id,body);
+  let requestedModel=String(body.model||'');
+  const customerAccess=await getUserProviderAccess(user.id);
+  let generation=null;
+
+  // AI Gateway and SmartAIPI come first; while one is out of credits its
+  // models run on the same ArgoLink model instead.
+  const firstSource=isGatewayModel(requestedModel)?'vercel':smartImageModel(requestedModel)?'smartaipi':null;
+  if(firstSource){
+    const label=firstSource==='vercel'?(await getProviderModelByPublicId('vercel',requestedModel,'image'))?.label:smartImageModel(requestedModel).label;
+    const swap=await submissionFailover(getPool(),{source:firstSource,label,body,settings:providerSettings,access:customerAccess});
+    if(swap){
+      requestedModel=swap.model.publicModelId;
+      for(const key of ['imageSize','quality'])if(key in swap.body)body[key]=swap.body[key];else delete body[key];
+    }
+  }
+
+  if(isGatewayModel(requestedModel)){
+    if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)throw httpError(503,'This image model is currently unavailable.');
+    const model=await getProviderModelByPublicId('vercel',requestedModel,'image');
+    if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
+    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+      provider:'vercel',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
+      generationOptions:{...quote,model},
+    });
+  }
+
+  if(isArgoModel(requestedModel)){
+    if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This image model is currently unavailable.');
+    const model=await getProviderModelByPublicId('argolink',requestedModel,'image');
+    if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
+    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+      provider:'argolink',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
+      generationOptions:{...quote,model},
+    });
+  }
+
+  if (smartImageModel(requestedModel)) {
+    if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
+      throw httpError(503,'This image model is currently unavailable.');
+    }
+    const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings,body.quality??'medium');
+    for(const image of (Array.isArray(body.images)?body.images:[]))validateSmartReference(image?.data);
+    generation=await createImageGenerationForUser(user.id,body,{
+      provider:'smartaipi',dynamicModel:true,referenceCapabilities:SMART_IMAGE_REFS,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
+    });
+  }
+
+  if (!generation) throw httpError(503,'This image model is currently unavailable.');
+  wakeForNewWork(req);
+  return generation;
+}
+
+// Upscaler submissions (the website and the Claude connector).
+async function submitUpscale(user,{resolution,source},req=null){
+  const settings=await getProviderSettings();
+  if (!settings.allowProviderCharges) throw httpError(503,'Generation submissions are currently paused.');
+  const access=await getUserProviderAccess(user.id);
+  if (!access.fal || !settings.falEnabled || !settings.falApiKey) throw httpError(503,'The video upscaler is currently unavailable.');
+  const row=await createUpscaleJob(user.id,{resolution,source},settings);
+  wakeForNewWork(req);
+  return row;
+}
+
 function userPayload(user) {
   return {
     id:Number(user.id), email:user.email, credits:Number(user.credits),
@@ -495,6 +689,19 @@ async function proxyMedia(req,res,row,type) {
   }
 }
 
+// The Claude connector (MCP server, its sign-in and download links).
+const connector=createConnector({
+  getPool, sendJson, sendHtml, readJson, publicOrigin, requireDatabase, requireUser, adminAuthorized,
+  userFromRequest:authModule.userFromRequest, sessionTokenHash:authModule.sessionTokenHash,
+  logActivity, getSettingValue, setSettingValue, proxyMedia, serveVideoOutput,
+  catalog:async userId=>customerMediaCatalog(await getUserProviderAccess(userId)),
+  quote:quoteModelForUser,
+  submitVideo:(user,body)=>submitVideoGeneration(user,body),
+  submitImage:(user,body)=>submitImageGeneration(user,body),
+  submitUpscale:(user,input)=>submitUpscale(user,input),
+  wake:()=>{if(wakeAllowed())wakeWorker();},
+});
+
 const server=http.createServer(async (req,res)=>{
   const requestStarted=performance.now();
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
@@ -522,6 +729,7 @@ const server=http.createServer(async (req,res)=>{
     }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
+    if (await connector.handle(req,res,url,routePath)) return;
 
     const providerAssetMatch=routePath.match(/^\/provider-assets\/([0-9a-f-]{36})\/(\d+)$/i);
     if (req.method==='GET' && providerAssetMatch) {
@@ -653,31 +861,10 @@ const server=http.createServer(async (req,res)=>{
           cartoonPricing=publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive);
           cartoonEnabled=cartoonPricing.length>0;
 
-          // A source that is out of credits is left out, so ArgoLink's copy of
-          // the same model takes its place.
-          const creditStatus=await readProviderStatus(getPool()).catch(()=>({}));
-          const argoReady=Boolean(customerProviderAccess.argolink && providerSettings.argolink.active);
-          const usable=source=>!(argoReady&&isOutOfCredits(creditStatus,source));
-
-          if (customerProviderAccess.smartaipi && providerSettings.smartaipi.active && usable('smartaipi')) {
-            imagePricing.push(...publicSmartImagePricing(await getProviderSettings()));
-          }
-
-          if(customerProviderAccess.vercel && providerSettings.vercel.active && usable('vercel')){
-            const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
-            imagePricing=addMissingImageModels(imagePricing,catalog.image);
-          }
-
-          if(customerProviderAccess.argolink && providerSettings.argolink.active){
-            const hd=falReady(await getProviderSettings());
-            const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd)});
-            videoPricing=catalog.video;
-            imagePricing=addMissingImageModels(imagePricing,catalog.image);
-          }
-
-          if (customerProviderAccess.fal && providerSettings.fal.active) {
-            upscalerConfig=publicUpscalerConfig(true);
-          }
+          const media=await customerMediaCatalog(customerProviderAccess,providerSettings);
+          videoPricing=media.video;
+          imagePricing=media.image;
+          upscalerConfig=media.upscaler;
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
             voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
@@ -743,25 +930,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/model-cost') {
       requireDatabase();
       const costUser=await requireUser(req);
-      const costAccess=await getUserProviderAccess(costUser.id);
-      const body=await readJson(req);
-      const mediaType=body.mediaType==='image'?'image':'video';
-      const providerSettings=await getAdminProviderSettings();
-      if(isArgoModel(body.model)){
-        if(!costAccess.argolink||!providerSettings.argolink.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
-        const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This model is currently unavailable.'});
-        const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
-        return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
-      }
-      if(isGatewayModel(body.model)){
-        if(!costAccess.vercel||!providerSettings.vercel.active)return sendJson(res,403,{ok:false,error:'This model source is unavailable for your account.'});
-        const model=await getProviderModelByPublicId('vercel',String(body.model),mediaType);
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This model is currently unavailable.'});
-        const quote=quoteGateway(model,body,providerSettings.vercel.customerCreditsPerUsd);
-        return sendJson(res,200,{ok:true,cost:quote.cost,isEstimate:quote.isEstimate});
-      }
-      return sendJson(res,404,{ok:false,error:'Live pricing is unavailable for this model.'});
+      return sendJson(res,200,{ok:true,...await quoteModelForUser(costUser.id,await readJson(req))});
     }
 
     if (req.method==='POST' && routePath==='/api/auth/register') {
@@ -1023,72 +1192,8 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/image-generations') {
       requireDatabase();
       const user=await requireUser(req);
-      const providerSettings=await getProviderSettings();
-      if (!providerSettings.allowProviderCharges) {
-        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      }
-
-      const body=await readGenerationRequest(req);
-      await attachReusedImageReferences(getPool(),user.id,body);
-      let requestedModel=String(body.model||'');
-      const customerAccess=await getUserProviderAccess(user.id);
-      let generation=null;
-
-      // AI Gateway and SmartAIPI come first; while one is out of credits its
-      // models run on the same ArgoLink model instead.
-      const firstSource=isGatewayModel(requestedModel)?'vercel':smartImageModel(requestedModel)?'smartaipi':null;
-      if(firstSource){
-        const label=firstSource==='vercel'?(await getProviderModelByPublicId('vercel',requestedModel,'image'))?.label:smartImageModel(requestedModel).label;
-        const swap=await submissionFailover(getPool(),{source:firstSource,label,body,settings:providerSettings,access:customerAccess});
-        if(swap){
-          requestedModel=swap.model.publicModelId;
-          for(const key of ['imageSize','quality'])if(key in swap.body)body[key]=swap.body[key];else delete body[key];
-        }
-      }
-
-      if(isGatewayModel(requestedModel)){
-        if(!customerAccess.vercel||!providerSettings.vercelEnabled||!providerSettings.vercelApiKey)return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
-        const model=await getProviderModelByPublicId('vercel',requestedModel,'image');
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This image model is currently unavailable.'});
-        validateReferences(model,body);
-        const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
-        generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
-          provider:'vercel',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
-          generationOptions:{...quote,model},
-        });
-      }
-
-      if(isArgoModel(requestedModel)){
-        if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
-        const model=await getProviderModelByPublicId('argolink',requestedModel,'image');
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This image model is currently unavailable.'});
-        validateReferences(model,body);
-        const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
-        generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
-          provider:'argolink',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
-          generationOptions:{...quote,model},
-        });
-      }
-
-      if (smartImageModel(requestedModel)) {
-        if (!customerAccess.smartaipi || !providerSettings.smartAipiEnabled || !providerSettings.smartAipiApiKey) {
-          return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
-        }
-        const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings,body.quality??'medium');
-        for(const image of (Array.isArray(body.images)?body.images:[]))validateSmartReference(image?.data);
-        generation=await createImageGenerationForUser(user.id,body,{
-          provider:'smartaipi',dynamicModel:true,referenceCapabilities:SMART_IMAGE_REFS,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
-        });
-      }
-
-      if (!generation) return sendJson(res,503,{ok:false,error:'This image model is currently unavailable.'});
-
-      wakeGenerationWorker(req);
-      const db=getPool();
-      const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
+      const generation=await submitImageGeneration(user,await readGenerationRequest(req),req);
+      const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
     }
 
@@ -1151,62 +1256,8 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const user=await requireUser(req);
       const body=await readGenerationRequest(req);
-      const providerSettings=await getProviderSettings();
-      if (!providerSettings.allowProviderCharges) {
-        return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      }
-
-      const requestedModel=String(body.model||'');
-      const customerAccess=await getUserProviderAccess(user.id);
-      let generation=null;
-      // Cartoon Studio always runs on Vidancee or CreatePulse, never a catalog source.
-      const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
-
-      if(!cartoonOptions&&isArgoModel(requestedModel)){
-        if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)return sendJson(res,503,{ok:false,error:'This video model is currently unavailable.'});
-        const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
-        if(!model?.ready)return sendJson(res,404,{ok:false,error:'This video model is currently unavailable.'});
-        validateReferences(model,body);
-        // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
-        const quote=quoteArgoVideo(model,body,providerSettings);
-        generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
-          defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
-          costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
-        });
-      }
-
-      // Video Studio runs on ArgoLink only; the other video sources serve Cartoon Studio.
-      if (!generation && !cartoonOptions) return sendJson(res,400,{ok:false,error:'This video model is not available. Choose a model from the list.'});
-
-      if (!generation) {
-        if (requestedModel==='minimax_h3') {
-          if (!cartoonOptions) return sendJson(res,400,{ok:false,error:'MiniMax H3 is available in Cartoon Studio.'});
-          if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
-            return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
-          }
-        } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
-          if (!cartoonOptions) return sendJson(res,400,{ok:false,error:'Seedance is available in Cartoon Studio.'});
-          const vidanceeActive=Boolean(
-            customerAccess.vidancee &&
-            providerSettings.vidanceeEnabled &&
-            providerSettings.vidanceeEmail &&
-            providerSettings.vidanceePassword
-          );
-          const createPulseActive=Boolean(
-            customerAccess.createpulse &&
-            providerSettings.createPulseEnabled &&
-            providerSettings.createPulseApiKey
-          );
-          if (!vidanceeActive && !createPulseActive) {
-            return sendJson(res,503,{ok:false,error:'This model is currently unavailable.'});
-          }
-        }
-        generation=await createGenerationForUser(user.id,body,cartoonOptions?{generationOptions:cartoonOptions}:{});
-      }
-
-      wakeGenerationWorker(req);
-      const db=getPool();
-      const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
+      const generation=await submitVideoGeneration(user,body,req);
+      const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
     }
 
@@ -1223,16 +1274,11 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/upscales') {
       requireDatabase();
       const user=await requireUser(req);
-      const settings=await getProviderSettings();
-      if (!settings.allowProviderCharges) return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      const access=await getUserProviderAccess(user.id);
-      if (!access.fal || !settings.falEnabled || !settings.falApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
       const body=await readGenerationRequest(req);
       const video=Array.isArray(body.videos)?body.videos[0]:null;
       const sourceId=String(body.sourceGenerationId||'');
       if (video && sourceId) return sendJson(res,400,{ok:false,error:'Choose either a library video or an upload.'});
-      const row=await createUpscaleJob(user.id,{resolution:body.resolution,source:video?{video}:{generationId:sourceId}},settings);
-      wakeGenerationWorker(req);
+      const row=await submitUpscale(user,{resolution:body.resolution,source:video?{video}:{generationId:sourceId}},req);
       const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
       return sendJson(res,201,{ok:true,generation:serializeGeneration(row),user:userPayload(users[0])});
     }
@@ -1836,6 +1882,8 @@ function bootstrap() {
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
+      connector.prune().catch(()=>{});
+      setInterval(()=>connector.prune().catch(()=>{}),6*3600*1000).unref();
     })
     .catch((error) => {
       console.error('MySQL initialization failed:',error);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13 — CMM Tools in Claude (MCP connector)
+
+- Customers can add CMM Tools to Claude as a custom connector (`https://cmmtools.site/mcp`), sign in with their CMM Tools account and create videos, images and upscales from chat with their own credits. Tools: get_account, list_models, estimate_cost, create_video, create_image, get_job (waits up to 50 s, 7-day download link), list_jobs, upscale_video, request_image_upload, list_uploads. Jobs go through the same functions as the website (now shared: `submitVideoGeneration`, `submitImageGeneration`, `submitUpscale`, `quoteModelForUser`, `customerMediaCatalog`).
+- OAuth 2.1 sign-in with Claude's client metadata documents or dynamic registration, PKCE, consent page, rotating refresh tokens; supports both MCP protocol eras (2025 handshake and 2026-07-28 stateless).
+- New **Use with Claude** page for customers (URL, steps, connected apps, Disconnect) and **Admin → Provider → Claude connector** switch. Details in `docs/CLAUDE_CONNECTOR.md`.
+
 ## 2026-10-13 — Video preview
 
 - Finished videos have a zoom button (top-right of the card, as on Image Studio) that opens a preview at the video's own shape, with aspect ratio, dimensions, duration, credits, prompt, Download and Reuse prompt. Works in Video Studio, Cartoon Studio, the Upscaler and the Library.
