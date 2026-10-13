@@ -36,7 +36,7 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   assert.equal(config.pricing.some(m => m.id === 'minimax_h3'), false);
 
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
-  assert.ok(list.models.some(m => m.key === 'video:seedance_2.5' && m.defaultName === 'Seedance 2.5 · up to 30 s' && m.name === ''));
+  assert.ok(list.models.some(m => m.key === 'video:seedance_2.5' && m.vendor === 'Vidancee / CreatePulse' && m.defaultName === 'Seedance 2.5 · up to 30 s' && m.name === ''));
   assert.ok(list.models.some(m => m.key === 'cartoon:seedance_2.5'));
 
   const save = body => fetch(origin + '/admin/model-names', { method: 'POST', headers: admin, body: JSON.stringify(body) });

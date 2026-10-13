@@ -509,6 +509,16 @@ async function sourceMediaCatalog(access,adminSettings=null){
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
 
+// The API vendor behind a model id, for the admin.
+function modelVendor(id){
+  if(isArgoModel(id))return 'ArgoLink';
+  if(isGatewayModel(id))return 'Vercel AI Gateway';
+  if(smartImageModel(id))return 'SmartAIPI';
+  if(id==='minimax_h3')return 'vgenv';
+  if(SEEDANCE_VIDEO_MODELS.includes(id))return 'Vidancee / CreatePulse';
+  return '';
+}
+
 // Every model a studio can show (sources the admin has turned on), with the
 // source's name and the admin's name, for Admin → Provider → Model names.
 async function adminModelNameList(){
@@ -517,7 +527,7 @@ async function adminModelNameList(){
   const cartoon=publicPricing();
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
-    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,defaultName:m.label,name:names[studio+':'+m.id]||''});
+    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||''});
   }
   return rows;
 }

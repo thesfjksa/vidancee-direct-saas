@@ -69,8 +69,8 @@
     </div>
     <div class="card" style="margin-bottom:12px">
       <div class="top"><div><h2 style="margin:0">Model names</h2><div class="muted">The name customers see for each model in Video, Image and Cartoon studio and in Claude. Leave a box empty to use the source's name.</div></div><button class="secondary" onclick="loadModelNames()">Refresh</button></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="modelNameSearch" placeholder="Search models" oninput="renderModelNames()" style="flex:1;min-width:180px"><select id="modelNameStudio" onchange="renderModelNames()"><option value="">All studios</option><option value="video">Video studio</option><option value="image">Image studio</option><option value="cartoon">Cartoon studio</option></select></div>
-      <div class="tablewrap" style="margin-top:10px;max-height:420px;overflow:auto"><table><thead><tr><th>Studio</th><th>Source name</th><th>Name customers see</th></tr></thead><tbody id="modelNameRows"><tr><td colspan="3" class="muted">Loading...</td></tr></tbody></table></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="modelNameSearch" placeholder="Search models" oninput="renderModelNames()" style="flex:1;min-width:180px"><select id="modelNameStudio" onchange="renderModelNames()"><option value="">All studios</option><option value="video">Video studio</option><option value="image">Image studio</option><option value="cartoon">Cartoon studio</option></select><select id="modelNameVendor" onchange="renderModelNames()"><option value="">All vendors</option></select></div>
+      <div class="tablewrap" style="margin-top:10px;max-height:420px;overflow:auto"><table><thead><tr><th>Studio</th><th>API vendor</th><th>Source name</th><th>Name customers see</th></tr></thead><tbody id="modelNameRows"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody></table></div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button id="modelNameSave" onclick="saveModelNames()" disabled>Save names</button><span id="modelNameMsg" class="muted"></span></div>
     </div>
     <div class="card">
@@ -505,15 +505,17 @@ let modelNameRows=[];const modelNameEdits=new Map();
 const STUDIO_LABELS={video:'Video',image:'Image',cartoon:'Cartoon'};
 async function loadModelNames(){
   try{const d=await api('/admin/model-names');modelNameRows=d.models||[];modelNameEdits.clear();renderModelNames();$('modelNameSave').disabled=true;}
-  catch(e){$('modelNameRows').innerHTML='<tr><td colspan="3" class="err">'+esc(e.message)+'</td></tr>';}
+  catch(e){$('modelNameRows').innerHTML='<tr><td colspan="4" class="err">'+esc(e.message)+'</td></tr>';}
 }
 function renderModelNames(){
-  const q=$('modelNameSearch').value.trim().toLowerCase(),studio=$('modelNameStudio').value;
-  const rows=modelNameRows.filter(m=>(!studio||m.studio===studio)&&(!q||(m.defaultName+' '+m.name+' '+m.id).toLowerCase().includes(q)));
+  const q=$('modelNameSearch').value.trim().toLowerCase(),studio=$('modelNameStudio').value,vendor=$('modelNameVendor').value;
+  const vendors=[...new Set(modelNameRows.map(m=>m.vendor).filter(Boolean))].sort();
+  $('modelNameVendor').innerHTML='<option value="">All vendors</option>'+vendors.map(v=>'<option'+(v===vendor?' selected':'')+'>'+esc(v)+'</option>').join('');
+  const rows=modelNameRows.filter(m=>(!studio||m.studio===studio)&&(!vendor||m.vendor===vendor)&&(!q||(m.defaultName+' '+m.name+' '+m.id+' '+(m.vendor||'')).toLowerCase().includes(q)));
   $('modelNameRows').innerHTML=rows.length?rows.map(m=>{
     const value=modelNameEdits.has(m.key)?modelNameEdits.get(m.key):m.name;
-    return '<tr><td>'+esc(STUDIO_LABELS[m.studio]||m.studio)+'</td><td><div>'+esc(m.defaultName)+'</div><div class="muted" style="font-size:12px">'+esc(m.id)+'</div></td><td><input data-key="'+esc(m.key)+'" value="'+esc(value)+'" placeholder="'+esc(m.defaultName)+'" maxlength="80" oninput="editModelName(this)" style="width:100%;min-width:180px"></td></tr>';
-  }).join(''):'<tr><td colspan="3" class="muted">No models match.</td></tr>';
+    return '<tr><td>'+esc(STUDIO_LABELS[m.studio]||m.studio)+'</td><td>'+esc(m.vendor||'—')+'</td><td><div>'+esc(m.defaultName)+'</div><div class="muted" style="font-size:12px">'+esc(m.id)+'</div></td><td><input data-key="'+esc(m.key)+'" value="'+esc(value)+'" placeholder="'+esc(m.defaultName)+'" maxlength="80" oninput="editModelName(this)" style="width:100%;min-width:180px"></td></tr>';
+  }).join(''):'<tr><td colspan="4" class="muted">No models match.</td></tr>';
 }
 function editModelName(input){
   const key=input.dataset.key,row=modelNameRows.find(m=>m.key===key);

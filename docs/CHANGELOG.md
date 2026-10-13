@@ -3,7 +3,7 @@
 ## 2026-10-13 — Seedance on Vidancee/CreatePulse in Video Studio; model names
 
 - Video Studio now also lists Seedance 2.5 and Seedance 2.0 Fast on Vidancee/CreatePulse (shown as "Seedance 2.5 · up to 30 s" and "Seedance 2.0 Fast · up to 15 s") beside ArgoLink's models, with the fixed per-duration prices Cartoon Studio uses, up to 6 reference images and every aspect ratio. The worker picks Vidancee or CreatePulse as it does for Cartoon Studio. They appear in Claude's list_models too. MiniMax H3 stays in Cartoon Studio.
-- **Admin → Provider → Model names**: set the name customers see for any Video, Image or Cartoon studio model (also used in Claude). Names are per studio; an empty box goes back to the source's name. Stored in the `model_display_names` setting; saves are logged as `model_names.saved`.
+- **Admin → Provider → Model names**: shows each model's API vendor (ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee / CreatePulse, vgenv) with a vendor filter, and sets the name customers see for any Video, Image or Cartoon studio model (also used in Claude). Names are per studio; an empty box goes back to the source's name. Stored in the `model_display_names` setting; saves are logged as `model_names.saved`.
 
 ## 2026-10-13 — Every studio on by default
 
