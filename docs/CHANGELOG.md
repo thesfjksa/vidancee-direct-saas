@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — No vendor names for customers
+
+- Customers and Claude never see which companies run CMM Tools' models. Page and plan texts no longer name any ("by Gemini", "ByteDance's video upscaler", "ArgoLink Seedance clips" are gone); library cards show model names instead of internal ids; and provider error messages are rewritten before they reach a customer or Claude (`src/vendor_names.js`: job messages, API errors, connector results), e.g. "AI Gateway rejected…" → "The generation service rejected…". Customer prompts are never changed. Admin, the activity log and support access keep the real names.
+
 ## 2026-10-13 — Cleaner top bar
 
 - The studio's top bar had ten tabs. It now shows the studios as one segmented control with short names (Video, Image, Cartoon, Voice, Upscale) plus Library. On the right: the credit balance (opens Credits), an **Upgrade** button (opens Plans) and the avatar, which opens an account menu with Account, Plans & pricing, Credits & usage, Use with Claude, WhatsApp support and Sign out (keyboard: arrows, Esc).

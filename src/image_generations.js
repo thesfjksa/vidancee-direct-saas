@@ -1,3 +1,4 @@
+const { hideVendors } = require('./vendor_names.js');
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
@@ -18,7 +19,7 @@ function serializeImageGeneration(row) {
     prompt: row.prompt,
     status: row.status,
     credits_cost: Number(row.credits_cost),
-    error_message: row.error_message,
+    error_message: hideVendors(row.error_message),
     created_at: row.created_at,
     submitted_at: row.submitted_at,
     started_at: row.started_at,

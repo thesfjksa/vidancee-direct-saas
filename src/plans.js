@@ -25,7 +25,7 @@ const PLANS = Object.freeze({
     features: [
       '60,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 18 ArgoLink Seedance 2.5 clips (5 s, 720p), 62 Seedance 2.5 Lite videos of 30 s, or 297 MiniMax H3 videos of 10 s',
+      'About 18 Seedance 2.5 clips (5 s, 720p), 62 Seedance 2.5 Lite videos of 30 s, or 297 MiniMax H3 videos of 10 s',
       'Up to 3 simultaneous generations',
     ],
   }),
@@ -41,7 +41,7 @@ const PLANS = Object.freeze({
     features: [
       '120,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 37 ArgoLink Seedance 2.5 clips (5 s, 720p), 125 Seedance 2.5 Lite videos of 30 s, or 595 MiniMax H3 videos of 10 s',
+      'About 37 Seedance 2.5 clips (5 s, 720p), 125 Seedance 2.5 Lite videos of 30 s, or 595 MiniMax H3 videos of 10 s',
       'Priority queue · up to 5 simultaneous generations',
     ],
   }),

@@ -388,7 +388,7 @@
             <div class="block">
               <label class="block-title" for="upscaleResolution">Output resolution</label>
               <select id="upscaleResolution" onchange="updateUpscaleCost()"></select>
-              <div class="reference-capability-note" style="margin-top:8px">ByteDance Video Upscaler sharpens faces, text and colour and removes noise and compression blur. Priced per second of video.</div>
+              <div class="reference-capability-note" style="margin-top:8px">The CMM Tools HD upscaler sharpens faces, text and colour and removes noise and compression blur. Priced per second of video.</div>
             </div>
           </div>
           <div class="creator-footer">
@@ -2970,7 +2970,7 @@ function jobCard(g){
   return '<article class="job">'+media+
     '<div class="job-body">'+
       '<div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+g.credits_cost+' cr</span></div>'+
-      '<div class="job-title">'+(upscale?'Upscaled to '+escapeHtml(upscaleLabel(g.resolution))+' · '+(Number(g.duration)>0?g.duration+'s':'')+' · '+escapeHtml(g.aspect_ratio):(isCartoonGeneration(g)?escapeHtml(cartoonStyleLabel(g.generation_options.cartoon_style))+' · ':'')+escapeHtml(g.model)+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio))+'</div>'+
+      '<div class="job-title">'+(upscale?'Upscaled to '+escapeHtml(upscaleLabel(g.resolution))+' · '+(Number(g.duration)>0?g.duration+'s':'')+' · '+escapeHtml(g.aspect_ratio):(isCartoonGeneration(g)?escapeHtml(cartoonStyleLabel(g.generation_options.cartoon_style))+' · ':'')+escapeHtml(videoModelLabel(g.model))+' · '+(Number(g.duration)>0?g.duration+'s':'Default')+(g.resolution?' · '+escapeHtml(g.resolution):'')+' · '+escapeHtml(g.aspect_ratio))+'</div>'+
       '<p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,160))+'</p>'+
       (g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+
       '<div class="job-actions">'+reuseButton+upscaleButton+downloadButton+deleteButton+'</div>'+
@@ -3174,7 +3174,7 @@ function setUpscaleFile(files){
   }
   updateUpscaleCost();
 }
-// The price comes from the server, which plans the same fal request it will send.
+// The price comes from the server, which plans the same request it will send.
 async function updateUpscaleCost(){
   syncCustomSelect('upscaleResolution');syncCustomSelect('upscaleVideo');
   const cost=$('upscaleCost'),m=$('upscaleMsg'),token=++upscaleQuoteToken,resolution=$('upscaleResolution').value;

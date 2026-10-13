@@ -36,6 +36,7 @@ process.on('beforeExit', (code) => {
 
 const { URL } = require('node:url');
 const fs = require('node:fs');
+const { hideVendors, hideVendorsInBody } = require('./src/vendor_names.js');
 const path = require('node:path');
 const { fork } = require('node:child_process');
 const { Readable } = require('node:stream');
@@ -237,6 +238,9 @@ async function providerClient() {
 }
 
 function sendJson(res, status, body) {
+  // Customers and Claude never see provider names (Admin and support keep them).
+  const route = String(res.req?.url || '');
+  if (!/^\/(admin|ops)(\/|$|\?)/.test(route)) hideVendorsInBody(body);
   const data = JSON.stringify(body, null, 2);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',

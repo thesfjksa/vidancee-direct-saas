@@ -1,4 +1,5 @@
 'use strict';
+const { hideVendors } = require('./vendor_names.js');
 
 // The CMM Tools connector for Claude: a remote MCP server on Streamable HTTP.
 // It answers both protocol eras: Claude's current client opens with an
@@ -262,7 +263,7 @@ function jobView(job, services) {
     aspect_ratio: job.aspect_ratio, credits_charged: Number(job.credits_cost),
     created_at: job.created_at, completed_at: job.completed_at || null,
   };
-  if (job.error_message) view.message = job.error_message;
+  if (job.error_message) view.message = hideVendors(job.error_message);
   if (job.refunded_at) view.refunded = true;
   if (done) {
     view.download_url = services.shareUrl(job.id);
@@ -275,7 +276,7 @@ function textResult(value, structured = value) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }], structuredContent: structured };
 }
 function errorResult(message) {
-  return { content: [{ type: 'text', text: String(message) }], isError: true };
+  return { content: [{ type: 'text', text: hideVendors(String(message)) }], isError: true };
 }
 
 async function resolveReferences(services, user, list, max) {
