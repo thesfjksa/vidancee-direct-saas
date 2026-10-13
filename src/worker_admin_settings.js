@@ -853,44 +853,53 @@ class GenerationWorker {
       );
       if (!claim.affectedRows) continue;
 
-      try {
-        if (chosen === 'createpulse') {
-          await this.submitCreatePulse(db, job, count);
-          cpSlots -= 1;
-        } else if (chosen === 'vgenv') {
-          await this.submitVgenv(db, job, count);
-          vgenvSlots -= 1;
-        } else {
-          await this.submitVidancee(db, job);
-          vidSlots -= 1;
-          if (isCartoonJob(job) && this.vidanceeBalance != null) this.vidanceeBalance -= vidanceeCreditsNeeded(job);
-        }
-        logActivity({ category: 'provider', event: 'job.submitted', userId: job.user_id, generationId: job.id, provider: chosen, message: 'Sent to ' + chosen + ' (' + job.model + ', ' + job.duration + 's)' });
-      } catch (error) {
-        console.error('Generation submission failed for', job.id, error);
-        logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: chosen, message: error.message, details: errorDetails(error) });
-        let submitted = false;
-        if (looksOutOfCredits(error)) {
-          this.markOutOfCredits(chosen);
-          // Cartoon Studio switches to the other source when one runs out of credits.
-          const other = isCartoonJob(job) && (chosen === 'vidancee' || chosen === 'createpulse')
-            ? this.chooseProvider(job, count, chosen === 'vidancee' ? 0 : vidSlots, chosen === 'createpulse' ? 0 : cpSlots, 0, accessByUser.get(Number(job.user_id)) || {})
-            : null;
-          if (other) {
-            try {
-              await db.execute("UPDATE generations SET provider=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'", [other, job.id]);
-              if (other === 'createpulse') { await this.submitCreatePulse(db, job, count); cpSlots -= 1; }
-              else { await this.submitVidancee(db, job); vidSlots -= 1; }
-              submitted = true;
-            } catch (second) {
-              console.error('Fallback submission failed for', job.id, second);
-              if (looksOutOfCredits(second)) this.markOutOfCredits(other);
-            }
-          }
-        }
-        if (!submitted) await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
-      }
+      const slots = { vid: vidSlots, cp: cpSlots, vgenv: vgenvSlots };
+      await this.submitVideoJob(db, job, count, chosen, slots, accessByUser.get(Number(job.user_id)) || {});
+      ({ vid: vidSlots, cp: cpSlots, vgenv: vgenvSlots } = slots);
     }
+  }
+
+  // Sends one queued video job to the chosen source; Seedance jobs move to the
+  // other of Vidancee/CreatePulse when the first refuses them. slots is updated.
+  async submitVideoJob(db, job, count, chosen, slots, access = {}) {
+    try {
+      if (chosen === 'createpulse') {
+        await this.submitCreatePulse(db, job, count);
+        slots.cp -= 1;
+      } else if (chosen === 'vgenv') {
+        await this.submitVgenv(db, job, count);
+        slots.vgenv -= 1;
+      } else {
+        await this.submitVidancee(db, job);
+        slots.vid -= 1;
+        if (isCartoonJob(job) && this.vidanceeBalance != null) this.vidanceeBalance -= vidanceeCreditsNeeded(job);
+      }
+      logActivity({ category: 'provider', event: 'job.submitted', userId: job.user_id, generationId: job.id, provider: chosen, message: 'Sent to ' + chosen + ' (' + job.model + ', ' + job.duration + 's)' });
+    } catch (error) {
+      console.error('Generation submission failed for', job.id, error);
+      logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: chosen, message: error.message, details: errorDetails(error) });
+      let submitted = false;
+      if (looksOutOfCredits(error)) this.markOutOfCredits(chosen);
+      // Seedance runs on Vidancee or CreatePulse: when one refuses the job
+      // (out of credits, or a server error such as HTTP 502), try the other.
+      const other = (chosen === 'vidancee' || chosen === 'createpulse')
+        ? this.chooseProvider(job, count, chosen === 'vidancee' ? 0 : slots.vid, chosen === 'createpulse' ? 0 : slots.cp, 0, access)
+        : null;
+      if (other) {
+        try {
+          await db.execute("UPDATE generations SET provider=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'", [other, job.id]);
+          if (other === 'createpulse') { await this.submitCreatePulse(db, job, count); slots.cp -= 1; }
+          else { await this.submitVidancee(db, job); slots.vid -= 1; }
+          submitted = true;
+          logActivity({ category: 'provider', event: 'job.submitted', userId: job.user_id, generationId: job.id, provider: other, message: 'Sent to ' + other + ' after ' + chosen + ' failed (' + error.message + ')' });
+        } catch (second) {
+          console.error('Fallback submission failed for', job.id, second);
+          logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: other, message: second.message, details: errorDetails(second) });
+          if (looksOutOfCredits(second)) this.markOutOfCredits(other);
+        }
+      }
+      if (!submitted) await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
+  }
   }
 }
 

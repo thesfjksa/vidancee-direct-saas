@@ -118,3 +118,23 @@ test('MiniMax H3 is rendered at the resolution the customer paid for', async () 
   await worker.submitVgenv(db, { ...job, resolution: null }, 0);
   assert.deepEqual(sent, ['480p', '768p', '768p']);
 });
+
+test('a Seedance job moves to the other source when the first one fails, Video Studio included', async () => {
+  const w = new GenerationWorker();
+  Object.assign(w, { vidanceeEnabled: true, createPulseEnabled: true, routing: 'createpulse-first', vidanceeBalance: null });
+  const calls = [];
+  w.createPulse = { supports: () => true };
+  w.submitCreatePulse = async () => { calls.push('createpulse'); throw new Error('CreatePulse HTTP 502'); };
+  w.submitVidancee = async () => { calls.push('vidancee'); };
+  w.vidancee = {};
+  const sql = [];
+  const db = { execute: async (text, args) => { sql.push([text, args]); return [{ affectedRows: 1 }]; } };
+  const slots = { vid: 1, cp: 1, vgenv: 0 };
+  await w.submitVideoJob(db, job({ generation_options: null }), 0, 'createpulse', slots);
+  assert.deepEqual(calls, ['createpulse', 'vidancee']);
+  assert.deepEqual(slots, { vid: 0, cp: 1, vgenv: 0 });
+  assert.ok(sql.some(([text, args]) => text.startsWith('UPDATE generations SET provider=?') && args[0] === 'vidancee'));
+  // A server error does not mark the source out of credits.
+  assert.equal(Number(w.outOfCreditsUntil?.createpulse || 0), 0);
+  w.stop?.();
+});

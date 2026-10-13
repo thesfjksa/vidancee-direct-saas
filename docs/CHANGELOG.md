@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Seedance moves to the other source when one fails
+
+- Two Seedance 2.5 jobs (05:57 Cartoon Studio, 11:46 Video Studio) failed because CreatePulse answered HTTP 502 when they were submitted; credits were refunded. The worker only switched to Vidancee when a source was out of credits, and only for Cartoon Studio. Now any Seedance job (Video or Cartoon Studio) that Vidancee or CreatePulse refuses for any reason is sent to the other source in the same pass; only out-of-credits errors pause a source for 10 minutes. The switch is logged as `job.submitted` with the first source's error.
+
 ## 2026-10-13 — MiniMax H3 renders the resolution that was paid for
 
 - The worker never passed the resolution to vgenv, so 480p MiniMax H3 orders were rendered (and billed by vgenv) at 768p. It now sends 480p or 768p as chosen. Checked against vgenv's price list (Fast tier, the one the app uses): $0.0015/s at 480p and $0.003/s at 768p; the app charges 0.375 and 0.75 credits per second (2.5× the configured source rate).
