@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Cleaner top bar
+
+- The studio's top bar had ten tabs. It now shows the studios as one segmented control with short names (Video, Image, Cartoon, Voice, Upscale) plus Library. On the right: the credit balance (opens Credits), an **Upgrade** button (opens Plans) and the avatar, which opens an account menu with Account, Plans & pricing, Credits & usage, Use with Claude, WhatsApp support and Sign out (keyboard: arrows, Esc).
+
 ## 2026-10-13 — Models at cost, 60,000 credits per Rs 5,000
 
 - Every model now costs the customer exactly what CMM Tools pays for it, in credits: **24 credits per rupee of cost**, USD at Rs 280 (6,720 credits per USD) for ArgoLink, AI Gateway, SmartAIPI and fal.ai; Seedance Lite from Rs 40 per 30 s; MiniMax H3 from vgenv's Fast tier. Prices are rounded up to whole credits. The credits-per-USD boxes in Admin are fixed at 6,720.
