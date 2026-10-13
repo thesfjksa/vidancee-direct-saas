@@ -91,7 +91,7 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   // MiniMax H3 belongs to Cartoon Studio; it needs vgenv, which is not configured here.
   assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'anime' })).status, 503);
-  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16' })).status, 400);
+  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16' })).status, 503);
   assert.equal(inserted, null);
   const ok = await post({ prompt: 'A dragon learns to fly', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'clay' });
   assert.equal(ok.status, 201);

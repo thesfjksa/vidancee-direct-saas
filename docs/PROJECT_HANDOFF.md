@@ -32,7 +32,7 @@ The reviewed revision identifies the application code behind this documentation.
 
 ## 2 Customer workspaces
 
-Video Studio lists ArgoLink's video models and Seedance 2.5 / 2.0 Fast on Vidancee or CreatePulse (fixed per-duration prices; the worker picks the source). Admin → Provider → Model names sets the name customers see for any model, per studio.
+Video Studio lists ArgoLink's video models and Seedance 2.5 / 2.0 Fast on Vidancee or CreatePulse (fixed per-duration prices; the worker picks the source) and MiniMax H3 on vgenv. Admin → Provider → Model names sets the name customers see for any model, per studio.
 
 Signed-out visitors see the landing page (`public/landing.html`) at `/`; the studio is at `/app` and also at `/` for anyone with a session cookie. `/app?signup=1` opens Create account. The landing page shows the live plans from `/api/config`.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — MiniMax H3 (vgenv) in Video Studio
+
+- Video Studio also lists MiniMax H3 on vgenv ("MiniMax H3 · up to 15 s", 480p or 768p, 4–15 s, up to 6 reference images) at the Cartoon Studio prices. It stays in Cartoon Studio too.
+
 ## 2026-10-13 — Seedance on Vidancee/CreatePulse in Video Studio; model names
 
 - Video Studio now also lists Seedance 2.5 and Seedance 2.0 Fast on Vidancee/CreatePulse (shown as "Seedance 2.5 · up to 30 s" and "Seedance 2.0 Fast · up to 15 s") beside ArgoLink's models, with the fixed per-duration prices Cartoon Studio uses, up to 6 reference images and every aspect ratio. The worker picks Vidancee or CreatePulse as it does for Cartoon Studio. They appear in Claude's list_models too. MiniMax H3 stays in Cartoon Studio.

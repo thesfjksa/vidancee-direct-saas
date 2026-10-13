@@ -5,8 +5,8 @@ const { once } = require('node:events');
 test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rename any model', async t => {
   process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'test-admin-only';
   const user = { id: 1, email: 'test1@example.com', credits: 50, status: 'active', plan_code: 'pro', role: 'user' };
-  // Vidancee is configured; no other source is.
-  const settings = new Map([['vidancee_email', 'ops@example.com'], ['vidancee_password', 'secret']]);
+  // Vidancee and vgenv are configured; no other source is.
+  const settings = new Map([['vidancee_email', 'ops@example.com'], ['vidancee_password', 'secret'], ['vgenv_api_key', 'vg-test']]);
   async function execute(sql, args = []) {
     if (sql.includes('SELECT setting_key')) return [[...settings].map(([setting_key, setting_value]) => ({ setting_key, setting_value, is_secret: 0 }))];
     if (sql.startsWith('INSERT INTO app_settings')) { settings.set(args[0], args[1]); return [{ affectedRows: 1 }]; }
@@ -33,11 +33,15 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   assert.equal(seedance.label, 'Seedance 2.5 · up to 30 s');
   assert.ok(seedance.durations.length && seedance.aspectRatios.length && seedance.capabilities.image.supported);
   assert.ok(config.pricing.some(m => m.id === 'seedance_2.0_fast'));
-  assert.equal(config.pricing.some(m => m.id === 'minimax_h3'), false);
+  const h3 = config.pricing.find(m => m.id === 'minimax_h3');
+  assert.equal(h3.label, 'MiniMax H3 · up to 15 s');
+  assert.deepEqual(h3.resolutions.map(r => r.id), ['480p', '768p']);
+  assert.equal(h3.defaultResolution, '768p');
 
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
   assert.ok(list.models.some(m => m.key === 'video:seedance_2.5' && m.vendor === 'Vidancee / CreatePulse' && m.defaultName === 'Seedance 2.5 · up to 30 s' && m.name === ''));
   assert.ok(list.models.some(m => m.key === 'cartoon:seedance_2.5'));
+  assert.ok(list.models.some(m => m.key === 'video:minimax_h3' && m.vendor === 'vgenv'));
 
   const save = body => fetch(origin + '/admin/model-names', { method: 'POST', headers: admin, body: JSON.stringify(body) });
   assert.equal((await save({ names: { 'video:seedance_2.5': 'Seedance Long' } })).status, 200);

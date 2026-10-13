@@ -452,11 +452,16 @@ async function setUserProviderAccess(userId,providers){
 // Studio and the Upscaler show them (the Claude connector lists the same).
 // A source that is out of credits is left out, so ArgoLink's copy of the same
 // model takes its place.
-// Seedance on Vidancee or CreatePulse (the worker picks whichever is free) in
-// Video Studio, beside ArgoLink's models. Their prices are fixed per duration.
+// Seedance on Vidancee or CreatePulse (the worker picks whichever is free) and
+// MiniMax H3 on vgenv in Video Studio, beside ArgoLink's models. Their prices
+// are fixed per duration (and resolution for H3).
 const SEEDANCE_VIDEO_MODELS=['seedance_2.5','seedance_2.0_fast'];
-function seedanceVideoModels(){
-  return publicPricing().filter(m=>SEEDANCE_VIDEO_MODELS.includes(m.id)&&m.durations.length).map(m=>({
+const DIRECT_VIDEO_MODELS=[...SEEDANCE_VIDEO_MODELS,'minimax_h3'];
+function directVideoSourceActive(id,access,providerSettings){
+  return id==='minimax_h3'?Boolean(access.vgenv&&providerSettings.vgenv.active):seedanceSourcesActive(access,providerSettings);
+}
+function directVideoModels(access,providerSettings){
+  return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(m=>({
     ...m,
     label:m.label+' · up to '+Math.max(...m.durations.map(d=>d.seconds))+' s',
     defaultDuration:m.durations[0].seconds,
@@ -505,7 +510,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
-  if(seedanceSourcesActive(access,providerSettings))video=[...video,...seedanceVideoModels()];
+  video=[...video,...directVideoModels(access,providerSettings)];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
 
@@ -539,9 +544,9 @@ async function quoteModelForUser(userId,body){
   const access=await getUserProviderAccess(userId);
   const mediaType=body.mediaType==='image'?'image':'video';
   const providerSettings=await getAdminProviderSettings();
-  if(mediaType==='video'&&SEEDANCE_VIDEO_MODELS.includes(String(body.model))){
-    if(!seedanceSourcesActive(access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
-    return {cost:getCost(String(body.model),Number(body.duration),null),isEstimate:false};
+  if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
+    if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
+    return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
   }
   if(isArgoModel(body.model)){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -586,12 +591,11 @@ async function submitVideoGeneration(user,body,req=null){
     });
   }
 
-  // Video Studio runs on ArgoLink and Seedance on Vidancee/CreatePulse; MiniMax H3 is Cartoon Studio only.
-  if (!generation && !cartoonOptions && !SEEDANCE_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
+  // Video Studio runs on ArgoLink, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
+  if (!generation && !cartoonOptions && !DIRECT_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
     if (requestedModel==='minimax_h3') {
-      if (!cartoonOptions) throw httpError(400,'MiniMax H3 is available in Cartoon Studio.');
       if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
         throw httpError(503,'This model is currently unavailable.');
       }
