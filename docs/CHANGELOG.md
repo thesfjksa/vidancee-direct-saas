@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — CMM Tools video viewer
+
+- Library video cards no longer show the browser's player controls: they show a CMM Tools play badge, play silently while hovered (desktop), and clicking anywhere on the video opens the CMM Tools viewer.
+- The viewer has its own controls instead of the browser's: play/pause (also clicking the video), seek bar, time, sound on/off, full screen; keys Space/K, ←/→ (5 s), M, F. The player is sized to the video's own shape.
+
 ## 2026-10-13 — Jobs interrupted by a worker restart recover
 
 - A MiniMax H3 job stayed in "submitting" because the worker restarted while sending it. Video jobs left in "submitting" for 5 minutes without a provider job are now queued again on vgenv (its requests carry an idempotency key, so no duplicate) or refunded on Vidancee/CreatePulse (a job may already exist there). Logged as `job.requeued` / `job.submit_interrupted`.

@@ -9,7 +9,7 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-9">
+<link rel="stylesheet" href="/studio.css?v=cmm-10">
 </head>
 <body>
 
@@ -555,7 +555,18 @@
   <div class="generated-image-body">
     <div class="generated-image-frame">
       <p id="generatedVideoStatus" class="generated-image-status" role="status">Loading video…</p>
-      <video id="generatedVideoFull" controls playsinline preload="metadata"></video>
+      <div class="cmm-player" id="cmmPlayer">
+        <video id="generatedVideoFull" playsinline disablepictureinpicture preload="metadata" onclick="playerToggle()"></video>
+        <button type="button" class="cmm-player-big" id="playerBig" aria-label="Play" onclick="playerToggle()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/></svg></button>
+        <div class="cmm-player-bar">
+          <button type="button" id="playerPlay" class="cmm-player-btn" aria-label="Play" onclick="playerToggle()"></button>
+          <span class="cmm-player-time" id="playerTime">0:00</span>
+          <input type="range" id="playerSeek" class="cmm-player-seek" min="0" max="1000" value="0" step="1" aria-label="Seek" oninput="playerSeek(this.value)">
+          <span class="cmm-player-time" id="playerDuration">0:00</span>
+          <button type="button" id="playerMute" class="cmm-player-btn" aria-label="Mute" onclick="playerMute()"></button>
+          <button type="button" class="cmm-player-btn" aria-label="Full screen" onclick="playerFullscreen()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+        </div>
+      </div>
     </div>
     <aside class="generated-image-details" aria-labelledby="generatedVideoDetailsTitle">
       <div class="generated-image-info">
@@ -2886,9 +2897,11 @@ function jobCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   let media;
   if(g.has_video){
-    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="none" data-src="'+escapeHtml(g.video_url)+'"></video>'+
-      '<button type="button" class="video-zoom" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open video preview" title="Open video preview" onclick="openVideoPreview(this.dataset.generationId)">'+
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>';
+    // No browser controls on the card: it plays silently on hover and opens
+    // the CMM Tools viewer on click.
+    media='<div class="job-media video-card" style="aspect-ratio:'+aspect+'" onmouseenter="cardVideoHover(this,true)" onmouseleave="cardVideoHover(this,false)"><video muted loop playsinline disablepictureinpicture preload="none" data-src="'+escapeHtml(g.video_url)+'"></video>'+
+      '<button type="button" class="video-zoom" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open video" title="Open video" onclick="openVideoPreview(this.dataset.generationId)">'+
+      '<span class="video-play-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/></svg></span></button></div>';
   }else if(g.has_poster){
     media='<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+g.poster_url+'"></div>';
   }else{
@@ -2963,6 +2976,7 @@ function openVideoPreview(id){
   if(!g?.has_video||!g.video_url)return;
   closeCustomSelects();
   document.querySelectorAll('.job-media video').forEach(v=>{if(!v.paused)v.pause()});
+  playerSync();
   videoPreviewGenerationId=String(g.id);
   const upscale=isUpscaleGeneration(g);
   $('generatedVideoMeta').textContent=(upscale?'Upscaled to '+upscaleLabel(g.resolution):(isCartoonGeneration(g)?cartoonStyleLabel(g.generation_options.cartoon_style)+' · ':'')+videoModelLabel(g.model)+(g.resolution?' · '+g.resolution:''));
@@ -2985,6 +2999,55 @@ function openVideoPreview(id){
   video.play().catch(()=>{});
 }
 
+// Card hover preview (muted) and the CMM Tools viewer controls.
+function cardVideoHover(card,on){
+  if(matchMedia('(hover: none)').matches)return;
+  const video=card.querySelector('video');if(!video)return;
+  if(on){if(!video.getAttribute('src')&&video.dataset.src)video.src=video.dataset.src;video.muted=true;video.play().catch(()=>{})}
+  else{video.pause();try{video.currentTime=0}catch{}}
+}
+const PLAYER_ICONS={
+  play:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>',
+  sound:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  muted:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="m17 9 5 6m0-6-5 6"/></svg>',
+};
+function fmtTime(t){t=Math.max(0,Math.floor(Number(t)||0));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')}
+function playerSync(){
+  const v=$('generatedVideoFull'),playing=!v.paused&&!v.ended;
+  $('playerPlay').innerHTML=playing?PLAYER_ICONS.pause:PLAYER_ICONS.play;$('playerPlay').setAttribute('aria-label',playing?'Pause':'Play');
+  $('playerBig').classList.toggle('hide',playing);
+  $('playerMute').innerHTML=v.muted||v.volume===0?PLAYER_ICONS.muted:PLAYER_ICONS.sound;$('playerMute').setAttribute('aria-label',v.muted?'Unmute':'Mute');
+  $('playerTime').textContent=fmtTime(v.currentTime);$('playerDuration').textContent=fmtTime(v.duration);
+  const pos=v.duration?v.currentTime/v.duration*1000:0;$('playerSeek').value=String(pos);$('playerSeek').style.setProperty('--pos',pos/10+'%');
+}
+// Sizes the player to the video's own shape inside the preview frame.
+function playerFit(){
+  const v=$('generatedVideoFull'),box=$('cmmPlayer'),frame=box.parentElement;
+  if(!v.videoWidth||!v.videoHeight||document.fullscreenElement===box)return;
+  const cs=getComputedStyle(frame);
+  const maxW=frame.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+  const maxH=frame.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+  const scale=Math.min(maxW/v.videoWidth,maxH/v.videoHeight);
+  box.style.width=Math.floor(v.videoWidth*scale)+'px';box.style.height=Math.floor(v.videoHeight*scale)+'px';
+}
+$('generatedVideoFull').addEventListener('loadedmetadata',playerFit);
+window.addEventListener('resize',()=>{if($('generatedVideoDialog').open)playerFit()});
+function playerToggle(){const v=$('generatedVideoFull');if(v.paused||v.ended)v.play().catch(()=>{});else v.pause()}
+function playerSeek(value){const v=$('generatedVideoFull');if(v.duration)v.currentTime=v.duration*Number(value)/1000;playerSync()}
+function playerMute(){const v=$('generatedVideoFull');v.muted=!v.muted;playerSync()}
+function playerFullscreen(){const box=$('cmmPlayer');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else (box.requestFullscreen?box.requestFullscreen():$('generatedVideoFull').webkitEnterFullscreen?.())?.catch?.(()=>{})}
+['play','pause','timeupdate','durationchange','volumechange','ended','loadedmetadata'].forEach(type=>$('generatedVideoFull').addEventListener(type,playerSync));
+$('generatedVideoDialog').addEventListener('keydown',event=>{
+  if(event.target.matches('input,textarea,button,summary'))return;
+  const v=$('generatedVideoFull');
+  if(event.key===' '||event.key==='k'){event.preventDefault();playerToggle()}
+  else if(event.key==='ArrowRight'){v.currentTime=Math.min(v.duration||0,v.currentTime+5)}
+  else if(event.key==='ArrowLeft'){v.currentTime=Math.max(0,v.currentTime-5)}
+  else if(event.key==='m'){playerMute()}
+  else if(event.key==='f'){playerFullscreen()}
+});
+
 function closeVideoPreview(){
   const dialog=$('generatedVideoDialog');
   if(!dialog.open)return;
@@ -2999,6 +3062,7 @@ function resetVideoPreview(){
   const video=$('generatedVideoFull');
   video.onloadedmetadata=null;video.onerror=null;
   video.pause();video.removeAttribute('src');video.load();
+  $('cmmPlayer').style.width='';$('cmmPlayer').style.height='';
   const trigger=[...document.querySelectorAll('.video-zoom')].find(button=>button.dataset.generationId===id);
   if(trigger)trigger.focus({preventScroll:true});
 }
