@@ -46,7 +46,7 @@ Read-only tools are marked `readOnlyHint` so Claude can run them without asking;
 - While the job runs: status, elapsed time and a spinner. The card refreshes itself every 6 seconds through `get_job`.
 - When finished: the image, or a video player, with a Download button (the 7-day link). Failures show the reason and the refund.
 - Claude often checks a job several times; each card carries a server timestamp (`view` in the result) and older cards for the same job shrink to one line, so only the newest stays.
-- The card loads the MCP Apps client (`@modelcontextprotocol/ext-apps` 1.7.5, MIT) from `https://cmmtools.site/vendor/mcp-ext-apps-1.7.5.js` (served with CORS) and media from `/media-share` links (served with `Cross-Origin-Resource-Policy: cross-origin`); its CSP allows only cmmtools.site and Claude's font host.
+- The card loads the MCP Apps client (`@modelcontextprotocol/ext-apps` 1.7.5, MIT, kept in `vendor/` outside `public/` because Hostinger serves `public/` files itself without CORS) from `https://cmmtools.site/vendor/mcp-ext-apps-1.7.5.js` (served by the app with CORS) and media from `/media-share` links (served with `Cross-Origin-Resource-Policy: cross-origin`); its CSP allows only cmmtools.site and Claude's font host.
 - `get_job` also returns a small copy of a finished image (the 768 px WebP thumbnail, up to 90 KB) so Claude can see it.
 
 ## Protocol
