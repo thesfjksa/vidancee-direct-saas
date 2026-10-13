@@ -488,3 +488,26 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
 .connection-row b { display: block; color: var(--text); }
 .connection-row span { font-size: 13px; color: var(--muted); }
 .notice { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; background: #fff7e6; border: 1px solid #f3d9a4; color: #7a5200; }
+
+/* CMM Tools dialogs (confirm / alert) */
+.cmm-dialog-backdrop { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; background: rgba(11,29,46,.42); backdrop-filter: blur(3px); animation: cmmFade .16s ease-out; }
+.cmm-dialog-backdrop.closing { animation: cmmFade .14s ease-in reverse forwards; }
+.cmm-dialog { width: min(420px,100%); background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px 22px 18px; box-shadow: 0 24px 60px rgba(0,45,74,.22), 0 2px 6px rgba(0,45,74,.08); animation: cmmPop .2s cubic-bezier(.2,.8,.2,1); }
+.cmm-dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cmm-dialog-head img { height: 26px; width: auto; }
+.cmm-dialog-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #e8f6f8; color: var(--accent); }
+.cmm-dialog-icon.danger { background: #fdecea; color: #c0392b; }
+.cmm-dialog h2 { margin: 0 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
+.cmm-dialog p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.55; white-space: pre-line; }
+.cmm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.cmm-dialog-actions button { min-width: 96px; height: 40px; padding: 0 16px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; transition: filter .15s, background .15s, box-shadow .15s; }
+.cmm-dialog-cancel { border: 1px solid var(--line); background: #fff; color: var(--text); }
+.cmm-dialog-cancel:hover { background: #f4f7fa; }
+.cmm-dialog-ok { border: 1px solid #003a62; color: #fff; background: linear-gradient(180deg,#0b5a8e 0%,var(--brand) 100%); box-shadow: 0 4px 14px rgba(0,69,116,.2); }
+.cmm-dialog-ok.danger { border-color: #a93226; background: linear-gradient(180deg,#d9483b 0%,#b83227 100%); box-shadow: 0 4px 14px rgba(184,50,39,.22); }
+.cmm-dialog-ok:hover { filter: brightness(1.06); }
+.cmm-dialog-actions button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(0,125,145,.35); }
+@keyframes cmmFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cmmPop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (max-width: 480px) { .cmm-dialog-actions button { flex: 1; } }
+@media (prefers-reduced-motion: reduce) { .cmm-dialog-backdrop, .cmm-dialog { animation: none; } }

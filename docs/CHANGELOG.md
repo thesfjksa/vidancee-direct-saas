@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — CMM Tools dialogs
+
+- The browser's confirm/alert boxes in the studio (delete video, image or audio, request a plan, disconnect a Claude app, error messages) are replaced by a CMM Tools dialog: logo, title, message, Cancel and a navy (or red, for deletes) action button; Esc cancels, focus stays inside, works on phones.
+
 ## 2026-10-13 — MiniMax H3 at cost + 70%
 
 - MiniMax H3 (vgenv) is now priced at its real cost + 70% profit (×1.7 instead of ×2.5): 768p 0.476 credits/s (10 s = 4.76, was 7), 480p 0.238 credits/s (10 s = 2.38, was 3.5). Other models keep ×2.5.

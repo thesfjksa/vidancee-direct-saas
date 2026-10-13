@@ -9,7 +9,7 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-8">
+<link rel="stylesheet" href="/studio.css?v=cmm-9">
 </head>
 <body>
 
@@ -2552,14 +2552,45 @@ function downloadImageGeneration(id){
   a.style.display='none';document.body.appendChild(a);a.click();a.remove();
 }
 
+// CMM Tools dialogs (instead of the browser's confirm/alert boxes).
+function cmmDialog({title='',message='',confirmLabel='OK',cancelLabel='Cancel',danger=false,alert=false}){
+  return new Promise(resolve=>{
+    const previous=document.activeElement;
+    const wrap=document.createElement('div');
+    wrap.className='cmm-dialog-backdrop';
+    wrap.innerHTML='<div class="cmm-dialog" role="'+(alert?'alertdialog':'dialog')+'" aria-modal="true" aria-labelledby="cmmDialogTitle" aria-describedby="cmmDialogText">'+
+      '<div class="cmm-dialog-head"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="96" height="33"><span class="cmm-dialog-icon'+(danger?' danger':'')+'" aria-hidden="true">'+(danger?
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>':
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>')+'</span></div>'+
+      '<h2 id="cmmDialogTitle"></h2><p id="cmmDialogText"></p>'+
+      '<div class="cmm-dialog-actions">'+(alert?'':'<button type="button" class="cmm-dialog-cancel"></button>')+'<button type="button" class="cmm-dialog-ok'+(danger?' danger':'')+'"></button></div></div>';
+    wrap.querySelector('h2').textContent=title||(alert?'Something went wrong':'Are you sure?');
+    wrap.querySelector('p').textContent=message;
+    const ok=wrap.querySelector('.cmm-dialog-ok'),cancel=wrap.querySelector('.cmm-dialog-cancel');
+    ok.textContent=confirmLabel;if(cancel)cancel.textContent=cancelLabel;
+    const close=value=>{document.removeEventListener('keydown',onKey,true);wrap.classList.add('closing');setTimeout(()=>wrap.remove(),140);previous?.focus?.();resolve(value)};
+    const onKey=e=>{
+      if(e.key==='Escape'){e.preventDefault();close(alert)}
+      else if(e.key==='Tab'){const items=[cancel,ok].filter(Boolean),i=items.indexOf(document.activeElement);e.preventDefault();items[(i+(e.shiftKey?items.length-1:1))%items.length].focus()}
+    };
+    ok.onclick=()=>close(true);if(cancel)cancel.onclick=()=>close(false);
+    wrap.addEventListener('mousedown',e=>{if(e.target===wrap)close(alert)});
+    document.addEventListener('keydown',onKey,true);
+    document.body.appendChild(wrap);
+    (danger&&cancel?cancel:ok).focus();
+  });
+}
+function cmmConfirm(options){return cmmDialog(typeof options==='string'?{message:options}:options)}
+function cmmAlert(message,title){return cmmDialog({title,message,alert:true})}
+
 async function deleteImageGeneration(id){
-  if(!window.confirm('Delete this generated image? This cannot be undone.'))return;
+  if(!await cmmConfirm({title:'Delete image?',message:'This image will be removed from your library. This cannot be undone.',confirmLabel:'Delete',danger:true}))return;
   try{
     await api('/api/image-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});
     imageGenerations=imageGenerations.filter(item=>String(item.id)!==String(id));
     renderImageGallery();
     await loadDashboard();
-  }catch(e){window.alert(e.message)}
+  }catch(e){cmmAlert(e.message)}
 }
 
 function planName(code){
@@ -2622,7 +2653,7 @@ async function requestPlan(planCode){
   const plan=(config.plans||[]).find(item=>item.code===planCode);
   if(!plan)return;
   const m=$('planMsg');
-  if(!window.confirm('Request '+plan.name+' for '+formatPkr(plan.pricePkr)+'?'))return;
+  if(!await cmmConfirm({title:'Request '+plan.name+'?',message:'Request the '+plan.name+' plan for '+formatPkr(plan.pricePkr)+'. We will confirm your payment and add the credits.',confirmLabel:'Request plan'}))return;
   m.className='msg muted';m.textContent='Sending plan request...';
   try{
     await api('/api/plan-requests',{method:'POST',body:JSON.stringify({planCode})});
@@ -2837,7 +2868,7 @@ async function deleteGeneration(id){
   const g=findGeneration(id);
   if(!g)return;
 
-  const confirmed=window.confirm('Delete this generation from your library? This cannot be undone.');
+  const confirmed=await cmmConfirm({title:'Delete video?',message:'This generation will be removed from your library. This cannot be undone.',confirmLabel:'Delete',danger:true});
   if(!confirmed)return;
 
   try{
@@ -2847,7 +2878,7 @@ async function deleteGeneration(id){
     renderLibrary();
     await loadDashboard();
   }catch(e){
-    window.alert(e.message);
+    cmmAlert(e.message);
   }
 }
 
@@ -2917,9 +2948,9 @@ async function copyConnectorUrl(){
   catch{$('connectorUrl').select();m.className='msg';m.textContent='Select the URL and copy it.'}
 }
 async function disconnectApp(id){
-  if(!window.confirm('Disconnect this app from your CMM Tools account?'))return;
+  if(!await cmmConfirm({title:'Disconnect app?',message:'This app will lose access to your CMM Tools account until you connect it again.',confirmLabel:'Disconnect',danger:true}))return;
   try{await api('/api/connector/disconnect',{method:'POST',body:JSON.stringify({id})});await loadConnector()}
-  catch(e){window.alert(e.message)}
+  catch(e){cmmAlert(e.message)}
 }
 
 // ---------- Video preview ----------
@@ -3346,9 +3377,9 @@ function downloadVoiceGeneration(id){
 }
 
 async function deleteVoiceGeneration(id){
-  if(!window.confirm('Delete this generated audio? This cannot be undone.'))return;
+  if(!await cmmConfirm({title:'Delete audio?',message:'This audio will be removed from your library. This cannot be undone.',confirmLabel:'Delete',danger:true}))return;
   try{await api('/api/voice-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
-  catch(e){window.alert(e.message)}
+  catch(e){cmmAlert(e.message)}
 }
 
 async function changePassword(){
