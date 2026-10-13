@@ -1,9 +1,9 @@
-const { roundCredits, rsToCredits, usdToCredits } = require('./billing.js');
+const { rsToCredits, usdToCredits } = require('./billing.js');
 
 // Fixed-price video models cost the customer exactly what CMM Tools pays for
-// them, in credits (1 credit = Rs 1 of cost; see billing.js). The profit is in
-// the plan price, not here. Prices come only from this calculation.
-const perSecond = (rate, seconds) => Math.round(rate * seconds * 10000) / 10000;
+// them, in credits (24 credits per rupee of cost; see billing.js), rounded up
+// to whole credits. The profit is in the plan price, not here.
+const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
 
 // Vidancee and CreatePulse: Rs 40 for 30 s of Seedance 2.5. Seedance 2.0 Fast
 // keeps its earlier 5:6 ratio to Seedance 2.5.
@@ -17,7 +17,7 @@ const H3_PER_SECOND = { '480p': usdToCredits(0.0015), '768p': usdToCredits(0.003
 function h3Durations(rate) {
   const durations = {};
   for (let seconds = 4; seconds <= 15; seconds += 1) {
-    durations[seconds] = roundCredits(perSecond(rate, seconds));
+    durations[seconds] = perSecond(rate, seconds);
   }
   return durations;
 }
@@ -32,17 +32,17 @@ function pricingMap() {
       label: 'Seedance 2.5',
       resolutions: [],
       durations: {
-        10: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 10)),
-        15: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 15)),
-        30: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 30)),
+        10: (perSecond(SEEDANCE_25_PER_SECOND, 10)),
+        15: (perSecond(SEEDANCE_25_PER_SECOND, 15)),
+        30: (perSecond(SEEDANCE_25_PER_SECOND, 30)),
       },
     },
     'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       resolutions: [],
       durations: {
-        10: roundCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
-        15: roundCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
+        10: (perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
+        15: (perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
       },
     },
     'minimax_h3': {

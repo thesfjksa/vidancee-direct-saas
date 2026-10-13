@@ -1,10 +1,12 @@
 const { getPool } = require('./db.js');
 
-// Half of every plan pays for generation, half is profit: a credit costs
-// CMM Tools Rs 1 (models are priced at cost, see billing.js) and sells for Rs 2.
+// Half of every plan pays for generation, half is profit: models are priced at
+// cost, 24 credits per rupee (see billing.js), so Rs 5,000 = 60,000 credits
+// = Rs 2,500 of generation.
+const { CREDITS_PER_RS } = require('./billing.js');
 const PROFIT_SHARE = 0.5;
-const RS_PER_CREDIT = 1 / (1 - PROFIT_SHARE);
-const creditsFor = pricePkr => Math.round(pricePkr / RS_PER_CREDIT);
+const RS_PER_CREDIT = 1 / CREDITS_PER_RS / (1 - PROFIT_SHARE);
+const creditsFor = pricePkr => Math.round(pricePkr * (1 - PROFIT_SHARE) * CREDITS_PER_RS);
 
 // WhatsApp support (also the Enterprise "Contact us").
 const SUPPORT_WHATSAPP = '+923000499907';
@@ -21,9 +23,9 @@ const PLANS = Object.freeze({
     badge: '',
     description: 'For creators and small businesses posting every week.',
     features: [
-      '2,500 AI credits every purchase',
+      '60,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 62 Seedance 2.5 Lite videos of 30 s, or 297 MiniMax H3 videos of 10 s',
+      'About 18 ArgoLink Seedance 2.5 clips (5 s, 720p), 62 Seedance 2.5 Lite videos of 30 s, or 297 MiniMax H3 videos of 10 s',
       'Up to 3 simultaneous generations',
     ],
   }),
@@ -37,9 +39,9 @@ const PLANS = Object.freeze({
     badge: 'Most Popular',
     description: 'For marketers and agencies producing content daily.',
     features: [
-      '5,000 AI credits every purchase',
+      '120,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 125 Seedance 2.5 Lite videos of 30 s, or 595 MiniMax H3 videos of 10 s',
+      'About 37 ArgoLink Seedance 2.5 clips (5 s, 720p), 125 Seedance 2.5 Lite videos of 30 s, or 595 MiniMax H3 videos of 10 s',
       'Priority queue · up to 5 simultaneous generations',
     ],
   }),

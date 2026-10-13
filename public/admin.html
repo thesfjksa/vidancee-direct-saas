@@ -138,7 +138,7 @@
           <label class="muted"><input id="clearSmartApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="smartSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="smartInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
-          <div class="muted" style="margin-top:12px">Customer credits per USD</div><input id="smartCreditsPerUsd" readonly title="Fixed: 1 credit = Rs 1 of cost at Rs 280 per USD; the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" value="280" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin-top:12px">Customer credits per USD</div><input id="smartCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" value="6720" style="width:100%;margin-top:6px">
           <details class="smart-prices" style="margin-top:12px"><summary id="smartPricesSummary" class="muted" style="cursor:pointer">Model prices</summary>
             <p class="muted" style="font-size:12px">Source USD for one square image. Customer credits = USD × the multiplier above, rounded up. Other sizes scale by pixel area. 0 hides that quality; all 0 hides the model.</p>
             <div class="smart-price-head"><span></span><span>Low</span><span>Medium</span><span>High</span></div>
@@ -170,7 +170,7 @@
           <label class="muted"><input id="clearArgoApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="argoSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="argoInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="argoInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
-          <label class="muted" for="argoCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="argoCreditsPerUsd" readonly title="Fixed: 1 credit = Rs 1 of cost at Rs 280 per USD; the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
+          <label class="muted" for="argoCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="argoCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
           <div class="muted" style="margin:10px 0">Prices come from ArgoLink's public catalog (USD) and are converted with this rate. Save settings before checking the key.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkArgo()">Check saved key</button><button class="secondary" onclick="syncArgoModels()">Sync live models</button></div>
           <div id="argoActionMsg" class="muted" style="margin-top:10px"></div>
@@ -183,7 +183,7 @@
           <label class="muted"><input id="clearVercelApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="vercelSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="vercelInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="vercelInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
-          <label class="muted" for="vercelCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="vercelCreditsPerUsd" readonly title="Fixed: 1 credit = Rs 1 of cost at Rs 280 per USD; the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
+          <label class="muted" for="vercelCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="vercelCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
           <div class="muted" style="margin:10px 0">Uses its own USD conversion and model pricing. Save settings before checking the key.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkVercel()">Check saved key</button><button class="secondary" onclick="syncVercelModels()">Sync live models</button></div>
           <div id="vercelActionMsg" class="muted" style="margin-top:10px"></div>
@@ -196,7 +196,7 @@
           <label class="muted"><input id="clearFalApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="falSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="falInflight" style="display:block;margin-top:12px">Max inflight upscales</label><input id="falInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
-          <label class="muted" for="falCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="falCreditsPerUsd" readonly title="Fixed: 1 credit = Rs 1 of cost at Rs 280 per USD; the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
+          <label class="muted" for="falCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="falCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
           <div class="muted" style="margin:10px 0">fal charges per second: up to 1080p $0.0072, 2K $0.0144, 4K $0.0288. Also used for Video Studio 720p and 1080p (ArgoLink renders lower and fal upscales).</div>
           <button class="secondary" onclick="checkFal()">Check saved key</button>
           <div id="falActionMsg" class="muted" style="margin-top:10px"></div>

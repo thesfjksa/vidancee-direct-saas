@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13 — Models at cost, 60,000 credits per Rs 5,000
+
+- Every model now costs the customer exactly what CMM Tools pays for it, in credits: **24 credits per rupee of cost**, USD at Rs 280 (6,720 credits per USD) for ArgoLink, AI Gateway, SmartAIPI and fal.ai; Seedance Lite from Rs 40 per 30 s; MiniMax H3 from vgenv's Fast tier. Prices are rounded up to whole credits. The credits-per-USD boxes in Admin are fixed at 6,720.
+- Plans keep 50% whatever is generated: **Creator Rs 5,000 = 60,000 credits** (Rs 2,500 of generation), **Studio Rs 10,000 = 120,000 credits**. E.g. Creator ≈ 18 ArgoLink Seedance 2.5 clips (5 s 720p, 3,180 credits), 62 Seedance 2.5 Lite videos of 30 s (960), or 297 MiniMax H3 videos of 10 s (202).
+- Voice (Vibi) keeps its per-character rule until its rupee cost is known. Existing customer balances are not converted.
+
 ## 2026-10-13 — New plans and WhatsApp support
 
 - Plans follow the pricing rule (a credit is worth Rs 3): **Creator** Rs 5,000 → 1,667 credits, 3 jobs at once; **Studio** Rs 10,000 → 3,333 credits, priority queue, 5 jobs at once; **Enterprise** custom, its button opens WhatsApp. Basic/Pro/Premium are no longer sold; customers who have them keep their limits.

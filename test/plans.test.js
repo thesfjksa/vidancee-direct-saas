@@ -4,7 +4,7 @@ const plans = require('../src/plans.js');
 
 test('plans keep 50%: Rs 2 per credit, models at cost, Enterprise is contact-only, old plans still apply', () => {
   const list = plans.publicPlans();
-  assert.deepEqual(list.map(p => [p.code, p.pricePkr, p.credits]), [['creator', 5000, 2500], ['studio', 10000, 5000], ['enterprise', null, null]]);
+  assert.deepEqual(list.map(p => [p.code, p.pricePkr, p.credits]), [['creator', 5000, 60000], ['studio', 10000, 120000], ['enterprise', null, null]]);
   const enterprise = list.find(p => p.code === 'enterprise');
   assert.equal(enterprise.contact, true);
   assert.match(enterprise.contactUrl, /^https:\/\/wa\.me\/923000499907\?text=/);
