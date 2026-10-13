@@ -537,11 +537,12 @@ function modelVendor(id){
 // source's name and the admin's name, for Admin → Provider → Model names.
 async function adminModelNameList(){
   const everyone=defaultCustomerProviderAccess();
-  const [catalog,names]=await Promise.all([sourceMediaCatalog(everyone),modelDisplayNames()]);
+  const [catalog,names,hdOff]=await Promise.all([sourceMediaCatalog(everyone),modelDisplayNames(),argoHdOffModels()]);
   const cartoon=publicPricing();
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
-    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||''});
+    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||'',
+      ...(studio==='video'&&isArgoModel(m.id)?{hdEnhance:!hdOff.has(m.id)}:{})});
   }
   return rows;
 }
@@ -1573,6 +1574,8 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const changes=body.names&&typeof body.names==='object'&&!Array.isArray(body.names)?body.names:{};
+        const hdChanges=body.hd&&typeof body.hd==='object'&&!Array.isArray(body.hd)?body.hd:{};
+        for(const id of Object.keys(hdChanges))if(!isArgoModel(id))return sendJson(res,400,{ok:false,error:'HD enhance applies to ArgoLink video models only.'});
         const names=await modelDisplayNames();
         for(const [key,value] of Object.entries(changes)){
           const [studio,...rest]=String(key).split(':');
@@ -1582,7 +1585,13 @@ const server=http.createServer(async (req,res)=>{
           if(name)names[key]=name;else delete names[key];
         }
         await setSettingValue(MODEL_NAMES_SETTING,JSON.stringify(names));
-        logActivity({category:'admin',event:'model_names.saved',message:'Model names updated ('+Object.keys(changes).length+' change'+(Object.keys(changes).length===1?'':'s')+')',details:changes});
+        if(Object.keys(hdChanges).length){
+          const hdOff=await argoHdOffModels();
+          for(const [id,on] of Object.entries(hdChanges)){if(on===false)hdOff.add(id);else hdOff.delete(id);}
+          await setSettingValue(ARGO_HD_OFF_SETTING,JSON.stringify([...hdOff]));
+          logActivity({category:'admin',event:'argolink.hd_enhance',provider:'argolink',message:'HD enhance changed for '+Object.keys(hdChanges).length+' model(s)',details:hdChanges});
+        }
+        if(Object.keys(changes).length)logActivity({category:'admin',event:'model_names.saved',message:'Model names updated ('+Object.keys(changes).length+' change'+(Object.keys(changes).length===1?'':'s')+')',details:changes});
         return sendJson(res,200,{ok:true,models:await adminModelNameList()});
       }
       if (req.method==='GET' && routePath==='/admin/support-key') {
@@ -1624,23 +1633,7 @@ const server=http.createServer(async (req,res)=>{
         const provider=String(url.searchParams.get('provider')||'vercel');
         if (!['vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
-        if(provider==='argolink'){
-          const hdOff=await argoHdOffModels();
-          for(const m of models)if(m.mediaType==='video')m.hdEnhance=!hdOff.has(m.publicModelId);
-        }
         return sendJson(res,200,{ok:true,models});
-      }
-
-      if (req.method==='POST' && routePath==='/admin/argolink/hd') {
-        requireDatabase();
-        const body=await readJson(req);
-        const model=await getProviderModelByPublicId('argolink',String(body.model||''),'video');
-        if(!model)return sendJson(res,404,{ok:false,error:'Video model not found.'});
-        const hdOff=await argoHdOffModels();
-        if(body.hd===false)hdOff.add(model.publicModelId);else hdOff.delete(model.publicModelId);
-        await setSettingValue(ARGO_HD_OFF_SETTING,JSON.stringify([...hdOff]));
-        logActivity({category:'admin',event:'argolink.hd_enhance',provider:'argolink',message:'HD enhancement '+(body.hd===false?'off':'on')+' for '+model.label,details:{model:model.publicModelId}});
-        return sendJson(res,200,{ok:true,model:model.publicModelId,hdEnhance:body.hd!==false});
       }
 
       const providerModelMatch=routePath.match(/^\/admin\/provider-models\/(\d+)$/);

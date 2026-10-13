@@ -46,6 +46,12 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   const save = body => fetch(origin + '/admin/model-names', { method: 'POST', headers: admin, body: JSON.stringify(body) });
   assert.equal((await save({ names: { 'video:seedance_2.5': 'Seedance Long' } })).status, 200);
   assert.equal((await save({ names: { 'audio:x': 'Nope' } })).status, 400);
+  // HD enhance is set here too, for ArgoLink video models only.
+  assert.equal((await save({ hd: { 'seedance_2.5': false } })).status, 400);
+  assert.equal((await save({ hd: { argo_seedance_2_5: false } })).status, 200);
+  assert.deepEqual(JSON.parse(settings.get('argolink_hd_off_models')), ['argo_seedance_2_5']);
+  await save({ hd: { argo_seedance_2_5: true } });
+  assert.deepEqual(JSON.parse(settings.get('argolink_hd_off_models')), []);
   assert.equal((await save({ names: { 'video:seedance_2.5': 'x'.repeat(81) } })).status, 400);
   assert.equal((await fetch(origin + '/admin/model-names', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
 
