@@ -5,8 +5,9 @@ function positiveNumber(value, fallback = null) {
   return n;
 }
 
+// Customer price = source cost in credits x 2.5 (fixed; not a setting).
 function creditMultiplier() {
-  return positiveNumber(process.env.CUSTOMER_CREDIT_MULTIPLIER, 2.5);
+  return 2.5;
 }
 
 function roundCredits(value) {

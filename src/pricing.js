@@ -1,31 +1,34 @@
-const { positiveNumber, sourceToCustomerCredits } = require('./billing.js');
+const { sourceToCustomerCredits } = require('./billing.js');
 
-function sourceCost(name, fallback = null) {
-  return positiveNumber(process.env[name], fallback);
-}
+// Fixed-price video models are priced from what the source really costs, in
+// CMM Tools credits (Rs 3 each on every plan), times the 2.5x customer
+// multiplier. Prices come only from this calculation, never from settings.
+const RS_PER_CREDIT = 3;
+const PKR_PER_USD = 280;
+const rsToCredits = rs => rs / RS_PER_CREDIT;
+const usdToCredits = usd => usd * PKR_PER_USD / RS_PER_CREDIT;
+const perSecond = (rate, seconds) => Math.round(rate * seconds * 10000) / 10000;
 
-function h3Durations(perSecond) {
+// Vidancee and CreatePulse: Rs 40 for 30 s of Seedance 2.5. Seedance 2.0 Fast
+// keeps its earlier 5:6 ratio to Seedance 2.5.
+const SEEDANCE_25_PER_SECOND = rsToCredits(40 / 30);
+const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
+
+// vgenv MiniMax H3, Fast tier (vgenv.com/developers): $0.0015/s at 480p,
+// $0.003/s at 768p.
+const H3_PER_SECOND = { '480p': usdToCredits(0.0015), '768p': usdToCredits(0.003) };
+
+function h3Durations(rate) {
   const durations = {};
   for (let seconds = 4; seconds <= 15; seconds += 1) {
-    durations[seconds] = sourceToCustomerCredits(perSecond * seconds);
+    durations[seconds] = sourceToCustomerCredits(perSecond(rate, seconds));
   }
   return durations;
 }
 
 function h3ResolutionCosts() {
-  return {
-    '480p': h3Durations(sourceCost('SOURCE_MINIMAX_H3_FAST_480P_CREDITS_PER_SECOND', 0.15)),
-    '768p': h3Durations(sourceCost('SOURCE_MINIMAX_H3_FAST_768P_CREDITS_PER_SECOND', 0.3)),
-  };
+  return { '480p': h3Durations(H3_PER_SECOND['480p']), '768p': h3Durations(H3_PER_SECOND['768p']) };
 }
-
-// Vidancee and CreatePulse charge about Rs 40 for 30 s of Seedance 2.5. A
-// CMM Tools credit sells for Rs 3 (every plan), so the source cost is
-// 40 / 30 / 3 credits per second before the 2.5x customer multiplier.
-// Seedance 2.0 Fast keeps its earlier 5:6 ratio to Seedance 2.5.
-const SEEDANCE_25_PER_SECOND = 40 / 30 / 3;
-const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
-const perSecond = (rate, seconds) => Math.round(rate * seconds * 10000) / 10000;
 
 function pricingMap() {
   return {
@@ -33,18 +36,17 @@ function pricingMap() {
       label: 'Seedance 2.5',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_10', perSecond(SEEDANCE_25_PER_SECOND, 10))),
-        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_15', perSecond(SEEDANCE_25_PER_SECOND, 15))),
-        20: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_20', null)),
-        30: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_30', perSecond(SEEDANCE_25_PER_SECOND, 30))),
+        10: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 10)),
+        15: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 15)),
+        30: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 30)),
       },
     },
     'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_10', perSecond(SEEDANCE_20_FAST_PER_SECOND, 10))),
-        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_15', perSecond(SEEDANCE_20_FAST_PER_SECOND, 15))),
+        10: sourceToCustomerCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
+        15: sourceToCustomerCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
       },
     },
     'minimax_h3': {

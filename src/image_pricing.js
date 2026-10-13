@@ -1,8 +1,4 @@
-const { positiveNumber, sourceToCustomerCredits } = require('./billing.js');
-
-function sourceCost(name, fallback = null) {
-  return positiveNumber(process.env[name], fallback);
-}
+const { sourceToCustomerCredits } = require('./billing.js');
 
 const IMAGE_ASPECT_RATIOS = ['1:1', '4:3', '16:9', '9:16'];
 
@@ -17,7 +13,7 @@ function imagePricingMap() {
   return {
     seedream_v5_lite: {
       label: 'Seedream 5.0 Lite',
-      cost: sourceToCustomerCredits(sourceCost('PRICE_IMAGE_SEEDREAM_50_LITE', 2)),
+      cost: sourceToCustomerCredits(2),
       textModel: 'bytedance/seedream-v5.0-lite',
       referenceModel: 'bytedance/seedream-v5.0-lite/edit',
       buildPayload({ prompt, aspectRatio, imageUrls = [] }) {
@@ -33,7 +29,7 @@ function imagePricingMap() {
     },
     nano_banana_2: {
       label: 'Nano Banana 2',
-      cost: sourceToCustomerCredits(sourceCost('PRICE_IMAGE_NANO_BANANA_2', 3)),
+      cost: sourceToCustomerCredits(3),
       textModel: 'google/nano-banana-2/text-to-image',
       referenceModel: 'google/nano-banana-2/reference-to-image',
       buildPayload({ prompt, aspectRatio, imageUrls = [] }) {

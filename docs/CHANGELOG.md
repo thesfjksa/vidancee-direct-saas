@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — Fixed video prices come only from the calculation
+
+- `PRICE_SEEDANCE_*`, `SOURCE_MINIMAX_H3_*`, `PRICE_IMAGE_*` and `CUSTOMER_CREDIT_MULTIPLIER` are no longer read; old values left in hPanel had kept the previous Seedance prices live. Prices are the real source cost in credits (Rs 3 each; USD at Rs 280) × 2.5.
+- MiniMax H3 now follows the same calculation from vgenv's Fast tier ($0.0015/s 480p, $0.003/s 768p): 0.35 credits/s at 480p (was 0.375) and 0.7 credits/s at 768p (was 0.75), e.g. 10 s 768p = 7 credits.
+
 ## 2026-10-13 — Seedance Lite prices from the real source cost
 
 - Vidancee and CreatePulse charge about Rs 40 for 30 s of Seedance 2.5. At Rs 3 per credit and the 2.5× multiplier, Seedance 2.5 is now 11.11 credits for 10 s (was 15), 16.67 for 15 s (was 22.5) and 33.33 for 30 s (was 35). Seedance 2.0 Fast keeps its 5:6 ratio: 9.26 for 10 s (was 12.5), 13.89 for 15 s (was 18.75). Applies to Video and Cartoon Studio; `PRICE_SEEDANCE_*` still override.

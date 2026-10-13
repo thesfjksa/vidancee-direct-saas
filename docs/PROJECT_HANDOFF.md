@@ -153,7 +153,7 @@ There are separate billing rules by source. The former universal description of 
 
 | Source family | Customer credit rule |
 | --- | --- |
-| Cartoon Studio Seedance and vgenv video | Configured source billing units multiplied by CUSTOMER_CREDIT_MULTIPLIER, default 2.5, rounded to two decimal places |
+| Seedance (Vidancee/CreatePulse) and vgenv video | Real source cost in credits (Rs 3 each; USD at Rs 280) × 2.5, rounded to two decimals, calculated in src/pricing.js |
 | SmartAIPI images | Estimated source USD multiplied by the direct customer-credits-per-USD setting, then rounded up to a whole credit |
 | Vibi TTS | Conservative submission estimate, followed by reconciliation to reported source credits multiplied by the shared multiplier |
 | Vibi cloning | Configurable customer clone cost in Admin |
@@ -288,8 +288,6 @@ Hostinger supplies PORT. The server supports `process.env.PORT` with a fallback;
 | WORKER_POLL_MS | Queue polling interval; default 5000 ms |
 | WORKER_WAKE_URL | Web-side wake endpoint for the separate worker |
 | ALLOW_SIGNUPS, STARTING_CREDITS, SESSION_DAYS | Account setup; default starting credits 0 and session lifetime 30 days |
-| CUSTOMER_CREDIT_MULTIPLIER | Shared source-unit conversion; default 2.5, with source-specific exceptions |
-| PRICE_SEEDANCE and SOURCE_MINIMAX settings | Static source billing estimates used by video pricing |
 
 Provider credentials belong in Admin settings. Legacy provider environment values can seed settings when a corresponding database value is missing. Infrastructure secrets remain in Hostinger environment settings. Do not replace an established encryption root casually; existing encrypted provider values depend on it.
 
