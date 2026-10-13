@@ -193,13 +193,18 @@ function createConnector(deps) {
     const controller = new AbortController();
     res.once('close', () => controller.abort());
     const ctx = {
-      user, services: services(base), signal: controller.signal,
+      user, base, services: services(base), signal: controller.signal,
       protocolHeader: req.headers['mcp-protocol-version'] ? String(req.headers['mcp-protocol-version']) : null,
       log: (event, message, details, generationId = null, level = 'info') => log(event, message, details, { userId: user.id, generationId, level }),
     };
     const out = await mcp.handleBody(raw, ctx);
     if (!out.body) { res.writeHead(out.status); return res.end(); }
     return sendJson(res, out.status, out.body);
+  }
+
+  // Claude's "Add custom connector" dialog with the name and URL filled in.
+  function installUrl(base) {
+    return 'https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=' + encodeURIComponent('CMM Tools') + '&connectorUrl=' + encodeURIComponent(base + '/mcp');
   }
 
   function consentFields(request) {
@@ -340,7 +345,7 @@ function createConnector(deps) {
 
     if (req.method === 'GET' && routePath === '/api/connector') {
       const user = await deps.requireUser(req);
-      sendJson(res, 200, { ok: true, enabled: await enabled(), url: base + '/mcp', connections: await oauth.listConnections(getPool(), user.id) });
+      sendJson(res, 200, { ok: true, enabled: await enabled(), url: base + '/mcp', installUrl: installUrl(base), connections: await oauth.listConnections(getPool(), user.id) });
       return true;
     }
     if (req.method === 'POST' && routePath === '/api/connector/disconnect') {

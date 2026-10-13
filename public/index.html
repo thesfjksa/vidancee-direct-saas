@@ -456,11 +456,13 @@
           <div class="card">
             <div class="panel-title">Connect Claude</div>
             <div class="panel-sub">Add CMM Tools to Claude as a custom connector.</div>
-            <div class="field"><label for="connectorUrl">Connector URL</label>
+            <a id="connectorInstall" class="btn primary connector-install" href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">Add to Claude</a>
+            <div class="panel-sub" style="margin-top:8px">Opens Claude with CMM Tools filled in: click <b>Add</b>, then <b>Connect</b>, sign in here and choose <b>Allow</b>.</div>
+            <div class="field"><label for="connectorUrl">Or add it by hand with this URL</label>
               <div class="connector-copy"><input id="connectorUrl" readonly value=""><button class="btn secondary" type="button" onclick="copyConnectorUrl()">Copy</button></div>
             </div>
             <ol class="connector-steps">
-              <li>In Claude, open <b>Customize → Connectors</b>, click <b>+ Add</b> and choose <b>Add custom connector</b>.</li>
+              <li>In Claude, open <b>Customize → Connectors</b>, click <b>+ Add</b> and choose <b>Add custom connector</b>. (CMM Tools isn’t in Claude’s connector search; it is added by URL.)</li>
               <li>Name it <b>CMM Tools</b>, paste the URL above, and click <b>Add</b>.</li>
               <li>Click <b>Connect</b>, sign in with your CMM Tools account and choose <b>Allow</b>.</li>
               <li>In a chat, turn on CMM Tools under <b>+ → Connectors</b> and ask, for example: <i>“Make a 5-second 9:16 Seedance 2.5 ad from my product photo.”</i></li>
@@ -2899,6 +2901,7 @@ async function loadConnector(){
   try{
     const d=await api('/api/connector');
     $('connectorUrl').value=d.url;
+    if(d.installUrl)$('connectorInstall').href=d.installUrl;
     $('connectorCli').textContent='claude mcp add --transport http cmm-tools '+d.url;
     $('connectorOff').classList.toggle('hide',d.enabled);
     list.innerHTML=d.connections.length?d.connections.map(c=>

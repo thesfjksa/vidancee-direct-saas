@@ -7,11 +7,13 @@ Customers can use CMM Tools from Claude: they add CMM Tools as a **custom connec
 - Admin: **Provider → Claude connector** (on/off for everyone, number of connected apps).
 - Code: `src/connector.js` (HTTP routes), `src/mcp_server.js` (protocol and tools), `src/mcp_oauth.js` (sign-in), `src/mcp_pages.js` (sign-in, consent and upload pages), `src/remote_image.js` (safe image downloads).
 
-Anthropic does not list connectors that generate images or video in its Connectors Directory, so CMM Tools is added by URL as a custom connector. Custom connectors are available on every Claude plan (Free accounts can add one).
+Anthropic does not list connectors that generate images or video in its Connectors Directory, so CMM Tools is added by URL as a custom connector. Custom connectors are available on every Claude plan (Free accounts can add one). Claude shows custom connectors with a generic **Custom** icon; only directory connectors get a logo card. The server still reports its name, website and a 512×512 icon (`/assets/cmmtools-mcp-icon.png`) in `serverInfo` for clients that display it.
 
 ## Setting it up in Claude
 
-1. Claude → **Customize → Connectors** → **+ Add** → **Add custom connector**.
+The **Add to Claude** button on the Use with Claude page opens Claude's Add custom connector dialog with the name and URL filled in (`https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=CMM%20Tools&connectorUrl=https%3A%2F%2Fcmmtools.site%2Fmcp`); the customer clicks **Add**, then **Connect**. By hand:
+
+1. Claude → **Customize → Connectors** → **+ Add** → **Add custom connector**. CMM Tools does not appear in Claude's connector search.
 2. Name `CMM Tools`, URL `https://cmmtools.site/mcp`, **Add**.
 3. **Connect** → sign in to CMM Tools → **Allow**.
 4. In a chat: **+ → Connectors** → turn on CMM Tools.

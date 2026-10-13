@@ -12,6 +12,11 @@
 const LEGACY_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const MODERN_VERSIONS = ['2026-07-28'];
 const SERVER_INFO = { name: 'cmm-tools', title: 'CMM Tools', version: '1.0.0' };
+// serverInfo with the description, website and icon (MCP 2025-11-25 fields).
+function serverInfo(base = 'https://cmmtools.site') {
+  return { ...SERVER_INFO, description: 'AI video and image generation with your CMM Tools credits.', websiteUrl: base,
+    icons: [{ src: base + '/assets/cmmtools-mcp-icon.png', mimeType: 'image/png', sizes: ['512x512'] }] };
+}
 const INSTRUCTIONS = 'CMM Tools makes AI videos and images and charges the signed-in customer\'s CMM Tools credits. '
   + 'list_models gives model ids and options and estimate_cost gives the price in credits. create_video and create_image start a job '
   + 'and return its id at once; jobs run in the background, and get_job (with wait_seconds up to 50) reports progress and, when finished, '
@@ -429,8 +434,8 @@ function rpcError(id, code, message, data) {
 }
 function rpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
 
-function modernWrap(result, { list = false, scope = 'private', ttlMs = 0 } = {}) {
-  return { ...result, resultType: 'complete', _meta: { ...(result._meta || {}), 'io.modelcontextprotocol/serverInfo': SERVER_INFO },
+function modernWrap(result, { list = false, scope = 'private', ttlMs = 0, base } = {}) {
+  return { ...result, resultType: 'complete', _meta: { ...(result._meta || {}), 'io.modelcontextprotocol/serverInfo': serverInfo(base) },
     ...(list ? { ttlMs, cacheScope: scope } : {}) };
 }
 
@@ -458,14 +463,14 @@ async function handleMessage(message, ctx) {
     }
     modern = MODERN_VERSIONS.includes(requested);
   }
-  const reply = (result, options) => ({ status: 200, body: rpcResult(id, modern ? modernWrap(result, options) : result) });
+  const reply = (result, options) => ({ status: 200, body: rpcResult(id, modern ? modernWrap(result, { ...options, base: ctx.base }) : result) });
 
   try {
     if (method === 'initialize') {
       const asked = String(params.protocolVersion || '');
       return { status: 200, body: rpcResult(id, {
         protocolVersion: LEGACY_VERSIONS.includes(asked) ? asked : LEGACY_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO, instructions: INSTRUCTIONS,
+        capabilities: { tools: { listChanged: false } }, serverInfo: serverInfo(ctx.base), instructions: INSTRUCTIONS,
       }) };
     }
     if (method === 'ping') return reply({});
@@ -511,6 +516,6 @@ async function handleBody(raw, ctx) {
 }
 
 module.exports = {
-  LEGACY_VERSIONS, MODERN_VERSIONS, SERVER_INFO, TOOLS, ACTIVE,
+  LEGACY_VERSIONS, MODERN_VERSIONS, SERVER_INFO, serverInfo, TOOLS, ACTIVE,
   handleMessage, handleBody, videoModelSummary, imageModelSummary, imagePriceFromCatalog, rolesFor, jobView,
 };

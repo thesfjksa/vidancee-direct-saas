@@ -101,7 +101,7 @@ function fakeServices(overrides = {}) {
   };
   return services;
 }
-const ctxFor = (services, extra = {}) => ({ user: { id: 7 }, services, log: () => {}, protocolHeader: null, ...extra });
+const ctxFor = (services, extra = {}) => ({ user: { id: 7 }, base: BASE, services, log: () => {}, protocolHeader: null, ...extra });
 const call = (ctx, name, args) => mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx);
 
 test('legacy clients (Claude today) get the initialize handshake; modern clients get server/discover', async () => {
@@ -109,6 +109,7 @@ test('legacy clients (Claude today) get the initialize handshake; modern clients
   let out = await mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {} } }, ctx);
   assert.equal(out.body.result.protocolVersion, '2025-06-18');
   assert.deepEqual(out.body.result.capabilities, { tools: { listChanged: false } });
+  assert.deepEqual(out.body.result.serverInfo.icons, [{ src: BASE + '/assets/cmmtools-mcp-icon.png', mimeType: 'image/png', sizes: ['512x512'] }]);
   out = await mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2030-01-01' } }, ctx);
   assert.equal(out.body.result.protocolVersion, '2025-11-25');
   assert.equal((await mcp.handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }, ctx)).status, 202);

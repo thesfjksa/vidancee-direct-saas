@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13 — Add to Claude button
+
+- Verified with a real Claude account: the connector signed in and Claude read the account and models through it.
+- **Add to Claude** button on the Use with Claude page opens Claude's Add custom connector dialog with CMM Tools filled in. The steps now say CMM Tools isn't in Claude's connector search.
+- The server reports a description, website and square icon in `serverInfo`. Claude itself shows custom connectors with a generic icon.
+
 ## 2026-10-13 — CMM Tools in Claude (MCP connector)
 
 - Customers can add CMM Tools to Claude as a custom connector (`https://cmmtools.site/mcp`), sign in with their CMM Tools account and create videos, images and upscales from chat with their own credits. Tools: get_account, list_models, estimate_cost, create_video, create_image, get_job (waits up to 50 s, 7-day download link), list_jobs, upscale_video, request_image_upload, list_uploads. Jobs go through the same functions as the website (now shared: `submitVideoGeneration`, `submitImageGeneration`, `submitUpscale`, `quoteModelForUser`, `customerMediaCatalog`).

@@ -477,6 +477,7 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
 .upscale-source-btn.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px rgba(0,185,201,.14); }
 
 /* ---------- Use with Claude ---------- */
+.connector-install { display: inline-flex; align-items: center; justify-content: center; margin-top: 14px; min-height: 42px; padding: 0 18px; text-decoration: none; }
 .connector-copy { display: flex; gap: 8px; }
 .connector-copy input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 .connector-steps { margin: 14px 0 0; padding-left: 20px; color: var(--text-2); line-height: 1.6; }
