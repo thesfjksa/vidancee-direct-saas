@@ -138,3 +138,10 @@ test('a Seedance job moves to the other source when the first one fails, Video S
   assert.equal(Number(w.outOfCreditsUntil?.createpulse || 0), 0);
   w.stop?.();
 });
+
+test('MiniMax H3 is priced at vgenv cost + 70%', () => {
+  const { getCost } = require('../src/pricing.js');
+  // $0.003/s x 10 s x Rs 280 / Rs 3 per credit = 2.8 credits cost -> x1.7
+  assert.equal(getCost('minimax_h3', 10, '768p'), 4.76);
+  assert.equal(getCost('minimax_h3', 10, '480p'), 2.38);
+});

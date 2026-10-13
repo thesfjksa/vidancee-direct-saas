@@ -1,4 +1,4 @@
-const { sourceToCustomerCredits } = require('./billing.js');
+const { sourceToCustomerCredits, roundCredits } = require('./billing.js');
 
 // Fixed-price video models are priced from what the source really costs, in
 // CMM Tools credits (Rs 3 each on every plan), times the 2.5x customer
@@ -15,13 +15,14 @@ const SEEDANCE_25_PER_SECOND = rsToCredits(40 / 30);
 const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
 
 // vgenv MiniMax H3, Fast tier (vgenv.com/developers): $0.0015/s at 480p,
-// $0.003/s at 768p.
+// $0.003/s at 768p. Sold at cost + 70% profit (not the 2.5x rule).
 const H3_PER_SECOND = { '480p': usdToCredits(0.0015), '768p': usdToCredits(0.003) };
+const H3_MULTIPLIER = 1.7;
 
 function h3Durations(rate) {
   const durations = {};
   for (let seconds = 4; seconds <= 15; seconds += 1) {
-    durations[seconds] = sourceToCustomerCredits(perSecond(rate, seconds));
+    durations[seconds] = roundCredits(perSecond(rate, seconds) * H3_MULTIPLIER);
   }
   return durations;
 }

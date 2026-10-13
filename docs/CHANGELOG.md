@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — MiniMax H3 at cost + 70%
+
+- MiniMax H3 (vgenv) is now priced at its real cost + 70% profit (×1.7 instead of ×2.5): 768p 0.476 credits/s (10 s = 4.76, was 7), 480p 0.238 credits/s (10 s = 2.38, was 3.5). Other models keep ×2.5.
+
 ## 2026-10-13 — Fixed video prices come only from the calculation
 
 - `PRICE_SEEDANCE_*`, `SOURCE_MINIMAX_H3_*`, `PRICE_IMAGE_*` and `CUSTOMER_CREDIT_MULTIPLIER` are no longer read; old values left in hPanel had kept the previous Seedance prices live. Prices are the real source cost in credits (Rs 3 each; USD at Rs 280) × 2.5.
