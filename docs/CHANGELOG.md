@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — Video preview
+
+- Finished videos have a zoom button (top-right of the card, as on Image Studio) that opens a preview at the video's own shape, with aspect ratio, dimensions, duration, credits, prompt, Download and Reuse prompt. Works in Video Studio, Cartoon Studio, the Upscaler and the Library.
+- Browser fullscreen on a card video no longer crops it: the cards' `object-fit: cover` applied in fullscreen too, so a 9:16 video filled a landscape screen with its top and bottom cut off. Fullscreen now shows the whole frame.
+
 ## 2026-10-12 — Video jobs wake the worker
 
 - Hostinger stops the idle worker app. The video list the browser polls (`GET /api/generations`) did not wake it (the image list and single-job routes did), so a video job stalled until another job was created; a Seedance 2.5 job sat 17 minutes after ArgoLink had finished. The video list now wakes the worker while a job is running, and the web app also wakes it every minute while any job is queued or running, so jobs finish after the customer closes the tab.

@@ -510,6 +510,41 @@
   </div>
 </dialog>
 
+<dialog id="generatedVideoDialog" class="generated-image-dialog" aria-labelledby="generatedVideoTitle" aria-describedby="generatedVideoMeta">
+  <div class="generated-image-head">
+    <div class="generated-image-heading">
+      <span class="generated-image-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3V9Z"/></svg></span>
+      <div><h2 id="generatedVideoTitle">Video preview</h2><p id="generatedVideoMeta"></p></div>
+    </div>
+    <button type="button" class="generated-image-close" aria-label="Close video preview" onclick="closeVideoPreview()" autofocus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="generated-image-body">
+    <div class="generated-image-frame">
+      <p id="generatedVideoStatus" class="generated-image-status" role="status">Loading video…</p>
+      <video id="generatedVideoFull" controls playsinline preload="metadata"></video>
+    </div>
+    <aside class="generated-image-details" aria-labelledby="generatedVideoDetailsTitle">
+      <div class="generated-image-info">
+        <h3 id="generatedVideoDetailsTitle">Video details</h3>
+        <dl class="generated-image-detail-grid">
+          <div><dt>Aspect ratio</dt><dd id="generatedVideoAspect"></dd></div>
+          <div><dt>Dimensions</dt><dd id="generatedVideoDimensions">Loading…</dd></div>
+          <div><dt>Duration</dt><dd id="generatedVideoDuration"></dd></div>
+          <div><dt>Credits used</dt><dd id="generatedVideoCost"></dd></div>
+        </dl>
+        <details id="generatedVideoPromptDetails" class="generated-image-prompt-details" open>
+          <summary>Prompt</summary>
+          <p id="generatedVideoPrompt"></p>
+        </details>
+      </div>
+      <div class="generated-image-actions">
+        <button type="button" class="generated-image-download" onclick="downloadPreviewVideo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>Download video</button>
+        <button id="reuseVideoPreviewBtn" type="button" class="generated-image-reuse" onclick="reusePreviewVideo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1-7.5L4 10"/></svg>Reuse prompt</button>
+      </div>
+    </aside>
+  </div>
+</dialog>
+
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
@@ -2785,7 +2820,9 @@ function jobCard(g){
   const aspect=aspectValue(g.aspect_ratio);
   let media;
   if(g.has_video){
-    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="none" data-src="'+escapeHtml(g.video_url)+'"></video></div>';
+    media='<div class="job-media" style="aspect-ratio:'+aspect+'"><video controls preload="none" data-src="'+escapeHtml(g.video_url)+'"></video>'+
+      '<button type="button" class="video-zoom" data-generation-id="'+escapeHtml(g.id)+'" aria-label="Open video preview" title="Open video preview" onclick="openVideoPreview(this.dataset.generationId)">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>';
   }else if(g.has_poster){
     media='<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+g.poster_url+'"></div>';
   }else{
@@ -2822,6 +2859,76 @@ function jobCard(g){
       '<div class="job-actions">'+reuseButton+upscaleButton+downloadButton+deleteButton+'</div>'+
     '</div></article>';
 }
+
+// ---------- Video preview ----------
+// Opens a finished video at its own shape (vertical stays vertical), like the
+// Image Studio preview.
+let videoPreviewGenerationId=null;
+function videoModelLabel(id){return (config?.pricing||[]).find(m=>m.id===id)?.label||imageModelLabel(id)}
+function openVideoPreview(id){
+  const g=findGeneration(id);
+  if(!g?.has_video||!g.video_url)return;
+  closeCustomSelects();
+  document.querySelectorAll('.job-media video').forEach(v=>{if(!v.paused)v.pause()});
+  videoPreviewGenerationId=String(g.id);
+  const upscale=isUpscaleGeneration(g);
+  $('generatedVideoMeta').textContent=(upscale?'Upscaled to '+upscaleLabel(g.resolution):(isCartoonGeneration(g)?cartoonStyleLabel(g.generation_options.cartoon_style)+' · ':'')+videoModelLabel(g.model)+(g.resolution?' · '+g.resolution:''));
+  $('generatedVideoAspect').textContent=g.aspect_ratio||'—';
+  $('generatedVideoDuration').textContent=Number(g.duration)>0?g.duration+' s':'—';
+  $('generatedVideoCost').textContent=String(g.credits_cost??'—');
+  $('generatedVideoPrompt').textContent=g.prompt||'No prompt saved for this video.';
+  $('generatedVideoPromptDetails').open=window.innerWidth>760;
+  $('generatedVideoDimensions').textContent='Loading…';
+  const reuse=$('reuseVideoPreviewBtn');
+  reuse.classList.toggle('hide',upscale);
+  reuse.disabled=$('generateBtn').disabled;
+  const video=$('generatedVideoFull'),status=$('generatedVideoStatus'),previewId=videoPreviewGenerationId;
+  status.textContent='Loading video…';status.classList.remove('hide');
+  video.onloadedmetadata=()=>{if(videoPreviewGenerationId!==previewId)return;status.classList.add('hide');$('generatedVideoDimensions').textContent=video.videoWidth+' × '+video.videoHeight};
+  video.onerror=()=>{if(videoPreviewGenerationId!==previewId)return;status.textContent='Video could not be loaded. Close and try again.';status.classList.remove('hide');$('generatedVideoDimensions').textContent='Unavailable'};
+  video.src=g.video_url;
+  const dialog=$('generatedVideoDialog');
+  if(!dialog.open)dialog.showModal();
+  video.play().catch(()=>{});
+}
+
+function closeVideoPreview(){
+  const dialog=$('generatedVideoDialog');
+  if(!dialog.open)return;
+  dialog.close();
+  resetVideoPreview();
+}
+
+function resetVideoPreview(){
+  const id=videoPreviewGenerationId;
+  if(!id)return;
+  videoPreviewGenerationId=null;
+  const video=$('generatedVideoFull');
+  video.onloadedmetadata=null;video.onerror=null;
+  video.pause();video.removeAttribute('src');video.load();
+  const trigger=[...document.querySelectorAll('.video-zoom')].find(button=>button.dataset.generationId===id);
+  if(trigger)trigger.focus({preventScroll:true});
+}
+
+function downloadPreviewVideo(){
+  if(videoPreviewGenerationId)downloadGeneration(videoPreviewGenerationId);
+}
+
+async function reusePreviewVideo(){
+  const id=videoPreviewGenerationId;
+  if(!id||$('generateBtn').disabled)return;
+  closeVideoPreview();
+  await reuseGeneration(id);
+}
+
+$('generatedVideoDialog').addEventListener('click',event=>{
+  if(event.target!==event.currentTarget)return;
+  const rect=event.currentTarget.getBoundingClientRect();
+  if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeVideoPreview();
+});
+$('generatedVideoDialog').addEventListener('close',()=>{
+  if(!$('generatedVideoDialog').open)resetVideoPreview();
+});
 
 // ---------- Upscaler ----------
 let upscaleSource='library',upscaleFile=null,upscaleFileInfo=null,upscaleQuoteToken=0;
