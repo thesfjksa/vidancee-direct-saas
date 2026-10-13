@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — HD enhance on/off per ArgoLink video model
+
+- Admin → Provider → ArgoLink models: each video model has an **HD enhance** box under Hide/Show (on by default). Off: Video Studio offers the model's own resolutions (for example 480p, 720p, 1080p), renders exactly that resolution with no fal.ai upscale, and charges ArgoLink's render price only. On: 720p/1080p are rendered lower and upscaled to 1080p as before. Stored in the `argolink_hd_off_models` setting; changes are logged as `argolink.hd_enhance`.
+
 ## 2026-10-13 — MiniMax H3 (vgenv) in Video Studio
 
 - Video Studio also lists MiniMax H3 on vgenv ("MiniMax H3 · up to 15 s", 480p or 768p, 4–15 s, up to 6 reference images) at the Cartoon Studio prices. It stays in Cartoon Studio too.

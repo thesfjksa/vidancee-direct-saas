@@ -452,6 +452,14 @@ async function setUserProviderAccess(userId,providers){
 // Studio and the Upscaler show them (the Claude connector lists the same).
 // A source that is out of credits is left out, so ArgoLink's copy of the same
 // model takes its place.
+// ArgoLink video models the admin set to render at their own resolution,
+// without HD enhancement (public model ids).
+const ARGO_HD_OFF_SETTING='argolink_hd_off_models';
+async function argoHdOffModels(){
+  try{const list=JSON.parse(await getSettingValue(ARGO_HD_OFF_SETTING,'[]')||'[]');return new Set(Array.isArray(list)?list.map(String):[]);}
+  catch{return new Set();}
+}
+
 // Seedance on Vidancee or CreatePulse (the worker picks whichever is free) and
 // MiniMax H3 on vgenv in Video Studio, beside ArgoLink's models. Their prices
 // are fixed per duration (and resolution for H3).
@@ -506,7 +514,8 @@ async function sourceMediaCatalog(access,adminSettings=null){
   }
   if(access.argolink && providerSettings.argolink.active){
     const hd=falReady(await getProviderSettings());
-    const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd)});
+    const hdOff=await argoHdOffModels();
+    const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
@@ -552,7 +561,7 @@ async function quoteModelForUser(userId,body){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
-    const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
+    const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings(),{hd:!(await argoHdOffModels()).has(model.publicModelId)}):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isGatewayModel(body.model)){
@@ -584,7 +593,7 @@ async function submitVideoGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
-    const quote=quoteArgoVideo(model,body,providerSettings);
+    const quote=quoteArgoVideo(model,body,providerSettings,{hd:!(await argoHdOffModels()).has(model.publicModelId)});
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
@@ -1615,7 +1624,23 @@ const server=http.createServer(async (req,res)=>{
         const provider=String(url.searchParams.get('provider')||'vercel');
         if (!['vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
+        if(provider==='argolink'){
+          const hdOff=await argoHdOffModels();
+          for(const m of models)if(m.mediaType==='video')m.hdEnhance=!hdOff.has(m.publicModelId);
+        }
         return sendJson(res,200,{ok:true,models});
+      }
+
+      if (req.method==='POST' && routePath==='/admin/argolink/hd') {
+        requireDatabase();
+        const body=await readJson(req);
+        const model=await getProviderModelByPublicId('argolink',String(body.model||''),'video');
+        if(!model)return sendJson(res,404,{ok:false,error:'Video model not found.'});
+        const hdOff=await argoHdOffModels();
+        if(body.hd===false)hdOff.add(model.publicModelId);else hdOff.delete(model.publicModelId);
+        await setSettingValue(ARGO_HD_OFF_SETTING,JSON.stringify([...hdOff]));
+        logActivity({category:'admin',event:'argolink.hd_enhance',provider:'argolink',message:'HD enhancement '+(body.hd===false?'off':'on')+' for '+model.label,details:{model:model.publicModelId}});
+        return sendJson(res,200,{ok:true,model:model.publicModelId,hdEnhance:body.hd!==false});
       }
 
       const providerModelMatch=routePath.match(/^\/admin\/provider-models\/(\d+)$/);

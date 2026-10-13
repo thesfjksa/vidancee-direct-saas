@@ -580,8 +580,15 @@ function renderArgoModels(){
       (m.pricing?.image_dimension_quality_pricing||[]).map(t=>t.size+' $'+t.cost).join(' · ');
     return '<tr><td><strong>'+esc(m.label)+'</strong><div class="muted">'+esc(m.providerModelId)+'</div></td><td>'+esc(m.mediaType)+'<div class="muted" style="max-width:280px">'+esc(spec)+'</div></td>'+
       '<td class="'+(m.ready?'':'err')+'">'+(m.available?(m.ready?price:esc(m.setupReason)):'Not in latest sync')+'</td>'+
-      '<td><button class="'+(m.enabled?'danger':'secondary')+'" onclick="toggleArgoModel('+m.id+','+(!m.enabled)+')">'+(m.enabled?'Hide':'Show')+'</button><div class="muted">'+(m.enabled&&m.ready&&m.available?'Visible when source is enabled':'Hidden from customers')+'</div></td></tr>';
+      '<td><button class="'+(m.enabled?'danger':'secondary')+'" onclick="toggleArgoModel('+m.id+','+(!m.enabled)+')">'+(m.enabled?'Hide':'Show')+'</button><div class="muted">'+(m.enabled&&m.ready&&m.available?'Visible when source is enabled':'Hidden from customers')+'</div>'+
+      (m.mediaType==='video'?'<label style="display:flex;gap:6px;align-items:center;margin-top:8px;white-space:nowrap" title="On: 720p and 1080p are rendered lower and upscaled to 1080p by fal.ai. Off: the model\'s own resolutions are rendered as they are and priced at ArgoLink\'s rate only."><input type="checkbox" '+(m.hdEnhance!==false?'checked':'')+' onchange="setArgoHd(\''+esc(m.publicModelId)+'\',this.checked,this)"> HD enhance</label>':'')+'</td></tr>';
   }).join(''):'<tr><td colspan="4" class="muted">No models yet. Use Sync live models.</td></tr>';
+}
+async function setArgoHd(model,hd,box){
+  box.disabled=true;
+  try{await api('/admin/argolink/hd',{method:'POST',body:JSON.stringify({model,hd})});const m=argoModels.find(x=>x.publicModelId===model);if(m)m.hdEnhance=hd;$('argoCatalogMsg').className='ok';$('argoCatalogMsg').textContent='HD enhance '+(hd?'on':'off')+' for '+(m?.label||model)+'. Customers see the new resolutions and prices after a page refresh.';}
+  catch(e){box.checked=!hd;$('argoCatalogMsg').className='err';$('argoCatalogMsg').textContent=e.message;}
+  finally{box.disabled=false;}
 }
 async function toggleArgoModel(id,enabled){
   try{await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({provider:'argolink',enabled})});await loadArgoModels();}

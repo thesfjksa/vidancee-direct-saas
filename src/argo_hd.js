@@ -35,10 +35,14 @@ function hdPlan(nativeResolutions, display, withFal) {
   return null;
 }
 
-// The model as Video Studio shows it: resolutions 720p/1080p only.
-function argoVideoView(model, withFal) {
+// The model as Video Studio shows it: resolutions 720p/1080p only. With HD
+// enhancement turned off for the model (hd: false), its own resolutions are
+// offered and rendered as they are, never upscaled.
+function argoVideoView(model, withFal, { hd = true } = {}) {
   if (model?.mediaType !== 'video') return model;
-  const plans = Object.fromEntries(DISPLAY_RESOLUTIONS.map(d => [d, hdPlan(model.resolutions || [], d, withFal)]).filter(([, p]) => p));
+  const plans = hd
+    ? Object.fromEntries(DISPLAY_RESOLUTIONS.map(d => [d, hdPlan(model.resolutions || [], d, withFal)]).filter(([, p]) => p))
+    : Object.fromEntries([...(model.resolutions || [])].filter(r => SHORT_SIDE[r]).sort((a, b) => SHORT_SIDE[a] - SHORT_SIDE[b]).map(r => [r, { source: r, upscale: false }]));
   const resolutions = Object.keys(plans);
   return { ...model, nativeResolutions: model.resolutions, resolutions, hdPlans: plans,
     defaultResolution: resolutions.includes('720p') ? '720p' : resolutions[0] || null };
@@ -46,9 +50,9 @@ function argoVideoView(model, withFal) {
 
 // Price of an ArgoLink video in Video Studio: ArgoLink's render at the source
 // resolution, plus fal's upscale when one is needed.
-function quoteArgoVideo(model, body, settings) {
+function quoteArgoVideo(model, body, settings, { hd = true } = {}) {
   const withFal = falReady(settings);
-  const view = argoVideoView(model, withFal);
+  const view = argoVideoView(model, withFal, { hd });
   const display = String(body.resolution || view.defaultResolution || '');
   const plan = view.hdPlans[display];
   if (!plan) fail('Unsupported resolution for this model.');

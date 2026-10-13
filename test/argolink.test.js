@@ -150,6 +150,18 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   assert.deepEqual(hdPlan(['480p', '720p', '1080p'], '720p', false), { source: '720p', upscale: false });
   assert.deepEqual(hdPlan(['480p', '720p'], '1080p', false), null);
   assert.deepEqual(argoVideoView(model('seedance-2.0'), true).resolutions, ['720p', '1080p']);
+  // HD enhancement off for a model: its own resolutions, rendered as they are.
+  const raw = argoVideoView(model('seedance-2.0'), true, { hd: false });
+  assert.deepEqual(raw.resolutions, model('seedance-2.0').resolutions);
+  assert.ok(Object.values(raw.hdPlans).every(p => !p.upscale));
+  const { quoteArgoVideo } = require('../src/argo_hd.js');
+  const prices = { argoLinkCustomerCreditsPerUsd: 1000, falEnabled: true, falApiKey: 'k', falCustomerCreditsPerUsd: 1000 };
+  const req = { resolution: '720p', duration: 5, aspectRatio: '9:16' };
+  const hdQuote = quoteArgoVideo(model('seedance-2.0'), req, prices);
+  const rawQuote = quoteArgoVideo(model('seedance-2.0'), req, prices, { hd: false });
+  assert.equal(hdQuote.sourceResolution, '480p'); assert.ok(hdQuote.enhance);
+  assert.equal(rawQuote.sourceResolution, '720p'); assert.equal(rawQuote.enhance, null);
+  assert.equal(rawQuote.cost, quoteArgoVideo(model('seedance-2.0'), req, { ...prices, falEnabled: false }).cost);
 
   const sql = [];
   let row = { user_id: 9, status: 'processing', refunded_at: null, credits_cost: 3000 };
