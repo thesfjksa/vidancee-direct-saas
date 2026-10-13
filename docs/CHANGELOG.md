@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Jobs interrupted by a worker restart recover
+
+- A MiniMax H3 job stayed in "submitting" because the worker restarted while sending it. Video jobs left in "submitting" for 5 minutes without a provider job are now queued again on vgenv (its requests carry an idempotency key, so no duplicate) or refunded on Vidancee/CreatePulse (a job may already exist there). Logged as `job.requeued` / `job.submit_interrupted`.
+
 ## 2026-10-13 — MiniMax H3 videos play from CMM Tools
 
 - MiniMax H3 videos did not load: vgenv keeps them in Alibaba Cloud storage in Shanghai and the site streamed them from there on every play, which took over 10 s and failed (502). The worker now downloads each finished vgenv video once (in the background, two at a time, retried after 10 minutes on failure) and keeps it with the job like ArgoLink videos; existing vgenv videos are copied the same way. Logged as `video.stored` / `video.store_failed`.

@@ -164,3 +164,14 @@ test('finished vgenv videos are copied into CMM Tools storage once', async () =>
   await w.copyVgenvVideos(db, { fetchImpl });
   assert.equal(calls, 3);
 });
+
+test('video jobs left half-sent by a restart are queued again (vgenv) or refunded', async () => {
+  const w = new GenerationWorker();
+  const sql = [];
+  const db = { query: async () => [[{ id: 'a', user_id: 1, provider: 'vgenv' }, { id: 'b', user_id: 1, provider: 'createpulse' }]],
+    execute: async (text, args) => { sql.push([text, args]); return [{ affectedRows: 1 }]; } };
+  // The CreatePulse job goes to refundGeneration (no database here, so it throws); only vgenv is queued again.
+  await w.recoverStaleSubmissions(db).catch(() => {});
+  assert.ok(sql.some(([t, a]) => t.startsWith("UPDATE generations SET status='queued'") && a[0] === 'a'));
+  assert.equal(sql.some(([t, a]) => t.startsWith("UPDATE generations SET status='queued'") && a[0] === 'b'), false);
+});

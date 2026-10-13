@@ -354,6 +354,26 @@ class GenerationWorker {
     }
   }
 
+  // A restart while a video was being sent leaves it in 'submitting' with no
+  // provider job. vgenv requests carry an idempotency key, so they are queued
+  // again; a Vidancee/CreatePulse job may already exist there, so it is
+  // refunded rather than sent twice.
+  async recoverStaleSubmissions(db, staleMinutes = 5) {
+    const [rows] = await db.query(
+      "SELECT id, user_id, provider FROM generations WHERE media_type='video' AND provider IN ('vidancee','createpulse','vgenv') AND status='submitting' AND provider_job_id IS NULL AND refunded_at IS NULL AND updated_at < UTC_TIMESTAMP() - INTERVAL ? MINUTE LIMIT 20",
+      [staleMinutes]
+    );
+    for (const row of rows) {
+      if (row.provider === 'vgenv') {
+        const [result] = await db.execute("UPDATE generations SET status='queued', updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND provider_job_id IS NULL", [row.id]);
+        if (result.affectedRows) logActivity({ level: 'warn', category: 'provider', event: 'job.requeued', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'Sending was interrupted (worker restart); queued again' });
+      } else {
+        logActivity({ level: 'warn', category: 'provider', event: 'job.submit_interrupted', userId: row.user_id, generationId: row.id, provider: row.provider, message: 'Sending was interrupted (worker restart); refunded' });
+        await refundGeneration(row.id, 'submit_error', 'Generation was interrupted. Credits were refunded.', null);
+      }
+    }
+  }
+
   // vgenv keeps finished videos in Alibaba Cloud storage in Shanghai, which is
   // too slow to stream from on every play (requests timed out after 10 s).
   // Each finished vgenv video is downloaded once and kept with the job, like
@@ -867,6 +887,8 @@ class GenerationWorker {
       !(this.createPulseEnabled && this.createPulse) &&
       !(this.vgenvEnabled && this.vgenv)
     ) return;
+
+    await this.recoverStaleSubmissions(db);
 
     this.vidanceeBalance = vidSnapshot && Number.isFinite(Number(vidSnapshot.credits))
       ? Number(vidSnapshot.credits) - Math.max(0, Number(vidSnapshot.reserved || 0))
