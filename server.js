@@ -722,6 +722,14 @@ const server=http.createServer(async (req,res)=>{
       '/favicon.ico':['assets/cmmtools-icon.png','image/png'],
       '/assets/fonts/inter-latin-wght.woff2':['assets/fonts/inter-latin-wght.woff2','font/woff2'],
     };
+    // MCP Apps client for the CMM Tools card in Claude, loaded from Claude's
+    // sandbox origin as a module script (needs CORS).
+    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/vendor/mcp-ext-apps-1.7.5.js') {
+      const data=fs.readFileSync(path.join(__dirname,'public','vendor','mcp-ext-apps-1.7.5.js'));
+      res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','content-length':data.length,'cache-control':'public, max-age=31536000, immutable',
+        'access-control-allow-origin':'*','cross-origin-resource-policy':'cross-origin','x-content-type-options':'nosniff'});
+      return res.end(req.method==='HEAD'?undefined:data);
+    }
     if ((req.method==='GET'||req.method==='HEAD') && studioAssets[routePath]) {
       const [file,contentType]=studioAssets[routePath];
       const data=fs.readFileSync(path.join(__dirname,'public',file));

@@ -13,6 +13,7 @@ const { fetchPublicImage, imageType, MAX_IMAGE_BYTES } = require('./remote_image
 const { getPlanProfile } = require('./plans.js');
 const { serializeGeneration } = require('./generations.js');
 const { serializeImageGeneration } = require('./image_generations.js');
+const { getImageThumbnail } = require('./image_thumbnails.js');
 
 const ENABLED_SETTING = 'claude_connector_enabled';
 const SHARE_DAYS = 7, UPLOAD_LINK_MINUTES = 60, UPLOAD_KEEP_DAYS = 7;
@@ -166,6 +167,10 @@ function createConnector(deps) {
         return rows.map(r => ({ upload_id: r.id, ready: Boolean(r.uploaded_at), ...(r.uploaded_at ? { filename: r.filename, bytes: Number(r.bytes), uploaded_at: r.uploaded_at } : {}), created_at: r.created_at }));
       },
       shareUrl: id => shareUrl(base, id),
+      async thumbnail(id) {
+        const [[row]] = await getPool().execute("SELECT id,output_url FROM generations WHERE id=? AND media_type='image' AND status='completed' LIMIT 1", [id]);
+        return row ? getImageThumbnail(getPool(), row) : null;
+      },
       wake: () => deps.wake(),
     };
   }
@@ -250,6 +255,8 @@ function createConnector(deps) {
     if (!verifySigned('share', id, url.searchParams.get('exp'), url.searchParams.get('sig'))) return sendJson(res, 403, { ok: false, error: 'This download link is invalid or has expired.' });
     const [[row]] = await getPool().execute("SELECT * FROM generations WHERE id=? AND status='completed' LIMIT 1", [id]);
     if (!row || !row.output_url) return sendJson(res, 404, { ok: false, error: 'This file is no longer available.' });
+    // The CMM Tools card in Claude shows this file from Claude's sandbox origin.
+    res.setHeader('cross-origin-resource-policy', 'cross-origin');
     if (row.media_type === 'image') {
       if (row.output_url !== 'db:image') return deps.proxyMedia(req, res, row, 'video');
       const [[output]] = await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?', [id]);

@@ -9,6 +9,8 @@
 // Tools act as the signed-in customer through injected services, which run
 // the same checks, prices and credit rules as the website.
 
+const { VIEW_URI, VIEW_LISTING, viewResource } = require('./mcp_view.js');
+
 const LEGACY_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const MODERN_VERSIONS = ['2026-07-28'];
 const SERVER_INFO = { name: 'cmm-tools', title: 'CMM Tools', version: '1.0.0' };
@@ -38,6 +40,11 @@ const referenceItem = {
   },
   additionalProperties: false,
 };
+
+// Tools whose results Claude shows as the CMM Tools card (MCP Apps).
+const VIEW_META = { ui: { resourceUri: VIEW_URI }, 'ui/resourceUri': VIEW_URI };
+let viewSeq = 0;
+const viewKey = () => ({ createdAt: Date.now(), seq: ++viewSeq });
 
 const TOOLS = [
   {
@@ -72,6 +79,7 @@ const TOOLS = [
     annotations: { title: 'Estimate cost', readOnlyHint: true, openWorldHint: false },
   },
   {
+    _meta: VIEW_META,
     name: 'create_video', title: 'Create video',
     description: 'Starts an AI video job on CMM Tools and charges its price in credits. Returns the job id immediately; the video is ready after a few minutes (see get_job).',
     inputSchema: {
@@ -94,6 +102,7 @@ const TOOLS = [
     annotations: { title: 'Create video', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
+    _meta: VIEW_META,
     name: 'create_image', title: 'Create image',
     description: 'Starts an AI image job on CMM Tools and charges its price in credits. Returns the job id immediately; images are usually ready within a minute (see get_job).',
     inputSchema: {
@@ -111,6 +120,7 @@ const TOOLS = [
     annotations: { title: 'Create image', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
+    _meta: VIEW_META,
     name: 'get_job', title: 'Get job',
     description: 'Reports the status of a video, image or upscale job. With wait_seconds it waits up to that long for the job to finish. A finished job includes a download link valid for 7 days.',
     inputSchema: {
@@ -137,6 +147,7 @@ const TOOLS = [
     annotations: { title: 'List jobs', readOnlyHint: true, openWorldHint: false },
   },
   {
+    _meta: VIEW_META,
     name: 'upscale_video', title: 'Upscale video',
     description: 'Starts upscaling a finished CMM Tools video to 1080p, 2K or 4K and charges its price in credits. Returns a new job id.',
     inputSchema: {
@@ -364,7 +375,7 @@ async function runTool(name, args, ctx) {
     if (!images.length) delete body.referenceOrder;
     const { generation, credits } = await services.submitVideo(user, body);
     ctx.log('mcp.create_video', 'Video job ' + generation.id + ' · ' + model, { model, duration: body.duration, resolution: body.resolution, aspectRatio: body.aspectRatio, references: images.length }, generation.id);
-    return textResult({ ...jobView(generation, services), credits_left: credits,
+    return textResult({ ...jobView(generation, services), credits_left: credits, view: viewKey(),
       next: 'Use get_job with this job_id (wait_seconds up to 50) to follow it. Videos usually take 2 to 10 minutes.' });
   }
 
@@ -381,7 +392,7 @@ async function runTool(name, args, ctx) {
     if (imageSize && entry.imageSizes?.length) body.imageSize = imageSize;
     const { generation, credits } = await services.submitImage(user, body);
     ctx.log('mcp.create_image', 'Image job ' + generation.id + ' · ' + model, { model, aspectRatio: body.aspectRatio, references: images.length }, generation.id);
-    return textResult({ ...jobView({ ...generation, media_type: 'image' }, services), credits_left: credits,
+    return textResult({ ...jobView({ ...generation, media_type: 'image' }, services), credits_left: credits, view: viewKey(),
       next: 'Use get_job with this job_id (wait_seconds up to 50) to get the image.' });
   }
 
@@ -397,7 +408,14 @@ async function runTool(name, args, ctx) {
       await new Promise(resolve => setTimeout(resolve, 3000));
       job = await services.getJob(user, id) || job;
     }
-    return textResult(jobView(job, services));
+    const view = { ...jobView(job, services), view: viewKey() };
+    const result = textResult(view);
+    // A small copy of a finished image lets Claude see what was made.
+    if (view.download_url && view.media_type === 'image' && services.thumbnail) {
+      const thumb = await services.thumbnail(id).catch(() => null);
+      if (thumb?.data?.length && thumb.data.length <= 90 * 1024) result.content.push({ type: 'image', data: thumb.data.toString('base64'), mimeType: thumb.mimeType });
+    }
+    return result;
   }
 
   if (name === 'list_jobs') {
@@ -414,7 +432,7 @@ async function runTool(name, args, ctx) {
     if (!['1080p', '2k', '4k'].includes(resolution)) bad('resolution must be 1080p, 2k or 4k.');
     const { generation, credits } = await services.submitUpscale(user, { generationId: id, resolution });
     ctx.log('mcp.upscale_video', 'Upscale job ' + generation.id + ' from ' + id + ' to ' + resolution, { source: id, resolution }, generation.id);
-    return textResult({ ...jobView(generation, services), credits_left: credits, next: 'Use get_job with this job_id to follow it.' });
+    return textResult({ ...jobView(generation, services), credits_left: credits, view: viewKey(), next: 'Use get_job with this job_id to follow it.' });
   }
 
   if (name === 'request_image_upload') {
@@ -470,15 +488,21 @@ async function handleMessage(message, ctx) {
       const asked = String(params.protocolVersion || '');
       return { status: 200, body: rpcResult(id, {
         protocolVersion: LEGACY_VERSIONS.includes(asked) ? asked : LEGACY_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } }, serverInfo: serverInfo(ctx.base), instructions: INSTRUCTIONS,
+        capabilities: { tools: { listChanged: false }, resources: {} }, serverInfo: serverInfo(ctx.base), instructions: INSTRUCTIONS,
       }) };
     }
     if (method === 'ping') return reply({});
     if (method === 'server/discover') {
-      return reply({ supportedVersions: [...MODERN_VERSIONS, ...LEGACY_VERSIONS], capabilities: { tools: {} }, instructions: INSTRUCTIONS },
+      return reply({ supportedVersions: [...MODERN_VERSIONS, ...LEGACY_VERSIONS], capabilities: { tools: {}, resources: {} }, instructions: INSTRUCTIONS },
         { list: true, scope: 'public', ttlMs: 3600000 });
     }
     if (method === 'tools/list') return reply({ tools: TOOLS }, { list: true, scope: 'public', ttlMs: 3600000 });
+    if (method === 'resources/list') return reply({ resources: [VIEW_LISTING] }, { list: true, scope: 'public', ttlMs: 3600000 });
+    if (method === 'resources/templates/list') return reply({ resourceTemplates: [] }, { list: true, scope: 'public', ttlMs: 3600000 });
+    if (method === 'resources/read') {
+      if (params.uri !== VIEW_URI) return { status: 200, body: rpcError(id, modern ? INVALID_PARAMS : -32002, 'Resource not found: ' + String(params.uri)) };
+      return reply({ contents: [viewResource(ctx.base || 'https://cmmtools.site')] }, { list: true, scope: 'public', ttlMs: 3600000 });
+    }
     if (method === 'tools/call') {
       const name = params.name, args = params.arguments ?? {};
       if (typeof name !== 'string' || !TOOL_NAMES.has(name)) return { status: 200, body: rpcError(id, INVALID_PARAMS, 'Unknown tool: ' + String(name)) };

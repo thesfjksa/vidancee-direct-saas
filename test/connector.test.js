@@ -108,7 +108,7 @@ test('legacy clients (Claude today) get the initialize handshake; modern clients
   const ctx = ctxFor(fakeServices());
   let out = await mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {} } }, ctx);
   assert.equal(out.body.result.protocolVersion, '2025-06-18');
-  assert.deepEqual(out.body.result.capabilities, { tools: { listChanged: false } });
+  assert.deepEqual(out.body.result.capabilities, { tools: { listChanged: false }, resources: {} });
   assert.deepEqual(out.body.result.serverInfo.icons, [{ src: BASE + '/assets/cmmtools-mcp-icon.png', mimeType: 'image/png', sizes: ['512x512'] }]);
   out = await mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2030-01-01' } }, ctx);
   assert.equal(out.body.result.protocolVersion, '2025-11-25');
@@ -125,9 +125,9 @@ test('legacy clients (Claude today) get the initialize handshake; modern clients
   assert.deepEqual([out.status, out.body.error.code], [400, -32022]);
   out = await mcp.handleMessage({ jsonrpc: '2.0', id: 5, method: 'tools/list', params: modern }, { ...ctx, protocolHeader: '2025-11-25' });
   assert.deepEqual([out.status, out.body.error.code], [400, -32020]);
-  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 6, method: 'resources/list', params: modern }, ctx);
+  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 6, method: 'prompts/list', params: modern }, ctx);
   assert.deepEqual([out.status, out.body.error.code], [404, -32601]);
-  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 7, method: 'resources/list', params: {} }, ctx);
+  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 7, method: 'prompts/list', params: {} }, ctx);
   assert.deepEqual([out.status, out.body.error.code], [200, -32601]);
   assert.equal((await mcp.handleBody('{not json', ctx)).body.error.code, -32700);
 });
@@ -255,4 +255,40 @@ test('a public image link downloads, follows a redirect and rejects non-images',
   assert.deepEqual([image.mimeType, image.data.length, image.filename], ['image/png', png.length, 'product.png']);
   await assert.rejects(fetchPublicImage(base + '/page', options), /not a JPEG, PNG or WebP/);
   await assert.rejects(fetchPublicImage(base + '/product.png', { ...options, maxBytes: 10 }), /larger than 15 MB/);
+});
+
+test('job tools render the CMM Tools card in Claude (MCP App)', async () => {
+  const { VIEW_URI } = require('../src/mcp_view.js');
+  const linked = mcp.TOOLS.filter(t => t._meta?.ui?.resourceUri === VIEW_URI && t._meta['ui/resourceUri'] === VIEW_URI).map(t => t.name).sort();
+  assert.deepEqual(linked, ['create_image', 'create_video', 'get_job', 'upscale_video']);
+  const ctx = ctxFor(fakeServices());
+  let out = await mcp.handleMessage({ jsonrpc: '2.0', id: 1, method: 'resources/list', params: {} }, ctx);
+  assert.deepEqual(out.body.result.resources.map(r => [r.uri, r.mimeType]), [[VIEW_URI, 'text/html;profile=mcp-app']]);
+  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 2, method: 'resources/read', params: { uri: VIEW_URI } }, ctx);
+  const view = out.body.result.contents[0];
+  assert.equal(view.mimeType, 'text/html;profile=mcp-app');
+  assert.deepEqual(view._meta.ui.csp.resourceDomains, [BASE, 'https://assets.claude.ai']);
+  assert.match(view.text, /https:\/\/cmmtools\.site\/vendor\/mcp-ext-apps-1\.7\.5\.js/);
+  assert.match(view.text, /callServerTool\(\{ name: "get_job"/);
+  out = await mcp.handleMessage({ jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'ui://other' } }, ctx);
+  assert.equal(out.body.error.code, -32002);
+
+  // Each result carries a server key so the newest card for a job wins.
+  out = await call(ctx, 'create_video', { model: 'argo_seedance_2_5', prompt: 'x' });
+  const first = out.body.result.structuredContent.view;
+  out = await call(ctx, 'create_video', { model: 'argo_seedance_2_5', prompt: 'x' });
+  assert.ok(out.body.result.structuredContent.view.seq > first.seq);
+});
+
+test('a finished image is also shown to Claude as a small picture', async () => {
+  const small = Buffer.alloc(2000, 1), big = Buffer.alloc(200 * 1024, 1);
+  const finished = { id: 'img1', status: 'completed', has_image: true, media_type: 'image', credits_cost: 160 };
+  let thumb = small;
+  const services = fakeServices({ getJob: async () => finished, thumbnail: async () => ({ data: thumb, mimeType: 'image/webp' }) });
+  let out = await call(ctxFor(services), 'get_job', { job_id: '9f937e14-6304-49c4-821c-a23623462ffa' });
+  const image = out.body.result.content.find(c => c.type === 'image');
+  assert.deepEqual([image.mimeType, Buffer.from(image.data, 'base64').length], ['image/webp', small.length]);
+  thumb = big; // too large for Claude's tool result limit: text and link only
+  out = await call(ctxFor(services), 'get_job', { job_id: '9f937e14-6304-49c4-821c-a23623462ffa' });
+  assert.equal(out.body.result.content.some(c => c.type === 'image'), false);
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Images and videos show in the Claude chat
+
+- The Claude connector now shows a CMM Tools card in the chat (MCP App): progress while the job runs, then the image or a video player with a Download button. It refreshes itself, and older cards for the same job step aside for the newest. Claude also receives a small copy of finished images. Details in `docs/CLAUDE_CONNECTOR.md`.
+
 ## 2026-10-13 — Fresh workers are no longer stopped mid-job
 
 - An image made from Claude failed with "Generation was interrupted": Hostinger stopped a newly started worker 8 seconds after it started, while it was generating. The same start-then-stop pattern (4–8 s) appears throughout the log. The worker opened its health port only after database setup and the model catalog download, and claimed jobs before that, so Hostinger treated it as a failed start. The health port now opens first (answering `starting: true` until ready); worker health is revision 6 and the stop log line includes the pid and uptime.
