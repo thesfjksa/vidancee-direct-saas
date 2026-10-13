@@ -29,7 +29,7 @@ The web app and worker use the same database and Admin-managed provider settings
 
 The main app writes queued generations into MySQL. The worker app picks up those jobs, submits them to the configured providers, polls provider status, and writes completion/failure state back into MySQL.
 
-The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On cmmtools.site this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 5 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
+The web app also wakes the standalone worker with a non-blocking GET to its health endpoint when it saves a job. On cmmtools.site this defaults to https://worker.mehroz.online/live. Other deployments should set `WORKER_WAKE_URL` explicitly; a blank value disables it. Active image-status polling repeats this wake request at most once per 15 seconds. No customer content or API credentials are sent. GPT image pickup runs independently of video-provider polling. Worker `/health` revision 6 shows whether the consumer is enabled and when each polling loop last ran. A healthy HTTP response alone does not confirm enabled processing.
 
 ---
 
@@ -135,7 +135,7 @@ Worker health endpoint:
 https://worker.mehroz.online/health
 ```
 
-Worker health includes `revision: 5`, `workerEnabled`, general `polling` timestamps and independent `imagePolling` diagnostics. For configured image processing, check:
+Worker health includes `revision: 6` (a worker that is still starting answers `starting: true`; the health port opens before the database and catalog setup so Hostinger does not stop a fresh worker), `workerEnabled`, general `polling` timestamps and independent `imagePolling` diagnostics. For configured image processing, check:
 
 - `imagePolling.enabled` and `imagePolling.sourceReady`
 - recent `lastStartedAt`, `lastFinishedAt` and `lastSuccessfulAt`

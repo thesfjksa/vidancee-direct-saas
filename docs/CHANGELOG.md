@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — Fresh workers are no longer stopped mid-job
+
+- An image made from Claude failed with "Generation was interrupted": Hostinger stopped a newly started worker 8 seconds after it started, while it was generating. The same start-then-stop pattern (4–8 s) appears throughout the log. The worker opened its health port only after database setup and the model catalog download, and claimed jobs before that, so Hostinger treated it as a failed start. The health port now opens first (answering `starting: true` until ready); worker health is revision 6 and the stop log line includes the pid and uptime.
+- Every Claude connector tool call is logged (`mcp.call`) with what Claude was told.
+
 ## 2026-10-13 — Add to Claude button
 
 - Verified with a real Claude account: the connector signed in and Claude read the account and models through it.

@@ -39,7 +39,7 @@ function shutdown(signal){
   if(stopping)return;
   stopping=true;
   console.warn('[worker] shutdown',signal);
-  logActivity({category:'system',event:'worker.stopping',message:'Worker stopping ('+signal+')'});
+  logActivity({category:'system',event:'worker.stopping',message:'Worker stopping ('+signal+', pid '+process.pid+', up '+Math.round(process.uptime())+' s)'});
   try{worker?.stop?.()}catch{}
   try{healthServer?.close?.()}catch{}
   // Give in-flight image requests a short window to finish and save. Anything
@@ -58,6 +58,43 @@ const SHUTDOWN_DRAIN_MS=Math.max(0,Number(process.env.WORKER_SHUTDOWN_DRAIN_MS||
 process.on('SIGTERM',()=>shutdown('SIGTERM'));
 process.on('SIGINT',()=>shutdown('SIGINT'));
 
+// Hostinger starts this app on the first request to its address and stops a
+// process that has not opened its port within a few seconds. The health
+// server therefore listens before the slower startup below (database, catalog),
+// so a fresh worker is not stopped while it holds a job.
+healthServer=http.createServer((req,res)=>{
+  if(req.url==='/health' || req.url==='/live' || req.url==='/'){
+    const body=JSON.stringify(!worker?{ok:true,service:'mehroz-ai-worker',pid:process.pid,uptimeSeconds:Math.round(process.uptime()),revision:6,starting:true}:{
+      ok:true,
+      service:'mehroz-ai-worker',
+      pid:process.pid,
+      uptimeSeconds:Math.round(process.uptime()),
+      revision:6,
+      gatewayPolling:worker.vercelQueue.health(),
+      argoLinkPolling:worker.argoLinkQueue.health(),
+      upscalePolling:worker.upscaleQueue.health(),
+      workerEnabled:worker.enabled(),
+      polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
+      imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,
+        lastStartedAt:worker.lastSmartTickStartedAt,lastFinishedAt:worker.lastSmartTickFinishedAt,
+        lastSuccessfulAt:worker.lastSmartTickSucceededAt,
+        sourceReady:Boolean(worker.smartImageAllowCharges&&worker.smartAipiEnabled&&worker.smartAipi),
+        activeTasks:worker.smartImageTasks.size},
+    });
+    res.writeHead(200,{
+      'content-type':'application/json',
+      'content-length':Buffer.byteLength(body),
+      'cache-control':'no-store',
+    });
+    return res.end(body);
+  }
+  res.writeHead(404,{'content-type':'application/json'});
+  res.end('{"ok":false,"error":"Not found"}');
+});
+healthServer.listen(port,host,()=>{
+  console.log('[worker] health server listening on '+host+':'+port);
+});
+
 (async()=>{
   if(!dbConfigured()) throw new Error('Worker cannot start because MySQL is not configured.');
   await initDb();
@@ -70,38 +107,6 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
   worker=new GenerationWorker();
   worker.start();
 
-  healthServer=http.createServer((req,res)=>{
-    if(req.url==='/health' || req.url==='/live' || req.url==='/'){
-      const body=JSON.stringify({
-        ok:true,
-        service:'mehroz-ai-worker',
-        pid:process.pid,
-        uptimeSeconds:Math.round(process.uptime()),
-        revision:5,
-        gatewayPolling:worker.vercelQueue.health(),
-        argoLinkPolling:worker.argoLinkQueue.health(),
-        upscalePolling:worker.upscaleQueue.health(),
-        workerEnabled:worker.enabled(),
-        polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
-        imagePolling:{enabled:worker.smartImageLaneActive,running:worker.smartImageRunning,
-          lastStartedAt:worker.lastSmartTickStartedAt,lastFinishedAt:worker.lastSmartTickFinishedAt,
-          lastSuccessfulAt:worker.lastSmartTickSucceededAt,
-          sourceReady:Boolean(worker.smartImageAllowCharges&&worker.smartAipiEnabled&&worker.smartAipi),
-          activeTasks:worker.smartImageTasks.size},
-      });
-      res.writeHead(200,{
-        'content-type':'application/json',
-        'content-length':Buffer.byteLength(body),
-        'cache-control':'no-store',
-      });
-      return res.end(body);
-    }
-    res.writeHead(404,{'content-type':'application/json'});
-    res.end('{"ok":false,"error":"Not found"}');
-  });
-  healthServer.listen(port,host,()=>{
-    console.log('[worker] health server listening on '+host+':'+port);
-  });
 
   logRuntime('[worker] started');
   if(process.send)process.send({type:'ready',pid:process.pid});

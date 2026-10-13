@@ -67,4 +67,4 @@ CMM Tools is its own authorization server.
 
 ## Housekeeping
 
-Every 6 hours the web app deletes expired codes, revoked/expired connections older than 30 days, unused registered clients older than 30 days, and uploads older than 7 days. Connector events are in the activity log under category `connector` (connected, authorized, denied, disconnected, created jobs, tool errors).
+Every 6 hours the web app deletes expired codes, revoked/expired connections older than 30 days, unused registered clients older than 30 days, and uploads older than 7 days. Connector events are in the activity log under category `connector`: connected, authorized, denied, disconnected, and one `mcp.call` line per tool call with its arguments (without the prompt), what Claude was told and how long it took.

@@ -484,6 +484,7 @@ async function handleMessage(message, ctx) {
       if (typeof name !== 'string' || !TOOL_NAMES.has(name)) return { status: 200, body: rpcError(id, INVALID_PARAMS, 'Unknown tool: ' + String(name)) };
       if (!args || typeof args !== 'object' || Array.isArray(args)) return { status: 200, body: rpcError(id, INVALID_PARAMS, 'arguments must be an object.') };
       let result;
+      const started = Date.now();
       try { result = await runTool(name, args, ctx); }
       catch (error) {
         // Input mistakes and account limits go back to Claude as tool errors.
@@ -492,6 +493,13 @@ async function handleMessage(message, ctx) {
         ctx.log('mcp.tool_error', name + ': ' + (error?.message || error), { tool: name, statusCode: error?.statusCode }, null, known ? 'warn' : 'error');
         result = errorResult(known ? error.message : 'CMM Tools could not complete this request. Please try again in a moment.');
       }
+      // One line per call with what Claude was told, for support.
+      const out = result.structuredContent || {};
+      const summary = result.isError ? 'error: ' + String(result.content?.[0]?.text || '').slice(0, 160)
+        : [out.job_id && 'job ' + out.job_id.slice(0, 8), out.status, out.download_url && 'download link', Array.isArray(out.jobs) && out.jobs.length + ' jobs'].filter(Boolean).join(' · ') || 'ok';
+      const { prompt, ...shownArgs } = args;
+      ctx.log('mcp.call', name + ' → ' + summary + ' (' + ((Date.now() - started) / 1000).toFixed(1) + ' s)',
+        { tool: name, args: shownArgs, isError: Boolean(result.isError) }, out.job_id || (typeof args.job_id === 'string' ? args.job_id : null), result.isError ? 'warn' : 'info');
       return reply(result);
     }
     return { status: modern ? 404 : 200, body: rpcError(id, METHOD_NOT_FOUND, 'Method not found: ' + method) };
