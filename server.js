@@ -1001,7 +1001,11 @@ const server=http.createServer(async (req,res)=>{
       const body=await readJson(req);
       normalizeEnhancement(body); // Reject invalid input before consuming a request slot.
       if(body.async===true) {
-        const job=promptEnhancementJobs.start(user.id,body,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
+        // Failures are logged (without the prompt) so they can be diagnosed.
+        const job=promptEnhancementJobs.start(user.id,body,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body).catch(error=>{
+          logActivity({level:'warn',category:'provider',event:'enhancer.failed',userId:user.id,provider:'gemini',message:error.message,details:{statusCode:error.statusCode,mediaType:body.mediaType}});
+          throw error;
+        }));
         return sendJson(res,job.status==='processing'?202:200,{ok:true,...job});
       }
       const result=await promptEnhancementGate.run(user.id,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
