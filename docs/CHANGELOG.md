@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — MiniMax H3 renders the resolution that was paid for
+
+- The worker never passed the resolution to vgenv, so 480p MiniMax H3 orders were rendered (and billed by vgenv) at 768p. It now sends 480p or 768p as chosen. Checked against vgenv's price list (Fast tier, the one the app uses): $0.0015/s at 480p and $0.003/s at 768p; the app charges 0.375 and 0.75 credits per second (2.5× the configured source rate).
+
 ## 2026-10-13 — HD enhance on/off per ArgoLink video model
 
 - Admin → Provider → **Model names**: each ArgoLink video model has an **HD enhance** box (on by default), saved with the names. Off: Video Studio offers the model's own resolutions (for example 480p, 720p, 1080p), renders exactly that resolution with no fal.ai upscale, and charges ArgoLink's render price only. On: 720p/1080p are rendered lower and upscaled to 1080p as before. Stored in the `argolink_hd_off_models` setting; changes are logged as `argolink.hd_enhance`.

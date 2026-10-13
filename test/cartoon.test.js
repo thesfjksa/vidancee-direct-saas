@@ -106,3 +106,15 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(JSON.parse(inserted[13] || '{}').studio, undefined);
   assert.equal(inserted[2], 'vidancee');
 });
+
+test('MiniMax H3 is rendered at the resolution the customer paid for', async () => {
+  const worker = new GenerationWorker();
+  const sent = [];
+  worker.vgenv = { generateVideo: async params => { sent.push(params.resolution); return { id: 'vg1', price: 0.015 }; } };
+  const db = { execute: async () => [{ affectedRows: 1 }] };
+  const job = { id: 'h1', model: 'minimax_h3', duration: 10, aspect_ratio: '9:16', prompt: 'A fox', mode: 'text-to-video' };
+  await worker.submitVgenv(db, { ...job, resolution: '480p' }, 0);
+  await worker.submitVgenv(db, { ...job, resolution: '768p' }, 0);
+  await worker.submitVgenv(db, { ...job, resolution: null }, 0);
+  assert.deepEqual(sent, ['480p', '768p', '768p']);
+});

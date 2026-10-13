@@ -562,6 +562,8 @@ class GenerationWorker {
     const result = await this.vgenv.generateVideo({
       prompt: providerPrompt(job),
       duration: Number(job.duration),
+      // The customer's choice (480p or 768p); the price was charged for it.
+      resolution: job.resolution === '480p' ? '480p' : '768p',
       aspectRatio: job.aspect_ratio,
       referenceImageUrls,
       idempotencyKey: 'mehroz-' + job.id,
