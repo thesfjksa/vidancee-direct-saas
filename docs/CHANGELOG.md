@@ -3,6 +3,7 @@
 ## 2026-10-13 — MiniMax H3 videos play from CMM Tools
 
 - MiniMax H3 videos did not load: vgenv keeps them in Alibaba Cloud storage in Shanghai and the site streamed them from there on every play, which took over 10 s and failed (502). The worker now downloads each finished vgenv video once (in the background, two at a time, retried after 10 minutes on failure) and keeps it with the job like ArgoLink videos; existing vgenv videos are copied the same way. Logged as `video.stored` / `video.store_failed`.
+- vgenv's links expire 24 hours after a video finishes, so the copy matters. From Hostinger, `fetch()` to that storage fails ("fetch failed"), so the worker retries over plain HTTPS/IPv4 and logs the network cause. Until a video is copied, the player loads vgenv's signed link directly in the browser (redirect; `media-src` allows `*.aliyuncs.com`).
 
 ## 2026-10-13 — CMM Tools dialogs
 

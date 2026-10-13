@@ -249,7 +249,7 @@ function sendHtml(res, status, body) {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'same-origin',
-    'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'",
+    'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https://*.aliyuncs.com; connect-src 'self'",
   });
   res.end(body);
 }
@@ -1425,6 +1425,13 @@ const server=http.createServer(async (req,res)=>{
       if(type==='video'&&row.output_url==='db:video'){
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
+      // vgenv's storage (Alibaba Cloud, Shanghai) is too slow to stream through
+      // the host; until the worker has copied the video, the browser loads
+      // vgenv's signed link directly.
+      if(type==='video'&&row.provider==='vgenv'&&/^https:\/\/[a-z0-9.-]+\.aliyuncs\.com\//i.test(String(row.output_url||''))){
+        res.writeHead(302,{location:row.output_url,'cache-control':'private, no-store','referrer-policy':'no-referrer'});
+        return res.end();
       }
       return proxyMedia(req,res,row,type);
     }

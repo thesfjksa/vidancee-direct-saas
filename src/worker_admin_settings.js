@@ -18,6 +18,27 @@ const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
 const { sourceToCustomerCredits } = require('./billing.js');
 const { saveVideoOutput } = require('./video_outputs.js');
+const https = require('node:https');
+
+// Plain HTTPS GET over IPv4 (follows up to 3 redirects), for hosts where
+// fetch() cannot connect.
+function downloadIPv4(url, { timeoutMs, maxBytes }, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { family: 4, timeout: timeoutMs }, response => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location && redirects < 3) {
+        response.resume();
+        return resolve(downloadIPv4(new URL(response.headers.location, url).href, { timeoutMs, maxBytes }, redirects + 1));
+      }
+      if (response.statusCode !== 200) { response.resume(); return reject(new Error('vgenv video download failed (HTTP ' + response.statusCode + ').')); }
+      const chunks = []; let total = 0;
+      response.on('data', chunk => { total += chunk.length; if (total > maxBytes) { request.destroy(new Error('vgenv video is too large to keep.')); return; } chunks.push(chunk); });
+      response.on('end', () => resolve(Buffer.concat(chunks, total)));
+      response.on('error', reject);
+    });
+    request.on('timeout', () => request.destroy(new Error('vgenv video download timed out.')));
+    request.on('error', reject);
+  });
+}
 
 function truthy(value, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
@@ -347,10 +368,18 @@ class GenerationWorker {
       if (Number(this.vgenvCopyRetryAt.get(row.id) || 0) > Date.now()) continue;
       if (attempts++ >= 2) break;
       try {
-        const response = await fetchImpl(row.output_url, { signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' });
-        if (!response.ok) throw new Error('vgenv video download failed (HTTP ' + response.status + ').');
-        if (Number(response.headers.get('content-length')) > maxBytes) throw new Error('vgenv video is too large to keep.');
-        const data = Buffer.from(await response.arrayBuffer());
+        let data;
+        try {
+          const response = await fetchImpl(row.output_url, { signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' });
+          if (!response.ok) throw new Error('vgenv video download failed (HTTP ' + response.status + ').');
+          if (Number(response.headers.get('content-length')) > maxBytes) throw new Error('vgenv video is too large to keep.');
+          data = Buffer.from(await response.arrayBuffer());
+        } catch (first) {
+          // fetch() can fail from the host where plain HTTPS over IPv4 works.
+          if (/HTTP \d|too large/.test(first.message) || fetchImpl !== fetch) throw first;
+          logActivity({ level: 'warn', category: 'provider', event: 'video.store_retry', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'fetch failed; retrying over IPv4', details: errorDetails(first) });
+          data = await downloadIPv4(row.output_url, { timeoutMs, maxBytes });
+        }
         if (!data.length || data.length > maxBytes) throw new Error('vgenv video download was empty or too large.');
         const conn = await db.getConnection();
         try {
