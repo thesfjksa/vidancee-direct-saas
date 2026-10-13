@@ -51,9 +51,15 @@ test('boot history is written, trimmed per service and listed newest first', asy
 test('browser actions use POST routes that the hosting firewall accepts', async t => {
   process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'test-admin-only';
   const users = new Map([[1, { id: 1, email: 'test1@example.com', credits: 50, status: 'active', plan_code: 'pro', role: 'user' }]]);
-  const access = new Map(); const updates = [];
+  // Voice off, as saving Sources stored it while Voice Studio was opt-in.
+  const access = new Map([[1, new Map([['vibi', 0]])]]); const updates = []; const settingsSaved = [];
   async function execute(sql, args = []) {
     if (sql.startsWith('CREATE')) return [[], []];
+    if (sql.startsWith('INSERT INTO app_settings')) { settingsSaved.push(args[0]); return [{ affectedRows: 1 }]; }
+    if (sql === "DELETE FROM user_provider_access WHERE provider='vibi' AND enabled=0") {
+      let n = 0; for (const m of access.values()) if (m.get('vibi') === 0) { m.delete('vibi'); n++; }
+      return [{ affectedRows: n }];
+    }
     if (sql.includes('SELECT setting_key')) return [[]];
     if (sql.startsWith('SELECT provider,enabled')) return [[...(access.get(args[0]) || new Map()).entries()].map(([provider, enabled]) => ({ provider, enabled }))];
     if (sql.includes('INSERT INTO user_provider_access')) {
@@ -91,10 +97,14 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
     return { status: r.status, data: await r.json() };
   };
 
-  const saved = await post('/admin/users/1/providers', { providers: { vercel: false, vibi: true } }, true);
+  // Startup turns Voice back on once for customers who had it off under the old default.
+  for (let i = 0; i < 100 && !settingsSaved.includes('voice_access_default_on_at'); i++) await new Promise(r => setTimeout(r, 20));
+  assert.ok(settingsSaved.includes('voice_access_default_on_at'));
+  const saved = await post('/admin/users/1/providers', { providers: { vercel: false } }, true);
   assert.equal(saved.status, 200);
   assert.equal(saved.data.provider_access.vercel, false);
   assert.equal(saved.data.provider_access.vibi, true);
+  assert.equal(saved.data.provider_access.argolink, true);
   assert.equal((await post('/admin/users/1/providers', { providers: { vercel: true } })).status, 401);
 
   const status = await post('/admin/users/1', { status: 'disabled' }, true);

@@ -399,10 +399,21 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','fal'];
+// Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
-  const access=Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
-  access.vibi=false;
-  return access;
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+}
+// Voice Studio used to be opt-in, so saving any customer's Sources stored
+// "Voice off" unless it was ticked. Clear those once so Voice follows the
+// new default; the admin can turn it off again per customer.
+const VOICE_DEFAULT_ON_SETTING='voice_access_default_on_at';
+async function enableVoiceForCustomersOnce(){
+  if(await getSettingValue(VOICE_DEFAULT_ON_SETTING,''))return 0;
+  const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='vibi' AND enabled=0");
+  await setSettingValue(VOICE_DEFAULT_ON_SETTING,new Date().toISOString());
+  const count=Number(result?.affectedRows||0);
+  logActivity({category:'admin',event:'voice_access.default_on',message:'Voice Studio turned on for '+count+' customer(s) who had it off under the old default'});
+  return count;
 }
 async function getUserProviderAccess(userId){
   const access=defaultCustomerProviderAccess();
@@ -1891,6 +1902,7 @@ function bootstrap() {
       logActivity({category:'system',event:'web.started',message:'Web app started (pid '+process.pid+')'});
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
+      await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       startWorkerChild();

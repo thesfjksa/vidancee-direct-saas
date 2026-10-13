@@ -254,7 +254,7 @@ Provider settings include Vercel credentials, catalog controls and USD price ove
 
 ### Customer source assignments
 
-Use Admin Users and the Sources action to grant or remove access to ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv and Voice Studio. Voice access is opt-in. The source assignment is checked on the server as well as in the customer catalog.
+Use Admin Users and the Sources action to grant or remove access to ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv and Voice Studio. Every studio is on by default, Voice included; turn a source off per customer here. The source assignment is checked on the server as well as in the customer catalog.
 
 Use the connection checks appropriate to the source. A successful model-list or account-read check proves only the checked read operation. It does not demonstrate a paid generation, provider queue speed or sufficient quota for every model.
 

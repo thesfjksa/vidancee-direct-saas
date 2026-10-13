@@ -73,11 +73,11 @@ Admin can additionally assign sources per customer from:
 
 `/admin-console` → **Users** → **Sources**
 
-Assignable sources are ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv/MiniMax, fal.ai/Upscaler and Vibi/Voice Studio. Voice is opt-in per customer. The prompt enhancer is controlled globally and requires an active signed-in customer.
+Assignable sources are ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv/MiniMax, fal.ai/Upscaler and Vibi/Voice Studio. Every studio, Voice included, is on for a customer until it is turned off for them. The prompt enhancer is controlled globally and requires an active signed-in customer.
 
 A customer's model catalog is built only from sources that are both globally available and assigned to that customer. The server also checks the assignment during cost lookup and submission, so this is not only a frontend filter.
 
-Legacy generation sources default to access enabled until an explicit per-user setting is saved; Voice Studio is the opt-in exception.
+All sources default to access enabled until an explicit per-user setting is saved. Voice Studio was opt-in until 2026-10-13; on that release's first start, stored "Voice off" settings were cleared once so Voice follows the default.
 
 ## Pricing rule
 
@@ -118,7 +118,7 @@ Admin fields:
 
 Use **Test connection** to call the Vibi account endpoint and verify the key/remaining provider credits.
 
-Vibi is opt-in per customer. In **Users → Sources**, enable **Voice Studio** for customers who should see the voice workspace.
+Voice Studio is on for every customer by default. In **Users → Sources**, untick **Voice Studio** for a customer who should not see the voice workspace.
 
 The customer Voice Studio supports Vibi-backed TTS model/voice selection and customer-owned MiniMax voice clones. The backend source name is not shown in the customer navigation.
 

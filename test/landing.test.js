@@ -25,4 +25,8 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.match(studio.body, /id="registerTab"/);
   // A signed-in customer opening / goes straight to the studio.
   assert.match((await page('/', 'theme=light; cmm_session=abc')).body, /id="registerTab"/);
+  // Every studio, Voice included, is on unless the admin turns a source off.
+  const config = JSON.parse((await page('/api/config')).body);
+  assert.ok(Object.values(config.providerAccess).every(Boolean));
+  assert.equal(config.providerAccess.vibi, true);
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Every studio on by default
+
+- Voice Studio is now on for every customer by default, like the other studios. Admin **Users → Sources** still turns any source off per customer. Voice used to be opt-in, so saving a customer's Sources stored "Voice off" unless it was ticked; the first start of this release clears those once (activity log `voice_access.default_on` with the count). Voice still needs the Vibi source active in Admin → Provider.
+
 ## 2026-10-13 — Landing page
 
 - Visitors who aren't signed in now see a landing page at `/` (`public/landing.html`): hero with an animated studio preview and SVG characters, the models, the studios, how it works, HD quality, live plans from `/api/config`, FAQ and sign-up. Animations are CSS only and stop for visitors who prefer reduced motion. Signed-in customers (with a `cmm_session` cookie) still open the studio at `/`; the studio is also at `/app`, and `/app?signup=1` opens Create account.
