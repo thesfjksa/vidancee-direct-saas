@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — Seedance on Vidancee/CreatePulse in Video Studio; model names
+
+- Video Studio now also lists Seedance 2.5 and Seedance 2.0 Fast on Vidancee/CreatePulse (shown as "Seedance 2.5 · up to 30 s" and "Seedance 2.0 Fast · up to 15 s") beside ArgoLink's models, with the fixed per-duration prices Cartoon Studio uses, up to 6 reference images and every aspect ratio. The worker picks Vidancee or CreatePulse as it does for Cartoon Studio. They appear in Claude's list_models too. MiniMax H3 stays in Cartoon Studio.
+- **Admin → Provider → Model names**: set the name customers see for any Video, Image or Cartoon studio model (also used in Claude). Names are per studio; an empty box goes back to the source's name. Stored in the `model_display_names` setting; saves are logged as `model_names.saved`.
+
 ## 2026-10-13 — Every studio on by default
 
 - Voice Studio is now on for every customer by default, like the other studios. Admin **Users → Sources** still turns any source off per customer. Voice used to be opt-in, so saving a customer's Sources stored "Voice off" unless it was ticked; the first start of this release clears those once (activity log `voice_access.default_on` with the count). Voice still needs the Vibi source active in Admin → Provider.

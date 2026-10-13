@@ -67,6 +67,12 @@
       <div id="connectorAdminStatus" class="muted" style="margin-top:10px">Checking...</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="secondary" id="connectorOnBtn" onclick="setConnector(true)">Turn on</button><button class="danger" id="connectorOffBtn" onclick="setConnector(false)">Turn off</button></div>
     </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="top"><div><h2 style="margin:0">Model names</h2><div class="muted">The name customers see for each model in Video, Image and Cartoon studio and in Claude. Leave a box empty to use the source's name.</div></div><button class="secondary" onclick="loadModelNames()">Refresh</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="modelNameSearch" placeholder="Search models" oninput="renderModelNames()" style="flex:1;min-width:180px"><select id="modelNameStudio" onchange="renderModelNames()"><option value="">All studios</option><option value="video">Video studio</option><option value="image">Image studio</option><option value="cartoon">Cartoon studio</option></select></div>
+      <div class="tablewrap" style="margin-top:10px;max-height:420px;overflow:auto"><table><thead><tr><th>Studio</th><th>Source name</th><th>Name customers see</th></tr></thead><tbody id="modelNameRows"><tr><td colspan="3" class="muted">Loading...</td></tr></tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button id="modelNameSave" onclick="saveModelNames()" disabled>Save names</button><span id="modelNameMsg" class="muted"></span></div>
+    </div>
     <div class="card">
       <div class="top"><div><h2 style="margin:0">Usage &amp; limits</h2><div class="muted">Remaining balance where the provider reports one, and the last 30 days of jobs from this app's records.</div></div><button class="secondary" onclick="loadProviderUsage()">Refresh</button></div>
       <div class="tablewrap"><table><thead><tr><th>Provider</th><th>Remaining</th><th>Last 24 h</th><th>30 days: done / failed</th><th>30 days: provider cost</th><th>30 days: customer credits</th><th>In progress</th></tr></thead><tbody id="usageRows"><tr><td colspan="7" class="muted">Loading...</td></tr></tbody></table></div>
@@ -285,7 +291,7 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadConnectorAdmin();loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='provider'){loadConnectorAdmin();loadModelNames();loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -494,6 +500,31 @@ function toggleActivityLive(on){
   if(on===false)$('actLive').checked=false;
   clearInterval(activityTimer);activityTimer=null;
   if($('actLive').checked)activityTimer=setInterval(()=>loadActivity(),5000);
+}
+let modelNameRows=[];const modelNameEdits=new Map();
+const STUDIO_LABELS={video:'Video',image:'Image',cartoon:'Cartoon'};
+async function loadModelNames(){
+  try{const d=await api('/admin/model-names');modelNameRows=d.models||[];modelNameEdits.clear();renderModelNames();$('modelNameSave').disabled=true;}
+  catch(e){$('modelNameRows').innerHTML='<tr><td colspan="3" class="err">'+esc(e.message)+'</td></tr>';}
+}
+function renderModelNames(){
+  const q=$('modelNameSearch').value.trim().toLowerCase(),studio=$('modelNameStudio').value;
+  const rows=modelNameRows.filter(m=>(!studio||m.studio===studio)&&(!q||(m.defaultName+' '+m.name+' '+m.id).toLowerCase().includes(q)));
+  $('modelNameRows').innerHTML=rows.length?rows.map(m=>{
+    const value=modelNameEdits.has(m.key)?modelNameEdits.get(m.key):m.name;
+    return '<tr><td>'+esc(STUDIO_LABELS[m.studio]||m.studio)+'</td><td><div>'+esc(m.defaultName)+'</div><div class="muted" style="font-size:12px">'+esc(m.id)+'</div></td><td><input data-key="'+esc(m.key)+'" value="'+esc(value)+'" placeholder="'+esc(m.defaultName)+'" maxlength="80" oninput="editModelName(this)" style="width:100%;min-width:180px"></td></tr>';
+  }).join(''):'<tr><td colspan="3" class="muted">No models match.</td></tr>';
+}
+function editModelName(input){
+  const key=input.dataset.key,row=modelNameRows.find(m=>m.key===key);
+  if(row&&input.value.trim()===row.name)modelNameEdits.delete(key);else modelNameEdits.set(key,input.value);
+  $('modelNameSave').disabled=!modelNameEdits.size;$('modelNameMsg').className='muted';$('modelNameMsg').textContent=modelNameEdits.size?modelNameEdits.size+' unsaved change'+(modelNameEdits.size===1?'':'s'):'';
+}
+async function saveModelNames(){
+  const m=$('modelNameMsg');m.className='muted';m.textContent='Saving...';
+  try{const d=await api('/admin/model-names',{method:'POST',body:JSON.stringify({names:Object.fromEntries(modelNameEdits)})});
+    modelNameRows=d.models||[];modelNameEdits.clear();renderModelNames();$('modelNameSave').disabled=true;m.className='ok';m.textContent='Saved. Customers see the new names after a page refresh.';}
+  catch(e){m.className='err';m.textContent=e.message;}
 }
 async function loadConnectorAdmin(data){
   try{const d=data||await api('/admin/connector');

@@ -85,9 +85,8 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(config.cartoon.enabled, true);
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['seedance_2.5', 'seedance_2.0_fast']);
-  // Video Studio lists ArgoLink models only (none here: ArgoLink is not configured).
-  assert.deepEqual(config.pricing, []);
-  assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16' })).status, 400);
+  // Video Studio lists ArgoLink's models (not configured here) and Seedance on Vidancee/CreatePulse.
+  assert.deepEqual(config.pricing.map(m => m.id), ['seedance_2.5', 'seedance_2.0_fast']);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   // MiniMax H3 belongs to Cartoon Studio; it needs vgenv, which is not configured here.
@@ -99,5 +98,11 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(ok.data.generation.prompt, 'A dragon learns to fly');
   assert.deepEqual(ok.data.generation.generation_options, { generationMode: null, generateAudio: false, studio: 'cartoon', cartoon_style: 'clay' });
   assert.deepEqual(JSON.parse(inserted[13]), { studio: 'cartoon', cartoonStyle: 'clay' });
+  assert.equal(inserted[2], 'vidancee');
+
+  // The same model from Video Studio: no cartoon style on the job.
+  const plain = await post({ prompt: 'A dragon over the sea', model: 'seedance_2.5', duration: 10, aspectRatio: '16:9' });
+  assert.equal(plain.status, 201);
+  assert.equal(JSON.parse(inserted[13] || '{}').studio, undefined);
   assert.equal(inserted[2], 'vidancee');
 });

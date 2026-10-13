@@ -134,7 +134,7 @@ const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
   createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
-const { publicPricing, ASPECT_RATIOS } = require('./src/pricing.js');
+const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
@@ -452,7 +452,41 @@ async function setUserProviderAccess(userId,providers){
 // Studio and the Upscaler show them (the Claude connector lists the same).
 // A source that is out of credits is left out, so ArgoLink's copy of the same
 // model takes its place.
-async function customerMediaCatalog(access,adminSettings=null){
+// Seedance on Vidancee or CreatePulse (the worker picks whichever is free) in
+// Video Studio, beside ArgoLink's models. Their prices are fixed per duration.
+const SEEDANCE_VIDEO_MODELS=['seedance_2.5','seedance_2.0_fast'];
+function seedanceVideoModels(){
+  return publicPricing().filter(m=>SEEDANCE_VIDEO_MODELS.includes(m.id)&&m.durations.length).map(m=>({
+    ...m,
+    label:m.label+' · up to '+Math.max(...m.durations.map(d=>d.seconds))+' s',
+    defaultDuration:m.durations[0].seconds,
+    aspectRatios:ASPECT_RATIOS,defaultAspectRatio:'9:16',
+    capabilities:{image:{supported:true,max:6,min:0,roles:['image_references'],requiredRoles:[]},video:{supported:false,max:0},audio:{supported:false,max:0}},
+  }));
+}
+function seedanceSourcesActive(access,providerSettings){
+  return Boolean((access.vidancee&&providerSettings.vidancee.active)||(access.createpulse&&providerSettings.createpulse.active));
+}
+
+// Names the admin gave models ({"video:<id>": "Name"}); studios show these
+// instead of the source's name.
+const MODEL_NAMES_SETTING='model_display_names';
+const MODEL_NAME_STUDIOS=['video','image','cartoon'];
+async function modelDisplayNames(){
+  try{const names=JSON.parse(await getSettingValue(MODEL_NAMES_SETTING,'{}')||'{}');return names&&typeof names==='object'&&!Array.isArray(names)?names:{};}
+  catch{return {};}
+}
+function applyModelNames(studio,models,names){
+  return models.map(m=>{const name=names[studio+':'+m.id];return typeof name==='string'&&name.trim()?{...m,label:name.trim()}:m;});
+}
+
+async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
+  const catalog=await sourceMediaCatalog(access,adminSettings);
+  const custom=names||await modelDisplayNames().catch(()=>({}));
+  return {...catalog,video:applyModelNames('video',catalog.video,custom),image:applyModelNames('image',catalog.image,custom)};
+}
+
+async function sourceMediaCatalog(access,adminSettings=null){
   const providerSettings=adminSettings||await getAdminProviderSettings();
   let video=[],image=[];
   const creditStatus=await readProviderStatus(getPool()).catch(()=>({}));
@@ -471,7 +505,21 @@ async function customerMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
+  if(seedanceSourcesActive(access,providerSettings))video=[...video,...seedanceVideoModels()];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
+}
+
+// Every model a studio can show (sources the admin has turned on), with the
+// source's name and the admin's name, for Admin → Provider → Model names.
+async function adminModelNameList(){
+  const everyone=defaultCustomerProviderAccess();
+  const [catalog,names]=await Promise.all([sourceMediaCatalog(everyone),modelDisplayNames()]);
+  const cartoon=publicPricing();
+  const rows=[];
+  for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
+    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,defaultName:m.label,name:names[studio+':'+m.id]||''});
+  }
+  return rows;
 }
 
 const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
@@ -481,6 +529,10 @@ async function quoteModelForUser(userId,body){
   const access=await getUserProviderAccess(userId);
   const mediaType=body.mediaType==='image'?'image':'video';
   const providerSettings=await getAdminProviderSettings();
+  if(mediaType==='video'&&SEEDANCE_VIDEO_MODELS.includes(String(body.model))){
+    if(!seedanceSourcesActive(access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
+    return {cost:getCost(String(body.model),Number(body.duration),null),isEstimate:false};
+  }
   if(isArgoModel(body.model)){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
@@ -524,8 +576,8 @@ async function submitVideoGeneration(user,body,req=null){
     });
   }
 
-  // Video Studio runs on ArgoLink only; the other video sources serve Cartoon Studio.
-  if (!generation && !cartoonOptions) throw httpError(400,'This video model is not available. Choose a model from the list.');
+  // Video Studio runs on ArgoLink and Seedance on Vidancee/CreatePulse; MiniMax H3 is Cartoon Studio only.
+  if (!generation && !cartoonOptions && !SEEDANCE_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
     if (requestedModel==='minimax_h3') {
@@ -534,7 +586,6 @@ async function submitVideoGeneration(user,body,req=null){
         throw httpError(503,'This model is currently unavailable.');
       }
     } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
-      if (!cartoonOptions) throw httpError(400,'Seedance is available in Cartoon Studio.');
       const vidanceeActive=Boolean(
         customerAccess.vidancee &&
         providerSettings.vidanceeEnabled &&
@@ -859,7 +910,7 @@ const server=http.createServer(async (req,res)=>{
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
-      // Video Studio: ArgoLink. Cartoon Studio: Vidancee, CreatePulse (Seedance)
+      // Video Studio: ArgoLink, plus Seedance on Vidancee/CreatePulse. Cartoon Studio: Vidancee, CreatePulse (Seedance)
       // and vgenv (MiniMax H3). Image Studio: AI Gateway and SmartAIPI first,
       // then ArgoLink models they do not offer. Voice Studio: Vibi.
       let videoPricing=[];
@@ -882,10 +933,11 @@ const server=http.createServer(async (req,res)=>{
             (customerProviderAccess.createpulse && providerSettings.createpulse.active)
           );
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
-          cartoonPricing=publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive);
+          const names=await modelDisplayNames().catch(()=>({}));
+          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive),names);
           cartoonEnabled=cartoonPricing.length>0;
 
-          const media=await customerMediaCatalog(customerProviderAccess,providerSettings);
+          const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});
           videoPricing=media.video;
           imagePricing=media.image;
           upscalerConfig=media.upscaler;
@@ -1489,6 +1541,26 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/activity') {
         requireDatabase();
         return sendJson(res,200,{ok:true,entries:await listActivity(getPool(),activityFilters(url))});
+      }
+      if (req.method==='GET' && routePath==='/admin/model-names') {
+        requireDatabase();
+        return sendJson(res,200,{ok:true,models:await adminModelNameList()});
+      }
+      if (req.method==='POST' && routePath==='/admin/model-names') {
+        requireDatabase();
+        const body=await readJson(req);
+        const changes=body.names&&typeof body.names==='object'&&!Array.isArray(body.names)?body.names:{};
+        const names=await modelDisplayNames();
+        for(const [key,value] of Object.entries(changes)){
+          const [studio,...rest]=String(key).split(':');
+          if(!MODEL_NAME_STUDIOS.includes(studio)||!/^[A-Za-z0-9._:\/-]{1,190}$/.test(rest.join(':')))return sendJson(res,400,{ok:false,error:'Unknown model '+key+'.'});
+          const name=String(value??'').replace(/\s+/g,' ').trim();
+          if(name.length>80)return sendJson(res,400,{ok:false,error:'Model names can be up to 80 characters.'});
+          if(name)names[key]=name;else delete names[key];
+        }
+        await setSettingValue(MODEL_NAMES_SETTING,JSON.stringify(names));
+        logActivity({category:'admin',event:'model_names.saved',message:'Model names updated ('+Object.keys(changes).length+' change'+(Object.keys(changes).length===1?'':'s')+')',details:changes});
+        return sendJson(res,200,{ok:true,models:await adminModelNameList()});
       }
       if (req.method==='GET' && routePath==='/admin/support-key') {
         requireDatabase();
