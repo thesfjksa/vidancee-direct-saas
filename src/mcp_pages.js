@@ -47,7 +47,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}<div id="msg" class="err" 
 <form id="login"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required>
 <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
 <button class="primary full" type="submit">Sign in</button></form>
-<p class="muted" style="margin-top:16px">No account yet? <a href="/" target="_blank" rel="noopener">Create one on CMM Tools</a>, then come back to this tab.</p>
+<p class="muted" style="margin-top:16px">No account yet? <a href="/app?signup=1" target="_blank" rel="noopener">Create one on CMM Tools</a>, then come back to this tab.</p>
 <script>
 document.getElementById('login').addEventListener('submit',async e=>{
   e.preventDefault();const msg=document.getElementById('msg');msg.hidden=true;

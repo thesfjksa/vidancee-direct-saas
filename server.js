@@ -195,6 +195,9 @@ const {
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const landingPage = fs.readFileSync(path.join(__dirname, 'public', 'landing.html'), 'utf8');
+// Visitors who are not signed in see the landing page at /; the studio is at /app.
+const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers.cookie || ''));
 // The admin page carries its stylesheets inline: one request instead of three
 // before anything can render.
 function inlineStylesheets(html) {
@@ -261,7 +264,7 @@ function canonicalRedirect(req,routePath,url) {
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
-  if(!['/','/admin-console'].includes(routePath))return null;
+  if(!['/','/app','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
@@ -736,7 +739,8 @@ const server=http.createServer(async (req,res)=>{
       res.writeHead(200,{'content-type':contentType,'content-length':data.length,'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'});
       return res.end(req.method==='HEAD'?undefined:data);
     }
-    if (req.method==='GET' && routePath==='/') return sendHtml(res,200,customerPage);
+    if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
+    if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
     if (await connector.handle(req,res,url,routePath)) return;
 

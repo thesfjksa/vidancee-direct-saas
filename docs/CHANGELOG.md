@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Landing page
+
+- Visitors who aren't signed in now see a landing page at `/` (`public/landing.html`): hero with an animated studio preview and SVG characters, the models, the studios, how it works, HD quality, live plans from `/api/config`, FAQ and sign-up. Animations are CSS only and stop for visitors who prefer reduced motion. Signed-in customers (with a `cmm_session` cookie) still open the studio at `/`; the studio is also at `/app`, and `/app?signup=1` opens Create account.
+
 ## 2026-10-13 — Images and videos show in the Claude chat
 
 - The Claude connector now shows a CMM Tools card in the chat (MCP App): progress while the job runs, then the image or a video player with a Download button. It refreshes itself, and older cards for the same job step aside for the newest. Claude also receives a small copy of finished images. Details in `docs/CLAUDE_CONNECTOR.md`.

@@ -3375,6 +3375,8 @@ async function boot(){
   try{
     config=await api('/api/config');
     if(!config.signupsEnabled)$('registerTab').classList.add('hide');
+    // The landing page's "Start creating" opens /app?signup=1 on Create account.
+    if(config.signupsEnabled&&new URLSearchParams(location.search).has('signup'))setAuth('register');
 
     try{
       const d=await api('/api/me');

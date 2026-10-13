@@ -32,6 +32,8 @@ The reviewed revision identifies the application code behind this documentation.
 
 ## 2 Customer workspaces
 
+Signed-out visitors see the landing page (`public/landing.html`) at `/`; the studio is at `/app` and also at `/` for anyone with a session cookie. `/app?signup=1` opens Create account. The landing page shows the live plans from `/api/config`.
+
 The customer interface uses the supplied CMM Tools logo and icon, light surfaces, deep-blue headings and turquoise accents. Workspace navigation is a sticky horizontal row beneath the header. It scrolls horizontally on narrow screens; there is no workspace sidebar column. Long generation histories remain reachable through normal page scrolling.
 
 ### Use with Claude
@@ -423,6 +425,7 @@ Automatic payments, recurring plan renewal, Google customer sign-in, a multi-ins
 | src/provider_models.js | Dynamic model metadata and capability handling |
 | src/provider | Individual backend adapters and signed asset utilities |
 | public/index.html and public/studio.css | Customer UI and responsive workspaces |
+| public/landing.html | Landing page for signed-out visitors (inline CSS, SVG and script) |
 | public/admin.html and public/admin.css | Admin UI |
 | public/brand.css and public/assets | Shared branding and supplied logo or icon |
 | test | Parser, API, pricing, enhancement and worker checks |

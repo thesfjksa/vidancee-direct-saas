@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CMM Tools · AI videos, images and voices in one studio</title>
+<meta name="description" content="Create scroll-stopping AI videos, images, cartoons and voices with the best models in one simple studio. HD up to 1080p, upscaling to 4K, prices in PKR.">
+<meta property="og:title" content="CMM Tools · AI videos, images and voices in one studio">
+<meta property="og:description" content="The best AI video, image and voice models in one simple studio. Describe it, pick a model, get it in HD.">
+<meta property="og:image" content="https://cmmtools.site/assets/cmmtools-mcp-icon.png">
+<meta property="og:url" content="https://cmmtools.site/">
+<meta name="theme-color" content="#f7fafc">
+<link rel="icon" href="/assets/cmmtools-icon.png">
+<link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url('/assets/fonts/inter-latin-wght.woff2') format('woff2')}
+:root{
+  --ink:#0b1d2e;--ink-2:#334658;--muted:#62748a;--line:#e3e9ef;--line-2:#d5dee7;
+  --bg:#f7fafc;--paper:#ffffff;--navy:#004574;--navy-2:#06365a;--teal:#00b9c9;--teal-2:#007d91;--teal-soft:#e3f7f9;
+  --coral:#ff8a65;--coral-soft:#fff0ea;--lilac:#8b7cf6;--lilac-soft:#f1efff;--sun:#ffc857;--sun-soft:#fff7e3;--mint:#2ec4a6;
+  --shadow-sm:0 1px 2px rgba(11,29,46,.06),0 2px 8px rgba(11,29,46,.05);
+  --shadow:0 2px 6px rgba(11,29,46,.05),0 18px 40px rgba(11,29,46,.10);
+  --shadow-lg:0 4px 10px rgba(11,29,46,.06),0 34px 80px rgba(0,69,116,.16);
+  --r:22px;--max:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+img,svg{display:block}
+button{font:inherit}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- Background ---------- */
+.bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;animation:drift 18s ease-in-out infinite alternate}
+.blob.a{width:520px;height:520px;background:radial-gradient(circle,#bdf0f5 0,#bdf0f500 70%);top:-160px;right:-80px}
+.blob.b{width:460px;height:460px;background:radial-gradient(circle,#e3dcff 0,#e3dcff00 70%);top:240px;left:-180px;animation-delay:-6s}
+.blob.c{width:380px;height:380px;background:radial-gradient(circle,#ffe2d4 0,#ffe2d400 70%);top:420px;right:22%;animation-delay:-11s;opacity:.45}
+@keyframes drift{to{transform:translate3d(40px,30px,0) scale(1.08)}}
+.dots{position:absolute;inset:0;background-image:radial-gradient(#cfdbe6 1px,transparent 1px);background-size:26px 26px;mask-image:radial-gradient(ellipse at 60% 20%,#000 0,transparent 62%);-webkit-mask-image:radial-gradient(ellipse at 60% 20%,#000 0,transparent 62%);opacity:.7}
+
+/* ---------- Nav ---------- */
+.nav{position:sticky;top:0;z-index:50;transition:background .25s,box-shadow .25s,backdrop-filter .25s}
+.nav.scrolled{background:rgba(247,250,252,.82);backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);box-shadow:0 1px 0 var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:72px}
+.logo img{height:34px;width:auto}
+.links{display:flex;gap:26px;margin-left:8px}
+.links a{font-size:15px;font-weight:500;color:var(--ink-2);transition:color .15s}
+.links a:hover{color:var(--navy)}
+.nav .cta{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 20px;border-radius:999px;font-weight:650;font-size:15px;letter-spacing:-.01em;border:1px solid transparent;cursor:pointer;transition:transform .18s ease,box-shadow .2s ease,background .2s;white-space:nowrap}
+.btn:active{transform:translateY(1px) scale(.99)}
+.btn.primary{color:#fff;background:linear-gradient(135deg,#0a5a8f 0%,var(--navy) 55%,#003a62 100%);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 10px 24px rgba(0,69,116,.28)}
+.btn.primary:hover{transform:translateY(-2px);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 16px 32px rgba(0,69,116,.32)}
+.btn.ghost{color:var(--ink);background:rgba(255,255,255,.7);border-color:var(--line-2)}
+.btn.ghost:hover{background:#fff;transform:translateY(-1px)}
+.btn.small{min-height:40px;padding:0 16px;font-size:14px}
+.btn .arrow{transition:transform .2s}
+.btn:hover .arrow{transform:translateX(3px)}
+.menu{display:none;margin-left:auto;width:44px;height:44px;border-radius:12px;border:1px solid var(--line-2);background:#fff;align-items:center;justify-content:center}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;padding:36px 0 64px}
+.hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1.02fr 1fr;gap:40px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm);font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.eyebrow b{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-2);font-size:12px}
+h1{font-size:clamp(42px,6vw,74px);line-height:1.02;letter-spacing:-.045em;font-weight:780;margin:20px 0 18px}
+.grad{background:linear-gradient(92deg,var(--navy) 0%,var(--teal-2) 45%,var(--teal) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.underline{position:relative;white-space:nowrap}
+.underline svg{position:absolute;left:-2%;bottom:-.16em;width:104%;height:.36em;overflow:visible}
+.underline path{stroke-dasharray:300;stroke-dashoffset:300;animation:draw 1.2s .5s cubic-bezier(.65,0,.35,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.lead{font-size:clamp(17px,1.6vw,19.5px);color:var(--ink-2);max-width:540px;margin:0 0 30px}
+.hero .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.trust{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:30px;color:var(--muted);font-size:14px;font-weight:500}
+.trust span{display:inline-flex;align-items:center;gap:8px}
+.trust svg{flex:none}
+
+/* Hero art */
+.stage{position:relative;height:560px}
+.studio{position:absolute;left:2%;right:20%;top:46px;border-radius:24px;background:rgba(255,255,255,.86);border:1px solid rgba(255,255,255,.9);box-shadow:var(--shadow-lg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden;animation:rise 1s .1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(28px) scale(.98)}}
+.studio .bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.studio .bar i{width:10px;height:10px;border-radius:50%;background:#e6ecf2}
+.studio .bar i:nth-child(1){background:#ff8f7a}.studio .bar i:nth-child(2){background:#ffcb6b}.studio .bar i:nth-child(3){background:#5fd3a8}
+.studio .bar span{margin-left:8px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.studio .bar em{margin-left:auto;font-style:normal;font-size:11.5px;font-weight:700;color:var(--teal-2);background:var(--teal-soft);padding:3px 8px;border-radius:999px}
+.screen{position:relative;margin:12px;border-radius:16px;overflow:hidden;aspect-ratio:16/9.4;background:#ffd7a8}
+.screen svg{width:100%;height:100%}
+.prompt{display:flex;align-items:center;gap:10px;margin:0 12px;padding:10px 10px 10px 14px;border-radius:14px;border:1px solid var(--line);background:#fff}
+.prompt .t{flex:1;min-width:0;font-size:13.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prompt .t::after{content:"";display:inline-block;width:2px;height:15px;margin-left:2px;vertical-align:-3px;background:var(--teal-2);animation:caret 1s steps(1) infinite}
+@keyframes caret{50%{opacity:0}}
+.prompt .go{flex:none;font-size:12.5px;font-weight:700;color:#fff;background:var(--navy);padding:7px 12px;border-radius:10px}
+.progress{display:flex;align-items:center;gap:10px;margin:12px 12px 14px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.progress .track{flex:1;height:6px;border-radius:999px;background:#edf2f6;overflow:hidden}
+.progress .fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--teal),var(--navy));transition:width .35s linear}
+.progress .state{min-width:118px;text-align:right}
+.progress .state.ready{color:var(--mint)}
+.chip{position:absolute;display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border-radius:14px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);font-size:13px;font-weight:650;color:var(--ink);white-space:nowrap;animation:float 6s ease-in-out infinite}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 4px rgba(46,196,166,.15)}
+.chip small{display:block;font-size:11px;font-weight:600;color:var(--muted)}
+.c1{top:0;left:0;animation-delay:-1s}
+.c2{top:118px;right:4%;animation-delay:-3s}
+.c3{bottom:2px;left:-12px;animation-delay:-4.5s;padding:10px 12px}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.wave{display:flex;align-items:center;gap:3px;height:26px}
+.wave i{width:3px;border-radius:3px;background:linear-gradient(var(--teal),var(--navy));animation:eq 1.1s ease-in-out infinite}
+.wave i:nth-child(2n){animation-delay:-.4s}.wave i:nth-child(3n){animation-delay:-.7s}.wave i:nth-child(5n){animation-delay:-.2s}
+@keyframes eq{0%,100%{height:6px}50%{height:24px}}
+.mira{position:absolute;right:-14px;bottom:-4px;width:158px;filter:drop-shadow(0 18px 24px rgba(11,29,46,.14));animation:rise 1s .35s cubic-bezier(.2,.8,.2,1) both}
+.robo{position:absolute;left:-30px;top:206px;width:84px;animation:hover 4.5s ease-in-out infinite}
+@keyframes hover{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-14px) rotate(3deg)}}
+
+/* character parts */
+.blink{transform-box:fill-box;transform-origin:center;animation:blink 5s infinite}
+@keyframes blink{0%,46%,50%,100%{transform:scaleY(1)}48%{transform:scaleY(.1)}}
+.waveArm{transform-box:fill-box;transform-origin:12% 88%;animation:waveArm 2.6s ease-in-out infinite}
+@keyframes waveArm{0%,60%,100%{transform:rotate(0)}10%,30%,50%{transform:rotate(-16deg)}20%,40%{transform:rotate(8deg)}}
+.clap{transform-box:fill-box;transform-origin:4% 100%;animation:clap 3.2s ease-in-out infinite}
+@keyframes clap{0%,70%,100%{transform:rotate(0)}76%{transform:rotate(-22deg)}82%{transform:rotate(0)}}
+.glow{animation:glow 1.8s ease-in-out infinite}
+@keyframes glow{0%,100%{opacity:1}50%{opacity:.35}}
+.twinkle{transform-box:fill-box;transform-origin:center;animation:twinkle 2.4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{transform:scale(.6);opacity:.4}50%{transform:scale(1);opacity:1}}
+.sea{animation:sea 6s linear infinite}
+@keyframes sea{to{transform:translateX(-160px)}}
+.bob{transform-box:fill-box;transform-origin:center bottom;animation:bob 3s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6px) rotate(3deg)}}
+.cloud{animation:cloud 26s linear infinite}
+@keyframes cloud{from{transform:translateX(-80px)}to{transform:translateX(520px)}}
+.tail{transform-box:fill-box;transform-origin:0% 100%;animation:tail 1.6s ease-in-out infinite}
+@keyframes tail{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(14deg)}}
+.note{animation:note 3.4s ease-in infinite;opacity:0}
+@keyframes note{0%{opacity:0;transform:translate(0,0)}20%{opacity:1}100%{opacity:0;transform:translate(26px,-46px) rotate(18deg)}}
+
+/* ---------- Marquee ---------- */
+.models{position:relative;z-index:1;padding:8px 0 70px}
+.models p{text-align:center;color:var(--muted);font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;margin:0 0 18px}
+.marquee{overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.track{display:flex;gap:14px;width:max-content;animation:marquee 38s linear infinite}
+.marquee:hover .track{animation-play-state:paused}
+@keyframes marquee{to{transform:translateX(-50%)}}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:#fff;border:1px solid var(--line);font-weight:650;font-size:15px;color:var(--ink-2);white-space:nowrap}
+.pill i{width:10px;height:10px;border-radius:3px;transform:rotate(45deg)}
+
+/* ---------- Sections ---------- */
+section{position:relative}
+.sec{padding:96px 0}
+.head{max-width:720px;margin:0 auto 52px;text-align:center}
+.kicker{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-2);margin-bottom:12px}
+h2{font-size:clamp(32px,4.4vw,52px);line-height:1.06;letter-spacing:-.04em;font-weight:760;margin:0 0 14px}
+.head p{color:var(--ink-2);font-size:18px;margin:0}
+
+/* Bento */
+.bento{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:minmax(150px,auto);gap:18px}
+.tile{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:26px;overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.tile:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.tile h3{font-size:22px;letter-spacing:-.025em;margin:0 0 6px;font-weight:720}
+.tile p{margin:0;color:var(--ink-2);font-size:15.5px;max-width:420px}
+.tile .tag{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:999px;margin-bottom:14px}
+.tile .art{margin-top:20px}
+.t-video{grid-column:span 4;grid-row:span 2;background:linear-gradient(160deg,#fff 0%,#f2fbfc 100%)}
+.t-image{grid-column:span 2;grid-row:span 2;background:linear-gradient(170deg,#fff 0%,#f6f3ff 100%)}
+.t-cartoon{grid-column:span 2;background:linear-gradient(170deg,#fff 0%,#fff6ef 100%)}
+.t-voice{grid-column:span 2;background:linear-gradient(170deg,#fff 0%,#fffaf0 100%)}
+.t-upscale{grid-column:span 2;background:linear-gradient(170deg,#fff 0%,#eff9f7 100%)}
+.t-enhance{grid-column:span 3}
+.t-claude{grid-column:span 3;background:linear-gradient(150deg,#0a3b5f 0%,#004574 55%,#00607a 100%);color:#fff;border-color:transparent}
+.t-claude p{color:rgba(255,255,255,.82)}
+.player{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow-sm)}
+.player .scene{aspect-ratio:16/8.2}
+.player .scene svg{width:100%;height:100%}
+.player .ctrl{display:flex;align-items:center;gap:12px;padding:10px 14px}
+.player .ctrl .bar{flex:1;height:5px;border-radius:999px;background:#edf2f6;overflow:hidden}
+.player .ctrl .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,var(--teal),var(--navy));animation:play 8s linear infinite}
+@keyframes play{from{width:0}to{width:100%}}
+.player .ctrl span{font-size:12px;font-weight:650;color:var(--muted)}
+.modelrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.modelrow span{font-size:12.5px;font-weight:650;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink-2)}
+.t-image{display:flex;flex-direction:column}
+.t-image .tag{align-self:flex-start}
+.t-image .modelrow{margin-top:auto;padding-top:12px}
+.stack{position:relative;height:290px;flex:none}
+.stack .card{position:absolute;width:62%;aspect-ratio:4/5;border-radius:16px;overflow:hidden;border:4px solid #fff;box-shadow:var(--shadow);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.stack .card svg{width:100%;height:100%}
+.stack .k1{left:4%;top:34px;transform:rotate(-9deg)}
+.stack .k2{left:20%;top:14px;transform:rotate(2deg);z-index:2}
+.stack .k3{left:36%;top:40px;transform:rotate(10deg)}
+.t-image:hover .k1{transform:rotate(-14deg) translateX(-14px)}
+.t-image:hover .k3{transform:rotate(15deg) translateX(14px)}
+.sparkle{position:absolute;z-index:3}
+.voicebox{display:flex;align-items:center;gap:14px;margin-top:18px}
+.bigwave{display:flex;align-items:center;gap:4px;height:56px;flex:1}
+.bigwave i{flex:1;max-width:6px;height:100%;border-radius:4px;background:linear-gradient(var(--sun),var(--coral));animation:eq2 1.3s ease-in-out infinite}
+@keyframes eq2{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
+.compare{position:relative;margin-top:18px;height:120px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.compare svg{position:absolute;inset:0;width:100%;height:100%}
+.compare .sharp{clip-path:inset(0 0 0 50%);animation:wipe 5s ease-in-out infinite}
+@keyframes wipe{0%,100%{clip-path:inset(0 0 0 72%)}50%{clip-path:inset(0 0 0 22%)}}
+.compare .line{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px rgba(11,29,46,.08);animation:wipeLine 5s ease-in-out infinite}
+@keyframes wipeLine{0%,100%{left:72%}50%{left:22%}}
+.compare b{position:absolute;bottom:8px;font-size:11px;font-weight:750;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.92)}
+.compare .lo{left:8px}.compare .hi{right:8px;color:var(--teal-2)}
+.enh{display:grid;gap:10px;margin-top:18px}
+.enh .in,.enh .out{border-radius:14px;padding:12px 14px;font-size:14px}
+.enh .in{background:#f3f6f9;color:var(--ink-2)}
+.enh .out{background:linear-gradient(135deg,#ecfafb,#f3f0ff);border:1px solid #d9eef1;color:var(--ink)}
+.enh .out b{color:var(--teal-2)}
+.enh .out span{display:inline;background:linear-gradient(90deg,var(--ink) 50%,transparent 50%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text}
+.chat{display:grid;gap:10px;margin-top:20px}
+.bubble{max-width:86%;padding:11px 14px;border-radius:16px;font-size:14px}
+.bubble.me{justify-self:end;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.18);border-bottom-right-radius:6px}
+.bubble.ai{background:#fff;color:var(--ink);border-bottom-left-radius:6px;display:flex;gap:12px;align-items:center}
+.bubble.ai .thumb{width:54px;height:54px;border-radius:10px;overflow:hidden;flex:none}
+.bubble.ai small{display:block;color:var(--muted);font-size:12px}
+
+/* Steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;position:relative}
+.step{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:26px;box-shadow:var(--shadow-sm);position:relative}
+.step .num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:12px;font-weight:800;font-size:15px;color:#fff;background:var(--navy);margin-bottom:16px}
+.step h3{margin:0 0 6px;font-size:20px;letter-spacing:-.02em}
+.step p{margin:0;color:var(--ink-2);font-size:15px}
+.step .ill{height:150px;margin:-6px 0 14px;border-radius:16px;background:var(--bg);display:grid;place-items:center;overflow:hidden}
+.step .ill svg{height:130px;width:auto}
+.connector{position:absolute;top:96px;left:16%;right:16%;height:2px;z-index:0}
+.connector svg{width:100%;height:20px;overflow:visible}
+
+/* HD band */
+.hd{display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
+.hd ul{list-style:none;padding:0;margin:26px 0 0;display:grid;gap:14px}
+.hd li{display:flex;gap:12px;align-items:flex-start;color:var(--ink-2);font-size:16px}
+.hd li svg{flex:none;margin-top:3px}
+.hdart{position:relative;border-radius:26px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-lg);padding:14px}
+.hdart .frame{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:4/3}
+.hdart .frame svg{position:absolute;inset:0;width:100%;height:100%}
+.hdart .frame .sharp{clip-path:inset(0 0 0 50%);animation:wipe2 6s ease-in-out infinite}
+@keyframes wipe2{0%,100%{clip-path:inset(0 0 0 70%)}50%{clip-path:inset(0 0 0 30%)}}
+.hdart .frame .line{position:absolute;top:0;bottom:0;width:3px;background:#fff;animation:wipeLine2 6s ease-in-out infinite}
+.hdart .frame .line::after{content:"";position:absolute;top:50%;left:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:#fff;box-shadow:var(--shadow)}
+@keyframes wipeLine2{0%,100%{left:70%}50%{left:30%}}
+.hdart .lbl{position:absolute;top:14px;font-size:12px;font-weight:750;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);box-shadow:var(--shadow-sm);z-index:3}
+.hdart .lbl.l{left:14px}.hdart .lbl.r{right:14px;color:var(--teal-2)}
+.res{display:flex;gap:8px;margin-top:14px;justify-content:center}
+.res span{font-size:13px;font-weight:700;padding:8px 14px;border-radius:12px;border:1px solid var(--line);color:var(--ink-2)}
+.res span.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* Pricing */
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+.plan{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:30px 28px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;transition:transform .3s,box-shadow .3s}
+.plan:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.plan.pop{border:2px solid var(--teal);box-shadow:var(--shadow-lg)}
+.plan .badge{position:absolute;top:-13px;left:28px;font-size:12px;font-weight:750;padding:5px 11px;border-radius:999px;background:var(--teal);color:#fff}
+.plan h3{margin:0;font-size:20px}
+.plan .desc{color:var(--muted);font-size:14.5px;margin:6px 0 18px;min-height:44px}
+.price{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
+.price b{font-size:42px;letter-spacing:-.04em;font-weight:780}
+.price span{color:var(--muted);font-weight:600}
+.credits{display:inline-flex;align-self:flex-start;gap:6px;align-items:center;font-size:13.5px;font-weight:700;color:var(--teal-2);background:var(--teal-soft);padding:5px 10px;border-radius:999px;margin-bottom:20px}
+.plan ul{list-style:none;padding:0;margin:0 0 26px;display:grid;gap:11px;flex:1}
+.plan li{display:flex;gap:10px;font-size:15px;color:var(--ink-2)}
+.plan li svg{flex:none;margin-top:3px}
+.plan .btn{width:100%}
+.note-small{text-align:center;color:var(--muted);font-size:14px;margin-top:22px}
+
+/* FAQ */
+.faq{max-width:820px;margin:0 auto;display:grid;gap:12px}
+details{background:#fff;border:1px solid var(--line);border-radius:18px;padding:0 22px;transition:box-shadow .2s}
+details[open]{box-shadow:var(--shadow-sm)}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 0;font-weight:650;font-size:17px}
+summary::-webkit-details-marker{display:none}
+summary .pm{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg);display:grid;place-items:center;transition:transform .25s}
+details[open] summary .pm{transform:rotate(45deg);background:var(--teal-soft)}
+details p{margin:0 0 20px;color:var(--ink-2)}
+
+/* Final CTA */
+.final{position:relative;overflow:hidden;border-radius:32px;padding:64px 56px;background:linear-gradient(130deg,#e9f9fb 0%,#f2efff 55%,#fff1ea 100%);border:1px solid #e1ecf2;display:grid;grid-template-columns:1.2fr .8fr;gap:30px;align-items:center}
+.final h2{margin-bottom:12px}
+.final p{color:var(--ink-2);font-size:18px;margin:0 0 26px;max-width:520px}
+.final .chars{position:relative;height:290px}
+.final .chars svg{position:absolute;bottom:0}
+.final .robo-final{left:2%;bottom:40px;width:112px}
+.final .cat-final{left:22%;width:56%}
+.final .mira-final{right:0;width:168px}
+
+footer{padding:56px 0 40px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:18px 30px;align-items:center;border-top:1px solid var(--line);padding-top:30px}
+footer .fl{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+footer a:hover{color:var(--navy)}
+
+/* Reveal */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}.reveal.d3{transition-delay:.24s}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1040px){
+  .hero .wrap{grid-template-columns:1fr;gap:10px}
+  .hero .copy{text-align:center}
+  .lead{margin-left:auto;margin-right:auto}
+  .hero .actions,.trust{justify-content:center}
+  .stage{max-width:620px;width:100%;margin:10px auto 0}
+  .bento{grid-template-columns:repeat(2,1fr)}
+  .t-video,.t-image,.t-cartoon,.t-voice,.t-upscale,.t-enhance,.t-claude{grid-column:span 2;grid-row:auto}
+  .hd{grid-template-columns:1fr}
+  .final{grid-template-columns:1fr;text-align:center;padding:48px 28px}
+  .final p{margin-left:auto;margin-right:auto}
+  .final .chars{height:250px;max-width:440px;width:100%;margin:10px auto 0}
+  .final .mira-final{width:146px}
+}
+@media (max-width:860px){
+  .links,.nav .cta .ghost{display:none}
+  .steps,.plans{grid-template-columns:1fr}
+  .connector{display:none}
+  .plan .desc{min-height:0}
+}
+@media (max-width:560px){
+  .wrap{padding:0 16px}
+  .nav .wrap{height:64px;gap:12px}
+  .logo img{height:30px}
+  .hero{padding-top:18px}
+  .stage{height:540px}
+  .studio{left:0;right:0;top:40px}
+  .mira{width:84px;right:4px;bottom:0}
+  .robo{width:62px;left:-8px;top:236px}
+  .c1{left:4px;top:0}.c2{top:4px;right:0}.c3{left:0;bottom:0}
+  .bento{grid-template-columns:1fr}
+  .t-video,.t-image,.t-cartoon,.t-voice,.t-upscale,.t-enhance,.t-claude{grid-column:auto}
+  .sec{padding:72px 0}
+  .tile{padding:22px}
+  details{padding:0 18px}
+  .final .chars{height:184px}
+  .final .robo-final{width:76px;bottom:28px}
+  .final .cat-final{left:18%;width:58%}
+  .final .mira-final{width:116px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  .reveal{opacity:1;transform:none}
+  .underline path{stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+
+<!-- ======= Shared SVG symbols ======= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb38a"/><stop offset=".55" stop-color="#ffd59e"/><stop offset="1" stop-color="#ffe9c2"/></linearGradient>
+    <linearGradient id="gSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fc7d4"/><stop offset="1" stop-color="#0a7894"/></linearGradient>
+    <linearGradient id="gSky2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe9ff"/><stop offset="1" stop-color="#e8f7ff"/></linearGradient>
+    <linearGradient id="gNight" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b2266"/><stop offset="1" stop-color="#7b5cf0"/></linearGradient>
+    <linearGradient id="gPeach" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd3c2"/><stop offset="1" stop-color="#ff9a76"/></linearGradient>
+    <linearGradient id="gMint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9f4ea"/><stop offset="1" stop-color="#58cfb4"/></linearGradient>
+    <linearGradient id="gJacket" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16c4d3"/><stop offset="1" stop-color="#0a98ab"/></linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2"/></filter>
+    <symbol id="check" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#e3f7f9"/><path d="m6 10.3 2.6 2.5L14 7.6" fill="none" stroke="#007d91" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="spark" viewBox="0 0 24 24"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0Z"/></symbol>
+  </defs>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="CMM Tools home"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="150" height="51"></a>
+    <nav class="links" aria-label="Main">
+      <a href="#studios">Studios</a><a href="#how">How it works</a><a href="#hd">HD quality</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
+    </nav>
+    <div class="cta">
+      <a class="btn ghost small" href="/app">Sign in</a>
+      <a class="btn primary small" href="/app?signup=1">Start creating</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ======= Hero ======= -->
+<section class="hero">
+  <div class="bg"><div class="blob a"></div><div class="blob b"></div><div class="blob c"></div><div class="dots"></div></div>
+  <div class="wrap">
+    <div class="copy">
+      <span class="eyebrow"><b>New</b> Seedance 2.5 · HD videos up to 1080p</span>
+      <h1>Create <span class="grad">scroll-stopping</span> videos &amp; images with <span class="underline">AI<svg viewBox="0 0 120 16" preserveAspectRatio="none" aria-hidden="true"><path d="M2 11C30 3 70 2 118 8" fill="none" stroke="#00b9c9" stroke-width="5" stroke-linecap="round"/></svg></span></h1>
+      <p class="lead">CMM Tools brings the best video, image and voice models into one simple studio. Describe your idea, pick a model, and download it in HD, ready for ads, reels and stories.</p>
+      <div class="actions">
+        <a class="btn primary" href="/app?signup=1">Start creating <svg class="arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a class="btn ghost" href="#studios">See what you can make</a>
+      </div>
+      <div class="trust">
+        <span><svg width="18" height="18"><use href="#check"/></svg>Prices in PKR</span>
+        <span><svg width="18" height="18"><use href="#check"/></svg>Credits back if a job fails</span>
+        <span><svg width="18" height="18"><use href="#check"/></svg>Upscale to 4K</span>
+      </div>
+    </div>
+
+    <div class="stage" aria-hidden="true">
+      <div class="studio">
+        <div class="bar"><i></i><i></i><i></i><span>Video studio</span><em>1080p HD</em></div>
+        <div class="screen">
+          <svg viewBox="0 0 480 282" preserveAspectRatio="xMidYMid slice">
+            <rect width="480" height="282" fill="url(#gSky)"/>
+            <circle cx="330" cy="150" r="58" fill="#ffefc9"/>
+            <circle cx="330" cy="150" r="44" fill="#fff6dd"/>
+            <g class="cloud" opacity=".9"><ellipse cx="60" cy="58" rx="34" ry="12" fill="#fff"/><ellipse cx="82" cy="50" rx="22" ry="14" fill="#fff"/></g>
+            <g class="cloud" style="animation-delay:-13s" opacity=".7"><ellipse cx="40" cy="96" rx="26" ry="9" fill="#fff"/><ellipse cx="58" cy="90" rx="16" ry="10" fill="#fff"/></g>
+            <path d="M0 176 C60 150 120 160 180 170 S300 150 360 162 S440 170 480 160 V282 H0Z" fill="#f2a27c" opacity=".55"/>
+            <g class="sea"><path d="M0 188 q20 -10 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V282 H0Z" fill="url(#gSea)"/></g>
+            <g class="sea" style="animation-duration:9s" opacity=".55"><path d="M0 210 q24 -8 48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 t48 0 V282 H0Z" fill="#7fe0e8"/></g>
+            <g transform="translate(206 150)"><g class="bob">
+              <path d="M-38 44 h86 q-6 12 -20 14 h-50 q-12 -2 -16 -14Z" fill="#004574"/>
+              <rect x="2" y="-30" width="4" height="74" fill="#0b2b45"/>
+              <path d="M8 -26 L40 34 H8Z" fill="#fff"/><path d="M0 -20 L-26 34 H0Z" fill="#ffd27a"/>
+            </g></g>
+            <g fill="#fff" opacity=".85"><use href="#spark" x="406" y="40" width="14" height="14" class="twinkle"/><use href="#spark" x="120" y="128" width="10" height="10" class="twinkle" style="animation-delay:-1.2s"/></g>
+          </svg>
+        </div>
+        <div class="prompt"><span class="t" id="typed">A sailboat drifting into a golden sunset, cinematic</span><span class="go">Generate</span></div>
+        <div class="progress"><div class="track"><div class="fill" id="fill"></div></div><span class="state" id="state">Generating… 0%</span></div>
+      </div>
+
+      <div class="chip c1"><span class="dot"></span><span>Seedance 2.5<small>Video model</small></span></div>
+      <div class="chip c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="#8b7cf6"><use href="#spark"/></svg><span>Prompt enhanced<small>by Gemini</small></span></div>
+      <div class="chip c3"><div class="wave"><i style="height:8px"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span>Voice clone<small>From a short sample</small></span></div>
+
+      <!-- Robot mascot -->
+      <svg class="robo" viewBox="0 0 120 150">
+        <ellipse cx="60" cy="144" rx="26" ry="5" fill="#0b1d2e" opacity=".08"/>
+        <line x1="60" y1="14" x2="60" y2="30" stroke="#004574" stroke-width="4" stroke-linecap="round"/>
+        <circle class="glow" cx="60" cy="11" r="7" fill="#00b9c9"/>
+        <rect x="18" y="28" width="84" height="64" rx="24" fill="#fff" stroke="#d5dee7" stroke-width="2"/>
+        <rect x="28" y="38" width="64" height="44" rx="16" fill="#0b2b45"/>
+        <g class="blink"><rect x="42" y="50" width="10" height="16" rx="5" fill="#52e3ee"/><rect x="68" y="50" width="10" height="16" rx="5" fill="#52e3ee"/></g>
+        <path d="M50 72 q10 7 20 0" fill="none" stroke="#52e3ee" stroke-width="3" stroke-linecap="round"/>
+        <rect x="8" y="50" width="10" height="20" rx="5" fill="#00b9c9"/><rect x="102" y="50" width="10" height="20" rx="5" fill="#00b9c9"/>
+        <rect x="36" y="94" width="48" height="34" rx="14" fill="#fff" stroke="#d5dee7" stroke-width="2"/>
+        <circle cx="60" cy="111" r="6" fill="#ff8a65"/>
+      </svg>
+
+      <!-- Mira, the director -->
+      <svg class="mira" viewBox="0 0 220 330">
+        <ellipse cx="112" cy="322" rx="70" ry="8" fill="#0b1d2e" opacity=".10"/>
+        <!-- legs -->
+        <rect x="84" y="218" width="24" height="92" rx="12" fill="#0b2b45"/>
+        <rect x="114" y="218" width="24" height="92" rx="12" fill="#0b2b45"/>
+        <path d="M80 304 h32 q4 0 4 6 v6 h-40 v-4 q0 -8 4 -8Z" fill="#ff8a65"/>
+        <path d="M112 304 h32 q4 0 4 6 v6 h-40 v-4 q0 -8 4 -8Z" fill="#ff8a65"/>
+        <!-- back arm holding clapperboard -->
+        <path d="M78 140 q-24 40 -6 82" fill="none" stroke="#0a98ab" stroke-width="20" stroke-linecap="round"/>
+        <g transform="translate(36 196)">
+          <rect x="0" y="12" width="56" height="40" rx="6" fill="#0b2b45"/>
+          <g fill="#fff" opacity=".9"><rect x="8" y="22" width="40" height="4" rx="2"/><rect x="8" y="31" width="28" height="4" rx="2"/><rect x="8" y="40" width="34" height="4" rx="2"/></g>
+          <g class="clap"><rect x="0" y="0" width="56" height="12" rx="3" fill="#fff"/><g fill="#0b2b45"><path d="M6 0h8l-6 12H0Z"/><path d="M22 0h8l-6 12h-8Z"/><path d="M38 0h8l-6 12h-8Z"/></g></g>
+        </g>
+        <circle cx="70" cy="224" r="10" fill="#c98b62"/>
+        <!-- body -->
+        <path d="M74 124 q38 -16 76 0 l8 92 q-46 12 -92 0Z" fill="url(#gJacket)"/>
+        <path d="M100 120 l12 30 l12 -30" fill="#fff" opacity=".9"/>
+        <path d="M112 150 v62" stroke="#0a7f90" stroke-width="2"/>
+        <circle cx="122" cy="168" r="3" fill="#0a7f90"/><circle cx="122" cy="186" r="3" fill="#0a7f90"/>
+        <!-- waving arm -->
+        <g class="waveArm">
+          <path d="M148 138 q26 -18 34 -64" fill="none" stroke="#16c4d3" stroke-width="20" stroke-linecap="round"/>
+          <circle cx="183" cy="66" r="12" fill="#c98b62"/>
+          <path d="M176 58 v-10 M182 56 v-12 M188 58 v-10" stroke="#c98b62" stroke-width="5" stroke-linecap="round"/>
+        </g>
+        <!-- neck + head -->
+        <rect x="102" y="100" width="20" height="24" rx="8" fill="#b97a52"/>
+        <circle cx="112" cy="78" r="36" fill="#c98b62"/>
+        <!-- hair -->
+        <path d="M76 80 q-2 -44 40 -44 q34 2 34 40 q-14 -22 -44 -18 q-18 4 -30 22Z" fill="#2a1d1a"/>
+        <circle cx="140" cy="40" r="14" fill="#2a1d1a"/>
+        <path d="M76 80 q-6 30 6 44 q-2 -22 4 -34Z" fill="#2a1d1a"/>
+        <!-- face -->
+        <g class="blink"><ellipse cx="100" cy="82" rx="4" ry="5.5" fill="#1b1414"/><ellipse cx="126" cy="82" rx="4" ry="5.5" fill="#1b1414"/></g>
+        <path d="M94 70 q6 -4 12 -1 M120 69 q6 -3 12 1" stroke="#2a1d1a" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <circle cx="92" cy="96" r="6" fill="#ff8a65" opacity=".35"/><circle cx="134" cy="96" r="6" fill="#ff8a65" opacity=".35"/>
+        <path d="M104 98 q9 9 18 0" fill="none" stroke="#1b1414" stroke-width="3" stroke-linecap="round"/>
+        <!-- headset -->
+        <path d="M78 74 q2 -40 36 -40 q34 0 36 40" fill="none" stroke="#004574" stroke-width="5" stroke-linecap="round"/>
+        <rect x="70" y="70" width="12" height="20" rx="6" fill="#004574"/>
+        <path d="M76 90 q4 16 22 14" fill="none" stroke="#004574" stroke-width="3" stroke-linecap="round"/><circle cx="99" cy="104" r="3.5" fill="#00b9c9"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ======= Models marquee ======= -->
+<section class="models" aria-label="Models">
+  <p>The best AI models, in one place</p>
+  <div class="marquee"><div class="track" id="track">
+    <span class="pill"><i style="background:#00b9c9"></i>Seedance 2.5</span>
+    <span class="pill"><i style="background:#8b7cf6"></i>Wan 3.0</span>
+    <span class="pill"><i style="background:#ff8a65"></i>Grok Imagine Video</span>
+    <span class="pill"><i style="background:#2ec4a6"></i>MiniMax H3</span>
+    <span class="pill"><i style="background:#004574"></i>GPT Image 2</span>
+    <span class="pill"><i style="background:#ffc857"></i>Nano Banana</span>
+    <span class="pill"><i style="background:#00b9c9"></i>FLUX</span>
+    <span class="pill"><i style="background:#8b7cf6"></i>Recraft</span>
+    <span class="pill"><i style="background:#ff8a65"></i>Seedance 2.0</span>
+    <span class="pill"><i style="background:#2ec4a6"></i>ByteDance Upscaler</span>
+  </div></div>
+</section>
+
+<!-- ======= Studios ======= -->
+<section class="sec" id="studios">
+  <div class="wrap">
+    <div class="head reveal">
+      <span class="kicker">All studios, one account</span>
+      <h2>Everything you need to <span class="grad">create</span></h2>
+      <p>Videos, images, cartoons, voices and upscales, all paid from one credit balance.</p>
+    </div>
+    <div class="bento">
+      <article class="tile t-video reveal">
+        <span class="tag" style="background:var(--teal-soft);color:var(--teal-2)">Video studio</span>
+        <h3>Cinematic video from a sentence or a photo</h3>
+        <p>Turn a prompt or your product photo into a 4 to 30 second clip with sound. Choose 9:16 for reels or 16:9 for YouTube.</p>
+        <div class="art player" aria-hidden="true">
+          <div class="scene"><svg viewBox="0 0 640 328" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="328" fill="url(#gSky2)"/>
+            <g class="cloud" style="animation-duration:34s"><ellipse cx="80" cy="70" rx="44" ry="15" fill="#fff"/><ellipse cx="106" cy="60" rx="28" ry="18" fill="#fff"/></g>
+            <path d="M0 230 L120 120 L210 210 L300 96 L420 230 Z" fill="#7fc8d8"/>
+            <path d="M300 96 L332 136 L316 132 L300 146 L284 130 L270 134Z" fill="#fff"/>
+            <path d="M260 250 L400 150 L520 250Z" fill="#4fb3c7"/>
+            <path d="M0 250 C120 226 220 260 340 244 S560 232 640 248 V328 H0Z" fill="#2f9e8f"/>
+            <path d="M0 282 C140 266 260 296 400 280 S580 270 640 284 V328 H0Z" fill="#23806f"/>
+            <!-- runner -->
+            <g transform="translate(360 196)">
+              <g class="bob" style="animation-duration:.7s">
+                <circle cx="0" cy="0" r="12" fill="#c98b62"/><path d="M-12 -2 q2 -16 16 -14 q10 2 8 14 q-8 -8 -24 0Z" fill="#2a1d1a"/>
+                <path d="M-8 12 h16 l4 30 h-24Z" fill="#ff8a65"/>
+                <path d="M-6 42 l-10 22 M6 42 l12 20" stroke="#0b2b45" stroke-width="7" stroke-linecap="round"/>
+                <path d="M-8 18 l-16 14 M8 18 l16 -10" stroke="#ff8a65" stroke-width="6" stroke-linecap="round"/>
+              </g>
+            </g>
+            <g fill="#fff"><use href="#spark" x="540" y="50" width="16" height="16" class="twinkle"/></g>
+          </svg></div>
+          <div class="ctrl"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#004574"/><path d="M8 6.5v7l6-3.5Z" fill="#fff"/></svg><div class="bar"><i></i></div><span>0:05 · 1080p</span></div>
+        </div>
+        <div class="modelrow"><span>Seedance 2.5</span><span>Seedance 2.0</span><span>Wan 3.0</span><span>Grok Imagine</span><span>MiniMax H3</span></div>
+      </article>
+
+      <article class="tile t-image reveal d1">
+        <span class="tag" style="background:var(--lilac-soft);color:#6a58e6">Image studio</span>
+        <h3>Stunning images for every post</h3>
+        <p>Product shots, posters and ads with GPT Image, Nano Banana, FLUX and many more.</p>
+        <div class="art stack" aria-hidden="true">
+          <div class="card k1"><svg viewBox="0 0 160 200"><rect width="160" height="200" fill="url(#gPeach)"/><circle cx="80" cy="84" r="34" fill="#fff4ee"/><rect x="58" y="70" width="44" height="66" rx="10" fill="#ff8a65"/><rect x="70" y="56" width="20" height="18" rx="4" fill="#0b2b45"/><rect x="40" y="150" width="80" height="10" rx="5" fill="#fff" opacity=".8"/></svg></div>
+          <div class="card k2"><svg viewBox="0 0 160 200"><rect width="160" height="200" fill="url(#gNight)"/><circle cx="118" cy="46" r="18" fill="#ffe7a8"/><g fill="#fff" opacity=".8"><circle cx="30" cy="30" r="1.6"/><circle cx="60" cy="56" r="1.4"/><circle cx="92" cy="22" r="1.2"/><circle cx="140" cy="96" r="1.4"/></g><path d="M0 150 L50 104 L90 140 L130 96 L160 124 V200 H0Z" fill="#3b2f8f"/><path d="M0 170 Q80 140 160 172 V200 H0Z" fill="#241c63"/></svg></div>
+          <div class="card k3"><svg viewBox="0 0 160 200"><rect width="160" height="200" fill="url(#gMint)"/><circle cx="80" cy="96" r="44" fill="#fff" opacity=".55"/><path d="M80 60 c22 0 30 22 30 36 c0 22 -14 40 -30 40 s-30 -18 -30 -40 c0 -14 8 -36 30 -36Z" fill="#2ec4a6"/><path d="M80 52 v14" stroke="#1d7a62" stroke-width="5" stroke-linecap="round"/><path d="M80 58 q14 -12 26 -4 q-14 10 -26 4Z" fill="#7fe0a8"/></svg></div>
+          <svg class="sparkle twinkle" style="right:10%;top:0" width="24" height="24" fill="#8b7cf6"><use href="#spark"/></svg>
+          <svg class="sparkle twinkle" style="left:6%;bottom:10px;animation-delay:-1s" width="16" height="16" fill="#ffc857"><use href="#spark"/></svg>
+        </div>
+        <div class="modelrow"><span>GPT Image 2</span><span>Nano Banana</span><span>FLUX</span><span>Recraft</span></div>
+      </article>
+
+      <article class="tile t-cartoon reveal">
+        <span class="tag" style="background:var(--coral-soft);color:#e0603b">Cartoon studio</span>
+        <h3>Cartoons with character</h3>
+        <p>Pick a style and bring your characters to life in short animated clips.</p>
+        <svg class="art" viewBox="0 0 300 120" aria-hidden="true" style="width:100%;height:120px">
+          <ellipse cx="150" cy="112" rx="70" ry="6" fill="#0b1d2e" opacity=".07"/>
+          <g class="bob" style="animation-duration:2.4s">
+            <path class="tail" d="M188 86 q34 -6 30 -40" fill="none" stroke="#ffb04a" stroke-width="10" stroke-linecap="round"/>
+            <ellipse cx="150" cy="84" rx="44" ry="26" fill="#ffc062"/>
+            <circle cx="132" cy="54" r="30" fill="#ffc062"/>
+            <path d="M108 38 l-4 -26 l20 14Z M142 28 l14 -18 l4 26Z" fill="#ffc062"/>
+            <path d="M110 34 l-2 -12 l9 7Z M146 28 l7 -9 l2 12Z" fill="#ff8a65"/>
+            <g class="blink"><circle cx="122" cy="52" r="4.5" fill="#1b1414"/><circle cx="144" cy="52" r="4.5" fill="#1b1414"/></g>
+            <circle cx="123.5" cy="50.5" r="1.4" fill="#fff"/><circle cx="145.5" cy="50.5" r="1.4" fill="#fff"/>
+            <path d="M129 63 q4 4 8 0" fill="none" stroke="#1b1414" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="116" cy="62" r="4" fill="#ff8a65" opacity=".45"/><circle cx="150" cy="62" r="4" fill="#ff8a65" opacity=".45"/>
+            <path d="M112 62 h-14 M112 66 l-12 4 M152 62 h14 M152 66 l12 4" stroke="#b9772a" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M130 92 v14 M166 92 v14" stroke="#ffb04a" stroke-width="10" stroke-linecap="round"/>
+          </g>
+          <use href="#spark" x="212" y="12" width="14" height="14" fill="#ff8a65" class="twinkle"/>
+          <use href="#spark" x="70" y="30" width="10" height="10" fill="#ffc857" class="twinkle" style="animation-delay:-1.4s"/>
+        </svg>
+      </article>
+
+      <article class="tile t-voice reveal d1">
+        <span class="tag" style="background:var(--sun-soft);color:#b77b00">Voice studio</span>
+        <h3>Natural voices, even your own</h3>
+        <p>Turn scripts into speech, or clone a voice from a short sample.</p>
+        <div class="voicebox" aria-hidden="true">
+          <svg viewBox="0 0 90 90" width="78" height="78" style="flex:none">
+            <circle cx="45" cy="45" r="42" fill="#fff4dd"/>
+            <circle cx="45" cy="44" r="20" fill="#8d5a3b"/>
+            <path d="M25 42 q0 -26 20 -26 q22 0 20 26 q-6 -14 -20 -14 q-14 0 -20 14Z" fill="#1d1d2b"/>
+            <path d="M23 46 q-2 -30 22 -30 q24 0 22 30" fill="none" stroke="#ff8a65" stroke-width="4"/>
+            <rect x="18" y="40" width="9" height="14" rx="4" fill="#ff8a65"/><rect x="63" y="40" width="9" height="14" rx="4" fill="#ff8a65"/>
+            <g class="blink"><circle cx="38" cy="45" r="2.2" fill="#1b1414"/><circle cx="52" cy="45" r="2.2" fill="#1b1414"/></g>
+            <ellipse cx="45" cy="54" rx="4" ry="3" fill="#1b1414"/>
+            <path d="M30 66 q15 12 30 0 v14 h-30Z" fill="#ffc857"/>
+            <text class="note" x="66" y="30" font-size="16" fill="#ff8a65">♪</text>
+            <text class="note" x="60" y="40" font-size="13" fill="#8b7cf6" style="animation-delay:-1.7s">♫</text>
+          </svg>
+          <div class="bigwave"><i></i><i style="animation-delay:-.2s"></i><i style="animation-delay:-.5s"></i><i style="animation-delay:-.1s"></i><i style="animation-delay:-.7s"></i><i style="animation-delay:-.35s"></i><i style="animation-delay:-.9s"></i><i style="animation-delay:-.15s"></i><i style="animation-delay:-.6s"></i><i style="animation-delay:-.25s"></i><i style="animation-delay:-.8s"></i><i style="animation-delay:-.45s"></i><i style="animation-delay:-.05s"></i><i style="animation-delay:-.65s"></i></div>
+        </div>
+      </article>
+
+      <article class="tile t-upscale reveal d2">
+        <span class="tag" style="background:#e3f6f1;color:#17977c">Upscaler</span>
+        <h3>Sharper, up to 4K</h3>
+        <p>Upscale any video to 1080p, 2K or 4K in a click.</p>
+        <div class="compare" aria-hidden="true">
+          <svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><g filter="url(#soft)"><rect width="300" height="120" fill="#bfe9ff"/><circle cx="210" cy="44" r="20" fill="#ffd27a"/><path d="M0 92 L70 46 L120 82 L180 40 L260 92 L300 76 V120 H0Z" fill="#4fb3c7"/><path d="M0 104 Q150 84 300 106 V120 H0Z" fill="#2f9e8f"/></g></svg>
+          <svg class="sharp" viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><rect width="300" height="120" fill="#bfe9ff"/><circle cx="210" cy="44" r="20" fill="#ffd27a"/><path d="M0 92 L70 46 L120 82 L180 40 L260 92 L300 76 V120 H0Z" fill="#4fb3c7"/><path d="M180 40 l12 15 -6 -1 -6 6 -6 -6 -6 1Z" fill="#fff"/><path d="M0 104 Q150 84 300 106 V120 H0Z" fill="#2f9e8f"/></svg>
+          <span class="line"></span><b class="lo">480p</b><b class="hi">4K</b>
+        </div>
+      </article>
+
+      <article class="tile t-enhance reveal">
+        <span class="tag" style="background:var(--lilac-soft);color:#6a58e6">Prompt enhancer</span>
+        <h3>Great prompts, written for you</h3>
+        <p>Type a rough idea; the enhancer turns it into a detailed prompt the model understands.</p>
+        <div class="enh" aria-hidden="true">
+          <div class="in">coffee ad, morning, cozy</div>
+          <div class="out"><b>✦ Enhanced:</b> <span>Slow push-in on a steaming ceramic mug by a sunlit window, soft morning haze, warm tones, shallow depth of field, gentle steam curls, cozy café ambience.</span></div>
+        </div>
+      </article>
+
+      <article class="tile t-claude reveal d1">
+        <span class="tag" style="background:rgba(255,255,255,.14);color:#bff4f8">New · Works in Claude</span>
+        <h3>Create from a chat with Claude</h3>
+        <p>Connect CMM Tools to Claude and ask for videos and images in plain words. Results appear right in the chat.</p>
+        <div class="chat" aria-hidden="true">
+          <div class="bubble me">Make a 5-second 9:16 ad from my product photo</div>
+          <div class="bubble ai"><div class="thumb"><svg viewBox="0 0 54 54"><rect width="54" height="54" fill="url(#gPeach)"/><rect x="18" y="14" width="18" height="28" rx="5" fill="#ff8a65"/><rect x="23" y="9" width="8" height="7" rx="2" fill="#0b2b45"/></svg></div><div><b>Your video is ready</b><small>Seedance 2.5 · 720p · 9:16</small></div></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ======= How it works ======= -->
+<section class="sec" id="how" style="padding-top:40px">
+  <div class="wrap">
+    <div class="head reveal">
+      <span class="kicker">How it works</span>
+      <h2>From idea to HD in three steps</h2>
+      <p>No editing skills needed. If you can describe it, you can make it.</p>
+    </div>
+    <div class="steps">
+      <div class="connector" aria-hidden="true"><svg viewBox="0 0 100 4" preserveAspectRatio="none"><path d="M0 2 H100" stroke="#cfe3ec" stroke-width="2" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/></svg></div>
+      <div class="step reveal">
+        <div class="ill" aria-hidden="true"><svg viewBox="0 0 200 130">
+          <rect x="30" y="26" width="140" height="80" rx="12" fill="#fff" stroke="#d5dee7" stroke-width="2"/>
+          <rect x="44" y="44" width="80" height="8" rx="4" fill="#cfe3ec"/><rect x="44" y="60" width="104" height="8" rx="4" fill="#e3edf3"/><rect x="44" y="76" width="56" height="8" rx="4" fill="#e3edf3"/>
+          <rect x="102" y="76" width="2.5" height="10" fill="#007d91" class="glow"/>
+          <g class="bob" style="animation-duration:2.6s"><circle cx="160" cy="24" r="16" fill="#ffc062"/><path d="M146 18 l-3 -12 l10 6Z M168 12 l7 -9 l2 12Z" fill="#ffc062"/><g class="blink"><circle cx="154" cy="24" r="2.4" fill="#1b1414"/><circle cx="166" cy="24" r="2.4" fill="#1b1414"/></g><path d="M157 30 q3 3 6 0" fill="none" stroke="#1b1414" stroke-width="1.8" stroke-linecap="round"/></g>
+        </svg></div>
+        <span class="num">1</span>
+        <h3>Describe or upload</h3>
+        <p>Write what you want to see, or add a product photo as a reference. The enhancer can polish your prompt.</p>
+      </div>
+      <div class="step reveal d1">
+        <div class="ill" aria-hidden="true"><svg viewBox="0 0 200 130">
+          <g font-family="Inter,sans-serif" font-size="11" font-weight="700">
+            <rect x="24" y="24" width="86" height="28" rx="14" fill="#004574"/><text x="67" y="42" fill="#fff" text-anchor="middle">Seedance 2.5</text>
+            <rect x="116" y="24" width="60" height="28" rx="14" fill="#fff" stroke="#d5dee7" stroke-width="2"/><text x="146" y="42" fill="#334658" text-anchor="middle">Wan 3.0</text>
+            <rect x="24" y="60" width="54" height="28" rx="14" fill="#fff" stroke="#d5dee7" stroke-width="2"/><text x="51" y="78" fill="#334658" text-anchor="middle">9:16</text>
+            <rect x="84" y="60" width="60" height="28" rx="14" fill="#e3f7f9"/><text x="114" y="78" fill="#007d91" text-anchor="middle">1080p</text>
+            <rect x="150" y="60" width="34" height="28" rx="14" fill="#fff" stroke="#d5dee7" stroke-width="2"/><text x="167" y="78" fill="#334658" text-anchor="middle">5s</text>
+            <rect x="52" y="96" width="96" height="24" rx="12" fill="#fff4dd"/><text x="100" y="112" fill="#b77b00" text-anchor="middle">Price shown first</text>
+          </g>
+        </svg></div>
+        <span class="num">2</span>
+        <h3>Pick model and size</h3>
+        <p>Choose a model, length, resolution and shape. You see the price in credits before anything starts.</p>
+      </div>
+      <div class="step reveal d2">
+        <div class="ill" aria-hidden="true"><svg viewBox="0 0 200 130">
+          <rect x="70" y="8" width="60" height="114" rx="12" fill="#0b2b45"/>
+          <rect x="75" y="16" width="50" height="94" rx="8" fill="url(#gSky)"/>
+          <path d="M75 82 q12 -8 25 0 t25 0 v28 h-50Z" fill="url(#gSea)"/>
+          <circle cx="110" cy="50" r="10" fill="#fff6dd"/>
+          <g class="bob"><circle cx="152" cy="64" r="16" fill="#2ec4a6"/><path d="M152 56 v14 m-6 -6 6 6 6 -6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+          <use href="#spark" x="40" y="30" width="14" height="14" fill="#ffc857" class="twinkle"/>
+        </svg></div>
+        <span class="num">3</span>
+        <h3>Download in HD</h3>
+        <p>Your file appears in your library, ready to post. If a job fails, the credits go straight back.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= HD ======= -->
+<section class="sec" id="hd" style="padding-top:40px">
+  <div class="wrap hd">
+    <div class="reveal">
+      <span class="kicker">HD quality</span>
+      <h2>Sharp HD video that costs less</h2>
+      <p style="color:var(--ink-2);font-size:18px;margin:0">Video studio renders your clip and then sharpens it with ByteDance's video upscaler, so 720p and 1080p orders arrive as clean 1080p files at a lower price.</p>
+      <ul>
+        <li><svg width="20" height="20"><use href="#check"/></svg><span><b>720p and 1080p</b> on every video model in Video studio</span></li>
+        <li><svg width="20" height="20"><use href="#check"/></svg><span><b>Upscaler</b> takes any video to 1080p, 2K or 4K</span></li>
+        <li><svg width="20" height="20"><use href="#check"/></svg><span><b>Fair credits</b>: if HD enhancement can’t run, its part of the price is refunded</span></li>
+      </ul>
+    </div>
+    <div class="hdart reveal d1" aria-hidden="true">
+      <div class="frame">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><g filter="url(#soft)"><rect width="400" height="300" fill="url(#gSky)"/><circle cx="270" cy="120" r="44" fill="#fff6dd"/><path d="M0 176 C80 150 160 160 240 172 S360 150 400 162 V300 H0Z" fill="#f2a27c" opacity=".6"/><path d="M0 200 q25 -12 50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 V300 H0Z" fill="url(#gSea)"/><g transform="translate(150 140)"><path d="M-38 50 h86 q-6 12 -20 14 h-50 q-12 -2 -16 -14Z" fill="#004574"/><path d="M8 -20 L40 40 H8Z" fill="#fff"/><path d="M0 -14 L-26 40 H0Z" fill="#ffd27a"/></g></g></svg>
+        <svg class="sharp" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><rect width="400" height="300" fill="url(#gSky)"/><circle cx="270" cy="120" r="44" fill="#fff6dd"/><circle cx="270" cy="120" r="56" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><path d="M0 176 C80 150 160 160 240 172 S360 150 400 162 V300 H0Z" fill="#f2a27c" opacity=".6"/><path d="M0 200 q25 -12 50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 V300 H0Z" fill="url(#gSea)"/><path d="M0 222 q20 -6 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" fill="none" stroke="#bff4f8" stroke-width="2" opacity=".8"/><g transform="translate(150 140)"><path d="M-38 50 h86 q-6 12 -20 14 h-50 q-12 -2 -16 -14Z" fill="#004574"/><rect x="2" y="-24" width="4" height="74" fill="#0b2b45"/><path d="M8 -20 L40 40 H8Z" fill="#fff"/><path d="M0 -14 L-26 40 H0Z" fill="#ffd27a"/><path d="M-30 54 h70" stroke="#00b9c9" stroke-width="2"/></g><g fill="#fff"><use href="#spark" x="330" y="50" width="14" height="14" class="twinkle"/></g></svg>
+        <span class="line"></span>
+        <span class="lbl l">Original render</span><span class="lbl r">HD enhanced</span>
+      </div>
+      <div class="res"><span>720p</span><span class="on">1080p</span><span>2K</span><span>4K</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= Pricing ======= -->
+<section class="sec" id="pricing" style="padding-top:56px">
+  <div class="wrap">
+    <div class="head reveal">
+      <span class="kicker">Pricing</span>
+      <h2>Simple plans in PKR</h2>
+      <p>Buy credits with a plan and spend them in any studio. You always see the price before you create.</p>
+    </div>
+    <div class="plans" id="plans">
+      <div class="plan reveal"><h3>Basic</h3><p class="desc">For individual creators getting started.</p><div class="price"><b>Rs 1,500</b></div><span class="credits">500 credits</span><ul><li><svg width="18" height="18"><use href="#check"/></svg>All standard video and image models</li><li><svg width="18" height="18"><use href="#check"/></svg>Up to 2 jobs at once</li></ul><a class="btn ghost" href="/app?signup=1">Choose Basic</a></div>
+      <div class="plan pop reveal d1"><span class="badge">Most Popular</span><h3>Pro</h3><p class="desc">For creators and marketers producing content regularly.</p><div class="price"><b>Rs 4,500</b></div><span class="credits">1,500 credits</span><ul><li><svg width="18" height="18"><use href="#check"/></svg>All video and image models</li><li><svg width="18" height="18"><use href="#check"/></svg>Up to 3 jobs at once</li></ul><a class="btn primary" href="/app?signup=1">Choose Pro</a></div>
+      <div class="plan reveal d2"><span class="badge" style="background:var(--navy)">Agency</span><h3>Premium</h3><p class="desc">For agencies and high-volume production teams.</p><div class="price"><b>Rs 12,000</b></div><span class="credits">4,000 credits</span><ul><li><svg width="18" height="18"><use href="#check"/></svg>All premium video and image models</li><li><svg width="18" height="18"><use href="#check"/></svg>Up to 5 jobs at once</li></ul><a class="btn ghost" href="/app?signup=1">Choose Premium</a></div>
+    </div>
+    <p class="note-small">Create a free account to see every model's price in credits.</p>
+  </div>
+</section>
+
+<!-- ======= FAQ ======= -->
+<section class="sec" id="faq" style="padding-top:40px">
+  <div class="wrap">
+    <div class="head reveal"><span class="kicker">FAQ</span><h2>Questions, answered</h2></div>
+    <div class="faq reveal">
+      <details><summary>How do credits work?<span class="pm"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="#0b1d2e" stroke-width="1.8" stroke-linecap="round"/></svg></span></summary><p>Each plan adds credits to your account. Every video, image, voice or upscale shows its price in credits before you start, and the credits are taken only when you create.</p></details>
+      <details><summary>What happens if a generation fails?<span class="pm"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="#0b1d2e" stroke-width="1.8" stroke-linecap="round"/></svg></span></summary><p>Your credits are refunded automatically, and the reason is shown on the job.</p></details>
+      <details><summary>Can I use my own product photo?<span class="pm"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="#0b1d2e" stroke-width="1.8" stroke-linecap="round"/></svg></span></summary><p>Yes. Add photos as references in Video studio or Image studio, or use one as the first frame of your video on models that support it.</p></details>
+      <details><summary>Which video sizes can I make?<span class="pm"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="#0b1d2e" stroke-width="1.8" stroke-linecap="round"/></svg></span></summary><p>Video studio makes 720p and 1080p in shapes such as 9:16, 16:9, 1:1 and 4:3. The Upscaler can take a finished video to 2K or 4K.</p></details>
+      <details><summary>Can I use CMM Tools from Claude?<span class="pm"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="#0b1d2e" stroke-width="1.8" stroke-linecap="round"/></svg></span></summary><p>Yes. After you sign in, open Use with Claude and click Add to Claude. Then ask Claude for a video or image and it appears right in the chat.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ======= Final CTA ======= -->
+<section class="sec" style="padding-top:40px">
+  <div class="wrap">
+    <div class="final reveal">
+      <div>
+        <h2>Your next viral post starts here</h2>
+        <p>Create your account in under a minute and make your first video or image today.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap" class="final-actions">
+          <a class="btn primary" href="/app?signup=1">Start creating <svg class="arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn ghost" href="/app">Sign in</a>
+        </div>
+      </div>
+      <div class="chars" aria-hidden="true">
+        <svg viewBox="0 0 120 150" class="robo-final"><g style="animation:hover 4s ease-in-out infinite;transform-box:fill-box"><line x1="60" y1="14" x2="60" y2="30" stroke="#004574" stroke-width="4" stroke-linecap="round"/><circle class="glow" cx="60" cy="11" r="7" fill="#00b9c9"/><rect x="18" y="28" width="84" height="64" rx="24" fill="#fff" stroke="#d5dee7" stroke-width="2"/><rect x="28" y="38" width="64" height="44" rx="16" fill="#0b2b45"/><g class="blink"><rect x="42" y="50" width="10" height="16" rx="5" fill="#52e3ee"/><rect x="68" y="50" width="10" height="16" rx="5" fill="#52e3ee"/></g><path d="M50 72 q10 7 20 0" fill="none" stroke="#52e3ee" stroke-width="3" stroke-linecap="round"/><rect x="36" y="94" width="48" height="34" rx="14" fill="#fff" stroke="#d5dee7" stroke-width="2"/><circle cx="60" cy="111" r="6" fill="#ff8a65"/></g></svg>
+        <svg viewBox="0 0 300 120" class="cat-final"><ellipse cx="150" cy="112" rx="70" ry="6" fill="#0b1d2e" opacity=".07"/><g class="bob" style="animation-duration:2.4s"><path class="tail" d="M188 86 q34 -6 30 -40" fill="none" stroke="#ffb04a" stroke-width="10" stroke-linecap="round"/><ellipse cx="150" cy="84" rx="44" ry="26" fill="#ffc062"/><circle cx="132" cy="54" r="30" fill="#ffc062"/><path d="M108 38 l-4 -26 l20 14Z M142 28 l14 -18 l4 26Z" fill="#ffc062"/><g class="blink"><circle cx="122" cy="52" r="4.5" fill="#1b1414"/><circle cx="144" cy="52" r="4.5" fill="#1b1414"/></g><path d="M129 63 q4 4 8 0" fill="none" stroke="#1b1414" stroke-width="2.4" stroke-linecap="round"/><circle cx="116" cy="62" r="4" fill="#ff8a65" opacity=".45"/><circle cx="150" cy="62" r="4" fill="#ff8a65" opacity=".45"/><path d="M130 92 v14 M166 92 v14" stroke="#ffb04a" stroke-width="10" stroke-linecap="round"/></g></svg>
+        <svg viewBox="0 0 220 330" class="mira-final"><ellipse cx="112" cy="322" rx="70" ry="8" fill="#0b1d2e" opacity=".10"/><rect x="84" y="218" width="24" height="92" rx="12" fill="#0b2b45"/><rect x="114" y="218" width="24" height="92" rx="12" fill="#0b2b45"/><path d="M80 304 h32 q4 0 4 6 v6 h-40 v-4 q0 -8 4 -8Z" fill="#ff8a65"/><path d="M112 304 h32 q4 0 4 6 v6 h-40 v-4 q0 -8 4 -8Z" fill="#ff8a65"/><path d="M78 140 q-14 40 -4 80" fill="none" stroke="#0a98ab" stroke-width="20" stroke-linecap="round"/><circle cx="74" cy="222" r="10" fill="#c98b62"/><path d="M74 124 q38 -16 76 0 l8 92 q-46 12 -92 0Z" fill="url(#gJacket)"/><path d="M100 120 l12 30 l12 -30" fill="#fff" opacity=".9"/><g class="waveArm"><path d="M148 138 q26 -18 34 -64" fill="none" stroke="#16c4d3" stroke-width="20" stroke-linecap="round"/><circle cx="183" cy="66" r="12" fill="#c98b62"/></g><rect x="102" y="100" width="20" height="24" rx="8" fill="#b97a52"/><circle cx="112" cy="78" r="36" fill="#c98b62"/><path d="M76 80 q-2 -44 40 -44 q34 2 34 40 q-14 -22 -44 -18 q-18 4 -30 22Z" fill="#2a1d1a"/><circle cx="140" cy="40" r="14" fill="#2a1d1a"/><g class="blink"><ellipse cx="100" cy="82" rx="4" ry="5.5" fill="#1b1414"/><ellipse cx="126" cy="82" rx="4" ry="5.5" fill="#1b1414"/></g><circle cx="92" cy="96" r="6" fill="#ff8a65" opacity=".35"/><circle cx="134" cy="96" r="6" fill="#ff8a65" opacity=".35"/><path d="M104 98 q9 9 18 0" fill="none" stroke="#1b1414" stroke-width="3" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="logo" href="/"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="120" height="41" style="height:28px;width:auto"></a>
+    <span>© <span id="year">2026</span> CMM Tools</span>
+    <nav class="fl" aria-label="Footer"><a href="#studios">Studios</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="/app">Sign in</a></nav>
+  </div>
+</footer>
+
+<script>
+(()=>{
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById('year').textContent=new Date().getFullYear();
+  // Sticky nav shadow.
+  const nav=document.getElementById('nav');
+  const onScroll=()=>nav.classList.toggle('scrolled',scrollY>8);
+  addEventListener('scroll',onScroll,{passive:true});onScroll();
+  // Reveal on scroll.
+  const items=document.querySelectorAll('.reveal');
+  if('IntersectionObserver' in window&&!reduce){
+    const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{rootMargin:'0px 0px -8% 0px',threshold:.08});
+    items.forEach(el=>io.observe(el));
+  }else items.forEach(el=>el.classList.add('in'));
+  // Seamless marquee: repeat the pills once.
+  const track=document.getElementById('track');track.innerHTML+=track.innerHTML;
+  // Hero: type a prompt, fill the progress bar, show "Ready", repeat.
+  const prompts=['A sailboat drifting into a golden sunset, cinematic','Perfume bottle on wet black stone, slow push-in, soft rim light','Street chef tossing noodles in a neon night market, 9:16','A golden retriever running on the beach at sunrise, slow motion'];
+  const typed=document.getElementById('typed'),fill=document.getElementById('fill'),state=document.getElementById('state');
+  if(reduce){fill.style.width='100%';state.textContent='Ready · 1080p';state.classList.add('ready');return}
+  let p=0;
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  (async function loop(){
+    for(;;){
+      const text=prompts[p++%prompts.length];
+      typed.textContent='';fill.style.width='0';state.textContent='Writing prompt…';state.classList.remove('ready');
+      for(let i=1;i<=text.length;i++){typed.textContent=text.slice(0,i);await wait(28+Math.random()*30)}
+      await wait(400);
+      for(let v=0;v<=100;v+=4){fill.style.width=v+'%';state.textContent='Generating… '+v+'%';await wait(70)}
+      state.textContent='Ready · 1080p';state.classList.add('ready');
+      await wait(2600);
+    }
+  })();
+})();
+</script>
+<script>
+// Live plans from the app, so prices here always match the Plans page.
+fetch('/api/config',{headers:{accept:'application/json'}}).then(r=>r.ok?r.json():null).then(d=>{
+  const plans=d&&Array.isArray(d.plans)?d.plans:null;if(!plans||!plans.length)return;
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const tick='<svg width="18" height="18"><use href="#check"/></svg>';
+  document.getElementById('plans').innerHTML=plans.map((p,i)=>{
+    const pop=p.badge==='Most Popular';
+    return '<div class="plan in'+(pop?' pop':'')+'">'+(p.badge?'<span class="badge"'+(pop?'':' style="background:var(--navy)"')+'>'+esc(p.badge)+'</span>':'')+
+      '<h3>'+esc(p.name)+'</h3><p class="desc">'+esc(p.description)+'</p><div class="price"><b>Rs '+Number(p.pricePkr).toLocaleString('en-US')+'</b></div>'+
+      '<span class="credits">'+Number(p.credits).toLocaleString('en-US')+' credits</span><ul>'+(p.features||[]).slice(1).map(f=>'<li>'+tick+esc(f)+'</li>').join('')+'</ul>'+
+      '<a class="btn '+(pop?'primary':'ghost')+'" href="/app?signup=1">Choose '+esc(p.name)+'</a></div>';
+  }).join('');
+}).catch(()=>{});
+</script>
+</body>
+</html>
