@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — MiniMax H3 videos play from CMM Tools
+
+- MiniMax H3 videos did not load: vgenv keeps them in Alibaba Cloud storage in Shanghai and the site streamed them from there on every play, which took over 10 s and failed (502). The worker now downloads each finished vgenv video once (in the background, two at a time, retried after 10 minutes on failure) and keeps it with the job like ArgoLink videos; existing vgenv videos are copied the same way. Logged as `video.stored` / `video.store_failed`.
+
 ## 2026-10-13 — CMM Tools dialogs
 
 - The browser's confirm/alert boxes in the studio (delete video, image or audio, request a plan, disconnect a Claude app, error messages) are replaced by a CMM Tools dialog: logo, title, message, Cancel and a navy (or red, for deletes) action button; Esc cancels, focus stays inside, works on phones.

@@ -145,3 +145,22 @@ test('MiniMax H3 is priced at vgenv cost + 70%', () => {
   assert.equal(getCost('minimax_h3', 10, '768p'), 4.76);
   assert.equal(getCost('minimax_h3', 10, '480p'), 2.38);
 });
+
+test('finished vgenv videos are copied into CMM Tools storage once', async () => {
+  const w = new GenerationWorker();
+  const sql = [];
+  const conn = { beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {},
+    execute: async (text, args) => { sql.push([text, args]); if (text.startsWith('SELECT output_url')) return [[{ output_url: 'https://oss.example/v.mp4' }]]; return [{ affectedRows: 1 }]; } };
+  const db = { query: async () => [[{ id: 'h1', user_id: 1, output_url: 'https://oss.example/v.mp4' }, { id: 'h2', user_id: 1, output_url: 'https://oss.example/w.mp4' }]], getConnection: async () => conn };
+  const video = Buffer.alloc(1536 * 1024, 7);
+  let calls = 0;
+  const fetchImpl = async url => { calls++; if (url.endsWith('w.mp4')) return new Response('nope', { status: 403 }); return new Response(video, { status: 200 }); };
+  await w.copyVgenvVideos(db, { fetchImpl });
+  assert.equal(calls, 2);
+  assert.ok(sql.some(([t, a]) => t.startsWith('INSERT INTO generation_video_outputs') && a[0] === 'h1' && a[2] === video.length));
+  assert.equal(sql.filter(([t]) => t.startsWith('INSERT INTO generation_video_chunks')).length, 2);
+  assert.ok(sql.some(([t, a]) => t.includes("output_url='db:video'") && a[0] === 'h1'));
+  // The failed one waits 10 minutes before the next try.
+  await w.copyVgenvVideos(db, { fetchImpl });
+  assert.equal(calls, 3);
+});

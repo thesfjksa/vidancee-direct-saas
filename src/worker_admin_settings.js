@@ -17,6 +17,7 @@ const { getProviderModelByPublicId } = require('./provider_models.js');
 const { getProviderSettings } = require('./settings.js');
 const { refundGeneration } = require('./generations.js');
 const { sourceToCustomerCredits } = require('./billing.js');
+const { saveVideoOutput } = require('./video_outputs.js');
 
 function truthy(value, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
@@ -328,6 +329,45 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error('vgenv status sync failed for', row.id, error.message);
+      }
+    }
+  }
+
+  // vgenv keeps finished videos in Alibaba Cloud storage in Shanghai, which is
+  // too slow to stream from on every play (requests timed out after 10 s).
+  // Each finished vgenv video is downloaded once and kept with the job, like
+  // ArgoLink's; a failed copy is retried after 10 minutes.
+  async copyVgenvVideos(db, { fetchImpl = fetch, timeoutMs = 5 * 60 * 1000, maxBytes = 300 * 1024 * 1024 } = {}) {
+    const [rows] = await db.query(
+      "SELECT id, user_id, output_url FROM generations WHERE media_type='video' AND provider='vgenv' AND status='completed' AND output_url LIKE 'https://%' ORDER BY completed_at DESC LIMIT 20"
+    );
+    this.vgenvCopyRetryAt = this.vgenvCopyRetryAt || new Map();
+    let attempts = 0;
+    for (const row of rows) {
+      if (Number(this.vgenvCopyRetryAt.get(row.id) || 0) > Date.now()) continue;
+      if (attempts++ >= 2) break;
+      try {
+        const response = await fetchImpl(row.output_url, { signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' });
+        if (!response.ok) throw new Error('vgenv video download failed (HTTP ' + response.status + ').');
+        if (Number(response.headers.get('content-length')) > maxBytes) throw new Error('vgenv video is too large to keep.');
+        const data = Buffer.from(await response.arrayBuffer());
+        if (!data.length || data.length > maxBytes) throw new Error('vgenv video download was empty or too large.');
+        const conn = await db.getConnection();
+        try {
+          await conn.beginTransaction();
+          const [[current]] = await conn.execute('SELECT output_url FROM generations WHERE id=? FOR UPDATE', [row.id]);
+          if (!current || current.output_url !== row.output_url) { await conn.rollback(); continue; }
+          await conn.execute('DELETE FROM generation_video_chunks WHERE generation_id=?', [row.id]);
+          await conn.execute('DELETE FROM generation_video_outputs WHERE generation_id=?', [row.id]);
+          await saveVideoOutput(conn, row.id, { data, mimeType: 'video/mp4' });
+          await conn.execute("UPDATE generations SET output_url='db:video', updated_at=UTC_TIMESTAMP() WHERE id=?", [row.id]);
+          await conn.commit();
+        } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+        this.vgenvCopyRetryAt.delete(row.id);
+        logActivity({ category: 'provider', event: 'video.stored', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'Video copied from vgenv (' + Math.round(data.length / 1024) + ' KB)' });
+      } catch (error) {
+        this.vgenvCopyRetryAt.set(row.id, Date.now() + 10 * 60 * 1000);
+        logActivity({ level: 'warn', category: 'provider', event: 'video.store_failed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: error.message, details: errorDetails(error) });
       }
     }
   }
@@ -778,6 +818,11 @@ class GenerationWorker {
     const vidSnapshot = await this.syncVidancee(db);
     await this.syncCreatePulse(db);
     await this.syncVgenv(db);
+    // In the background: a slow download must not hold up the other jobs.
+    if (!this.vgenvCopyRunning) {
+      this.vgenvCopyRunning = true;
+      this.copyVgenvVideos(db).catch(error => console.error('vgenv video copy failed:', error.message)).finally(() => { this.vgenvCopyRunning = false; });
+    }
     if (!this.smartImageLaneActive) await this.syncSmartImages(db);
     await this.syncVibi(db);
     await this.syncVibiClones(db);
