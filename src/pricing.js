@@ -19,24 +19,32 @@ function h3ResolutionCosts() {
   };
 }
 
+// Vidancee and CreatePulse charge about Rs 40 for 30 s of Seedance 2.5. A
+// CMM Tools credit sells for Rs 3 (every plan), so the source cost is
+// 40 / 30 / 3 credits per second before the 2.5x customer multiplier.
+// Seedance 2.0 Fast keeps its earlier 5:6 ratio to Seedance 2.5.
+const SEEDANCE_25_PER_SECOND = 40 / 30 / 3;
+const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
+const perSecond = (rate, seconds) => Math.round(rate * seconds * 10000) / 10000;
+
 function pricingMap() {
   return {
     'seedance_2.5': {
       label: 'Seedance 2.5',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_10', 6)),
-        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_15', 9)),
+        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_10', perSecond(SEEDANCE_25_PER_SECOND, 10))),
+        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_15', perSecond(SEEDANCE_25_PER_SECOND, 15))),
         20: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_20', null)),
-        30: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_30', 14)),
+        30: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_25_30', perSecond(SEEDANCE_25_PER_SECOND, 30))),
       },
     },
     'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_10', 5)),
-        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_15', 7.5)),
+        10: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_10', perSecond(SEEDANCE_20_FAST_PER_SECOND, 10))),
+        15: sourceToCustomerCredits(sourceCost('PRICE_SEEDANCE_20_FAST_15', perSecond(SEEDANCE_20_FAST_PER_SECOND, 15))),
       },
     },
     'minimax_h3': {

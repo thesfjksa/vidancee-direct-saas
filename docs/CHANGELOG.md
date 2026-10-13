@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Seedance Lite prices from the real source cost
+
+- Vidancee and CreatePulse charge about Rs 40 for 30 s of Seedance 2.5. At Rs 3 per credit and the 2.5× multiplier, Seedance 2.5 is now 11.11 credits for 10 s (was 15), 16.67 for 15 s (was 22.5) and 33.33 for 30 s (was 35). Seedance 2.0 Fast keeps its 5:6 ratio: 9.26 for 10 s (was 12.5), 13.89 for 15 s (was 18.75). Applies to Video and Cartoon Studio; `PRICE_SEEDANCE_*` still override.
+
 ## 2026-10-13 — AI Gateway errors keep Vercel's reason
 
 - Recraft V4 has failed since 05:25 UTC because Vercel AI Gateway answers HTTP 401 (the saved key is refused); it last worked at 05:02. Failures now record Vercel's own message in the activity log (`providerMessage`), and Admin → Provider → Vercel **Check** shows it.
