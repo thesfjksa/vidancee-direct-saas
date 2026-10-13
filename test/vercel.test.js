@@ -251,3 +251,8 @@ test('Seedance 2.x is priced from video tokens, including reference clips',()=>{
   assert.equal(v.quoteGateway(seed,{duration:10,resolution:'720p',aspectRatio:'16:9',videos:[{data:Buffer.from('x')}]},1).sourceUsd.toFixed(4),(21600*40*6.4/1e6).toFixed(4));
   assert.equal(v.modelReady(model('bytedance/seedance-2.0-mini')),true);
 });
+
+test("AI Gateway errors keep Vercel's own message for the activity log", async () => {
+  const client = new VercelGatewayClient({ apiKey: 'k', fetchImpl: async () => new Response(JSON.stringify({ error: { message: 'Invalid API key' } }), { status: 401 }) });
+  await assert.rejects(client.credits(), error => error.message === 'AI Gateway rejected the API credentials or model access.' && error.providerStatus === 401 && /Invalid API key/.test(error.providerMessage));
+});

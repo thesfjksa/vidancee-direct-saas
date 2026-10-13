@@ -1522,7 +1522,9 @@ const server=http.createServer(async (req,res)=>{
 
       if(req.method==='POST'&&routePath==='/admin/vercel/check'){
         requireDatabase();const s=await getProviderSettings();
-        const credits=await new VercelGatewayClient({apiKey:s.vercelApiKey}).credits();
+        let credits;
+        try{credits=await new VercelGatewayClient({apiKey:s.vercelApiKey}).credits();}
+        catch(error){return sendJson(res,502,{ok:false,error:error.message+(error.providerMessage?' Vercel says: '+error.providerMessage:'')});}
         return sendJson(res,200,{ok:true,balance:credits.balance,totalUsed:credits.totalUsed});
       }
       if(req.method==='POST'&&routePath==='/admin/vercel/sync'){

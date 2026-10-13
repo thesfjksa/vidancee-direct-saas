@@ -48,12 +48,13 @@ class VercelGatewayClient {
       signal:AbortSignal.timeout(timeoutMs),redirect:'error'});}
     catch {throw Object.assign(new Error('AI Gateway could not be reached. Please try again later.'),{statusCode:502,retryable:true});}
     if(!response.ok) {
-      await response.body?.cancel?.().catch(()=>{});
+      // Vercel's own explanation, for the activity log (never shown to customers).
+      const detail=await readBounded(response,4096).then(b=>b.toString('utf8').replace(/\s+/g,' ').slice(0,300)).catch(()=>'');
       const text=response.status===401||response.status===403?'AI Gateway rejected the API credentials or model access.':
         response.status===402?'AI Gateway has insufficient credits.':
           response.status===429?'AI Gateway rate limit reached. Please try later.':
             'AI Gateway request failed (HTTP '+response.status+').';
-      throw Object.assign(new Error(text),{statusCode:502,providerStatus:response.status,retryable:response.status===429||response.status>=500});
+      throw Object.assign(new Error(text),{statusCode:502,providerStatus:response.status,providerMessage:detail||undefined,retryable:response.status===429||response.status>=500});
     }
     try {return JSON.parse((await readBounded(response,maxBytes)).toString('utf8'));}
     catch {throw Object.assign(new Error('AI Gateway returned an invalid response.'),{statusCode:502,retryable:true});}

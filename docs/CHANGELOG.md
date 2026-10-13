@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — AI Gateway errors keep Vercel's reason
+
+- Recraft V4 has failed since 05:25 UTC because Vercel AI Gateway answers HTTP 401 (the saved key is refused); it last worked at 05:02. Failures now record Vercel's own message in the activity log (`providerMessage`), and Admin → Provider → Vercel **Check** shows it.
+
 ## 2026-10-13 — Seedance moves to the other source when one fails
 
 - Two Seedance 2.5 jobs (05:57 Cartoon Studio, 11:46 Video Studio) failed because CreatePulse answered HTTP 502 when they were submitted; credits were refunded. The worker only switched to Vidancee when a source was out of credits, and only for Cartoon Studio. Now any Seedance job (Video or Cartoon Studio) that Vidancee or CreatePulse refuses for any reason is sent to the other source in the same pass; only out-of-credits errors pause a source for 10 minutes. The switch is logged as `job.submitted` with the first source's error.
