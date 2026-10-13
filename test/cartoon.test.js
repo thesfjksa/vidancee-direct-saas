@@ -139,11 +139,11 @@ test('a Seedance job moves to the other source when the first one fails, Video S
   w.stop?.();
 });
 
-test('MiniMax H3 is priced at vgenv cost + 70%', () => {
+test('MiniMax H3 is priced at its vgenv cost', () => {
   const { getCost } = require('../src/pricing.js');
-  // $0.003/s x 10 s x Rs 280 / Rs 3 per credit = 2.8 credits cost -> x1.7
-  assert.equal(getCost('minimax_h3', 10, '768p'), 4.76);
-  assert.equal(getCost('minimax_h3', 10, '480p'), 2.38);
+  // $0.003/s x 10 s x Rs 280 = Rs 8.40 = 8.4 credits (1 credit = Rs 1 of cost)
+  assert.equal(getCost('minimax_h3', 10, '768p'), 8.4);
+  assert.equal(getCost('minimax_h3', 10, '480p'), 4.2);
 });
 
 test('finished vgenv videos are copied into CMM Tools storage once', async () => {

@@ -75,8 +75,8 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal(config.data.pricing.filter(m=>m.id.startsWith('studio_gw_')).length,0);
   const nano=modelRows.find(m=>m.provider_model_id==='google/gemini-nano-banana-2.1');
   const input={model:nano.public_model_id,prompt:'A flower',aspectRatio:'4:5',imageSize:'2K'};
-  const quote=await request('/api/model-cost',{method:'POST',body:{...input,mediaType:'image'}});assert.equal(quote.data.cost,51);
-  const image=await request('/api/image-generations',{method:'POST',body:input});assert.equal(image.status,201);assert.equal(image.data.generation.credits_cost,51);assert.equal(image.data.generation.imageSize,'2K');assert.equal(image.data.generation.quality,null);
+  const quote=await request('/api/model-cost',{method:'POST',body:{...input,mediaType:'image'}});assert.equal(quote.data.cost,15);
+  const image=await request('/api/image-generations',{method:'POST',body:input});assert.equal(image.status,201);assert.equal(image.data.generation.credits_cost,15);assert.equal(image.data.generation.imageSize,'2K');assert.equal(image.data.generation.quality,null);
   const savedImage=jobs.get(image.data.generation.id);assert.equal(savedImage.provider,'vercel');assert.equal(savedImage.provider_cost_unit,'usd-estimate');assert.equal(JSON.parse(savedImage.generation_options).model.providerModelId,nano.provider_model_id);
   const balance=users.get(1).credits;
   for(const bad of [{...input,aspectRatio:'7:3'},{...input,imageSize:'8K'},{...input,quality:'high'}])assert.equal((await request('/api/image-generations',{method:'POST',body:bad})).status,400);
@@ -94,9 +94,9 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal((await request(mediaPath,{user:2})).status,404);
   const gpt=modelRows.find(m=>m.provider_model_id==='openai/gpt-image-2');
   // GPT Image is priced from OpenAI's published per-image table without an Admin rate.
-  assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'1:1'}})).data.cost,211);
+  assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'1:1'}})).data.cost,60); // $0.211 x 280, rounded up
   const rate=await request('/admin/vercel/models/'+gpt.id+'/price',{admin:true,method:'POST',body:{price:{low:0.01,medium:0.03,high:0.1}}});assert.equal(rate.status,200);assert.equal(rate.data.model.ready,true);
-  assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'4:5'}})).data.cost,125);
+  assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image',quality:'high',aspectRatio:'4:5'}})).data.cost,35); // $0.125 x 280
   assert.equal((await request('/admin/provider-models/'+gpt.id,{admin:true,method:'POST',body:{provider:'vercel',enabled:false}})).status,200);
   assert.equal((await request('/api/model-cost',{method:'POST',body:{model:gpt.public_model_id,mediaType:'image'}})).status,404);
   access.set(1,[{provider:'vercel',enabled:0}]);

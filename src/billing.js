@@ -5,7 +5,16 @@ function positiveNumber(value, fallback = null) {
   return n;
 }
 
-// Customer price = source cost in credits x 2.5 (fixed; not a setting).
+// One CMM Tools credit = Rs 1 of what CMM Tools pays its providers. Plans sell
+// credits at twice that (Rs 5,000 buys 2,500 credits), so every plan keeps 50%
+// whatever the customer generates. USD costs convert at Rs 280.
+const PKR_PER_USD = 280;
+const CREDIT_COST_RS = 1;
+const CREDITS_PER_USD = PKR_PER_USD / CREDIT_COST_RS;
+const rsToCredits = rs => Number(rs) / CREDIT_COST_RS;
+const usdToCredits = usd => Number(usd) * CREDITS_PER_USD;
+
+// Voice (Vibi) only: its per-character source units x 2.5.
 function creditMultiplier() {
   return 2.5;
 }
@@ -20,4 +29,4 @@ function sourceToCustomerCredits(sourceCredits) {
   return roundCredits(source * creditMultiplier());
 }
 
-module.exports = { positiveNumber, creditMultiplier, roundCredits, sourceToCustomerCredits };
+module.exports = { positiveNumber, creditMultiplier, roundCredits, sourceToCustomerCredits, PKR_PER_USD, CREDIT_COST_RS, CREDITS_PER_USD, rsToCredits, usdToCredits };

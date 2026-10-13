@@ -1,12 +1,8 @@
-const { sourceToCustomerCredits, roundCredits } = require('./billing.js');
+const { roundCredits, rsToCredits, usdToCredits } = require('./billing.js');
 
-// Fixed-price video models are priced from what the source really costs, in
-// CMM Tools credits (Rs 3 each on every plan), times the 2.5x customer
-// multiplier. Prices come only from this calculation, never from settings.
-const RS_PER_CREDIT = 3;
-const PKR_PER_USD = 280;
-const rsToCredits = rs => rs / RS_PER_CREDIT;
-const usdToCredits = usd => usd * PKR_PER_USD / RS_PER_CREDIT;
+// Fixed-price video models cost the customer exactly what CMM Tools pays for
+// them, in credits (1 credit = Rs 1 of cost; see billing.js). The profit is in
+// the plan price, not here. Prices come only from this calculation.
 const perSecond = (rate, seconds) => Math.round(rate * seconds * 10000) / 10000;
 
 // Vidancee and CreatePulse: Rs 40 for 30 s of Seedance 2.5. Seedance 2.0 Fast
@@ -15,14 +11,13 @@ const SEEDANCE_25_PER_SECOND = rsToCredits(40 / 30);
 const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
 
 // vgenv MiniMax H3, Fast tier (vgenv.com/developers): $0.0015/s at 480p,
-// $0.003/s at 768p. Sold at cost + 70% profit (not the 2.5x rule).
+// $0.003/s at 768p.
 const H3_PER_SECOND = { '480p': usdToCredits(0.0015), '768p': usdToCredits(0.003) };
-const H3_MULTIPLIER = 1.7;
 
 function h3Durations(rate) {
   const durations = {};
   for (let seconds = 4; seconds <= 15; seconds += 1) {
-    durations[seconds] = roundCredits(perSecond(rate, seconds) * H3_MULTIPLIER);
+    durations[seconds] = roundCredits(perSecond(rate, seconds));
   }
   return durations;
 }
@@ -37,17 +32,17 @@ function pricingMap() {
       label: 'Seedance 2.5',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 10)),
-        15: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 15)),
-        30: sourceToCustomerCredits(perSecond(SEEDANCE_25_PER_SECOND, 30)),
+        10: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 10)),
+        15: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 15)),
+        30: roundCredits(perSecond(SEEDANCE_25_PER_SECOND, 30)),
       },
     },
     'seedance_2.0_fast': {
       label: 'Seedance 2.0 Fast',
       resolutions: [],
       durations: {
-        10: sourceToCustomerCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
-        15: sourceToCustomerCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
+        10: roundCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
+        15: roundCredits(perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
       },
     },
     'minimax_h3': {

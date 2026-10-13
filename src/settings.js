@@ -5,6 +5,7 @@ const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
 const { DEFAULT_VERCEL_CREDITS_PER_USD } = require('./vercel_models.js');
+const { CREDITS_PER_USD } = require('./billing.js');
 
 const DEFAULTS = {
   vercel_api_key: '',
@@ -144,15 +145,17 @@ async function getProviderSettings() {
     vercelApiKey: String(read('vercel_api_key') || '').trim(),
     vercelEnabled: asBool(read('vercel_enabled')),
     vercelMaxInflight: Math.max(1, Math.min(10, Number(read('vercel_max_inflight') || 2))),
-    vercelCustomerCreditsPerUsd: Number(read('vercel_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
+    // Every USD-priced source converts at cost (1 credit = Rs 1, Rs 280 per USD);
+    // the profit is in the plan price, so these rates are no longer settings.
+    vercelCustomerCreditsPerUsd: CREDITS_PER_USD,
     argoLinkApiKey: String(read('argolink_api_key') || '').trim(),
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
-    argoLinkCustomerCreditsPerUsd: Number(read('argolink_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
+    argoLinkCustomerCreditsPerUsd: CREDITS_PER_USD,
     falApiKey: String(read('fal_api_key') || '').trim(),
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
-    falCustomerCreditsPerUsd: Number(read('fal_customer_credits_per_usd') || DEFAULT_VERCEL_CREDITS_PER_USD),
+    falCustomerCreditsPerUsd: CREDITS_PER_USD,
     promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
     promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
     vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
@@ -167,10 +170,7 @@ async function getProviderSettings() {
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
     smartAipiMaxInflight: Math.max(1, Math.min(10, Number(read('smartaipi_max_inflight') || 2))),
-    // Adopt the requested 160-credit policy once; subsequent Admin overrides persist.
-    smartAipiCustomerCreditsPerUsd: read('smartaipi_pricing_revision') === SMART_IMAGE_PRICING_REVISION
-      ? Number(read('smartaipi_customer_credits_per_usd') || DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD)
-      : DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD,
+    smartAipiCustomerCreditsPerUsd: CREDITS_PER_USD,
     smartAipiModels: normalizeSmartImageConfig(JSON.parse(read('smartaipi_models'))),
     vgenvBaseUrl: normalizeUrl(read('vgenv_base_url'), DEFAULTS.vgenv_base_url),
     vgenvApiKey: String(read('vgenv_api_key') || '').trim(),
