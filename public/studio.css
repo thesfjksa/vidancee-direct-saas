@@ -575,3 +575,8 @@ body:has(.generated-image-dialog[open]) { overflow: hidden; }
 .user-menu [role=menuitem].danger svg { color: #c0392b; }
 .user-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
 @media (max-width: 560px) { .upgrade-btn { display: none; } .credit-pill span { display: none; } }
+
+/* Model warning (red, under the model picker) */
+.model-warning { display: flex; align-items: flex-start; gap: 7px; margin: 8px 0 2px; padding: 8px 10px; border: 1px solid #f5c2bd; border-radius: 9px; background: #fdf0ee; color: #b42318; font-size: 12.5px; font-weight: 550; line-height: 1.4; }
+.model-warning svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+.model-warning.hide { display: none; }

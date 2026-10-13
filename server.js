@@ -470,12 +470,15 @@ async function argoHdOffModels(){
 // MiniMax H3 on vgenv in Video Studio, beside ArgoLink's models. Their prices
 // are fixed per duration (and resolution for H3).
 const SEEDANCE_VIDEO_MODELS=['seedance_2.5','seedance_2.0_fast'];
+// Shown under the Lite models while their source is unreliable.
+const LITE_MODEL_WARNING='Lite models are having problems right now. Some generations may fail; failed ones are refunded automatically.';
+const withLiteWarning=m=>SEEDANCE_VIDEO_MODELS.includes(m.id)?{...m,warning:LITE_MODEL_WARNING}:m;
 const DIRECT_VIDEO_MODELS=[...SEEDANCE_VIDEO_MODELS,'minimax_h3'];
 function directVideoSourceActive(id,access,providerSettings){
   return id==='minimax_h3'?Boolean(access.vgenv&&providerSettings.vgenv.active):seedanceSourcesActive(access,providerSettings);
 }
 function directVideoModels(access,providerSettings){
-  return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(m=>({
+  return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(withLiteWarning).map(m=>({
     ...m,
     label:m.label+' · up to '+Math.max(...m.durations.map(d=>d.seconds))+' s',
     defaultDuration:m.durations[0].seconds,
@@ -964,7 +967,7 @@ const server=http.createServer(async (req,res)=>{
           );
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
           const names=await modelDisplayNames().catch(()=>({}));
-          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive),names);
+          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive).map(withLiteWarning),names);
           cartoonEnabled=cartoonPricing.length>0;
 
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});

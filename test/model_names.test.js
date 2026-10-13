@@ -31,10 +31,13 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   const seedance = config.pricing.find(m => m.id === 'seedance_2.5');
   assert.ok(seedance, 'Seedance 2.5 is in Video Studio');
   assert.equal(seedance.label, 'Seedance 2.5 · up to 30 s');
+  assert.match(seedance.warning, /may fail/); // Lite models carry a warning
+  assert.equal(config.cartoon.pricing.find(m => m.id === 'seedance_2.5').warning, seedance.warning);
   assert.ok(seedance.durations.length && seedance.aspectRatios.length && seedance.capabilities.image.supported);
   assert.ok(config.pricing.some(m => m.id === 'seedance_2.0_fast'));
   const h3 = config.pricing.find(m => m.id === 'minimax_h3');
   assert.equal(h3.label, 'MiniMax H3 · up to 15 s');
+  assert.equal(h3.warning, undefined);
   assert.deepEqual(h3.resolutions.map(r => r.id), ['480p', '768p']);
   assert.equal(h3.defaultResolution, '768p');
 

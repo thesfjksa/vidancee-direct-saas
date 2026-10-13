@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13 — Warning on the Lite models
+
+- Seedance 2.5 Lite and Seedance 2.0 Lite show a small red warning under the model picker in Video and Cartoon Studio: "Lite models are having problems right now. Some generations may fail; failed ones are refunded automatically." Claude's list_models includes it as `warning`. Remove it by clearing `LITE_MODEL_WARNING` in server.js.
+
 ## 2026-10-13 — No vendor names for customers
 
 - Customers and Claude never see which companies run CMM Tools' models. Page and plan texts no longer name any ("by Gemini", "ByteDance's video upscaler", "ArgoLink Seedance clips" are gone); library cards show model names instead of internal ids; and provider error messages are rewritten before they reach a customer or Claude (`src/vendor_names.js`: job messages, API errors, connector results), e.g. "AI Gateway rejected…" → "The generation service rejected…". Customer prompts are never changed. Admin, the activity log and support access keep the real names.

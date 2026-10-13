@@ -228,6 +228,7 @@ function videoModelSummary(m) {
     audio: Boolean(m.supportsAudio),
     reference_images: img.supported ? { max: Number(img.max || 0), modes: imageModes(img) } : null,
     needs_reference_image: m.capabilities?.textOnly === false,
+    ...(m.warning ? { warning: m.warning } : {}),
   };
 }
 function imageModelSummary(m) {

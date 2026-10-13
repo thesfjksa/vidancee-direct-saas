@@ -9,7 +9,7 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-12">
+<link rel="stylesheet" href="/studio.css?v=cmm-13">
 </head>
 <body>
 
@@ -137,6 +137,7 @@
 
               <label class="meta" for="model">Model</label>
               <select id="model" onchange="handleVideoModelChange()"></select>
+              <div id="videoModelWarning" class="model-warning hide" role="note"></div>
               <div id="videoModelCapabilitySummary" class="model-capability-summary"></div>
 
               <div class="control-grid">
@@ -332,6 +333,7 @@
               <textarea id="cartoonPrompt" placeholder="Who is in the scene, what happens and where. For example: a curious fox cub chases fireflies through a moonlit forest."></textarea>
               <label class="meta" for="cartoonModel">Model</label>
               <select id="cartoonModel" onchange="renderCartoonDurations()"></select>
+              <div id="cartoonModelWarning" class="model-warning hide" role="note"></div>
               <div class="control-grid">
                 <div><label class="meta" for="cartoonDuration">Duration</label><select id="cartoonDuration" onchange="updateCartoonCost()"></select></div>
                 <div><label class="meta" for="cartoonRatio">Aspect ratio</label><select id="cartoonRatio" onchange="updateCartoonCost()"></select></div>
@@ -1237,6 +1239,13 @@ function refreshModelCapabilitySummaries(){
   if($('imageModelCapabilitySummary'))$('imageModelCapabilitySummary').innerHTML=image?capabilitySummary(image,'image'):'';
 }
 
+// A model's warning (e.g. the Lite models) shows in red under its picker.
+const WARNING_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+function showModelWarning(boxId,model){
+  const box=$(boxId);if(!box)return;
+  box.classList.toggle('hide',!model?.warning);
+  box.innerHTML=model?.warning?WARNING_ICON+'<span>'+escapeHtml(model.warning)+'</span>':'';
+}
 function handleVideoModelChange(){
   renderDurations(true);
   renderVideoReferenceControls(true);
@@ -1381,6 +1390,7 @@ function renderDurations(resetResolution=false){
   }
 
   renderGatewayVideoSettings(m);
+  showModelWarning('videoModelWarning',m);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
   const previousRatio=$('ratio').value;
   $('ratio').innerHTML=modelRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
@@ -3243,6 +3253,7 @@ function selectCartoonStyle(id){
 }
 function renderCartoonDurations(){
   const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value),previous=$('cartoonDuration').value;
+  showModelWarning('cartoonModelWarning',m);
   const durations=m?.durations||[];
   $('cartoonDuration').innerHTML=durations.map(d=>'<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>').join('');
   if(durations.some(d=>String(d.seconds)===previous))$('cartoonDuration').value=previous;
