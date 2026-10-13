@@ -143,6 +143,8 @@ const {
   createPlanRequest,
   listPlanRequests,
   decidePlanRequest,
+  SUPPORT_WHATSAPP,
+  whatsappUrl,
 } = require('./src/plans.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
@@ -987,6 +989,7 @@ const server=http.createServer(async (req,res)=>{
         cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
         upscaler:upscalerConfig,
         plans:publicPlans(),
+        support:{whatsapp:SUPPORT_WHATSAPP,whatsappUrl:whatsappUrl('Hi CMM Tools, I need help with ')},
       });
     }
 

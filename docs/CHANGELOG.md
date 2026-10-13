@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13 — New plans and WhatsApp support
+
+- Plans follow the pricing rule (a credit is worth Rs 3): **Creator** Rs 5,000 → 1,667 credits, 3 jobs at once; **Studio** Rs 10,000 → 3,333 credits, priority queue, 5 jobs at once; **Enterprise** custom, its button opens WhatsApp. Basic/Pro/Premium are no longer sold; customers who have them keep their limits.
+- A WhatsApp "Chat with us" button (+92 300 0499907) sits at the bottom right of the landing page and the studio.
+
 ## 2026-10-13 — CMM Tools video viewer
 
 - Library video cards no longer show the browser's player controls: they show a CMM Tools play badge, play silently while hovered (desktop), and clicking anywhere on the video opens the CMM Tools viewer.

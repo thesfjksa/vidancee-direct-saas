@@ -1,54 +1,71 @@
 const { getPool } = require('./db.js');
 
+// Plans are priced from the same rule as every model: a credit is worth Rs 3
+// (model prices are their real cost in credits x 2.5, MiniMax H3 x 1.7).
+const RS_PER_CREDIT = 3;
+const creditsFor = pricePkr => Math.round(pricePkr / RS_PER_CREDIT);
+
+// WhatsApp support (also the Enterprise "Contact us").
+const SUPPORT_WHATSAPP = '+923000499907';
+const whatsappUrl = text => 'https://wa.me/' + SUPPORT_WHATSAPP.replace(/\D/g, '') + (text ? '?text=' + encodeURIComponent(text) : '');
+
 const PLANS = Object.freeze({
-  basic: Object.freeze({
-    code: 'basic',
-    name: 'Basic',
-    pricePkr: 1500,
-    credits: 500,
-    concurrency: 2,
-    queuePriority: 10,
-    badge: '',
-    description: 'For individual creators getting started.',
-    features: [
-      '500 AI credits every purchase',
-      'All standard video and image models',
-      'Standard generation priority',
-      'Up to 2 simultaneous generations',
-    ],
-  }),
-  pro: Object.freeze({
-    code: 'pro',
-    name: 'Pro',
-    pricePkr: 4500,
-    credits: 1500,
+  creator: Object.freeze({
+    code: 'creator',
+    name: 'Creator',
+    pricePkr: 5000,
+    credits: creditsFor(5000),
     concurrency: 3,
     queuePriority: 20,
-    badge: 'Most Popular',
-    description: 'For creators and marketers producing content regularly.',
+    badge: '',
+    description: 'For creators and small businesses posting every week.',
     features: [
-      '1,500 AI credits every purchase',
-      'All video and image models',
-      'Priority generation queue',
+      '1,667 AI credits every purchase',
+      'Every video, image, cartoon and voice model',
+      'About 50 Seedance 2.5 Lite videos of 30 s, or 350 MiniMax H3 videos of 10 s',
       'Up to 3 simultaneous generations',
     ],
   }),
-  premium: Object.freeze({
-    code: 'premium',
-    name: 'Premium',
-    pricePkr: 12000,
-    credits: 4000,
+  studio: Object.freeze({
+    code: 'studio',
+    name: 'Studio',
+    pricePkr: 10000,
+    credits: creditsFor(10000),
     concurrency: 5,
     queuePriority: 30,
-    badge: 'Agency',
-    description: 'For agencies and high-volume production teams.',
+    badge: 'Most Popular',
+    description: 'For marketers and agencies producing content daily.',
     features: [
-      '4,000 AI credits every purchase',
-      'All premium video and image models',
-      'Highest generation priority',
-      'Up to 5 simultaneous generations',
+      '3,333 AI credits every purchase',
+      'Every video, image, cartoon and voice model',
+      'About 100 Seedance 2.5 Lite videos of 30 s, or 700 MiniMax H3 videos of 10 s',
+      'Priority queue · up to 5 simultaneous generations',
     ],
   }),
+});
+
+// Earlier plans: no longer sold, still honoured for customers who have them.
+const LEGACY_PLANS = Object.freeze({
+  basic: Object.freeze({ code: 'basic', name: 'Basic', pricePkr: 1500, credits: 500, concurrency: 2, queuePriority: 10, badge: '', description: '', features: [] }),
+  pro: Object.freeze({ code: 'pro', name: 'Pro', pricePkr: 4500, credits: 1500, concurrency: 3, queuePriority: 20, badge: '', description: '', features: [] }),
+  premium: Object.freeze({ code: 'premium', name: 'Premium', pricePkr: 12000, credits: 4000, concurrency: 5, queuePriority: 30, badge: '', description: '', features: [] }),
+});
+
+const ENTERPRISE = Object.freeze({
+  code: 'enterprise',
+  name: 'Enterprise',
+  pricePkr: null,
+  credits: null,
+  contact: true,
+  contactUrl: whatsappUrl('Hi CMM Tools, I would like to discuss an Enterprise plan.'),
+  badge: '',
+  description: 'For teams and brands with large or custom volumes.',
+  features: [
+    'Custom credit volume and pricing',
+    'Highest priority and more simultaneous generations',
+    'Claude connector and API-style workflows for your team',
+    'Dedicated WhatsApp support',
+  ],
 });
 
 const UNPAID_PROFILE = Object.freeze({
@@ -65,7 +82,7 @@ const UNPAID_PROFILE = Object.freeze({
 
 function getPlan(code) {
   const key = String(code || '').toLowerCase();
-  return PLANS[key] || null;
+  return PLANS[key] || LEGACY_PLANS[key] || null;
 }
 
 function getPlanProfile(code) {
@@ -73,7 +90,7 @@ function getPlanProfile(code) {
 }
 
 function publicPlans() {
-  return Object.values(PLANS).map(plan => ({
+  return [...Object.values(PLANS).map(plan => ({
     code: plan.code,
     name: plan.name,
     pricePkr: plan.pricePkr,
@@ -82,7 +99,7 @@ function publicPlans() {
     badge: plan.badge,
     description: plan.description,
     features: [...plan.features],
-  }));
+  })), { ...ENTERPRISE, features: [...ENTERPRISE.features] }];
 }
 
 async function getPlanStatus(userId) {
@@ -108,7 +125,7 @@ async function getPlanStatus(userId) {
 }
 
 async function createPlanRequest(userId, planCode) {
-  const plan = getPlan(planCode);
+  const plan = PLANS[String(planCode || '').toLowerCase()] || null;
   if (!plan) {
     const error = new Error('Choose a valid plan.');
     error.statusCode = 400;
@@ -261,6 +278,10 @@ async function decidePlanRequest(requestId, action) {
 
 module.exports = {
   PLANS,
+  LEGACY_PLANS,
+  RS_PER_CREDIT,
+  SUPPORT_WHATSAPP,
+  whatsappUrl,
   getPlan,
   getPlanProfile,
   publicPlans,
