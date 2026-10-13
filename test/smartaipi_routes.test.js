@@ -140,8 +140,8 @@ test('real HTTP routes enforce source controls, encrypted settings, billing and 
   assert.equal(repriced.status, 200); assert.equal(repriced.data.settings.smartaipi.customerCreditsPerUsd, 280); // fixed at cost
   assert.equal(values.get('smartaipi_customer_credits_per_usd').setting_value, '10000');
   assert.equal(values.get('smartaipi_pricing_revision').setting_value, SMART_IMAGE_PRICING_REVISION);
-  assert.equal((await request('/api/config')).data.imagePricing.find(m=>m.id===model).costByQuality.medium['1:1'], 265);
-  assert.equal(jobs.get(job.id).credits_cost,240); // Existing reservations retain their price.
+  assert.equal((await request('/api/config')).data.imagePricing.find(m=>m.id===model).costByQuality.medium['1:1'], 8); // the saved rate no longer changes prices
+  assert.equal(jobs.get(job.id).credits_cost,12); // Existing reservations retain their price.
   assert.equal((await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: 0 } })).status,400);
   await request('/admin/provider-settings', { admin: true, method: 'POST', body: { smartAipiCustomerCreditsPerUsd: DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD } });
 
