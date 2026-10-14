@@ -80,7 +80,7 @@ These names are operational details for the owner and developer. Customer genera
 
 | Studio | Sources |
 | --- | --- |
-| Video Studio | ArgoLink at 720p/1080p (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3); rendered lower and upscaled by fal.ai |
+| Video Studio | ArgoLink at 720p/1080p (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3); rendered lower and upscaled by fal.ai. Seedance 2.5 renders on fal.ai while ArgoLink is out of credits |
 | Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
 | Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
 | Upscaler and Video Studio HD enhancement | fal.ai (ByteDance Video Upscaler). See `docs/FAL_UPSCALER.md` |

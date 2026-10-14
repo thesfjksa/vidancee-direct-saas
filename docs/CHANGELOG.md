@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-14 — Seedance 2.5 renders on fal.ai when ArgoLink is out of credits
+
+- A Seedance 2.5 job in Video Studio that ArgoLink refuses for balance, or fails later for balance, is rendered by Seedance 2.5 on fal.ai. Prompt-only jobs use text-to-video, frame jobs image-to-video and reference jobs reference-to-video. The render then goes through the usual HD enhancement. ArgoLink is marked out of credits for 10 minutes, and Seedance 2.5 jobs go straight to fal during that time. The customer's price does not change; fal costs about 2.5 times ArgoLink's price for the render. Other ArgoLink models are refunded as before. See `docs/ARGOLINK.md`.
+
+## 2026-10-14 — Fixes from a full test pass
+
+- The whole app was tested end to end on a local copy, with MySQL, the web app, the worker and mock providers. That covered every studio in the browser (sign-up, plans, Video, Image, Cartoon, Voice and cloning, Upscaler, Library, Credits, Account, Use with Claude, the Admin tabs) and phone layouts. Fixes:
+- The Cartoon Studio failure of 13 October 05:57 (CreatePulse HTTP 502 on submit) was already fixed by the Seedance switch to the other source; it was reproduced and confirmed.
+- Lite (Vidancee, CreatePulse) and MiniMax H3 (vgenv) jobs that a source fails after accepting them now show the source's reason: "Generation failed: … Credits were refunded." Before, Lite jobs only said "Generation failed during processing", and MiniMax jobs showed vgenv's raw text without the refund note. Customers see it without vendor names.
+- Admin → Generations shows the source's own error message again. It had shown the customer copy with vendor names removed.
+- The public Pricing page left out models without generated audio (Wan 3.0 Prime, ArgoLink MiniMax H3), because their example price was asked for with audio on.
+- The web app now exits on SIGTERM/SIGINT once requests in progress finish (within 10 s, `WEB_SHUTDOWN_GRACE_MS`), and exits when it cannot open its port. Before, the SIGTERM logging handler kept it running until it was killed, and a failed `listen` left a process that served nothing.
+
 ## 2026-10-14 — Public Pricing page
 
 - New page at `/pricing` (no sign-in): the plans, a "What credits buy" table with the credit price of every video and image model at its default settings and how many a Creator plan covers (from the new public `/api/price-examples`, cached 10 minutes), a plan comparison, the FAQ and sign-up. "Pricing" in the home menu opens it; on phones a Pricing button sits next to Start creating.

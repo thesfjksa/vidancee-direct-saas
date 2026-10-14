@@ -7,6 +7,10 @@
 // argo_hd.js). When ArgoLink finishes, its render is stored and handed to the
 // fal.ai upscaler; the upscaled video then replaces it. If the upscale cannot
 // run or fails, the customer gets the render and the upscale credits back.
+//
+// Seedance 2.5 fallback: while ArgoLink is out of credits, a Seedance 2.5 job
+// is rendered by Seedance 2.5 on fal.ai instead (see seedance_fal.js), then
+// continues through the same HD enhancement. The customer's price is unchanged.
 const { VercelQueue, savedOptions } = require('./vercel_queue.js');
 const { ArgoLinkClient } = require('./provider/argolink.js');
 const { FalClient } = require('./provider/fal.js');
@@ -14,11 +18,15 @@ const { providerOutputUrl } = require('./provider/assets.js');
 const { saveVideoOutput } = require('./video_outputs.js');
 const { errorDetails } = require('./activity_log.js');
 const { dimensions } = require('./image_canvas.js');
+const { looksOutOfCredits } = require('./cartoon.js');
+const { isSeedance25, falSeedanceRequest, falSeedanceUsd } = require('./seedance_fal.js');
 
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
     super({ clientFactory: opts => new ArgoLinkClient(opts), ...options, provider: 'argolink' });
     this.falFactory = options.falFactory || (opts => new FalClient(opts));
+    // credits: {isOut(source), markOut(source)}, the worker's out-of-credits marks.
+    this.credits = options.credits || null;
     // ArgoLink queues a job for up to 10 minutes and long Seedance clips can
     // take a while; a refunded job that later finishes would still be billed.
     this.videoTimeoutMs = 3 * 60 * 60 * 1000;
@@ -41,18 +49,26 @@ class ArgoLinkQueue extends VercelQueue {
   async submit(db, job, client) {
     const options = savedOptions(job), model = await this.getModel('argolink', job.model, job.media_type);
     if (!model?.ready) throw new Error('This model is currently unavailable. Credits were refunded.');
-    let references = await this.references(db, job);
+    const references = await this.references(db, job);
     if (job.media_type === 'image') {
       await this.complete(db, job, await client.generateImage(model, options, references));
       return;
     }
     // Rendered at the source resolution when HD enhancement follows.
     const params = { ...options, resolution: options.sourceResolution || options.resolution };
-    references = await this.uploadReferences(db, job, client, model, references);
+    if (isSeedance25(model) && this.fal() && this.credits?.isOut('argolink')) return this.renderOnFal(db, job, model, params, references, 'ArgoLink is out of credits.');
+    const uploaded = await this.uploadReferences(db, job, client, model, references);
     let requestBody = null;
-    try { requestBody = client.videoBody?.(model, params, references); } catch {}
-    this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: await this.referenceInfo(db, job, references) });
-    const requestId = await client.startVideo(model, params, references);
+    try { requestBody = client.videoBody?.(model, params, uploaded); } catch {}
+    this.log(job, 'argolink.request', 'POST /v1/videos/generations · ' + model.providerModelId + ' · ' + params.resolution, { body: requestBody, references: await this.referenceInfo(db, job, uploaded) });
+    let requestId;
+    try { requestId = await client.startVideo(model, params, uploaded); }
+    catch (error) {
+      if (!isSeedance25(model) || !looksOutOfCredits(error)) throw error;
+      this.credits?.markOut('argolink');
+      if (!this.fal()) throw error;
+      return this.renderOnFal(db, job, model, params, references, error.message);
+    }
     this.log(job, 'argolink.accepted', 'ArgoLink request ' + requestId, { requestId });
     // The request id is saved before the first poll, so a restart resumes the
     // same job instead of paying for a second one.
@@ -64,6 +80,7 @@ class ArgoLinkQueue extends VercelQueue {
     let op = {};
     try { op = JSON.parse(job.provider_operation || '{}') || {}; } catch {}
     if (op.stage === 'enhance') return this.pollEnhancement(db, job, op);
+    if (op.stage === 'fal') return this.pollFalRender(db, job, op);
     const requestId = op.requestId || job.provider_job_id;
     if (!requestId) throw new Error('The video operation could not be resumed.');
     const result = await client.videoStatus(requestId);
@@ -81,6 +98,16 @@ class ArgoLinkQueue extends VercelQueue {
     } else if (result.status === 'failed' || result.status === 'expired') {
       const error = result.error || {};
       console.error('ArgoLink job failed for', job.id, requestId, error.code || result.status, error.message || '');
+      const options = savedOptions(job);
+      if (isSeedance25(options.model) && looksOutOfCredits({ message: [error.code, error.message].join(' ') })) {
+        this.credits?.markOut('argolink');
+        // If fal cannot take it either, the job is refunded below.
+        if (this.fal()) {
+          try { return await this.renderOnFal(db, job, options.model, { ...options, resolution: options.sourceResolution || options.resolution },
+            await this.references(db, job), error.message || 'ArgoLink is out of credits.'); }
+          catch (falError) { this.log(job, 'fal.seedance_failed', 'fal.ai could not take the job: ' + falError.message, errorDetails(falError), 'error'); }
+        }
+      }
       // ArgoLink marks a failure retryable when nothing was consumed and the
       // same request can safely run again. Try once more before refunding.
       if (result.status === 'failed' && error.retryable === true && !op.retried && await this.retry(db, client, job, op)) return;
@@ -139,6 +166,40 @@ class ArgoLinkQueue extends VercelQueue {
       console.error('ArgoLink retry could not start for', job.id, error.message);
       return false;
     }
+  }
+
+  // Seedance 2.5 on fal.ai for a job ArgoLink cannot pay for. fal reads the
+  // references from the app's signed links. The request id is saved before the
+  // first poll, so a restart resumes this render instead of paying again.
+  async renderOnFal(db, job, model, params, references, reason) {
+    const fal = this.fal();
+    const request = falSeedanceRequest(params, references);
+    const renderUsd = falSeedanceUsd(model, params);
+    const upscaleUsd = Number(params.enhance?.upscale?.usd || 0);
+    this.log(job, 'fal.seedance_request', 'ArgoLink is out of credits; rendering on fal.ai ' + request.path + ' · ' + params.resolution,
+      { reason: String(reason || '').slice(0, 300), input: request.input, estimatedUsd: renderUsd }, 'warn');
+    const op = await fal.submit(request.path, request.input);
+    this.log(job, 'fal.seedance_accepted', 'fal request ' + op.requestId, { requestId: op.requestId });
+    await db.execute(`UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,provider_cost=COALESCE(?,provider_cost),
+        started_at=COALESCE(started_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP(),error_message=NULL
+      WHERE id=? AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL`,
+      [JSON.stringify({ stage: 'fal', fal: op, path: request.path }), op.requestId.slice(0, 191), renderUsd == null ? null : renderUsd + upscaleUsd, job.id]);
+  }
+
+  // A fal render, once finished, is handled like ArgoLink's: HD enhancement or completion.
+  async pollFalRender(db, job, op) {
+    const fal = this.fal();
+    if (!fal) throw Object.assign(new Error('fal.ai is not configured, so the Seedance 2.5 render cannot be collected.'), { retryable: true });
+    const result = await fal.check(op.fal);
+    if (result.state === 'pending') return this.markProcessing(db, job);
+    this.log(job, 'fal.seedance_status', op.fal.requestId + ' → ' + result.state, result, result.state === 'failed' ? 'error' : 'info');
+    if (result.state === 'failed') {
+      const reason = String(result.error || '').trim().replace(/[.!]?$/, '.');
+      return this.refund(job.id, 'failed', 'The video model could not complete this request' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.', null);
+    }
+    const output = await fal.download(result.url);
+    if (savedOptions(job).enhance?.upscale) await this.startEnhancement(db, job, output, op.fal.requestId);
+    else await this.complete(db, job, output);
   }
 
   // Stores ArgoLink's render (fal downloads it from a signed link) and starts the upscale.

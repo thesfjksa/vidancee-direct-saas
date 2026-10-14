@@ -25,6 +25,10 @@ Flow (`src/argolink_queue.js`): ArgoLink renders → the render is stored → fa
 
 Without a fal key, Video Studio renders 720p natively and offers 1080p only on models that render it.
 
+## Seedance 2.5 backup renders
+
+The same fal key also renders Video Studio's Seedance 2.5 while ArgoLink is out of credits (Seedance 2.5 text-, image- and reference-to-video on fal). See `docs/ARGOLINK.md` → Seedance 2.5 backup on fal.ai.
+
 ## Upscaler tab
 
 Customers upscale a finished video or an uploaded MP4/MOV (up to 25 MB) to 1080p, 2K or 4K. The price comes from `POST /api/upscales/quote`; `POST /api/upscales` reserves the credits and queues a `fal` job (`src/upscale_queue.js`). A video already at or above the chosen size is refused. Failed jobs are refunded with fal's reason; a job still running after 3 hours is refunded.

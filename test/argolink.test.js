@@ -298,3 +298,104 @@ test('two worker processes polling the same job act on it only once', async () =
   await queue.exclusive(db, row, () => { polls++; });
   assert.equal(polls, 1);
 });
+
+test('Seedance 2.5 renders on fal.ai while ArgoLink is out of credits, then continues to HD enhancement', async () => {
+  process.env.APP_URL = 'https://cmmtools.site'; process.env.PROVIDER_ASSET_SECRET = 'test-secret';
+  const { falSeedanceRequest, falSeedanceUsd, FAL_SEEDANCE_25 } = require('../src/seedance_fal.js');
+  const ref = (role, mimeType, n) => ({ role, mimeType, url: 'https://cmmtools.site/provider-media/g/' + n + '?sig=s' });
+  const params = { prompt: 'A fox', resolution: '480p', duration: 5, aspectRatio: '9:16', generateAudio: false };
+
+  // One fal endpoint per request shape; duration is fal's string enum and audio is explicit.
+  assert.deepEqual(falSeedanceRequest(params, []), { path: FAL_SEEDANCE_25.text,
+    input: { prompt: 'A fox', resolution: '480p', duration: '5', generate_audio: false, codec: 'H264', aspect_ratio: '9:16' } });
+  const frames = falSeedanceRequest(params, [ref('start_image', 'image/png', 0), ref('end_image', 'image/png', 1)]);
+  assert.equal(frames.path, 'bytedance/seedance-2.5/image-to-video');
+  assert.deepEqual([frames.input.image_url, frames.input.end_image_url, frames.input.aspect_ratio], [ref('', '', 0).url, ref('', '', 1).url, undefined]);
+  const refs = falSeedanceRequest({ ...params, aspectRatio: '5:4' }, [ref('image_references', 'image/jpeg', 0), ref('video', 'video/mp4', 1)]);
+  assert.equal(refs.path, 'bytedance/seedance-2.5/reference-to-video');
+  assert.deepEqual([refs.input.image_urls, refs.input.video_urls, refs.input.aspect_ratio], [[ref('', '', 0).url], [ref('', '', 1).url], 'auto']);
+  assert.throws(() => falSeedanceRequest(params, [ref('start_image', 'image/png', 0), ref('image_references', 'image/png', 1)]), /either frames or reference files/);
+  // fal's estimate follows ArgoLink's quote for the same seconds: 5 s at 480p is 5 x $0.2205.
+  assert.equal(falSeedanceUsd(model('seedance-2.5'), { resolution: '480p', renderUsd: 5 * 0.0874 }).toFixed(4), (5 * 0.2205).toFixed(4));
+
+  const writes = [], refunds = [], falCalls = [], marks = [];
+  const conn = { async execute(text, args) { writes.push([text.replace(/\s+/g, ' '), args]); if (text.includes('FOR UPDATE')) return [[{ status: 'processing', refunded_at: null }]]; return [{ affectedRows: 1 }]; },
+    beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {} };
+  const db = { getConnection: async () => conn, execute: conn.execute };
+  let falState = { state: 'pending' };
+  const fal = { submit: async (path, input) => { falCalls.push([path, input]); return { requestId: 'f' + falCalls.length, statusUrl: 'https://queue.fal.run/x/requests/f/status', responseUrl: 'https://queue.fal.run/x/requests/f' }; },
+    check: async () => falState, download: async () => ({ data: Buffer.from('ftypfal'), mimeType: 'video/mp4' }) };
+  let out = false;
+  const credits = { isOut: () => out, markOut: source => { marks.push(source); out = true; } };
+  const queue = new ArgoLinkQueue({ falFactory: () => fal, credits, refund: async (...a) => refunds.push(a) });
+  queue.settings = { falEnabled: true, falApiKey: 'k' };
+  queue.log = () => {};
+  queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true });
+  queue.references = async () => [ref('image_references', 'image/png', 0)];
+  const upscale = { path: 'fal-ai/bytedance-upscaler/upscale/video', input: { target_resolution: '1080p' }, usd: 0.036 };
+  const options = { model: model('seedance-2.5'), duration: 5, resolution: '720p', sourceResolution: '480p', aspectRatio: '9:16', renderUsd: 5 * 0.0874, enhance: { upscale, credits: 218 } };
+  const job = { id: 'g1', user_id: 3, model: 'argo_seedance_2_5', media_type: 'video', prompt: 'A fox', status: 'submitting', generation_options: JSON.stringify(options) };
+  let argoStarts = 0;
+  const broke = { uploadMedia: async () => 'https://media.argolink.io/1.png', videoBody: () => ({}),
+    startVideo: async () => { argoStarts++; throw Object.assign(new Error('ArgoLink has insufficient balance.'), { providerStatus: 402 }); } };
+
+  // ArgoLink refuses for balance: ArgoLink is marked out and the same request goes to fal with the app's signed links.
+  await queue.submit(db, job, broke);
+  assert.deepEqual([argoStarts, marks], [1, ['argolink']]);
+  assert.equal(falCalls[0][0], 'bytedance/seedance-2.5/reference-to-video');
+  assert.deepEqual(falCalls[0][1].image_urls, [ref('', '', 0).url]);
+  assert.equal(falCalls[0][1].resolution, '480p');
+  const saved = writes.at(-1);
+  assert.match(saved[0], /SET status='submitted',provider_operation=\?/);
+  assert.deepEqual(JSON.parse(saved[1][0]), { stage: 'fal', fal: { requestId: 'f1', statusUrl: 'https://queue.fal.run/x/requests/f/status', responseUrl: 'https://queue.fal.run/x/requests/f' }, path: falCalls[0][0] });
+  assert.equal(saved[1][2].toFixed(4), (5 * 0.2205 + 0.036).toFixed(4));
+
+  // While ArgoLink is marked out, the next Seedance 2.5 job skips it.
+  await queue.submit(db, job, broke);
+  assert.deepEqual([argoStarts, falCalls.length], [1, 2]);
+
+  // Other models keep ArgoLink's refusal (the job is refunded as before), and without fal so does Seedance 2.5.
+  out = false;
+  queue.getModel = async () => ({ ...model('seedance-2.0'), ready: true });
+  await assert.rejects(queue.submit(db, { ...job, generation_options: JSON.stringify({ ...options, model: model('seedance-2.0') }) }, broke), /insufficient balance/);
+  queue.getModel = async () => ({ ...model('seedance-2.5'), ready: true });
+  queue.settings = {}; out = false;
+  await assert.rejects(queue.submit(db, job, broke), /insufficient balance/);
+  assert.equal(falCalls.length, 2);
+  queue.settings = { falEnabled: true, falApiKey: 'k' };
+
+  // A job ArgoLink fails later for lack of balance moves to fal too.
+  out = false; marks.length = 0;
+  const lateFail = { videoStatus: async () => ({ status: 'failed', error: { code: 'insufficient_balance', message: 'Wallet balance too low.', retryable: true } }) };
+  await queue.pollJob(db, lateFail, { ...job, status: 'submitted', provider_operation: JSON.stringify({ requestId: 'r1' }) });
+  assert.deepEqual([marks, falCalls.length, refunds.length], [['argolink'], 3, 0]);
+
+  // If fal refuses that job too, it is refunded instead of being retried on every poll.
+  const refusing = { ...fal, submit: async () => { throw new Error('fal.ai has insufficient balance.'); } };
+  const strict = new ArgoLinkQueue({ falFactory: () => refusing, credits, refund: async (...a) => refunds.push(a) });
+  Object.assign(strict, { settings: queue.settings, log: () => {}, references: queue.references });
+  await strict.pollJob(db, lateFail, { ...job, status: 'submitted', provider_operation: JSON.stringify({ requestId: 'r1' }) });
+  assert.equal(refunds.length, 1);
+  assert.match(refunds[0][2], /Wallet balance too low\. Credits were refunded\.$/);
+  refunds.length = 0;
+
+  // Polling the fal render: pending, then done -> stored and handed to the HD upscaler.
+  const falJob = { ...job, status: 'submitted', provider_operation: JSON.stringify({ stage: 'fal', fal: { requestId: 'f1', statusUrl: 'https://queue.fal.run/x/requests/f/status' } }) };
+  writes.length = 0;
+  await queue.pollJob(db, null, falJob);
+  assert.match(writes[0][0], /SET status='processing'/);
+  falState = { state: 'done', url: 'https://v3.fal.media/out.mp4' };
+  await queue.pollJob(db, null, falJob);
+  assert.ok(writes.some(([t]) => t.startsWith('INSERT INTO generation_video_outputs')));
+  assert.equal(falCalls.at(-1)[0], upscale.path);
+  assert.match(falCalls.at(-1)[1].video_url, /\/provider-outputs\/g1\?sig=/);
+  assert.equal(JSON.parse(writes.at(-1)[1][0]).stage, 'enhance');
+
+  // Without HD enhancement the render completes the job; a failed render is refunded with fal's reason.
+  writes.length = 0;
+  await queue.pollJob(db, null, { ...falJob, generation_options: JSON.stringify({ ...options, enhance: null }) });
+  assert.ok(writes.some(([t]) => t.includes("SET status='completed',output_url=?")));
+  falState = { state: 'failed', error: 'Content flagged' };
+  await queue.pollJob(db, null, falJob);
+  assert.match(refunds[0][2], /Content flagged\. Credits were refunded\.$/);
+});

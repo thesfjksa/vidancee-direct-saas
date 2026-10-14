@@ -570,7 +570,7 @@ async function priceExamples(){
       const list=(m.resolutions?.length?((m.resolutions.find(r=>r.id===resolution)||m.resolutions[0]).durations):m.durations)||[];
       const d=list.find(x=>x.seconds===seconds)||list[0];credits=Number(d?.cost)||null;seconds=d?.seconds??seconds;
     }else{
-      try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:true})).cost;}catch{}
+      try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:m.supportsAudio===true})).cost;}catch{}
     }
     if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
   }
@@ -1971,6 +1971,8 @@ const server=http.createServer(async (req,res)=>{
         );
         return sendJson(res,200,{ok:true,generations:rows.map(row=>({
           ...serializeGeneration(row),
+          // Admin sees the source's own message (customers get it without vendor names).
+          error_message:row.error_message,
           user_email:row.email,
           provider:row.provider,
           media_type:row.media_type || 'video',
@@ -1996,7 +1998,9 @@ server.on('clientError',(error,socket)=>{
   console.error('[runtime] HTTP client error',error?.code||'',error?.message||error);
   if(socket?.writable)socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
 });
-server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;});
+// A server that could not open its port serves nothing; exit so the host
+// starts a fresh process instead of keeping this one alive.
+server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;if(!server.listening)setTimeout(()=>process.exit(1),250).unref();});
 
 
 let workerChild=null;
@@ -2044,8 +2048,19 @@ function stopWorkerChild(){
   }
 }
 
-process.on('SIGTERM',stopWorkerChild);
-process.on('SIGINT',stopWorkerChild);
+// Listening for a signal stops Node from exiting on it, so shutdown is done
+// here: stop the worker child, finish requests in progress, then exit.
+const SHUTDOWN_GRACE_MS=Math.max(0,Number(process.env.WEB_SHUTDOWN_GRACE_MS||10000));
+function shutdown(signal){
+  if(shuttingDown)return;
+  console.warn('[runtime] shutting down on',signal);
+  stopWorkerChild();
+  server.close(()=>process.exit(0));
+  server.closeIdleConnections?.();
+  setTimeout(()=>process.exit(0),SHUTDOWN_GRACE_MS).unref();
+}
+process.on('SIGTERM',()=>shutdown('SIGTERM'));
+process.on('SIGINT',()=>shutdown('SIGINT'));
 
 function bootstrap() {
   // Start HTTP immediately so Hostinger can route traffic even if MySQL is

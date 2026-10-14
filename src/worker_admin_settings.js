@@ -40,6 +40,13 @@ function downloadIPv4(url, { timeoutMs, maxBytes }, redirects = 0) {
   });
 }
 
+// Customer message for a job the source accepted and then failed: its reason
+// when it gives one, without links (vendor names are hidden before customers see it).
+function failedMessage(reason) {
+  const text = (typeof reason === 'string' ? reason : '').replace(/\bhttps?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim().slice(0, 200).replace(/[.!]?$/, '.');
+  return text.length > 1 ? 'Generation failed: ' + text + ' Credits were refunded.' : 'Generation failed during processing. Credits were refunded.';
+}
+
 function truthy(value, fallback = false) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
   return /^(1|true|yes|on)$/i.test(String(value));
@@ -47,14 +54,15 @@ function truthy(value, fallback = false) {
 
 class GenerationWorker {
   constructor() {
-    // Image Studio: AI Gateway and SmartAIPI first, ArgoLink when they run out of credits.
-    this.imageFailover = {
+    const credits = {
       isOut: key => Number(this.outOfCreditsUntil?.[key] || 0) > Date.now(),
       markOut: key => this.markOutOfCredits(key),
-      move: async (db, job) => moveImageJobToArgo(db, job, await getProviderSettings()),
     };
+    // Image Studio: AI Gateway and SmartAIPI first, ArgoLink when they run out of credits.
+    this.imageFailover = { ...credits, move: async (db, job) => moveImageJobToArgo(db, job, await getProviderSettings()) };
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
-    this.argoLinkQueue = new ArgoLinkQueue();
+    // Video Studio: Seedance 2.5 renders on fal.ai while ArgoLink is out of credits.
+    this.argoLinkQueue = new ArgoLinkQueue({ credits });
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -273,7 +281,7 @@ class GenerationWorker {
         logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'vidancee', message: 'Completed', details: { providerJobId: row.provider_job_id } });
       } else if (providerJob.status === 'failed') {
         logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'vidancee', message: 'Vidancee reported the job failed', details: providerJob });
-        await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.',
+        await refundGeneration(row.id, 'failed', failedMessage(providerJob.error_message),
           providerJob.cost_credits == null ? null : Number(providerJob.cost_credits));
       } else if (providerJob.status === 'processing') {
         await db.execute(
@@ -301,7 +309,7 @@ class GenerationWorker {
           logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'createpulse', message: 'Completed', details: { providerJobId: row.provider_job_id } });
         } else if (status.status === 'failed') {
           logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'createpulse', message: 'CreatePulse reported the job failed', details: status });
-          await refundGeneration(row.id, 'failed', 'Generation failed during processing. Credits were refunded.', status.amount);
+          await refundGeneration(row.id, 'failed', failedMessage(status.error), status.amount);
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
         } else {
           await db.execute(
@@ -338,7 +346,7 @@ class GenerationWorker {
           await refundGeneration(
             row.id,
             'failed',
-            video.error || 'Generation failed during processing. Credits were refunded.',
+            failedMessage(video.error),
             video.price
           );
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);

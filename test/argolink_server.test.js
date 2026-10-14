@@ -23,6 +23,8 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
       if (provider !== 'argolink') return [[]];
       return [rows.filter(r => (!publicId || r.public_model_id === publicId) && (!mediaType || r.media_type === mediaType))];
     }
+    if (sql.includes('FROM generations g')) return [[{ id: 'g-9', user_id: 7, provider: 'argolink', media_type: 'video', mode: 'text-to-video', model: 'argo_seedance_2_0',
+      duration: 5, resolution: '720p', aspect_ratio: '9:16', prompt: 'x', status: 'failed', credits_cost: 10, error_message: 'ArgoLink has insufficient balance.', email: user.email }]];
     throw new Error('Unexpected test SQL: ' + sql);
   };
   const db = { execute, query: execute, async getConnection() { return { execute, query: execute, release() {} }; } };
@@ -84,6 +86,15 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   await post('/api/generations', { model: 'argo_minimax_h3', prompt: 'A fox', duration: 5, resolution: '1080p', aspectRatio: '16:9' });
   assert.deepEqual([created[2][2].generationOptions.sourceResolution, created[2][2].generationOptions.enhance.upscale.input.target_resolution], ['768p', '1080p']);
   assert.deepEqual([created[3][2].generationOptions.sourceResolution, created[3][2].generationOptions.enhance.upscale.input.target_resolution], ['768p', '1080p']);
+
+  // The public Pricing page prices every model, including ones without generated audio.
+  const examples = await (await fetch(origin + '/api/price-examples')).json();
+  for (const name of ['Seedance 2.5', 'Wan 3.0 Prime', 'MiniMax H3']) assert.ok(examples.video.some(v => v.name === name), name + ' is on the Pricing page');
+
+  // Admin sees the source's own error message; the customer's copy hides the vendor.
+  const adminList = await (await fetch(origin + '/admin/generations', { headers: { 'x-admin-token': 'argo-admin' } })).json();
+  assert.equal(adminList.generations[0].error_message, 'ArgoLink has insufficient balance.');
+  assert.equal(require('../src/generations.js').serializeGeneration({ error_message: 'ArgoLink has insufficient balance.' }).error_message, 'The generation service has insufficient balance.');
 
   // A customer without ArgoLink access sees none of its models and cannot submit.
   access = [{ provider: 'argolink', enabled: 0 }];

@@ -82,10 +82,10 @@ class FalClient {
   async download(url) {
     let response;
     try { response = await this.fetch(checkOutputUrl(url), { signal: AbortSignal.timeout(600000) }); }
-    catch { throw Object.assign(new Error('The upscaled video could not be downloaded.'), { retryable: true }); }
-    if (!response.ok) { await response.body?.cancel?.().catch(() => {}); throw Object.assign(new Error('The upscaled video could not be downloaded.'), { retryable: true }); }
+    catch { throw Object.assign(new Error('The video could not be downloaded from fal.ai.'), { retryable: true }); }
+    if (!response.ok) { await response.body?.cancel?.().catch(() => {}); throw Object.assign(new Error('The video could not be downloaded from fal.ai.'), { retryable: true }); }
     const data = await readBounded(response, UPSCALE_LIMIT);
-    if (!data.length || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error('The upscaler did not return a supported MP4 video.');
+    if (!data.length || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error('fal.ai did not return a supported MP4 video.');
     return { data, mimeType: 'video/mp4' };
   }
 }

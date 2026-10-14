@@ -42,6 +42,17 @@ Customer credits = ArgoLink USD price × credits per USD, rounded up.
 - Seedance references are uploaded to ArgoLink's storage first (`POST /v1/media/uploads` ticket, `PUT` the bytes, send `media_url`), as ArgoLink's Playground does; signed links to the app are the fallback if an upload fails. Seedance 2.5 failed every job (`generation_failed`) with the signed links while the same image uploaded in the Playground worked.
 - Jobs run in their own worker loop (`src/argolink_queue.js`), with the same claim, heartbeat, restart recovery and refund rules as the AI Gateway queue. A video is refunded if it has not finished after 3 hours.
 
+## Seedance 2.5 backup on fal.ai
+
+When ArgoLink is out of credits, Video Studio's Seedance 2.5 is rendered by Seedance 2.5 on fal.ai instead (`src/seedance_fal.js`). It needs the fal.ai key that HD enhancement already uses. The switch happens when:
+
+- ArgoLink refuses the request for balance (HTTP 402 or an insufficient-balance message). ArgoLink is then marked out of credits for 10 minutes (Admin → Usage & limits shows it), and Seedance 2.5 jobs go straight to fal during that time;
+- or ArgoLink accepts a job and later fails it for balance.
+
+fal has one endpoint per request shape: `bytedance/seedance-2.5/text-to-video` for a prompt alone, `bytedance/seedance-2.5/image-to-video` for a start frame (and optional end frame), and `bytedance/seedance-2.5/reference-to-video` for reference images and videos. Each gets the prompt, the render resolution (480p or 720p when HD enhancement follows), the duration as fal's string enum (`"5"`), the aspect ratio, `generate_audio` as chosen (fal's default is on) and `codec: H264`. References are sent as the app's signed links. The fal request is saved before the first poll (`provider_operation.stage = 'fal'`), so a restart resumes it. The finished render goes through the same HD enhancement and completion as an ArgoLink render.
+
+The customer keeps the price quoted from ArgoLink. fal costs about 2.5 times more: $0.2205/s at 480p, $0.473/s at 720p and $1.164/s at 1080p, against ArgoLink's $0.0874, $0.196 and $0.483. With reference videos, both bill the input seconds as well, at about 0.6×. The job's `provider_cost` is changed to fal's estimate plus the upscale. The job stays under ArgoLink in the Generations tab and in Usage & limits; the activity log shows the switch (`fal.seedance_request`, `fal.seedance_accepted`, `fal.seedance_status`). Other ArgoLink models are not moved: when ArgoLink is out of credits they fail and are refunded as before. If fal also refuses, or its render fails, the job is refunded with the reason.
+
 ## Not verified
 
-No paid request was made from the development environment. The first real image and video jobs should be checked in the Generations tab.
+No paid request was made from the development environment. The first real image and video jobs should be checked in the Generations tab. The fal Seedance 2.5 backup was checked against fal's published API schema (read 14 October 2026) and a local mock, not a paid fal request; check the first job that switches.
