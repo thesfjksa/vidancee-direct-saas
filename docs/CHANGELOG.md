@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14 — Public Pricing page
+
+- New page at `/pricing` (no sign-in): the plans, a "What credits buy" table with the credit price of every video and image model at its default settings and how many a Creator plan covers (from the new public `/api/price-examples`, cached 10 minutes), a plan comparison, the FAQ and sign-up. "Pricing" in the home menu opens it; on phones a Pricing button sits next to Start creating.
+
 ## 2026-10-13 — Warning on the Lite models
 
 - Seedance 2.5 Lite and Seedance 2.0 Lite show a small red warning under the model picker in Video and Cartoon Studio: "Lite models are having problems right now. Some generations may fail; failed ones are refunded automatically." Claude's list_models includes it as `warning`. Remove it by clearing `LITE_MODEL_WARNING` in server.js.

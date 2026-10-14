@@ -358,6 +358,8 @@ footer a:hover{color:var(--navy)}
 .plan.contact .desc,.plan.contact li{color:rgba(255,255,255,.86)}
 .plan.contact .credits{background:rgba(255,255,255,.14);color:#fff}
 .plan.contact .btn{background:#fff;color:var(--navy);border-color:#fff}
+.nav .cta .price-mobile{display:none}
+@media (max-width:860px){.nav .cta .btn.price-mobile{display:inline-flex}}
 </style>
 </head>
 <body>
@@ -382,9 +384,10 @@ footer a:hover{color:var(--navy)}
   <div class="wrap">
     <a class="logo" href="/" aria-label="CMM Tools home"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="150" height="51"></a>
     <nav class="links" aria-label="Main">
-      <a href="#studios">Studios</a><a href="#how">How it works</a><a href="#hd">HD quality</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
+      <a href="#studios">Studios</a><a href="#how">How it works</a><a href="#hd">HD quality</a><a href="/pricing">Pricing</a><a href="#faq">FAQ</a>
     </nav>
     <div class="cta">
+      <a class="btn ghost small price-mobile" href="/pricing">Pricing</a>
       <a class="btn ghost small" href="/app">Sign in</a>
       <a class="btn primary small" href="/app?signup=1">Start creating</a>
     </div>
@@ -785,7 +788,7 @@ footer a:hover{color:var(--navy)}
   <div class="wrap">
     <a class="logo" href="/"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="120" height="41" style="height:28px;width:auto"></a>
     <span>© <span id="year">2026</span> CMM Tools</span>
-    <nav class="fl" aria-label="Footer"><a href="#studios">Studios</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="/app">Sign in</a></nav>
+    <nav class="fl" aria-label="Footer"><a href="#studios">Studios</a><a href="/pricing">Pricing</a><a href="#faq">FAQ</a><a href="/app">Sign in</a></nav>
   </div>
 </footer>
 

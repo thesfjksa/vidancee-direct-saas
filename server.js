@@ -199,6 +199,7 @@ const {
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const landingPage = fs.readFileSync(path.join(__dirname, 'public', 'landing.html'), 'utf8');
+const pricingPage = fs.readFileSync(path.join(__dirname, 'public', 'pricing.html'), 'utf8');
 // Visitors who are not signed in see the landing page at /; the studio is at /app.
 const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers.cookie || ''));
 // The admin page carries its stylesheets inline: one request instead of three
@@ -270,7 +271,7 @@ function canonicalRedirect(req,routePath,url) {
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
-  if(!['/','/app','/admin-console'].includes(routePath))return null;
+  if(!['/','/app','/pricing','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
@@ -556,6 +557,33 @@ async function adminModelNameList(){
   return rows;
 }
 
+// Example price of every model at its default settings, for the public
+// Pricing page (no sign-in needed). Cached for 10 minutes.
+let priceExamplesCache=null;
+async function priceExamples(){
+  if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
+  const catalog=await customerMediaCatalog(defaultCustomerProviderAccess());
+  const video=[],image=[];
+  for(const m of catalog.video){
+    let seconds=m.defaultDuration||m.durations?.[0]?.seconds||null,resolution=m.defaultResolution||null,credits=null;
+    if(!m.dynamicCost){
+      const list=(m.resolutions?.length?((m.resolutions.find(r=>r.id===resolution)||m.resolutions[0]).durations):m.durations)||[];
+      const d=list.find(x=>x.seconds===seconds)||list[0];credits=Number(d?.cost)||null;seconds=d?.seconds??seconds;
+    }else{
+      try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:true})).cost;}catch{}
+    }
+    if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
+  }
+  for(const m of catalog.image){
+    let credits=Number(m.cost)||null;
+    if(!credits&&m.costTable){const values=Object.values(m.costTable).map(Number).filter(n=>n>0);credits=values.length?Math.min(...values):null;}
+    if(credits>0)image.push({name:m.label,credits});
+  }
+  const data={video,image,upscaler:catalog.upscaler?.enabled||false};
+  priceExamplesCache={at:Date.now(),data};
+  return data;
+}
+
 const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
 
 // Live price of an ArgoLink or AI Gateway model ({cost,isEstimate}).
@@ -836,6 +864,7 @@ const server=http.createServer(async (req,res)=>{
     }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
+    if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
     if (await connector.handle(req,res,url,routePath)) return;
 
@@ -940,6 +969,12 @@ const server=http.createServer(async (req,res)=>{
         },
         runtime:{...runtimeSnapshot(),...diagnostics.summary()},
       });
+    }
+
+    if (req.method==='GET' && routePath==='/api/price-examples') {
+      if(!dbConfigured())return sendJson(res,200,{ok:true,video:[],image:[]});
+      try{return sendJson(res,200,{ok:true,...await priceExamples()});}
+      catch{return sendJson(res,200,{ok:true,video:[],image:[]});}
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
