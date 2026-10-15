@@ -181,8 +181,10 @@ const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
+const { isYottaModel, yottaMediaModels, fetchYottaCatalog } = require('./src/yotta_models.js');
+const { YottaClient } = require('./src/provider/yotta.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
-const { argoVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
+const { argoVideoView, yottaVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -194,7 +196,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureYottaCatalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -405,7 +407,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','fal'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','yotta','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -529,6 +531,13 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
+  // Yotta's Wan models: 480p native; 720p/1080p rendered lower and upscaled by fal.
+  if(access.yotta && providerSettings.yotta.active){
+    const hd=falReady(await getProviderSettings());
+    const hdOff=await argoHdOffModels();
+    const catalog=await publicProviderCatalog('yotta',{creditsPerUsd:providerSettings.yotta.customerCreditsPerUsd,transform:model=>yottaVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
+    video=[...video,...catalog.video];
+  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
@@ -536,6 +545,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
   if(isArgoModel(id))return 'ArgoLink';
+  if(isYottaModel(id))return 'Yotta Labs';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
   if(id==='minimax_h3')return 'vgenv';
@@ -552,7 +562,7 @@ async function adminModelNameList(){
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
     for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||'',
-      ...(studio==='video'&&isArgoModel(m.id)?{hdEnhance:!hdOff.has(m.id)}:{})});
+      ...(studio==='video'&&(isArgoModel(m.id)||isYottaModel(m.id))?{hdEnhance:!hdOff.has(m.id)}:{})});
   }
   return rows;
 }
@@ -607,6 +617,13 @@ async function quoteModelForUser(userId,body){
     const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings(),{hd:!(await argoHdOffModels()).has(model.publicModelId)}):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
+  if(isYottaModel(body.model)&&mediaType==='video'){
+    if(!access.yotta||!providerSettings.yotta.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('yotta',String(body.model),'video');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    const quote=await quoteYottaVideo(model,body,await getProviderSettings());
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
   if(isGatewayModel(body.model)){
     if(!access.vercel||!providerSettings.vercel.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('vercel',String(body.model),mediaType);
@@ -615,6 +632,12 @@ async function quoteModelForUser(userId,body){
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   throw httpError(404,'Live pricing is unavailable for this model.');
+}
+
+// Yotta's Wan models: 480p native; 720p and 1080p rendered lower and upscaled
+// by fal (HD enhancement) unless the admin turned HD enhance off for the model.
+async function quoteYottaVideo(model,body,settings){
+  return quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:yottaVideoView,creditsPerUsd:settings.yottaCustomerCreditsPerUsd});
 }
 
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
@@ -643,7 +666,19 @@ async function submitVideoGeneration(user,body,req=null){
     });
   }
 
-  // Video Studio runs on ArgoLink, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
+  if(!cartoonOptions&&isYottaModel(requestedModel)){
+    if(!customerAccess.yotta||!providerSettings.yottaEnabled||!providerSettings.yottaApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('yotta',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=await quoteYottaVideo(model,body,providerSettings);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'yotta',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
+    });
+  }
+
+  // Video Studio runs on ArgoLink and Yotta, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
   if (!generation && !cartoonOptions && !DIRECT_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
@@ -945,7 +980,7 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vidancee.active ||
           providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.yotta.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -1610,6 +1645,16 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('argolink',argoMediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='POST'&&routePath==='/admin/yotta/check'){
+        requireDatabase();const s=await getProviderSettings();
+        await new YottaClient({apiKey:s.yottaApiKey}).verifyKey();
+        return sendJson(res,200,{ok:true});
+      }
+      if(req.method==='POST'&&routePath==='/admin/yotta/sync'){
+        requireDatabase();
+        const models=await syncProviderModels('yotta',yottaMediaModels(await fetchYottaCatalog()));
+        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
       const gatewayPriceMatch=routePath.match(/^\/admin\/vercel\/models\/(\d+)\/price$/);
       if(req.method==='POST'&&gatewayPriceMatch){
         requireDatabase();const body=await readJson(req);
@@ -1638,7 +1683,7 @@ const server=http.createServer(async (req,res)=>{
         const body=await readJson(req);
         const changes=body.names&&typeof body.names==='object'&&!Array.isArray(body.names)?body.names:{};
         const hdChanges=body.hd&&typeof body.hd==='object'&&!Array.isArray(body.hd)?body.hd:{};
-        for(const id of Object.keys(hdChanges))if(!isArgoModel(id))return sendJson(res,400,{ok:false,error:'HD enhance applies to ArgoLink video models only.'});
+        for(const id of Object.keys(hdChanges))if(!isArgoModel(id)&&!isYottaModel(id))return sendJson(res,400,{ok:false,error:'HD enhance applies to ArgoLink and Yotta video models only.'});
         const names=await modelDisplayNames();
         for(const [key,value] of Object.entries(changes)){
           const [studio,...rest]=String(key).split(':');
@@ -1694,7 +1739,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','yotta'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1704,7 +1749,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','yotta'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -1777,6 +1822,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
+            yotta:providerSettings.yotta.enabled,
             fal:providerSettings.fal.enabled,
           },
           providerActive:{
@@ -1787,6 +1833,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
+            yotta:providerSettings.yotta.active,
             fal:providerSettings.fal.active,
           },
           routing:providerSettings.routing,
@@ -1796,6 +1843,7 @@ const server=http.createServer(async (req,res)=>{
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
+          yottaMaxInflight:providerSettings.yotta.maxInflight,
           falMaxInflight:providerSettings.fal.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
@@ -2087,6 +2135,7 @@ function bootstrap() {
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
+      await ensureYottaCatalog().catch(error=>console.error('Yotta catalog initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});

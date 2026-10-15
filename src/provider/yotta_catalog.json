@@ -1,0 +1,365 @@
+{
+ "fetchedAt": "2026-10-15",
+ "source": "https://gateway.yottalabs.ai/api/maas/models/{slug}",
+ "items": [
+  {
+   "slug": "wan3.0-t2v",
+   "name": "Wan 3.0",
+   "category": "text-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 30
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "aspect_ratio": [
+     "adaptive",
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4"
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "generate_audio": [
+     true,
+     false
+    ],
+    "resolution": [
+     "480p",
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_tiered",
+      "items": [
+       {
+        "discounted_with_audio_per_second": "0.035",
+        "discounted_without_audio_per_second": "0.035",
+        "without_audio_per_second": "0.05",
+        "with_audio_per_second": "0.05",
+        "resolution": "480p",
+        "order": 1
+       },
+       {
+        "discounted_with_audio_per_second": "0.07",
+        "discounted_without_audio_per_second": "0.07",
+        "without_audio_per_second": "0.1",
+        "with_audio_per_second": "0.1",
+        "resolution": "720p",
+        "order": 2
+       },
+       {
+        "discounted_with_audio_per_second": "0.14",
+        "discounted_without_audio_per_second": "0.14",
+        "without_audio_per_second": "0.2",
+        "with_audio_per_second": "0.2",
+        "resolution": "1080p",
+        "order": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "slug": "wan3.0-i2v",
+   "name": "Wan 3.0",
+   "category": "image-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 30
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "aspect_ratio": [
+     "adaptive",
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4"
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "generate_audio": [
+     true,
+     false
+    ],
+    "resolution": [
+     "480p",
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_tiered",
+      "items": [
+       {
+        "discounted_with_audio_per_second": "0.035",
+        "discounted_without_audio_per_second": "0.035",
+        "without_audio_per_second": "0.05",
+        "with_audio_per_second": "0.05",
+        "resolution": "480p",
+        "order": 1
+       },
+       {
+        "discounted_with_audio_per_second": "0.07",
+        "discounted_without_audio_per_second": "0.07",
+        "without_audio_per_second": "0.1",
+        "with_audio_per_second": "0.1",
+        "resolution": "720p",
+        "order": 2
+       },
+       {
+        "discounted_with_audio_per_second": "0.14",
+        "discounted_without_audio_per_second": "0.14",
+        "without_audio_per_second": "0.2",
+        "with_audio_per_second": "0.2",
+        "resolution": "1080p",
+        "order": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "slug": "wan3.0-r2v",
+   "name": "Wan 3.0",
+   "category": "reference-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 30
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "aspect_ratio": [
+     "adaptive",
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4"
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "generate_audio": [
+     true,
+     false
+    ],
+    "resolution": [
+     "480p",
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_tiered",
+      "items": [
+       {
+        "discounted_with_audio_per_second": "0.035",
+        "discounted_without_audio_per_second": "0.035",
+        "without_audio_per_second": "0.05",
+        "with_audio_per_second": "0.05",
+        "resolution": "480p",
+        "order": 1
+       },
+       {
+        "discounted_with_audio_per_second": "0.07",
+        "discounted_without_audio_per_second": "0.07",
+        "without_audio_per_second": "0.1",
+        "with_audio_per_second": "0.1",
+        "resolution": "720p",
+        "order": 2
+       },
+       {
+        "discounted_with_audio_per_second": "0.14",
+        "discounted_without_audio_per_second": "0.14",
+        "without_audio_per_second": "0.2",
+        "with_audio_per_second": "0.2",
+        "resolution": "1080p",
+        "order": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "slug": "wan2.7-t2v",
+   "name": "Wan2.7",
+   "category": "text-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 15
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "aspect_ratio": [
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4"
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "resolution": [
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_standard_tiered",
+      "items": [
+       {
+        "discounted_per_second": "0.055",
+        "per_second": "0.1",
+        "resolution": "720p",
+        "order": 1
+       },
+       {
+        "discounted_per_second": "0.0825",
+        "per_second": "0.15",
+        "resolution": "1080p",
+        "order": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "slug": "wan2.7-i2v",
+   "name": "Wan2.7",
+   "category": "image-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 15
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "resolution": [
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_standard_tiered",
+      "items": [
+       {
+        "discounted_per_second": "0.055",
+        "per_second": "0.1",
+        "resolution": "720p",
+        "order": 1
+       },
+       {
+        "discounted_per_second": "0.0825",
+        "per_second": "0.15",
+        "resolution": "1080p",
+        "order": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "slug": "wan2.7-r2v",
+   "name": "Wan2.7",
+   "category": "reference-to-video",
+   "parameters": {
+    "duration": {
+     "min": 2,
+     "max": 15
+    },
+    "enhance_prompt": [
+     true,
+     false
+    ],
+    "aspect_ratio": [
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4"
+    ],
+    "seed": {
+     "min": 0,
+     "max": 2147483647
+    },
+    "resolution": [
+     "720p",
+     "1080p"
+    ]
+   },
+   "providers": [
+    {
+     "slug": "alibaba",
+     "display_prices": {
+      "type": "video_standard_tiered",
+      "items": [
+       {
+        "discounted_per_second": "0.055",
+        "per_second": "0.1",
+        "resolution": "720p",
+        "order": 1
+       },
+       {
+        "discounted_per_second": "0.0825",
+        "per_second": "0.15",
+        "resolution": "1080p",
+        "order": 2
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

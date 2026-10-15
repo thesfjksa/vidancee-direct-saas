@@ -1,5 +1,6 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
+const { yottaMediaModels } = require('./yotta_models.js');
 const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
@@ -136,7 +137,7 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink'];
+const PRICED_SOURCES=['vercel','argolink','yotta'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 function serializeProviderModel(row, { includeInternal = true } = {}) {
@@ -173,6 +174,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       supportsAudio:options.supportsAudio===true,
     }:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
+    ...(row.provider==='yotta'?{yotta:options.yotta||{}}:{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -434,8 +436,22 @@ async function ensureArgoCatalog() {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_argolink_catalog_seed')");conn.release();}
 }
 
+// First start: Yotta's Wan models come from the bundled catalog snapshot until
+// an admin syncs the live catalog.
+async function ensureYottaCatalog() {
+  const db=getPool();
+  const conn=await db.getConnection();let locked=false;
+  try {
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_yotta_catalog_seed',10) AS acquired");
+    locked=Number(lock?.acquired)===1;if(!locked)return;
+    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='yotta'");
+    if(!Number(count.total))await syncProviderModels('yotta',yottaMediaModels(require('./provider/yotta_catalog.json')));
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_yotta_catalog_seed')");conn.release();}
+}
+
 module.exports = {
   ensureArgoCatalog,
+  ensureYottaCatalog,
   isPricedSource,
   setGatewayPrice,
   ensureGatewayCatalog,

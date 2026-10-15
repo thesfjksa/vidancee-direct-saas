@@ -23,7 +23,7 @@ const { isSeedance25, falSeedanceRequest, falSeedanceUsd } = require('./seedance
 
 class ArgoLinkQueue extends VercelQueue {
   constructor(options = {}) {
-    super({ clientFactory: opts => new ArgoLinkClient(opts), ...options, provider: 'argolink' });
+    super({ clientFactory: opts => new ArgoLinkClient(opts), ...options, provider: options.provider || 'argolink' });
     this.falFactory = options.falFactory || (opts => new FalClient(opts));
     // credits: {isOut(source), markOut(source)}, the worker's out-of-credits marks.
     this.credits = options.credits || null;

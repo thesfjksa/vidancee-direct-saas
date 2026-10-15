@@ -1,5 +1,6 @@
 const { VercelQueue } = require('./vercel_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
+const { YottaQueue } = require('./yotta_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
@@ -63,6 +64,8 @@ class GenerationWorker {
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
     // Video Studio: Seedance 2.5 renders on fal.ai while ArgoLink is out of credits.
     this.argoLinkQueue = new ArgoLinkQueue({ credits });
+    // Video Studio: Wan 3.0 and Wan 2.7 on Yotta Labs.
+    this.yottaQueue = new YottaQueue();
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -114,6 +117,7 @@ class GenerationWorker {
     this.stopped = false;
     this.vercelQueue.start();
     this.argoLinkQueue.start();
+    this.yottaQueue.start();
     this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
@@ -126,6 +130,7 @@ class GenerationWorker {
     clearTimeout(this.smartImageTimer);
     this.vercelQueue.stop();
     this.argoLinkQueue.stop();
+    this.yottaQueue.stop();
     this.upscaleQueue.stop();
   }
 

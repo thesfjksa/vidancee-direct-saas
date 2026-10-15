@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15 — Wan 3.0 and Wan 2.7 on Yotta Labs
+
+- Video Studio lists **Wan 3.0 · up to 30 s** and **Wan 2.7 · up to 15 s** from Yotta Labs' AI Gateway. 480p is rendered natively; 720p and 1080p are rendered lower and upscaled to 1080p by fal.ai (HD enhancement). Wan 3.0 720p is rendered at 480p and 1080p at 720p; Wan 2.7 has no 480p, so its 720p is native and its 1080p comes from 720p. A 5 s Wan 3.0 clip is 1,176 / 1,418 / 2,594 credits at 480p / 720p / 1080p, where native 720p/1080p would cost 2,352 / 4,704. See `docs/YOTTA.md`.
+- Admin → Provider has a Yotta Labs card (key, switch, max inflight, Check saved key, Sync live models); Users → Sources has a Yotta Labs switch; Usage & limits and Model names (with HD enhance) include it. Customers never see the Yotta name.
+
 ## 2026-10-15 — ArgoLink's Seedance 2.5 off the pricing pages
 
 - ArgoLink's Seedance 2.5 (5 s 720p ≈ 3,179 credits) looked expensive, so the public Pricing page no longer lists it (`PRICING_PAGE_HIDDEN` in server.js), and the plan examples on the Pricing page, the landing page and the dashboard Plans page no longer mention its clips. Seedance 2.5 Lite stays everywhere. Video Studio and Claude still offer ArgoLink's Seedance 2.5.

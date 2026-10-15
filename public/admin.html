@@ -176,6 +176,18 @@
           <div id="argoActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
+          <div class="source-head"><h3>Video Studio · Yotta Labs (Wan 3.0, Wan 2.7)</h3><label class="source-switch"><input id="yottaEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="yottaEnabledText" class="source-state"></div>
+          <div class="muted">Endpoint · https://gateway.yottalabs.ai/api/maas</div>
+          <label class="muted" for="yottaApiKey">Yotta API key</label><input id="yottaApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearYottaApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="yottaSecretStatus" class="muted" style="margin-top:8px"></div>
+          <label class="muted" for="yottaInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="yottaInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin:10px 0">480p is rendered natively. With fal.ai set up, 720p is rendered at 480p and 1080p at 720p, then upscaled to 1080p (HD enhancement, cheaper than Yotta's own 720p/1080p). Wan 2.7 has no 480p, so its 720p is native. Prices come from Yotta's public catalog; Sync refreshes them. Save settings before checking the key.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkYotta()">Check saved key</button><button class="secondary" onclick="syncYottaModels()">Sync live models</button></div>
+          <div id="yottaActionMsg" class="muted" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
           <div class="source-head"><h3>Image Studio · Vercel AI Gateway</h3><label class="source-switch"><input id="vercelEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="vercelEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://ai-gateway.vercel.sh/v1</div>
@@ -257,6 +269,7 @@
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Yotta Labs</strong><span class="muted">Video Studio · Wan 3.0 and Wan 2.7</span></div><span class="source-switch"><input id="accessYotta" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Cartoon Studio · Seedance</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Cartoon Studio · Seedance (overflow)</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -315,7 +328,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['argolink','ArgoLink'],['fal','Upscaler'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['argolink','ArgoLink'],['yotta','Yotta'],['fal','Upscaler'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -330,6 +343,7 @@ function openProviderAccess(id){
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
   $('accessArgolink').checked=a.argolink!==false;
+  $('accessYotta').checked=a.yotta!==false;
   $('accessFal').checked=a.fal!==false;
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessCreatepulse').checked=a.createpulse!==false;
@@ -346,6 +360,7 @@ async function saveProviderAccess(){
   const providers={
     vercel:$('accessVercel').checked,
     argolink:$('accessArgolink').checked,
+    yotta:$('accessYotta').checked,
     fal:$('accessFal').checked,
     vidancee:$('accessVidancee').checked,
     createpulse:$('accessCreatepulse').checked,
@@ -407,6 +422,7 @@ function updateSourceSwitchLabels(){
     ['vgenvEnabled','vgenvEnabledText'],
     ['vercelEnabled','vercelEnabledText'],
     ['argoEnabled','argoEnabledText'],
+    ['yottaEnabled','yottaEnabledText'],
     ['falEnabled','falEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
@@ -439,6 +455,10 @@ async function loadProviderSettings(){try{
   $('argoInflight').value=s.argolink?.maxInflight||3;
   $('argoCreditsPerUsd').value=s.argolink?.customerCreditsPerUsd||(160/0.0265);
   loadArgoModels();
+  $('yottaEnabled').checked=s.yotta?.enabled!==false;
+  $('yottaApiKey').value='';$('clearYottaApiKey').checked=false;
+  $('yottaSecretStatus').textContent=s.yotta?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('yottaInflight').value=s.yotta?.maxInflight||3;
   $('falEnabled').checked=s.fal?.enabled!==false;
   $('falApiKey').value='';$('clearFalApiKey').checked=false;
   $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -471,6 +491,7 @@ async function saveProviderSettings(){
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
+    yottaEnabled:$('yottaEnabled').checked,yottaApiKey:$('yottaApiKey').value.trim(),clearYottaApiKey:$('clearYottaApiKey').checked,yottaMaxInflight:Number($('yottaInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
@@ -571,6 +592,16 @@ async function checkFal(){
 async function checkArgo(){
   const msg=$('argoActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
   try{const d=await api('/admin/argolink/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.balance?'Connected · '+d.balance.remaining+' '+d.balance.unit+' available':'Connected · balance not reported';}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function checkYotta(){
+  const msg=$('yottaActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  try{await api('/admin/yotta/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · Yotta accepted the key';}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function syncYottaModels(){
+  const msg=$('yottaActionMsg');msg.className='muted';msg.textContent='Syncing Yotta models and prices...';
+  try{const d=await api('/admin/yotta/sync',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.total+' models synced · '+d.ready+' ready and visible';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function syncArgoModels(){
