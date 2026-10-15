@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { yottaMediaModels, isYottaModel } = require('../src/yotta_models.js');
+const { yottaMediaModels, isYottaModel, validateYottaReferences, wavSeconds, yottaReferenceCapabilities } = require('../src/yotta_models.js');
+const { validateReferences } = require('../src/vercel_models.js');
 const { yottaVideoView, quoteArgoVideo } = require('../src/argo_hd.js');
 const { YottaClient } = require('../src/provider/yotta.js');
 
@@ -22,7 +23,7 @@ test('the Yotta catalog snapshot becomes Wan 3.0 and Wan 2.7 for Video Studio', 
   assert.deepEqual([w27.resolutions, w27.durations.at(-1), w27.supportsAudio], [['720p', '1080p'], 15, false]);
   assert.deepEqual(w3.aspectRatios, ['16:9', '9:16', '1:1', '4:3', '3:4']);
   assert.deepEqual(w3.referenceCapabilities.image.roles, ['start_image', 'image_references']);
-  assert.deepEqual(w3.yotta, { t2v: 'wan3.0-t2v', i2v: 'wan3.0-i2v', r2v: 'wan3.0-r2v', framesAspectRatio: true });
+  assert.deepEqual(w3.yotta, { family: 'wan3.0', t2v: 'wan3.0-t2v', i2v: 'wan3.0-i2v', r2v: 'wan3.0-r2v', framesAspectRatio: true });
   assert.equal(w27.yotta.framesAspectRatio, false);
   // Yotta's current per-second prices.
   assert.deepEqual(w27.pricing.video_duration_pricing.map(t => [t.resolution, t.cost_per_second]), [['720p', 0.055], ['1080p', 0.0825]]);
@@ -63,7 +64,7 @@ test('Yotta requests use the text, image or reference route and report Yotta\'s 
   assert.deepEqual([frame27.body.model, 'aspect_ratio' in frame27.body.parameters, 'generate_audio' in frame27.body.parameters], ['wan2.7-i2v', false, false]);
   const refs = client.videoRequest(w3, params, [ref('image_references', 0), ref('image_references', 1)]);
   assert.deepEqual([refs.category, refs.body.model, refs.body.parameters.reference_items], ['reference-to-video', 'wan3.0-r2v', [{ url: ref('', 0).url, type: 'image' }, { url: ref('', 1).url, type: 'image' }]]);
-  assert.throws(() => client.videoRequest(w3, params, [ref('start_image', 0), ref('image_references', 1)]), /either a start frame or reference images/);
+  assert.throws(() => client.videoRequest(w3, params, [ref('start_image', 0), ref('image_references', 1)]), /either a start frame or reference files/);
 
   const calls = [];
   const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -165,4 +166,59 @@ test('Wan prices are capped at least 30% below Higgsfield', () => {
   assert.deepEqual([hd.cost, hd.enhance.credits], [4965, Math.floor(300 * 4965 / 9000)]);
   assert.equal(wanCreditCap('argo_seedance_2_5', '720p', 5), null);
   assert.equal(wanCreditCap('argo_wan_3', '720p', 5), 1448);
+});
+
+test('Wan 3.0 and Wan 2.7 take reference videos and sound', () => {
+  const w3 = model('wan3.0'), w27 = model('wan2.7');
+  const c3 = w3.referenceCapabilities, c27 = w27.referenceCapabilities;
+  assert.deepEqual([c3.image.max, c3.video.max, c3.audio.max, c3.totalMax, c3.video.roles, c3.audio.roles], [10, 5, 5, 15, ['video_references'], ['audio_references']]);
+  assert.deepEqual([c27.image.max, c27.video.max, c27.audio.max, c27.totalMax, c27.audio.roles], [5, 5, 1, 5, ['audio_track']]);
+  // Rows saved before this change get the same rules from their family.
+  assert.deepEqual(yottaReferenceCapabilities({ family: 'wan3.0', t2v: 'a', i2v: 'b', r2v: 'c' }), c3);
+
+  const client = new YottaClient({ apiKey: 'k' });
+  const params = { prompt: '@Image1 sings @Audio1', resolution: '480p', duration: 5, aspectRatio: '16:9', generateAudio: true };
+  const ref = (role, mimeType, n) => ({ role, mimeType, url: 'https://cmmtools.site/provider-media/g/' + n + '?sig=s' });
+  const img = ref('image_references', 'image/png', 0), vid = ref('video_references', 'video/mp4', 1), snd = ref('audio_references', 'audio/mpeg', 2);
+  const r3 = client.videoRequest(w3, params, [img, vid, snd]);
+  assert.deepEqual([r3.category, r3.body.model, r3.body.parameters.reference_items], ['reference-to-video', 'wan3.0-r2v',
+    [{ url: img.url, type: 'image' }, { url: vid.url, type: 'video' }, { url: snd.url, type: 'audio' }]]);
+  assert.equal(client.videoRequest(w3, params, [snd]).body.parameters.reference_items[0].type, 'audio');
+  assert.throws(() => client.videoRequest(w3, params, [ref('start_image', 'image/png', 0), snd]), /not with a start frame/);
+
+  const track = ref('audio_track', 'audio/wav', 3), p27 = { ...params, resolution: '720p' };
+  const t27 = client.videoRequest(w27, p27, [track]);
+  assert.deepEqual([t27.body.model, t27.body.parameters.audio_url], ['wan2.7-t2v', track.url]);
+  const f27 = client.videoRequest(w27, p27, [ref('start_image', 'image/png', 0), track]);
+  assert.deepEqual([f27.body.model, f27.body.parameters.first_frame, f27.body.parameters.audio_url], ['wan2.7-i2v', ref('', '', 0).url, track.url]);
+  const v27 = client.videoRequest(w27, p27, [img, vid, track]);
+  assert.deepEqual([v27.body.model, v27.body.parameters.reference_items, 'audio_url' in v27.body.parameters], ['wan2.7-r2v',
+    [{ url: img.url, type: 'image' }, { url: vid.url, type: 'video', reference_audio: track.url }], false]);
+  assert.throws(() => client.videoRequest(w27, p27, [img, track]), /voice a reference video/);
+});
+
+test('reference video and sound uploads are checked before credits are taken', () => {
+  const w3 = model('wan3.0'), w27 = model('wan2.7');
+  const file = (mimeType, data = Buffer.alloc(100)) => ({ mimeType, data, filename: 'f' });
+  const wav = seconds => { const b = Buffer.alloc(44 + 8000 * seconds); b.write('RIFF', 0); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(16, 16); b.writeUInt32LE(8000, 28); b.write('data', 36); b.writeUInt32LE(8000 * seconds, 40); return b; };
+  assert.equal(wavSeconds(wav(3)), 3);
+  assert.equal(wavSeconds(Buffer.from('ID3 not a wav file at all, just some bytes padding padding')), null);
+  // Formats, counts and sizes.
+  validateReferences(w3, { audios: [file('audio/mpeg'), file('audio/wav')], videos: [file('video/mp4')] });
+  assert.throws(() => validateReferences(w3, { audios: [file('audio/ogg')] }), /Unsupported reference audio format/);
+  assert.throws(() => validateReferences(w3, { audios: Array.from({ length: 6 }, () => file('audio/mpeg')) }), /too many files/);
+  assert.throws(() => validateReferences(w27, { audios: [file('audio/mpeg'), file('audio/mpeg')] }), /too many files/);
+  assert.throws(() => validateReferences(w3, { videos: [file('video/webm')] }), /Unsupported reference video format/);
+  // Which references go together and how long they may be.
+  const order = role => JSON.stringify([{ kind: 'fresh', index: 0, role }]);
+  assert.throws(() => validateYottaReferences(w3, { audios: [file('audio/mpeg')], referenceOrder: order('start_image'), duration: 5 }), /not with a start frame/);
+  validateYottaReferences(w27, { audios: [file('audio/mpeg')], referenceOrder: order('start_image'), duration: 5 });
+  assert.throws(() => validateYottaReferences(w27, { audios: [file('audio/mpeg')], referenceOrder: order('image_references'), duration: 5 }), /voice a reference video/);
+  assert.throws(() => validateYottaReferences(w27, { videos: [file('video/mp4')], duration: 12 }), /up to 10 seconds/);
+  validateYottaReferences(w27, { videos: [file('video/mp4')], duration: 10 });
+  const seconds = n => () => n;
+  assert.throws(() => validateYottaReferences(w3, { videos: [file('video/mp4'), file('video/mp4')], duration: 5 }, { mp4Seconds: seconds(8) }), /15 seconds long in total/);
+  assert.throws(() => validateYottaReferences(w3, { videos: [file('video/mp4')], duration: 25 }, { mp4Seconds: seconds(10) }), /up to 20 s/);
+  validateYottaReferences(w3, { videos: [file('video/mp4')], duration: 20 }, { mp4Seconds: seconds(10) });
+  assert.throws(() => validateYottaReferences(w3, { audios: [file('audio/wav', wav(9)), file('audio/wav', wav(9))], duration: 5 }), /Sound references can be 15 seconds/);
 });

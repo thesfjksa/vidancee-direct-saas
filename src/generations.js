@@ -212,6 +212,7 @@ async function createGenerationForUser(userId, input, options = {}) {
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
   const freshImages = Array.isArray(input.images) ? input.images : [];
   const freshVideos = Array.isArray(input.videos) ? input.videos : [];
+  const freshAudios = Array.isArray(input.audios) ? input.audios : [];
   const capabilities = normalizeReferenceCapabilities(options);
   const maxImages = options.dynamicModel
     ? Math.max(capabilities.image.max || 0, freshImages.length, 1)
@@ -220,6 +221,7 @@ async function createGenerationForUser(userId, input, options = {}) {
   const reuseImageIds = normalizeReuseImageIds(input.reuseImageIds || input.reuse_image_ids || '', maxImages);
   const referenceOrder = normalizeReferenceOrder(input.referenceOrder || input.reference_order || '', maxImages);
   const videoRoles = parseRoleList(input.videoRoles || input.video_roles || '', 24);
+  const audioRoles = parseRoleList(input.audioRoles || input.audio_roles || '', 24);
 
   if (!options.dynamicModel && freshImages.length + reuseImageIds.length > 6) {
     const error = new Error('A maximum of 6 reference images is allowed in total.');
@@ -233,6 +235,16 @@ async function createGenerationForUser(userId, input, options = {}) {
   }
   if (options.dynamicModel && videoRoles.length !== freshVideos.length) {
     const error = new Error('Video reference roles do not match the uploaded videos.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!options.dynamicModel && freshAudios.length) {
+    const error = new Error('This model does not accept sound references.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (options.dynamicModel && audioRoles.length !== freshAudios.length) {
+    const error = new Error('Sound reference roles do not match the uploaded files.');
     error.statusCode = 400;
     throw error;
   }
@@ -408,6 +420,7 @@ async function createGenerationForUser(userId, input, options = {}) {
       const imageRoles = orderedImages.map(entry => String(entry.role || ''));
       validateAssignedRoles('image', imageRoles, capabilities.image);
       validateAssignedRoles('video', videoRoles, capabilities.video);
+      validateAssignedRoles('audio', audioRoles, capabilities.audio);
       const totalRefs = orderedImages.length + freshVideos.length;
       if (capabilities.totalMax > 0 && totalRefs > capabilities.totalMax) {
         const error = new Error('This model accepts at most ' + capabilities.totalMax + ' total reference files.');
@@ -417,7 +430,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     }
 
     const allImageCount = orderedImages.length;
-    const hasReferences = allImageCount > 0 || freshVideos.length > 0;
+    const hasReferences = allImageCount > 0 || freshVideos.length > 0 || freshAudios.length > 0;
     const mode = hasReferences
       ? (options.dynamicModel ? 'reference-to-video' : 'image-to-video')
       : 'text-to-video';
@@ -468,6 +481,16 @@ async function createGenerationForUser(userId, input, options = {}) {
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
           [id, mediaPosition, 'video', String(videoRoles[i] || ''), video.filename, video.mimeType, video.data],
+        );
+        mediaPosition += 1;
+      }
+      for (let i = 0; i < freshAudios.length; i += 1) {
+        const audio = freshAudios[i];
+        await conn.execute(
+          `INSERT INTO generation_media
+           (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
+           VALUES (?,?,?,?,?,?,?)`,
+          [id, mediaPosition, 'audio', String(audioRoles[i] || ''), audio.filename, audio.mimeType, audio.data],
         );
         mediaPosition += 1;
       }

@@ -181,12 +181,12 @@ const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
-const { isYottaModel, yottaMediaModels, fetchYottaCatalog } = require('./src/yotta_models.js');
+const { isYottaModel, yottaMediaModels, fetchYottaCatalog, validateYottaReferences } = require('./src/yotta_models.js');
 const { YottaClient } = require('./src/provider/yotta.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
 const { argoVideoView, yottaVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
-const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
+const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const { attachReusedImageReferences } = require('./src/reference_reuse.js');
@@ -314,6 +314,7 @@ function readGenerationRequest(req) {
     const fields={};
     const images=[];
     const videos=[];
+    const audios=[];
     let totalBytes=0;
     let settled=false;
 
@@ -337,7 +338,8 @@ function readGenerationRequest(req) {
     bb.on('file',(name,file,info)=>{
       const isImage=name==='images' || name==='images[]';
       const isVideo=name==='videos' || name==='videos[]';
-      if(!isImage && !isVideo){ file.resume(); return; }
+      const isAudio=name==='audios' || name==='audios[]';
+      if(!isImage && !isVideo && !isAudio){ file.resume(); return; }
 
       const mimeType=String(info.mimeType||'').toLowerCase();
       if(isImage && !['image/jpeg','image/png','image/webp'].includes(mimeType)){
@@ -346,23 +348,28 @@ function readGenerationRequest(req) {
       if(isVideo && !['video/mp4','video/webm','video/quicktime'].includes(mimeType)){
         file.resume(); return fail('Video references must be MP4, WebM, or MOV.');
       }
+      if(isAudio && !['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/vnd.wave'].includes(mimeType)){
+        file.resume(); return fail('Sound references must be MP3 or WAV.');
+      }
 
       const chunks=[]; let bytes=0;
       file.on('data',(chunk)=>{
         bytes+=chunk.length; totalBytes+=chunk.length;
         if(totalBytes>100*1024*1024) fail('Combined reference upload is too large.',413);
         if(isImage && bytes>10*1024*1024) fail('Each image must be 10 MB or smaller.',413);
+        if(isAudio && bytes>15*1024*1024) fail('Each sound reference must be 15 MB or smaller.',413);
         if(!settled) chunks.push(chunk);
       });
       file.on('limit',()=>fail(isVideo?'Each video reference must be 25 MB or smaller.':'Each image must be 10 MB or smaller.',413));
       file.on('end',()=>{
         if(settled || bytes<=0)return;
         const item={
-          filename:String(info.filename||(isVideo?'reference-video':'reference-image')).slice(0,255),
+          filename:String(info.filename||(isVideo?'reference-video':isAudio?'reference-audio':'reference-image')).slice(0,255),
           mimeType,
           data:Buffer.concat(chunks),
         };
         if(isImage)images.push(item);
+        else if(isAudio)audios.push(item);
         else videos.push(item);
       });
     });
@@ -373,6 +380,7 @@ function readGenerationRequest(req) {
       settled=true;
       fields.images=images;
       fields.videos=videos;
+      fields.audios=audios;
       resolve(fields);
     });
     req.pipe(bb);
@@ -676,6 +684,7 @@ async function submitVideoGeneration(user,body,req=null){
     const model=await getProviderModelByPublicId('yotta',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
+    validateYottaReferences(model,body,{mp4Seconds});
     const quote=await quoteYottaVideo(model,body,providerSettings);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'yotta',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,

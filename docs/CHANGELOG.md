@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Reference videos and sound for Wan 3.0 and Wan 2.7
+
+- Video Studio's Wan 3.0 and Wan 2.7 (Yotta) take reference videos and sound files. Wan 3.0: up to 10 images, 5 videos and 5 sound clips (cite them as @Image1, @Video1, @Audio1), 15 s of video and 15 s of sound in total. Wan 2.7: up to 5 images and videos, and one sound file that drives a text or start-frame video or voices the reference video; 10 s output with a reference video. Uploads accept MP3/WAV (15 MB) and are stored with the job (`generation_media`, kind `audio`). Combinations Yotta does not take are refused before credits are taken. Prices are unchanged. See `docs/YOTTA.md`.
+
 ## 2026-10-15 — Wan 2.7 sold at cost
 
 - Wan 2.7 joins Wan 3.0 without profit (`NO_PROFIT_MODELS`): 5 s 720p 924 credits (was 1,241), 1080p 1,045 (was 2,090), exactly Yotta's render + HD upscale cost at the Creator plan's credit price.

@@ -38,29 +38,45 @@ class YottaClient {
     return parsed.data;
   }
 
-  // The request for one job: a start frame uses the image route, reference
-  // images the reference route (cited as @Image1, @Image2 in the prompt),
-  // otherwise text. Prompts are sent as written (no Yotta prompt rewriting).
+  // The request for one job: a start frame uses the image route; reference
+  // images, videos and (Wan 3.0) sound clips the reference route, cited as
+  // @Image1, @Video1, @Audio1 in the prompt; otherwise text. On Wan 2.7 a sound
+  // file drives a text or start-frame video (audio_url) or voices the first
+  // reference video (reference_audio). Prompts are sent as written.
   videoRequest(model, params, references = []) {
     const slugs = model.yotta || {};
+    const kind = r => String(r.mimeType || '').split('/')[0];
     const frames = references.filter(r => r.role === 'start_image');
-    const images = references.filter(r => r.mimeType?.startsWith('image/') && !frames.includes(r));
-    if (frames.length && images.length) throw new Error('Use either a start frame or reference images in a single video request.');
+    const images = references.filter(r => kind(r) === 'image' && !frames.includes(r));
+    const videos = references.filter(r => kind(r) === 'video');
+    const audios = references.filter(r => kind(r) === 'audio');
+    const wan3 = slugs.family === 'wan3.0';
+    if (frames.length && (images.length || videos.length)) throw new Error('Use either a start frame or reference files in a single video request.');
     const parameters = { prompt: String(params.prompt || ''), resolution: String(params.resolution), duration: Number(params.duration), enhance_prompt: false };
     if (model.supportsAudio) parameters.generate_audio = Boolean(params.generateAudio);
     if (frames.length) {
       if (!slugs.i2v) throw new Error('This model does not take a start frame.');
+      if (audios.length && wan3) throw new Error('This model takes sound references with reference images or videos, not with a start frame.');
       parameters.first_frame = frames[0].url;
+      if (audios.length) parameters.audio_url = audios[0].url;
       // The video takes the frame's shape where the route has an aspect ratio.
       if (slugs.framesAspectRatio) parameters.aspect_ratio = 'adaptive';
       return { category: CATEGORIES.i2v, body: { model: slugs.i2v, parameters } };
     }
     parameters.aspect_ratio = String(params.aspectRatio);
-    if (images.length) {
-      if (!slugs.r2v) throw new Error('This model does not take reference images.');
-      parameters.reference_items = images.map(r => ({ url: r.url, type: 'image' }));
+    if (images.length || videos.length || (wan3 && audios.length)) {
+      if (!slugs.r2v) throw new Error('This model does not take reference files.');
+      const items = [...images.map(r => ({ url: r.url, type: 'image' })), ...videos.map(r => ({ url: r.url, type: 'video' }))];
+      if (wan3) items.push(...audios.map(r => ({ url: r.url, type: 'audio' })));
+      else if (audios.length) {
+        const first = items.find(item => item.type === 'video');
+        if (!first) throw new Error('A sound file can voice a reference video only.');
+        first.reference_audio = audios[0].url;
+      }
+      parameters.reference_items = items;
       return { category: CATEGORIES.r2v, body: { model: slugs.r2v, parameters } };
     }
+    if (audios.length) parameters.audio_url = audios[0].url;
     return { category: CATEGORIES.t2v, body: { model: slugs.t2v, parameters } };
   }
 

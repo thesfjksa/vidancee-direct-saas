@@ -234,6 +234,8 @@ textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
 .video-reference-meta { min-width: 0; font-size: 13px; }
 .video-reference-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
 .video-reference-size { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.audio-reference-tag { width: 76px; height: 50px; display: grid; place-items: center; border-radius: 6px; background: var(--panel-2); color: var(--muted); font-size: 12px; font-weight: 600; }
+.audio-reference-item audio { display: block; width: 100%; height: 30px; margin-top: 4px; }
 .video-reference-remove { border: 0; background: var(--panel-3); color: var(--danger); border-radius: 6px; padding: 4px; }
 
 /* ---------- Content pages ---------- */

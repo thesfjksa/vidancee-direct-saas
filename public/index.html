@@ -125,6 +125,22 @@
               <div id="videoReferenceList" class="video-reference-list"></div>
             </div>
 
+            <div id="videoAudioReferenceBlock" class="block hide">
+              <div class="block-title">Sound references</div>
+              <div id="videoAudioReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
+              <input id="audioReferenceInput" class="hide" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" multiple onchange="addAudioReferenceFiles(this.files)">
+              <label id="audioRefDrop" class="ref-drop" for="audioReferenceInput">
+                <div>
+                  <div class="ref-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                  </div>
+                  <strong>Add sound references</strong>
+                  <span id="videoAudioReferenceDropHelp">MP3 or WAV</span>
+                </div>
+              </label>
+              <div id="audioReferenceList" class="video-reference-list"></div>
+            </div>
+
             <div class="block">
               <label class="block-title" for="prompt">Prompt</label>
               <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
@@ -609,7 +625,7 @@ let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planS
 let imagePreviewGenerationId=null;
 let voiceGenerations=[],voiceGenerationLoadPending=false,voiceCostTimer=null,voiceCostRequestSeq=0,voiceOptions={models:[],voices:[]},voiceClones=[];
 let reusedReferenceGenerationId=null,referenceItems=[],referenceItemSeq=0,draggedReferenceKey=null;
-let videoReferenceItems=[],videoReferenceSeq=0;
+let videoReferenceItems=[],videoReferenceSeq=0,audioReferenceItems=[];
 let imageReferenceItems=[],imageReferenceSeq=0,imageDraggedKey=null;
 let videoCostRequestSeq=0,imageCostRequestSeq=0;
 const $=id=>document.getElementById(id);
@@ -1188,6 +1204,8 @@ function roleLabel(role){
     input_videos:'Reference video',
     video:'Reference video',
     reference_video:'Reference video',
+    audio_references:'Sound reference',
+    audio_track:'Soundtrack',
   };
   return labels[role]||String(role||'Reference').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
 }
@@ -1268,9 +1286,11 @@ function renderVideoReferenceControls(modelChanged=false){
 
   const imageBlock=$('videoImageReferenceBlock');
   const videoBlock=$('videoVideoReferenceBlock');
+  const audioCap=caps.audio;
 
   imageBlock.classList.toggle('hide',!imageCap.supported);
   videoBlock.classList.toggle('hide',!videoCap.supported);
+  $('videoAudioReferenceBlock').classList.toggle('hide',!audioCap.supported);
 
   if(imageCap.supported){
     const max=imageCap.max||6;
@@ -1288,6 +1308,14 @@ function renderVideoReferenceControls(modelChanged=false){
     const required=videoCap.min>0||videoCap.requiredRoles.length>0;
     $('videoVideoReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' video'+(max===1?'':'s');
     $('videoVideoReferenceDropHelp').textContent='MP4, WebM or MOV · max '+max+' · 25 MB each';
+  }
+
+  if(audioCap.supported){
+    const max=audioCap.max||1;
+    $('videoAudioReferenceNote').textContent=(audioCap.roles.includes('audio_track')
+      ?'Optional · 1 file · drives a text or start-frame video, or voices your reference video'
+      :'Optional · up to '+max+' sound clip'+(max===1?'':'s')+' · cite them as @Audio1, @Audio2 in the prompt');
+    $('videoAudioReferenceDropHelp').textContent='MP3 or WAV · max '+max+' · 15 MB each';
   }
 
   let changed=false;
@@ -1327,6 +1355,22 @@ function renderVideoReferenceControls(modelChanged=false){
       }
     });
     renderVideoReferenceList();
+  }
+
+  if(!audioCap.supported && audioReferenceItems.length){
+    clearAudioReferenceItems();
+    changed=true;
+  }else if(audioCap.supported){
+    const max=audioCap.max||1;
+    while(audioReferenceItems.length>max){
+      const item=audioReferenceItems.pop();
+      if(item?.url)URL.revokeObjectURL(item.url);
+      changed=true;
+    }
+    audioReferenceItems.forEach(item=>{
+      if(!audioCap.roles.includes(item.role)){item.role=audioCap.roles[0];changed=true;}
+    });
+    renderAudioReferenceList();
   }
 
   refreshModelCapabilitySummaries();
@@ -1938,6 +1982,75 @@ function setupVideoReferenceDrop(){
       drop.classList.remove('drag-over');
     });
   }
+}
+
+function clearAudioReferenceItems(){
+  for(const item of audioReferenceItems){
+    if(item.url)URL.revokeObjectURL(item.url);
+  }
+  audioReferenceItems=[];
+  if($('audioReferenceInput'))$('audioReferenceInput').value='';
+  if($('audioReferenceList'))$('audioReferenceList').innerHTML='';
+}
+
+function renderAudioReferenceList(){
+  $('audioReferenceList').innerHTML=audioReferenceItems.map((item,index)=>
+    '<div class="video-reference-item audio-reference-item">'+
+      '<div class="audio-reference-tag">'+(item.role==='audio_references'?'@Audio'+(index+1):'♪')+'</div>'+
+      '<div class="video-reference-meta">'+
+        '<div class="video-reference-name">'+escapeHtml(item.filename)+'</div>'+
+        '<div class="video-reference-size">'+Math.max(.1,item.file.size/1024/1024).toFixed(1)+' MB · '+escapeHtml(roleLabel(item.role))+'</div>'+
+        '<audio src="'+escapeHtml(item.url)+'" controls preload="metadata"></audio>'+
+      '</div>'+
+      '<button type="button" class="video-reference-remove" onclick="removeAudioReference(\''+escapeHtml(item.key)+'\')" title="Remove sound">×</button>'+
+    '</div>'
+  ).join('');
+}
+
+function audioFileOk(file){
+  const type=String(file.type||'').toLowerCase(),name=String(file.name||'').toLowerCase();
+  return (['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/vnd.wave'].includes(type)||(!type&&/\.(mp3|wav)$/.test(name)))&&file.size<=15*1024*1024;
+}
+
+function addAudioReferenceFiles(fileList){
+  const cap=normalizedClientCapabilities(currentVideoModel(),'video').audio;
+  if(!cap.supported){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='The selected model does not accept sound references.';
+    $('audioReferenceInput').value='';
+    return;
+  }
+  const all=[...fileList];
+  const valid=all.filter(audioFileOk);
+  const max=cap.max||1;
+  const slots=Math.max(0,max-audioReferenceItems.length);
+  for(const file of valid.slice(0,slots)){
+    // Files without a type (some browsers) are sent with the type their name gives.
+    const typed=file.type?file:new File([file],file.name,{type:/\.wav$/i.test(file.name)?'audio/wav':'audio/mpeg'});
+    audioReferenceItems.push({key:'a'+(++videoReferenceSeq),file:typed,filename:file.name||'reference-audio',url:URL.createObjectURL(typed),role:cap.roles[0]||'audio_references'});
+  }
+  $('audioReferenceInput').value='';
+  renderAudioReferenceList();
+  if(valid.length!==all.length){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='Sound references must be MP3 or WAV and 15 MB or smaller.';
+  }else if(valid.length>slots){
+    $('genMsg').className='msg err';
+    $('genMsg').textContent='This model accepts at most '+max+' sound reference'+(max===1?'':'s')+'.';
+  }else{
+    $('genMsg').className='msg muted';
+    $('genMsg').textContent='';
+  }
+  updateCost();
+}
+
+function removeAudioReference(key){
+  const index=audioReferenceItems.findIndex(item=>item.key===key);
+  if(index<0)return;
+  const [item]=audioReferenceItems.splice(index,1);
+  if(item.url)URL.revokeObjectURL(item.url);
+  renderAudioReferenceList();
+  updateCost();
 }
 
 let referenceDropReady=false;
@@ -2742,6 +2855,8 @@ function validateClientReferenceSelection(){
 
   if(referenceItems.length&&!imageCap.supported)throw new Error('This model does not accept image references.');
   if(videoReferenceItems.length&&!videoCap.supported)throw new Error('This model does not accept video references.');
+  if(audioReferenceItems.length&&!caps.audio.supported)throw new Error('This model does not accept sound references.');
+  if(caps.audio.max>0&&audioReferenceItems.length>caps.audio.max)throw new Error('This model accepts at most '+caps.audio.max+' sound references.');
   if(imageCap.max>0&&referenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' image references.');
   if(videoCap.max>0&&videoReferenceItems.length>videoCap.max)throw new Error('This model accepts at most '+videoCap.max+' video references.');
   if(imageCap.min>0&&referenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' image reference'+(imageCap.min===1?'':'s')+'.');
@@ -2804,12 +2919,15 @@ async function createGeneration(){
 
     for(const item of videoReferenceItems)form.append('videos',item.file,item.filename);
     form.append('videoRoles',JSON.stringify(videoReferenceItems.map(item=>item.role)));
+    for(const item of audioReferenceItems)form.append('audios',item.file,item.filename);
+    form.append('audioRoles',JSON.stringify(audioReferenceItems.map(item=>item.role)));
 
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
     $('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;
     clearReferenceItems();
     clearVideoReferenceItems();
+    clearAudioReferenceItems();
     m.className='msg ok';
     m.textContent='Generation queued.';
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
@@ -2873,6 +2991,7 @@ async function reuseGeneration(id){
   applyVideoReuseSettings(g);
   clearReferenceItems();
   clearVideoReferenceItems();
+  clearAudioReferenceItems();
   reusedReferenceGenerationId=null;
   renderReferencePreview();
   const promptBox=$('prompt');

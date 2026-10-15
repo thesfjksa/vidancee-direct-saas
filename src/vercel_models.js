@@ -289,17 +289,18 @@ function videoDimensions(resolution,ratio) {
   return a>=b?Math.round(short*a/b/2)*2+'x'+short:short+'x'+Math.round(short*b/a/2)*2;
 }
 
+const AUDIO_FORMATS={'audio/mpeg':'mp3','audio/mp3':'mp3','audio/wav':'wav','audio/x-wav':'wav','audio/wave':'wav','audio/vnd.wave':'wav'};
 function validateReferences(model,input={}) {
-  const images=input.images||[],videos=input.videos||[],caps=model.referenceCapabilities;
+  const images=input.images||[],videos=input.videos||[],audios=input.audios||[],caps=model.referenceCapabilities;
   const list=value=>{if(value==null||value==='')return [];try{const v=typeof value==='string'?JSON.parse(value):value;if(Array.isArray(v))return v;}catch{}fail('Invalid reference selection.');};
   const reused=list(input.reuseImageIds).length;
-  for (const [kind,files,count] of [['image',images,images.length+reused],['video',videos,videos.length]]) {
-    const c=caps[kind];
+  for (const [kind,files,count] of [['image',images,images.length+reused],['video',videos,videos.length],['audio',audios,audios.length]]) {
+    const c=caps[kind]||{supported:false,max:0,min:0};
     if (count&&(!c.supported||count>c.max)) fail('Unsupported '+kind+' references or too many files for this model.');
     if (count<c.min) fail('This model requires a reference '+kind+'.');
     for (const file of files) {
       if (!Buffer.isBuffer(file.data)||!file.data.length||file.data.length>c.maxBytes) fail('The reference '+kind+' exceeds this model’s file limit.');
-      const format=String(file.mimeType||'').split('/')[1]?.replace('quicktime','mov');
+      const format=AUDIO_FORMATS[String(file.mimeType||'').toLowerCase()]||String(file.mimeType||'').split('/')[1]?.replace('quicktime','mov');
       if (c.formats?.length&&!c.formats.includes(format)&&!(format==='jpeg'&&c.formats.includes('jpg'))) fail('Unsupported reference '+kind+' format for this model.');
     }
   }

@@ -42,9 +42,21 @@ Every Wan model (Yotta's Wan 3.0 and Wan 2.7, ArgoLink's Wan 3.0 and Wan 3.0 Pri
 
 - Prompt only: `POST /text-to-video/generations` with `{model: "wan3.0-t2v", parameters: {prompt, resolution, duration, aspect_ratio, generate_audio, enhance_prompt: false}}`.
 - Start frame: `POST /image-to-video/generations` (`wan3.0-i2v` / `wan2.7-i2v`) with `first_frame` (the app's signed image link); Wan 3.0 is sent `aspect_ratio: adaptive` so the video takes the frame's shape.
-- Reference images (up to 5): `POST /reference-to-video/generations` (`wan3.0-r2v` / `wan2.7-r2v`) with `reference_items: [{url, type: "image"}]`; the prompt can cite them as @Image1, @Image2.
+- Reference files: `POST /reference-to-video/generations` (`wan3.0-r2v` / `wan2.7-r2v`) with `reference_items: [{url, type: "image" | "video" | "audio"}]`; the prompt cites them as @Image1, @Video1, @Audio1 (numbered per type).
+
+## Reference videos and sound
+
+Video Studio shows a **Video references** and a **Sound references** box for both models (MP4/MOV up to 25 MB; MP3/WAV up to 15 MB). The rules come from `REFERENCES` in `src/yotta_models.js` and are checked before credits are taken (`validateYottaReferences`), so a refused combination costs nothing. Saved models pick them up without a catalog sync.
+
+| | Wan 3.0 | Wan 2.7 |
+|---|---|---|
+| Images | up to 10 | up to 5 images and videos together |
+| Videos | up to 5, 15 s in total; a reference video shortens the longest output by its length (30 s max) | output 10 s at most with a reference video |
+| Sound | up to 5 clips, 15 s in total (WAV lengths checked; MP3 left to Yotta), sent as `reference_items` of type `audio`; not with a start frame | 1 file: `audio_url` on text or start-frame videos (it drives the video), or `reference_audio` on the first reference video (its voice); refused with reference images only |
+
+The price does not change with references (Yotta lists no reference surcharge).
 - The key goes in `X-API-KEY`. Success answers have `code: 10000`; `data.request_id` is saved before the first poll, then `GET /{route}/generations/{id}` is polled until `data.status` is `completed` (`data.output_url` is downloaded into the database), `failed` or `cancelled` (refunded with Yotta's reason). Jobs run in their own worker loop (`src/yotta_queue.js`) with the ArgoLink queue's claim, restart recovery and refund rules; a video still running after 3 hours is refunded.
 
 ## Not verified
 
-No paid Yotta request was made from the development environment, and Yotta's public docs do not list the Wan image fields. `first_frame` (used by Yotta's other image-to-video models) and `reference_items` (from Yotta's Wan 3.0 guide) were tested against a local mock only. Check the first real text, start-frame and reference jobs in Admin → Activity (`yotta.request` shows the exact body and Yotta's answer on failure).
+No paid Yotta request was made from the development environment, and Yotta's public docs do not list the Wan image fields. `first_frame` (used by Yotta's other image-to-video models), `reference_items` with image, video and audio items (from Yotta's Wan 3.0 guide), and Wan 2.7's `audio_url` and `reference_audio` (from Yotta's Wan 3.0 vs 2.7 article, which gives no example body; `reference_audio` is sent as a URL string) were tested against a local mock only. Check the first real text, start-frame and reference jobs in Admin → Activity (`yotta.request` shows the exact body and Yotta's answer on failure).

@@ -1,6 +1,6 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
-const { yottaMediaModels } = require('./yotta_models.js');
+const { yottaMediaModels, yottaReferenceCapabilities } = require('./yotta_models.js');
 const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
@@ -140,6 +140,14 @@ const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 const PRICED_SOURCES=['vercel','argolink','yotta'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
+// Yotta rows saved before the family was stored get it from the model id, and
+// every row takes its reference rules from the current code.
+function yottaFields(row,options) {
+  const yotta={...(options.yotta||{}),family:options.yotta?.family||String(row.provider_model_id||'')};
+  const referenceCapabilities=yottaReferenceCapabilities(yotta);
+  return {yotta,referenceCapabilities,mediaRoles:referenceCapabilities.image.roles};
+}
+
 function serializeProviderModel(row, { includeInternal = true } = {}) {
   const options = safeJson(row.options_json, {});
   const base = {
@@ -174,7 +182,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       supportsAudio:options.supportsAudio===true,
     }:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
-    ...(row.provider==='yotta'?{yotta:options.yotta||{}}:{}),
+    ...(row.provider==='yotta'?yottaFields(row,options):{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
