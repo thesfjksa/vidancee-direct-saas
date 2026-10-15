@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Comparison box on both pricing pages
+
+- The public Pricing page and the dashboard Plans page show a small "Compared with other platforms" box: four clips, our live price next to the cheapest other platform listed for that clip, and a link to `/compare`. It stays hidden if prices are unavailable, and an empty comparison is no longer cached.
+
 ## 2026-10-15 — Longer prompts
 
 - Prompts can be up to 50,000 characters (`src/prompt_limits.js`) on every model whose provider states no lower limit. Seedance 2.5 and 2.0 on ArgoLink were refused above 8,000 characters ("The prompt exceeds this model's text limit"), and Yotta's Wan above 5,000; those were the app's own defaults, not provider limits. Limits a provider does state still apply (ArgoLink MiniMax H3 7,000, Wan 3.0 20,000). The prompt enhancer still takes up to 8,000 characters.

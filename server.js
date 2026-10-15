@@ -615,7 +615,7 @@ let priceComparisonCache=null;
 async function priceComparison(){
   if(priceComparisonCache&&Date.now()-priceComparisonCache.at<10*60*1000)return priceComparisonCache.data;
   const data=await comparePrices(async c=>(await quoteModelForUser(null,{model:c.model,mediaType:'video',duration:c.seconds,resolution:c.resolution,aspectRatio:'16:9',generateAudio:c.audio})).cost);
-  priceComparisonCache={at:Date.now(),data};
+  if(data.rows.length)priceComparisonCache={at:Date.now(),data};
   return data;
 }
 

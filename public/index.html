@@ -445,6 +445,7 @@
           <span id="planPendingText"></span>
         </div>
         <div id="planGrid" class="plan-grid"></div>
+        <div id="compareMini" class="cmini" hidden></div>
         <div class="card" style="margin-top:12px">
           <div class="panel-title">How plan activation works</div>
           <div class="panel-sub" style="margin-bottom:0">Choose a plan to send a purchase request. After payment is verified by the admin, the included credits and plan limits are applied to your account.</div>
@@ -2764,7 +2765,28 @@ function formatPkr(value){
   return 'PKR '+Number(value||0).toLocaleString('en-PK');
 }
 
+// Compact CMM Tools vs other platforms box (full table at /compare).
+function renderCompareMini(el,d){
+  const rows=(d&&d.rows)||[];if(!el||!rows.length)return;
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const rs=v=>'Rs '+Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
+  const seen=new Set(),pick=[];
+  for(const r of rows){if(seen.has(r.model))continue;seen.add(r.model);pick.push(r);if(pick.length===4)break;}
+  el.innerHTML='<div class="cmini-head"><b>Compared with other platforms</b><a href="/compare">See full comparison →</a></div>'+
+    '<table><thead><tr><th>Same clip</th><th class="n">CMM Tools</th><th class="n">Elsewhere</th></tr></thead><tbody>'+
+    pick.map(r=>{const o=r.offers.reduce((a,b)=>b.rs<a.rs?b:a);
+      return '<tr><td>'+esc(r.model)+'<span>'+r.seconds+' s · '+esc(r.resolution)+'</span></td><td class="n"><b>'+rs(r.rs)+'</b></td><td class="n">'+rs(o.rs)+'<span>'+esc(o.platform)+' · '+o.saving+'% less here</span></td></tr>';}).join('')+
+    '</tbody></table>';
+  el.hidden=false;
+}
+let compareMiniLoaded=false;
+function loadCompareMini(){
+  if(compareMiniLoaded)return;compareMiniLoaded=true;
+  fetch('/api/compare-prices',{headers:{accept:'application/json'}}).then(r=>r.ok?r.json():null).then(d=>renderCompareMini(document.getElementById('compareMini'),d)).catch(()=>{});
+}
+
 function renderPlans(){
+  loadCompareMini();
   const grid=$('planGrid');
   if(!grid||!config)return;
   const pending=planStatus?.pendingRequest||null;
