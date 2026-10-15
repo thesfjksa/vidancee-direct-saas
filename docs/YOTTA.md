@@ -30,6 +30,10 @@ Customer credits = Yotta's USD price for the render × 6,720 (24 credits per rup
 
 Sync live models picks up Yotta's current prices; a job keeps the price quoted when it was created.
 
+### Wan 3.0 without profit
+
+Wan 3.0 (Yotta's and ArgoLink's) is sold at cost: its price in credits is the render plus HD upscale cost in USD divided by what one credit sells for on the Creator plan (Rs 5,000 / 60,000 at Rs 280 per USD), rounded up. 5 s: 480p 588, 720p 709, 1080p 1,297 credits. Change `NO_PROFIT_MODELS` in `src/wan_pricing.js` to put a model back on normal pricing.
+
 ### At least 30% below Higgsfield
 
 Every Wan model (Yotta's Wan 3.0 and Wan 2.7, ArgoLink's Wan 3.0 and Wan 3.0 Prime) is capped at 70% of Higgsfield's price for the same clip (`src/wan_pricing.js`). Higgsfield's app charges, per second, Wan 3.0 0.875 / 1.75 / 3.5 credits (480p / 720p / 1080p), Wan 2.7 1.5 / 2.6 (720p / 1080p) and Wan 3.0 Prime about 1.5 / 3 / 6; a credit costs $19 / 270 on its Starter plan. One of our credits costs the customer Rs 5,000 / 60,000 on the Creator plan (Rs 280 per USD). A quote above the cap is lowered to it; the HD enhancement refund shrinks in proportion. For 5 s: Wan 3.0 480p 1,176 → 724 credits ($0.215 against Higgsfield's $0.308), Wan 2.7 720p 1,848 → 1,241 ($0.369 against $0.528), ArgoLink Wan 3.0 720p 1,519 → 1,448; the others were already more than 30% below Higgsfield. Every capped price still covers Yotta's and fal's cost (lowest margin: Wan 3.0 480p, about 23% over cost). Update `HIGGSFIELD_CREDITS_PER_SECOND` or `HIGGSFIELD_USD_PER_CREDIT` if Higgsfield changes its prices.

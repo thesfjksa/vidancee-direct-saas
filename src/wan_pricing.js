@@ -39,14 +39,25 @@ function wanCreditCap(modelId, resolution, seconds) {
   return Math.floor(higgsfieldUsd * (1 - CHEAPER_THAN_HIGGSFIELD) / CUSTOMER_USD_PER_CREDIT);
 }
 
-// A video quote with the Wan cap applied. The HD enhancement part, refunded if
-// the upscale cannot run, shrinks in proportion to the price.
+// Wan 3.0 is sold without profit: the customer pays what the render (and the
+// HD upscale) costs CMM Tools, at the price a credit sells for on the Creator
+// plan, rounded up to a whole credit.
+const NO_PROFIT_MODELS = ['yotta_wan_3_0', 'argo_wan_3'];
+function noProfitCredits(sourceUsd) {
+  return Number(sourceUsd) > 0 ? Math.ceil(Number(sourceUsd) / CUSTOMER_USD_PER_CREDIT - 1e-9) : null;
+}
+
+// A video quote with the Wan pricing applied (no profit on Wan 3.0, and never
+// more than the Higgsfield cap). The HD enhancement part, refunded if the
+// upscale cannot run, shrinks in proportion to the price.
 function applyWanCap(modelId, quote) {
-  const cap = wanCreditCap(modelId, quote.resolution, quote.duration);
+  const limits = [wanCreditCap(modelId, quote.resolution, quote.duration),
+    NO_PROFIT_MODELS.includes(String(modelId)) ? noProfitCredits(quote.sourceUsd) : null].filter(n => n != null);
+  const cap = limits.length ? Math.min(...limits) : null;
   if (cap == null || !(quote.cost > cap)) return quote;
   const ratio = cap / quote.cost;
   const enhance = quote.enhance ? { ...quote.enhance, credits: Math.floor(quote.enhance.credits * ratio) } : quote.enhance;
   return { ...quote, cost: cap, listCost: quote.cost, wanCap: true, enhance };
 }
 
-module.exports = { HIGGSFIELD_USD_PER_CREDIT, CUSTOMER_USD_PER_CREDIT, HIGGSFIELD_CREDITS_PER_SECOND, FAMILY_BY_MODEL, wanCreditCap, applyWanCap };
+module.exports = { NO_PROFIT_MODELS, noProfitCredits, HIGGSFIELD_USD_PER_CREDIT, CUSTOMER_USD_PER_CREDIT, HIGGSFIELD_CREDITS_PER_SECOND, FAMILY_BY_MODEL, wanCreditCap, applyWanCap };
