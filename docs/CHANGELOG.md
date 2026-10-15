@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Longer prompts
+
+- Prompts can be up to 50,000 characters (`src/prompt_limits.js`) on every model whose provider states no lower limit. Seedance 2.5 and 2.0 on ArgoLink were refused above 8,000 characters ("The prompt exceeds this model's text limit"), and Yotta's Wan above 5,000; those were the app's own defaults, not provider limits. Limits a provider does state still apply (ArgoLink MiniMax H3 7,000, Wan 3.0 20,000). The prompt enhancer still takes up to 8,000 characters.
+
 ## 2026-10-15 — Price comparison page
 
 - New public page `/compare` (linked from Pricing and every footer): the same clip's price on CMM Tools and on Pika, Runway, Luma Dream Machine, Freepik, Invideo AI and Higgsfield, in rupees, plus their cheapest plans. CMM Tools prices are live (`/api/compare-prices`, Creator plan credit price); other platforms' list prices, sources and the date checked are in `src/compare_prices.js`. A row is shown only while CMM Tools is cheaper. Update that file when a platform changes its prices.

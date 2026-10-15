@@ -1,5 +1,7 @@
 'use strict';
 
+const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
+
 const { SMART_IMAGE_SIZES } = require('./smartaipi_images.js');
 const DEFAULT_VERCEL_CREDITS_PER_USD = 160 / 0.0265;
 const COMMON_RATIOS = ['1:1','16:9','9:16','4:3','3:4','3:2','2:3'];
@@ -137,6 +139,15 @@ function modelReady(model) {
   try { quoteGateway(model,{},DEFAULT_VERCEL_CREDITS_PER_USD); return true; } catch { return false; }
 }
 
+// A model's prompt limit: the provider's own where it states one, otherwise
+// the most the app accepts. 8,000 (ArgoLink) and 5,000 (Yotta) were the app's
+// old defaults for models without a stated limit, still saved on older rows.
+function promptLimit(model) {
+  const stated=Number(model.inputLimits?.text?.max_chars)||0;
+  const oldDefault=(model.provider==='argolink'&&stated===8000)||(model.provider==='yotta'&&stated===5000);
+  return stated>0&&!oldDefault?Math.min(stated,MAX_PROMPT_CHARS):MAX_PROMPT_CHARS;
+}
+
 function selection(model,input={}) {
   if (!model?.adapterSupported) fail(model?.setupReason||'This model requires additional setup.');
   if (model.eligibility?.status==='ineligible') fail('This model is unavailable for the configured account. Sync the catalog after updating account access.');
@@ -147,7 +158,7 @@ function selection(model,input={}) {
   };
   const aspectRatio=choose(input.aspectRatio||input.aspect_ratio,model.aspectRatios,model.defaultAspectRatio,'aspect ratio');
   const prompt=String(input.prompt||'');
-  if (prompt.length>Number(model.inputLimits?.text?.max_chars||8000)) fail('The prompt exceeds this model’s text limit.');
+  if (prompt.length>promptLimit(model)) fail('The prompt exceeds this model’s text limit.');
   if (model.mediaType==='image') {
     const quality=model.qualities?.length?choose(input.quality,model.qualities,model.defaultQuality,'image quality'):null;
     if (!model.qualities?.length && input.quality) fail('This model does not support a quality switch.');
@@ -312,5 +323,5 @@ function validateReferences(model,input={}) {
   if (model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
 }
 
-module.exports={DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,mp4Seconds,isGatewayModel,publicId,mediaModels,discoverModel,
+module.exports={promptLimit,DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,mp4Seconds,isGatewayModel,publicId,mediaModels,discoverModel,
   normalizePriceOverride,modelReady,selection,quoteGateway,imageDimensions,videoDimensions,validateReferences};

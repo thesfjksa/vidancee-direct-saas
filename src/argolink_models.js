@@ -1,5 +1,7 @@
 'use strict';
 
+const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
+
 // ArgoLink (argolink.io) media models. Its public catalog
 // (GET /api/catalog/v1/models) lists each model's settings and USD prices; this
 // turns the image and video entries into provider_models rows shaped like the
@@ -105,7 +107,7 @@ function videoModel(raw) {
         reference_videos_billed: maxVideos > 0,
         ...(multiplier > 0 ? { reference_video_multiplier: multiplier } : {}),
       },
-      inputLimits: { text: { max_chars: Number(spec.max_prompt_chars || 8000) }, video: { max_duration_seconds: Number(refs.reference_video?.total_seconds || 15) } },
+      inputLimits: { text: { max_chars: Number(spec.max_prompt_chars || MAX_PROMPT_CHARS) }, video: { max_duration_seconds: Number(refs.reference_video?.total_seconds || 15) } },
       supportedOperations: ['text-to-video', ...(modes.start_image ? ['image-to-video'] : []), ...(modes.first_last_frames ? ['first-last-frame'] : []), ...(refs.mode ? ['reference-to-video'] : [])],
       // Frame requests on these routes accept only "adaptive" (the video takes the first frame's shape).
       adaptiveFrames: (modes.start_image?.aspect_ratios || []).every(r => r === 'adaptive') && Boolean(modes.start_image?.aspect_ratios),

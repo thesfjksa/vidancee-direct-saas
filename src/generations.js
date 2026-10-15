@@ -1,3 +1,4 @@
+const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
 const { hideVendors } = require('./vendor_names.js');
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
@@ -260,7 +261,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     error.statusCode = 400;
     throw error;
   }
-  if (prompt.length > 50000) {
+  if (prompt.length > MAX_PROMPT_CHARS) {
     const error = new Error('Prompt is too long.');
     error.statusCode = 400;
     throw error;

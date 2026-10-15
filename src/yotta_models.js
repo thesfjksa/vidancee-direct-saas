@@ -1,5 +1,7 @@
 'use strict';
 
+const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
+
 // Yotta Labs AI Gateway (gateway.yottalabs.ai) video models. Its public catalog
 // (GET /api/maas/models/{slug}, no key needed) gives each model's settings and
 // USD prices per second; one Yotta model has a text, an image (first frame) and
@@ -75,7 +77,7 @@ function familyModel(family, items) {
       catalogVerified: true, adapterSupported: tiers.length > 0 && aspectRatios.length > 0 && resolutions.length > 0,
       setupReason: tiers.length ? '' : 'Yotta lists no price for this model.',
       gatewayType: 'video', pricing: { video_duration_pricing: tiers },
-      inputLimits: { text: { max_chars: 5000 } },
+      inputLimits: { text: { max_chars: MAX_PROMPT_CHARS } },
       supportedOperations: ['text-to-video', ...(i2v ? ['image-to-video'] : []), ...(r2v ? ['reference-to-video'] : [])],
       durations, resolutions, aspectRatios,
       defaultAspectRatio: aspectRatios.includes('16:9') ? '16:9' : aspectRatios[0],
