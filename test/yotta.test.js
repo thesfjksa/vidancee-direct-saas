@@ -142,12 +142,12 @@ test('Wan prices are capped at least 30% below Higgsfield', () => {
   // Wan 3.0 has no profit: the credits sell for exactly the render + upscale cost.
   assert.deepEqual(['480p', '720p', '1080p'].map(r => capped(w3, r).cost), [588, 709, 1297]);
   const { noProfitCredits } = require('../src/wan_pricing.js');
-  for (const r of ['480p', '720p', '1080p']) {
-    const q = capped(w3, r);
+  for (const [m, r] of [[w3, '480p'], [w3, '720p'], [w3, '1080p'], [w27, '720p'], [w27, '1080p']]) {
+    const q = capped(m, r);
     assert.ok(Math.abs(q.cost * CUSTOMER_USD_PER_CREDIT - q.sourceUsd) < CUSTOMER_USD_PER_CREDIT, r + ' sells at cost');
     assert.equal(q.cost, noProfitCredits(q.sourceUsd));
   }
-  assert.deepEqual(['720p', '1080p'].map(r => capped(w27, r).cost), [1241, 2090]);
+  assert.deepEqual(['720p', '1080p'].map(r => capped(w27, r).cost), [924, 1045]);
   for (const [m, family] of [[w3, 'wan-3.0'], [w27, 'wan-2.7']]) {
     for (const r of Object.keys(HIGGSFIELD_CREDITS_PER_SECOND[family])) {
       for (const seconds of [2, 5, 15]) {
@@ -160,8 +160,9 @@ test('Wan prices are capped at least 30% below Higgsfield', () => {
   // The upscale refund shrinks with the price; non-Wan models are not capped.
   const q = capped(w27, '720p');
   assert.deepEqual([q.wanCap, q.listCost, q.enhance], [true, 1848, null]);
-  const hd = applyWanCap('yotta_wan_2_7', { cost: 9000, resolution: '1080p', duration: 5, enhance: { credits: 300 } });
-  assert.deepEqual([hd.cost, hd.enhance.credits], [2151, Math.floor(300 * 2151 / 9000)]);
+  assert.equal(q.cost, 924);
+  const hd = applyWanCap('argo_wan_3_prime', { cost: 9000, resolution: '1080p', duration: 5, enhance: { credits: 300 } });
+  assert.deepEqual([hd.cost, hd.enhance.credits], [4965, Math.floor(300 * 4965 / 9000)]);
   assert.equal(wanCreditCap('argo_seedance_2_5', '720p', 5), null);
   assert.equal(wanCreditCap('argo_wan_3', '720p', 5), 1448);
 });

@@ -30,9 +30,9 @@ Customer credits = Yotta's USD price for the render × 6,720 (24 credits per rup
 
 Sync live models picks up Yotta's current prices; a job keeps the price quoted when it was created.
 
-### Wan 3.0 without profit
+### Wan 3.0 and Wan 2.7 without profit
 
-Wan 3.0 (Yotta's and ArgoLink's) is sold at cost: its price in credits is the render plus HD upscale cost in USD divided by what one credit sells for on the Creator plan (Rs 5,000 / 60,000 at Rs 280 per USD), rounded up. 5 s: 480p 588, 720p 709, 1080p 1,297 credits. Change `NO_PROFIT_MODELS` in `src/wan_pricing.js` to put a model back on normal pricing.
+Wan 3.0 (Yotta's and ArgoLink's) and Wan 2.7 are sold at cost: its price in credits is the render plus HD upscale cost in USD divided by what one credit sells for on the Creator plan (Rs 5,000 / 60,000 at Rs 280 per USD), rounded up. 5 s: Wan 3.0 480p 588, 720p 709, 1080p 1,297 credits; Wan 2.7 720p 924, 1080p 1,045. Change `NO_PROFIT_MODELS` in `src/wan_pricing.js` to put a model back on normal pricing.
 
 ### At least 30% below Higgsfield
 

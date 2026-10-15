@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Wan 2.7 sold at cost
+
+- Wan 2.7 joins Wan 3.0 without profit (`NO_PROFIT_MODELS`): 5 s 720p 924 credits (was 1,241), 1080p 1,045 (was 2,090), exactly Yotta's render + HD upscale cost at the Creator plan's credit price.
+
 ## 2026-10-15 — Wan 3.0 sold at cost
 
 - Wan 3.0 (Yotta and ArgoLink) carries no profit: customers pay exactly the render + HD upscale cost at the Creator plan's credit price (Rs 5,000 / 60,000). 5 s: 480p 588 credits (was 724), 720p 709 (was 1,418), 1080p 1,297 (was 2,594) — about 52–65% below Higgsfield. Wan 2.7 and Wan 3.0 Prime are unchanged. `NO_PROFIT_MODELS` in `src/wan_pricing.js`.
