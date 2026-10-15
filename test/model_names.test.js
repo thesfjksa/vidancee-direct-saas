@@ -41,12 +41,6 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   assert.deepEqual(h3.resolutions.map(r => r.id), ['480p', '768p']);
   assert.equal(h3.defaultResolution, '768p');
 
-  // The public Pricing page lists the Lite models without the warning.
-  const examples = await (await fetch(origin + '/api/price-examples')).json();
-  const lite = examples.video.find(v => v.name === 'Seedance 2.5 · up to 30 s');
-  assert.ok(lite, 'Seedance 2.5 Lite is on the Pricing page');
-  assert.equal(lite.warning, undefined);
-
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
   assert.ok(list.models.some(m => m.key === 'video:seedance_2.5' && m.vendor === 'Vidancee / CreatePulse' && m.defaultName === 'Seedance 2.5 · up to 30 s' && m.name === ''));
   assert.ok(list.models.some(m => m.key === 'cartoon:seedance_2.5'));

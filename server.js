@@ -572,8 +572,7 @@ async function priceExamples(){
     }else{
       try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:m.supportsAudio===true})).cost;}catch{}
     }
-    // The Lite warning shows in the studios only, not on the public Pricing page.
-    if(credits>0)video.push({name:m.label,seconds,resolution,credits});
+    if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
   }
   for(const m of catalog.image){
     let credits=Number(m.cost)||null;

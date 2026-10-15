@@ -1,9 +1,5 @@
 # Changelog
 
-## 2026-10-15 — No Lite warning on the Pricing page
-
-- The public Pricing page no longer shows the red "May fail" badge next to the Lite models (`/api/price-examples` leaves out `warning`). Video and Cartoon Studio, and Claude's list_models, still show the warning where the models are used.
-
 ## 2026-10-14 — Seedance 2.5 renders on fal.ai when ArgoLink is out of credits
 
 - A Seedance 2.5 job in Video Studio that ArgoLink refuses for balance, or fails later for balance, is rendered by Seedance 2.5 on fal.ai. Prompt-only jobs use text-to-video, frame jobs image-to-video and reference jobs reference-to-video. The render then goes through the usual HD enhancement. ArgoLink is marked out of credits for 10 minutes, and Seedance 2.5 jobs go straight to fal during that time. The customer's price does not change; fal costs about 2.5 times ArgoLink's price for the render. Other ArgoLink models are refunded as before. See `docs/ARGOLINK.md`.

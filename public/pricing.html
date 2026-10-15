@@ -372,6 +372,7 @@ footer a:hover{color:var(--navy)}
 .price-table th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;background:#f8fafc}
 .price-table td.num,.price-table th.num{text-align:right;font-variant-numeric:tabular-nums}
 .price-table td b{font-weight:700}
+.price-table .warn{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;color:#b42318;background:#fdf0ee;border:1px solid #f5c2bd;border-radius:999px;padding:2px 8px;vertical-align:middle}
 .tables{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;align-items:start}
 .table-note{margin:14px 2px 0;color:var(--muted);font-size:13.5px;text-align:center}
 .plan-compare{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm);font-size:15px}
@@ -543,7 +544,7 @@ fetch('/api/price-examples',{headers:{accept:'application/json'}}).then(r=>r.ok?
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const n=v=>Number(v).toLocaleString('en-US'),plan=60000;
   const video=(d&&d.video)||[],image=(d&&d.image)||[];
-  document.getElementById('videoRows').innerHTML=video.length?video.sort((a,b)=>a.credits-b.credits).map(m=>'<tr><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.seconds?m.seconds+' s':'')+(m.resolution?' · '+esc(m.resolution):'')+'</td><td class="num">'+n(m.credits)+'</td><td class="num">'+n(Math.floor(plan/m.credits))+'</td></tr>').join(''):'<tr><td colspan="4">Sign in to see video prices.</td></tr>';
+  document.getElementById('videoRows').innerHTML=video.length?video.sort((a,b)=>a.credits-b.credits).map(m=>'<tr><td><b>'+esc(m.name)+'</b>'+(m.warning?'<span class="warn" title="'+esc(m.warning)+'">May fail</span>':'')+'</td><td>'+esc(m.seconds?m.seconds+' s':'')+(m.resolution?' · '+esc(m.resolution):'')+'</td><td class="num">'+n(m.credits)+'</td><td class="num">'+n(Math.floor(plan/m.credits))+'</td></tr>').join(''):'<tr><td colspan="4">Sign in to see video prices.</td></tr>';
   document.getElementById('imageRows').innerHTML=image.length?image.sort((a,b)=>a.credits-b.credits).map(m=>'<tr><td><b>'+esc(m.name)+'</b></td><td class="num">'+n(m.credits)+'</td><td class="num">'+n(Math.floor(plan/m.credits))+'</td></tr>').join(''):'<tr><td colspan="3">Sign in to see image prices.</td></tr>';
 }).catch(()=>{});
 </script>
