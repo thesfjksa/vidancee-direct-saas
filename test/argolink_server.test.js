@@ -90,8 +90,8 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   // The public Pricing page prices every model, including ones without generated audio.
   const examples = await (await fetch(origin + '/api/price-examples')).json();
   for (const name of ['Wan 3.0 Prime', 'MiniMax H3']) assert.ok(examples.video.some(v => v.name === name), name + ' is on the Pricing page');
-  // Seedance 2.5 is left off the Pricing page but stays in Video Studio.
-  assert.equal(examples.video.some(v => /Seedance 2\.5/.test(v.name)), false);
+  // ArgoLink's Seedance 2.5 is left off the Pricing page but stays in Video Studio.
+  assert.equal(examples.video.some(v => v.name === 'Seedance 2.5'), false);
   assert.ok((await (await fetch(origin + '/api/config')).json()).pricing.some(m => m.id === 'argo_seedance_2_5'));
 
   // Admin sees the source's own error message; the customer's copy hides the vendor.

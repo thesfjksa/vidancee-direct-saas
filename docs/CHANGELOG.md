@@ -1,8 +1,8 @@
 # Changelog
 
-## 2026-10-15 — Seedance 2.5 off the Pricing page
+## 2026-10-15 — ArgoLink's Seedance 2.5 off the pricing pages
 
-- The public Pricing page no longer lists Seedance 2.5 (neither ArgoLink's nor the Lite one): `/api/price-examples` leaves them out, and the plan cards there drop their Seedance 2.5 examples ("About 297 MiniMax H3 videos of 10 s"). Video and Cartoon Studio, the landing page, the studio Plans page and Claude still offer and show Seedance 2.5 as before. The hidden ids are `PRICING_PAGE_HIDDEN` in server.js.
+- ArgoLink's Seedance 2.5 (5 s 720p ≈ 3,179 credits) looked expensive, so the public Pricing page no longer lists it (`PRICING_PAGE_HIDDEN` in server.js), and the plan examples on the Pricing page, the landing page and the dashboard Plans page no longer mention its clips. Seedance 2.5 Lite stays everywhere. Video Studio and Claude still offer ArgoLink's Seedance 2.5.
 
 ## 2026-10-14 — Seedance 2.5 renders on fal.ai when ArgoLink is out of credits
 
