@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Price comparison page
+
+- New public page `/compare` (linked from Pricing and every footer): the same clip's price on CMM Tools and on Pika, Runway, Luma Dream Machine, Freepik, Invideo AI and Higgsfield, in rupees, plus their cheapest plans. CMM Tools prices are live (`/api/compare-prices`, Creator plan credit price); other platforms' list prices, sources and the date checked are in `src/compare_prices.js`. A row is shown only while CMM Tools is cheaper. Update that file when a platform changes its prices.
+
 ## 2026-10-15 — Reference videos and sound for Wan 3.0 and Wan 2.7
 
 - Video Studio's Wan 3.0 and Wan 2.7 (Yotta) take reference videos and sound files. Wan 3.0: up to 10 images, 5 videos and 5 sound clips (cite them as @Image1, @Video1, @Audio1), 15 s of video and 15 s of sound in total. Wan 2.7: up to 5 images and videos, and one sound file that drives a text or start-frame video or voices the reference video; 10 s output with a reference video. Uploads accept MP3/WAV (15 MB) and are stored with the job (`generation_media`, kind `audio`). Combinations Yotta does not take are refused before credits are taken. Prices are unchanged. See `docs/YOTTA.md`.

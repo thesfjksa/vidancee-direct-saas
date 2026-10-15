@@ -181,6 +181,7 @@ const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
+const { comparePrices } = require('./src/compare_prices.js');
 const { isYottaModel, yottaMediaModels, fetchYottaCatalog, validateYottaReferences } = require('./src/yotta_models.js');
 const { YottaClient } = require('./src/provider/yotta.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
@@ -203,6 +204,7 @@ const {
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const landingPage = fs.readFileSync(path.join(__dirname, 'public', 'landing.html'), 'utf8');
 const pricingPage = fs.readFileSync(path.join(__dirname, 'public', 'pricing.html'), 'utf8');
+const comparePage = fs.readFileSync(path.join(__dirname, 'public', 'compare.html'), 'utf8');
 // Visitors who are not signed in see the landing page at /; the studio is at /app.
 const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers.cookie || ''));
 // The admin page carries its stylesheets inline: one request instead of three
@@ -274,7 +276,7 @@ function canonicalRedirect(req,routePath,url) {
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
-  if(!['/','/app','/pricing','/admin-console'].includes(routePath))return null;
+  if(!['/','/app','/pricing','/compare','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
@@ -608,6 +610,15 @@ async function priceExamples(){
   return data;
 }
 
+// CMM Tools vs other platforms for the /compare page, at live prices. Cached for 10 minutes.
+let priceComparisonCache=null;
+async function priceComparison(){
+  if(priceComparisonCache&&Date.now()-priceComparisonCache.at<10*60*1000)return priceComparisonCache.data;
+  const data=await comparePrices(async c=>(await quoteModelForUser(null,{model:c.model,mediaType:'video',duration:c.seconds,resolution:c.resolution,aspectRatio:'16:9',generateAudio:c.audio})).cost);
+  priceComparisonCache={at:Date.now(),data};
+  return data;
+}
+
 const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
 
 // Live price of an ArgoLink or AI Gateway model ({cost,isEstimate}).
@@ -919,6 +930,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
+    if (req.method==='GET' && routePath==='/compare') return sendHtml(res,200,comparePage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
     if (await connector.handle(req,res,url,routePath)) return;
 
@@ -1023,6 +1035,12 @@ const server=http.createServer(async (req,res)=>{
         },
         runtime:{...runtimeSnapshot(),...diagnostics.summary()},
       });
+    }
+
+    if (req.method==='GET' && routePath==='/api/compare-prices') {
+      if(!dbConfigured())return sendJson(res,200,{ok:true,rows:[],plans:[]});
+      try{return sendJson(res,200,{ok:true,...await priceComparison()});}
+      catch{return sendJson(res,200,{ok:true,rows:[],plans:[]});}
     }
 
     if (req.method==='GET' && routePath==='/api/price-examples') {
