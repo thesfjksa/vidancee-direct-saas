@@ -183,6 +183,7 @@ const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { isYottaModel, yottaMediaModels, fetchYottaCatalog } = require('./src/yotta_models.js');
 const { YottaClient } = require('./src/provider/yotta.js');
+const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
 const { argoVideoView, yottaVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences } = require('./src/vercel_models.js');
@@ -614,7 +615,7 @@ async function quoteModelForUser(userId,body){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('argolink',String(body.model),mediaType);
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
-    const quote=mediaType==='video'?quoteArgoVideo(model,body,await getProviderSettings(),{hd:!(await argoHdOffModels()).has(model.publicModelId)}):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
+    const quote=mediaType==='video'?await quoteArgoStudioVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isYottaModel(body.model)&&mediaType==='video'){
@@ -636,8 +637,12 @@ async function quoteModelForUser(userId,body){
 
 // Yotta's Wan models: 480p native; 720p and 1080p rendered lower and upscaled
 // by fal (HD enhancement) unless the admin turned HD enhance off for the model.
+// Wan models are also capped at least 30% below Higgsfield (wan_pricing.js).
 async function quoteYottaVideo(model,body,settings){
-  return quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:yottaVideoView,creditsPerUsd:settings.yottaCustomerCreditsPerUsd});
+  return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:yottaVideoView,creditsPerUsd:settings.yottaCustomerCreditsPerUsd}));
+}
+async function quoteArgoStudioVideo(model,body,settings){
+  return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId)}));
 }
 
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
@@ -659,7 +664,7 @@ async function submitVideoGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
-    const quote=quoteArgoVideo(model,body,providerSettings,{hd:!(await argoHdOffModels()).has(model.publicModelId)});
+    const quote=await quoteArgoStudioVideo(model,body,providerSettings);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},

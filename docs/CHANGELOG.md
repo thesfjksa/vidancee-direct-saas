@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Wan at least 30% below Higgsfield
+
+- Every Wan model (Yotta Wan 3.0 and Wan 2.7, ArgoLink Wan 3.0 and Wan 3.0 Prime) is priced at most 70% of the same clip on Higgsfield (Starter plan credit price), in `src/wan_pricing.js`. 5 s examples: Wan 3.0 480p 724 credits (was 1,176), Wan 2.7 720p 1,241 (was 1,848), ArgoLink Wan 3.0 720p 1,448 (was 1,519); the other resolutions were already more than 30% cheaper. All capped prices stay above cost. See `docs/YOTTA.md`.
+
 ## 2026-10-15 — Wan 3.0 and Wan 2.7 on Yotta Labs
 
 - Video Studio lists **Wan 3.0 · up to 30 s** and **Wan 2.7 · up to 15 s** from Yotta Labs' AI Gateway. 480p is rendered natively; 720p and 1080p are rendered lower and upscaled to 1080p by fal.ai (HD enhancement). Wan 3.0 720p is rendered at 480p and 1080p at 720p; Wan 2.7 has no 480p, so its 720p is native and its 1080p comes from 720p. A 5 s Wan 3.0 clip is 1,176 / 1,418 / 2,594 credits at 480p / 720p / 1080p, where native 720p/1080p would cost 2,352 / 4,704. See `docs/YOTTA.md`.
