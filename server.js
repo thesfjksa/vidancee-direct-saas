@@ -559,12 +559,15 @@ async function adminModelNameList(){
 
 // Example price of every model at its default settings, for the public
 // Pricing page (no sign-in needed). Cached for 10 minutes.
+// Seedance 2.5 is kept off the public Pricing page.
+const PRICE_EXAMPLES_HIDDEN=/seedance[\s_.-]*2[._]5/i;
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
   const catalog=await customerMediaCatalog(defaultCustomerProviderAccess());
   const video=[],image=[];
   for(const m of catalog.video){
+    if(PRICE_EXAMPLES_HIDDEN.test(m.id)||PRICE_EXAMPLES_HIDDEN.test(m.label))continue;
     let seconds=m.defaultDuration||m.durations?.[0]?.seconds||null,resolution=m.defaultResolution||null,credits=null;
     if(!m.dynamicCost){
       const list=(m.resolutions?.length?((m.resolutions.find(r=>r.id===resolution)||m.resolutions[0]).durations):m.durations)||[];
@@ -575,6 +578,7 @@ async function priceExamples(){
     if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
   }
   for(const m of catalog.image){
+    if(PRICE_EXAMPLES_HIDDEN.test(m.id)||PRICE_EXAMPLES_HIDDEN.test(m.label))continue;
     let credits=Number(m.cost)||null;
     if(!credits&&m.costTable){const values=Object.values(m.costTable).map(Number).filter(n=>n>0);credits=values.length?Math.min(...values):null;}
     if(credits>0)image.push({name:m.label,credits});
