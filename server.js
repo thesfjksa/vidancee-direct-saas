@@ -559,12 +559,15 @@ async function adminModelNameList(){
 
 // Example price of every model at its default settings, for the public
 // Pricing page (no sign-in needed). Cached for 10 minutes.
+const PRICING_PAGE_HIDDEN=['argo_seedance_2_5','seedance_2.5'];
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
   const catalog=await customerMediaCatalog(defaultCustomerProviderAccess());
   const video=[],image=[];
   for(const m of catalog.video){
+    // Seedance 2.5 is not listed on the Pricing page; the studios still offer it.
+    if(PRICING_PAGE_HIDDEN.includes(m.id))continue;
     let seconds=m.defaultDuration||m.durations?.[0]?.seconds||null,resolution=m.defaultResolution||null,credits=null;
     if(!m.dynamicCost){
       const list=(m.resolutions?.length?((m.resolutions.find(r=>r.id===resolution)||m.resolutions[0]).durations):m.durations)||[];

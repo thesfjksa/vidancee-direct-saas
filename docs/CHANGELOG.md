@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 — Seedance 2.5 off the Pricing page
+
+- The public Pricing page no longer lists Seedance 2.5 (neither ArgoLink's nor the Lite one): `/api/price-examples` leaves them out, and the plan cards there drop their Seedance 2.5 examples ("About 297 MiniMax H3 videos of 10 s"). Video and Cartoon Studio, the landing page, the studio Plans page and Claude still offer and show Seedance 2.5 as before. The hidden ids are `PRICING_PAGE_HIDDEN` in server.js.
+
 ## 2026-10-14 — Seedance 2.5 renders on fal.ai when ArgoLink is out of credits
 
 - A Seedance 2.5 job in Video Studio that ArgoLink refuses for balance, or fails later for balance, is rendered by Seedance 2.5 on fal.ai. Prompt-only jobs use text-to-video, frame jobs image-to-video and reference jobs reference-to-video. The render then goes through the usual HD enhancement. ArgoLink is marked out of credits for 10 minutes, and Seedance 2.5 jobs go straight to fal during that time. The customer's price does not change; fal costs about 2.5 times ArgoLink's price for the render. Other ArgoLink models are refunded as before. See `docs/ARGOLINK.md`.
