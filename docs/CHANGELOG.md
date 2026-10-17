@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17 — Wan 3.0 on the Higgsfield API; Yotta Labs removed
+
+- Video Studio's Wan 3.0 now runs on the Higgsfield API (`hf_wan_3_0`, "Wan 3.0 · up to 30 s"): text, start/end frame, and reference videos with up to 10 images, 5 videos and 5 sound clips; 2–30 s; 480p, 720p and 1080p with the usual HD enhancement (720p rendered at 480p, 1080p at 720p, upscaled by fal.ai). Reference files are uploaded to Higgsfield's storage first. Sold at cost from Higgsfield's own price estimates; the model stays hidden until prices are read (saving the key does that). See `docs/HIGGSFIELD.md`.
+- Admin → Provider has a Higgsfield card (key as KEY_ID:KEY_SECRET, switch, max inflight, Check saved key, Sync prices); Users → Sources, Usage & limits and Model names include it. Customer Sources switches left from the earlier Higgsfield connection are cleared once.
+- **Removed:** Yotta Labs (Wan 3.0 and Wan 2.7): code, Admin card, settings, customer Sources and usage rows. Its model rows are switched off; any job still open on it is refunded by the worker. ArgoLink's Wan 3.0 and Wan 3.0 Prime are unchanged.
+- The worker no longer refunds open `higgsfield` jobs as a retired source (that rule was left from the earlier Higgsfield connection and would have refunded every new job).
+
 ## 2026-10-17 — Seedance 2.5 on fal.ai gets reference files from ArgoLink storage
 
 - Every Seedance 2.5 job with reference files that went to fal.ai while ArgoLink was out of credits failed ("Failed to download the file", 6 of 6 since 15 October; prompt-only jobs worked). fal's Seedance could not fetch the app's signed `/provider-media` links, the same problem ArgoLink's Seedance had. The files are now uploaded to ArgoLink's storage first (this works while ArgoLink has no balance) and those links are sent to fal; if the upload fails, the signed links are sent as before. HD enhancement is unchanged.

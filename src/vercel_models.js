@@ -140,11 +140,11 @@ function modelReady(model) {
 }
 
 // A model's prompt limit: the provider's own where it states one, otherwise
-// the most the app accepts. 8,000 (ArgoLink) and 5,000 (Yotta) were the app's
+// the most the app accepts. 8,000 (ArgoLink) and 5,000 (Yotta, since removed) were the app's
 // old defaults for models without a stated limit, still saved on older rows.
 function promptLimit(model) {
   const stated=Number(model.inputLimits?.text?.max_chars)||0;
-  const oldDefault=(model.provider==='argolink'&&stated===8000)||(model.provider==='yotta'&&stated===5000);
+  const oldDefault=model.provider==='argolink'&&stated===8000;
   return stated>0&&!oldDefault?Math.min(stated,MAX_PROMPT_CHARS):MAX_PROMPT_CHARS;
 }
 

@@ -183,11 +183,11 @@ const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
-const { isYottaModel, yottaMediaModels, fetchYottaCatalog, validateYottaReferences } = require('./src/yotta_models.js');
-const { YottaClient } = require('./src/provider/yotta.js');
+const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
+const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
-const { argoVideoView, yottaVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
+const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -199,7 +199,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureYottaCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -419,7 +419,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','yotta','fal'];
+const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -544,11 +544,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
-  // Yotta's Wan models: 480p native; 720p/1080p rendered lower and upscaled by fal.
-  if(access.yotta && providerSettings.yotta.active){
+  // Higgsfield's Wan 3.0: 480p native; 720p/1080p rendered lower and upscaled by fal.
+  if(access.higgsfield && providerSettings.higgsfield.active){
     const hd=falReady(await getProviderSettings());
     const hdOff=await argoHdOffModels();
-    const catalog=await publicProviderCatalog('yotta',{creditsPerUsd:providerSettings.yotta.customerCreditsPerUsd,transform:model=>yottaVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
+    const catalog=await publicProviderCatalog('higgsfield',{creditsPerUsd:providerSettings.higgsfield.customerCreditsPerUsd,transform:model=>wanVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
     video=[...video,...catalog.video];
   }
   video=[...video,...directVideoModels(access,providerSettings)];
@@ -558,7 +558,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
   if(isArgoModel(id))return 'ArgoLink';
-  if(isYottaModel(id))return 'Yotta Labs';
+  if(isHiggsfieldModel(id))return 'Higgsfield';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
   if(id==='minimax_h3')return 'vgenv';
@@ -575,7 +575,7 @@ async function adminModelNameList(){
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
     for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||'',
-      ...(studio==='video'&&(isArgoModel(m.id)||isYottaModel(m.id))?{hdEnhance:!hdOff.has(m.id)}:{})});
+      ...(studio==='video'&&(isArgoModel(m.id)||isHiggsfieldModel(m.id))?{hdEnhance:!hdOff.has(m.id)}:{})});
   }
   return rows;
 }
@@ -639,11 +639,11 @@ async function quoteModelForUser(userId,body){
     const quote=mediaType==='video'?await quoteArgoStudioVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
-  if(isYottaModel(body.model)&&mediaType==='video'){
-    if(!access.yotta||!providerSettings.yotta.active)throw httpError(403,'This model source is unavailable for your account.');
-    const model=await getProviderModelByPublicId('yotta',String(body.model),'video');
+  if(isHiggsfieldModel(body.model)&&mediaType==='video'){
+    if(!access.higgsfield||!providerSettings.higgsfield.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('higgsfield',String(body.model),'video');
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
-    const quote=await quoteYottaVideo(model,body,await getProviderSettings());
+    const quote=await quoteHiggsfieldVideo(model,body,await getProviderSettings());
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isGatewayModel(body.model)){
@@ -656,11 +656,20 @@ async function quoteModelForUser(userId,body){
   throw httpError(404,'Live pricing is unavailable for this model.');
 }
 
-// Yotta's Wan models: 480p native; 720p and 1080p rendered lower and upscaled
-// by fal (HD enhancement) unless the admin turned HD enhance off for the model.
-// Wan models are also capped at least 30% below Higgsfield (wan_pricing.js).
-async function quoteYottaVideo(model,body,settings){
-  return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:yottaVideoView,creditsPerUsd:settings.yottaCustomerCreditsPerUsd}));
+// Higgsfield's Wan 3.0: 480p native; 720p and 1080p rendered lower and
+// upscaled by fal (HD enhancement) unless the admin turned HD enhance off for
+// the model. Sold at cost (wan_pricing.js).
+async function quoteHiggsfieldVideo(model,body,settings){
+  return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:wanVideoView,creditsPerUsd:settings.higgsfieldCustomerCreditsPerUsd}));
+}
+// Wan 3.0's per-second prices from Higgsfield's estimates (nothing is charged).
+async function syncHiggsfieldPrices(){
+  const s=await getProviderSettings();
+  const client=new HiggsfieldClient({apiKey:s.higgsfieldApiKey});
+  const tiers=await fetchHiggsfieldTiers((path,input)=>client.estimate(path,input));
+  const models=await syncProviderModels('higgsfield',higgsfieldMediaModels(tiers));
+  logActivity({category:'admin',event:'higgsfield.prices_synced',provider:'higgsfield',message:'Wan 3.0 prices synced from Higgsfield estimates',details:{tiers}});
+  return {models,tiers};
 }
 async function quoteArgoStudioVideo(model,body,settings){
   return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId)}));
@@ -692,20 +701,20 @@ async function submitVideoGeneration(user,body,req=null){
     });
   }
 
-  if(!cartoonOptions&&isYottaModel(requestedModel)){
-    if(!customerAccess.yotta||!providerSettings.yottaEnabled||!providerSettings.yottaApiKey)throw httpError(503,'This video model is currently unavailable.');
-    const model=await getProviderModelByPublicId('yotta',requestedModel,'video');
+  if(!cartoonOptions&&isHiggsfieldModel(requestedModel)){
+    if(!customerAccess.higgsfield||!providerSettings.higgsfieldEnabled||!providerSettings.higgsfieldApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('higgsfield',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
-    validateYottaReferences(model,body,{mp4Seconds});
-    const quote=await quoteYottaVideo(model,body,providerSettings);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'yotta',dynamicModel:true,
+    validateHiggsfieldReferences(model,body,{mp4Seconds});
+    const quote=await quoteHiggsfieldVideo(model,body,providerSettings);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'higgsfield',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
   }
 
-  // Video Studio runs on ArgoLink and Yotta, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
+  // Video Studio runs on ArgoLink and Higgsfield, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
   if (!generation && !cartoonOptions && !DIRECT_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
@@ -1013,7 +1022,7 @@ const server=http.createServer(async (req,res)=>{
           providerSettings.vidancee.active ||
           providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.yotta.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -1684,15 +1693,15 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('argolink',argoMediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
-      if(req.method==='POST'&&routePath==='/admin/yotta/check'){
+      if(req.method==='POST'&&routePath==='/admin/higgsfield/check'){
         requireDatabase();const s=await getProviderSettings();
-        await new YottaClient({apiKey:s.yottaApiKey}).verifyKey();
+        await new HiggsfieldClient({apiKey:s.higgsfieldApiKey}).verifyKey();
         return sendJson(res,200,{ok:true});
       }
-      if(req.method==='POST'&&routePath==='/admin/yotta/sync'){
+      if(req.method==='POST'&&routePath==='/admin/higgsfield/sync'){
         requireDatabase();
-        const models=await syncProviderModels('yotta',yottaMediaModels(await fetchYottaCatalog()));
-        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
+        const {models,tiers}=await syncHiggsfieldPrices();
+        return sendJson(res,200,{ok:true,models,tiers,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
       const gatewayPriceMatch=routePath.match(/^\/admin\/vercel\/models\/(\d+)\/price$/);
       if(req.method==='POST'&&gatewayPriceMatch){
@@ -1722,7 +1731,7 @@ const server=http.createServer(async (req,res)=>{
         const body=await readJson(req);
         const changes=body.names&&typeof body.names==='object'&&!Array.isArray(body.names)?body.names:{};
         const hdChanges=body.hd&&typeof body.hd==='object'&&!Array.isArray(body.hd)?body.hd:{};
-        for(const id of Object.keys(hdChanges))if(!isArgoModel(id)&&!isYottaModel(id))return sendJson(res,400,{ok:false,error:'HD enhance applies to ArgoLink and Yotta video models only.'});
+        for(const id of Object.keys(hdChanges))if(!isArgoModel(id)&&!isHiggsfieldModel(id))return sendJson(res,400,{ok:false,error:'HD enhance applies to ArgoLink and Higgsfield video models only.'});
         const names=await modelDisplayNames();
         for(const [key,value] of Object.entries(changes)){
           const [studio,...rest]=String(key).split(':');
@@ -1772,13 +1781,19 @@ const server=http.createServer(async (req,res)=>{
         const settings=await updateProviderSettings(body);
         // Keys and passwords are masked by the activity log.
         logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:body}});
-        return sendJson(res,200,{ok:true,settings});
+        // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
+        let higgsfieldSync=null;
+        if(String(body.higgsfieldApiKey||'').trim()){
+          try{const r=await syncHiggsfieldPrices();higgsfieldSync={ok:true,ready:r.models.some(m=>m.ready)};}
+          catch(error){higgsfieldSync={ok:false,error:error.message};}
+        }
+        return sendJson(res,200,{ok:true,settings,higgsfieldSync});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','yotta'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1788,7 +1803,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','yotta'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -1861,7 +1876,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.enabled,
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
-            yotta:providerSettings.yotta.enabled,
+            higgsfield:providerSettings.higgsfield.enabled,
             fal:providerSettings.fal.enabled,
           },
           providerActive:{
@@ -1872,7 +1887,7 @@ const server=http.createServer(async (req,res)=>{
             smartaipi:providerSettings.smartaipi.active,
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
-            yotta:providerSettings.yotta.active,
+            higgsfield:providerSettings.higgsfield.active,
             fal:providerSettings.fal.active,
           },
           routing:providerSettings.routing,
@@ -1882,7 +1897,7 @@ const server=http.createServer(async (req,res)=>{
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,
           vercelMaxInflight:providerSettings.vercel.maxInflight,
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
-          yottaMaxInflight:providerSettings.yotta.maxInflight,
+          higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           falMaxInflight:providerSettings.fal.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
@@ -2174,7 +2189,7 @@ function bootstrap() {
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
-      await ensureYottaCatalog().catch(error=>console.error('Yotta catalog initialization failed:',error.message));
+      await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});

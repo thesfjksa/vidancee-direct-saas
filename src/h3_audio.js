@@ -1,6 +1,6 @@
 'use strict';
 
-const { wavSeconds } = require('./yotta_models.js');
+const { wavSeconds } = require('./media_info.js');
 
 // Sound references for MiniMax H3 on vgenv. MiniMax's rules: up to 3 clips of
 // 2-15 s each, and only together with at least one reference image (sound

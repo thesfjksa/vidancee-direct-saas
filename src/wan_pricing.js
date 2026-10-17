@@ -24,10 +24,11 @@ const HIGGSFIELD_CREDITS_PER_SECOND = {
   'wan-3.0-prime': { '480p': 1.5, '720p': 3, '1080p': 6 },
   'wan-2.7': { '720p': 1.5, '1080p': 2.6 },
 };
+// Higgsfield's own Wan 3.0 (hf_wan_3_0) has no cap: Higgsfield is its source,
+// so it is sold at cost instead.
 const FAMILY_BY_MODEL = {
-  yotta_wan_3_0: 'wan-3.0', argo_wan_3: 'wan-3.0',
+  argo_wan_3: 'wan-3.0',
   argo_wan_3_prime: 'wan-3.0-prime',
-  yotta_wan_2_7: 'wan-2.7',
 };
 
 // Highest credit price for this clip, or null when the model is not a Wan model
@@ -39,15 +40,15 @@ function wanCreditCap(modelId, resolution, seconds) {
   return Math.floor(higgsfieldUsd * (1 - CHEAPER_THAN_HIGGSFIELD) / CUSTOMER_USD_PER_CREDIT);
 }
 
-// Wan 3.0 and Wan 2.7 are sold without profit: the customer pays what the render (and the
+// Wan 3.0 is sold without profit: the customer pays what the render (and the
 // HD upscale) costs CMM Tools, at the price a credit sells for on the Creator
 // plan, rounded up to a whole credit.
-const NO_PROFIT_MODELS = ['yotta_wan_3_0', 'argo_wan_3', 'yotta_wan_2_7'];
+const NO_PROFIT_MODELS = ['hf_wan_3_0', 'argo_wan_3'];
 function noProfitCredits(sourceUsd) {
   return Number(sourceUsd) > 0 ? Math.ceil(Number(sourceUsd) / CUSTOMER_USD_PER_CREDIT - 1e-9) : null;
 }
 
-// A video quote with the Wan pricing applied (no profit on Wan 3.0 and Wan 2.7, and never
+// A video quote with the Wan pricing applied (no profit on Wan 3.0, and never
 // more than the Higgsfield cap). The HD enhancement part, refunded if the
 // upscale cannot run, shrinks in proportion to the price.
 function applyWanCap(modelId, quote) {

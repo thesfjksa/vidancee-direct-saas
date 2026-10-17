@@ -412,7 +412,6 @@ test('prompt limits: a provider\'s stated limit, otherwise the app maximum', () 
   const { promptLimit } = require('../src/vercel_models.js');
   // Seedance on ArgoLink states no limit; 8,000 was the app's old default.
   assert.equal(promptLimit({ provider: 'argolink', inputLimits: { text: { max_chars: 8000 } } }), 50000);
-  assert.equal(promptLimit({ provider: 'yotta', inputLimits: { text: { max_chars: 5000 } } }), 50000);
   assert.equal(promptLimit({ provider: 'argolink', inputLimits: { text: { max_chars: 7000 } } }), 7000);
   assert.equal(promptLimit({ provider: 'argolink', inputLimits: { text: { max_chars: 20000 } } }), 20000);
   assert.equal(promptLimit({}), 50000);

@@ -24,9 +24,9 @@ const PLATFORMS = {
 // One row per clip; each offer is the same clip on another platform, in its
 // credits (its own name for the model when it differs).
 const COMPARISONS = [
-  { model: 'yotta_wan_3_0', name: 'Wan 3.0', seconds: 5, resolution: '720p', audio: true,
+  { model: 'hf_wan_3_0', name: 'Wan 3.0', seconds: 5, resolution: '720p', audio: true,
     offers: [{ platform: 'pika', credits: 33 }, { platform: 'higgsfield', credits: 8.75 }] },
-  { model: 'yotta_wan_3_0', name: 'Wan 3.0', seconds: 2, resolution: '1080p', audio: true,
+  { model: 'hf_wan_3_0', name: 'Wan 3.0', seconds: 2, resolution: '1080p', audio: true,
     offers: [{ platform: 'freepik', credits: 400, note: 'at its 50% off price' }] },
   { model: 'argo_seedance_2_5', name: 'Seedance 2.5', seconds: 5, resolution: '720p', audio: true,
     offers: [{ platform: 'pika', credits: 122 }, { platform: 'invideo', credits: 56 }] },
