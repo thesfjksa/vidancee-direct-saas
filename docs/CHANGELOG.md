@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 — @ mentions for reference files in prompts
+
+- In Video Studio and Image Studio, every attached reference has a name: @Image1, @Video1, @Audio1, numbered per type in list order (start/end frames have none). Each thumbnail and row shows its name.
+- Typing @ in the prompt opens a list of the attached files with thumbnails (arrow keys, Enter or Tab to insert, Esc to close; typing after @ filters by name or file name). Without attachments it explains how to add them.
+- Removing, reordering or re-roling a reference renumbers the mentions already in the prompt; mentions of a removed file are taken out. Prompts are sent as written, and the files go to the model in the same order as their numbers.
+
 ## 2026-10-17 — Wan 3.0 on the Higgsfield API; Yotta Labs removed
 
 - Video Studio's Wan 3.0 now runs on the Higgsfield API (`hf_wan_3_0`, "Wan 3.0 · up to 30 s"): text, start/end frame, and reference videos with up to 10 images, 5 videos and 5 sound clips; 2–30 s; 480p, 720p and 1080p with the usual HD enhancement (720p rendered at 480p, 1080p at 720p, upscaled by fal.ai). Reference files are uploaded to Higgsfield's storage first. Sold at cost from Higgsfield's own price estimates; the model stays hidden until prices are read (saving the key does that). See `docs/HIGGSFIELD.md`.

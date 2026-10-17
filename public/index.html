@@ -143,7 +143,7 @@
 
             <div class="block">
               <label class="block-title" for="prompt">Prompt</label>
-              <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood..."></textarea>
+              <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood. Type @ to mention a reference file."></textarea>
               <label class="prompt-enhancer" for="videoPromptEnhancer">
                 <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
                 <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="videoEnhancerNote">Adds detail before generation</small></span>
@@ -227,7 +227,7 @@
 
             <div class="block">
               <label class="block-title" for="imagePrompt">Prompt</label>
-              <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details..."></textarea>
+              <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details. Type @ to mention a reference image."></textarea>
               <label class="prompt-enhancer" for="imagePromptEnhancer">
                 <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
                 <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="imageEnhancerNote">Adds detail before generation</small></span>
@@ -716,6 +716,7 @@ function enterApp(){
   renderVoiceConfig();
   renderPromptEnhancer();
   setupReferenceDrop();
+  setupPromptMentions();
   setupVideoReferenceDrop();
   setupImageGenerationDrop();
   go('create');
@@ -1318,7 +1319,7 @@ function renderVideoReferenceControls(modelChanged=false){
       ?'Optional · 1 file · drives a text or start-frame video, or voices your reference video'
       :audioCap.needsImage
       ?'Optional · up to '+max+' sound clip'+(max===1?'':'s')+', 2–15 s each · needs at least one reference image'
-      :'Optional · up to '+max+' sound clip'+(max===1?'':'s')+' · cite them as @Audio1, @Audio2 in the prompt');
+      :'Optional · up to '+max+' sound clip'+(max===1?'':'s')+' · type @ in the prompt to mention them');
     $('videoAudioReferenceDropHelp').textContent='MP3 or WAV · max '+max+' · 15 MB each';
   }
 
@@ -1645,7 +1646,7 @@ function renderReferencePreview(){
       (item.kind==='reused'?'<span class="reused-tag">Reused</span>':'')+
       '<button type="button" class="remove-reference" onclick="removeReferenceItem(\''+escapeHtml(item.key)+'\',event)" title="Remove reference image" aria-label="Remove reference image">×</button>'+
       '<button type="button" class="drag-reference" onpointerdown="referencePointerStart(event,\''+escapeHtml(item.key)+'\')" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</button>'+
-      '<div class="image-name">'+escapeHtml(item.filename)+'</div>'+
+      '<div class="image-name">'+(mentionToken('video',item.key)?'<b class="mention-name">'+mentionToken('video',item.key)+'</b> ':'')+escapeHtml(item.filename)+'</div>'+
       roleControl+
     '</div>';
   }).join('')+(referenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to set their provider order. Use the role selector when the model supports start/end frames.</div>':'');
@@ -1673,7 +1674,9 @@ function setReferenceRole(key,role,event){
       }
     }
   }
+  const mentionsBefore=mentionMap('video');
   item.role=role;
+  renumberMentions('video',mentionsBefore);
   renderReferencePreview();
   updateCost();
 }
@@ -1685,7 +1688,9 @@ function removeReferenceItem(key,event){
   }
   const index=referenceItems.findIndex(item=>item.key===key);
   if(index<0)return;
+  const mentionsBefore=mentionMap('video');
   const [removed]=referenceItems.splice(index,1);
+  renumberMentions('video',mentionsBefore);
   if(removed.kind==='fresh' && removed.url)URL.revokeObjectURL(removed.url);
   renderReferencePreview();
   $('genMsg').className='msg muted';
@@ -1699,11 +1704,13 @@ function moveReferenceItem(sourceKey,targetKey,after=false){
   const targetIndex=referenceItems.findIndex(item=>item.key===targetKey);
   if(sourceIndex<0||targetIndex<0)return;
 
+  const mentionsBefore=mentionMap('video');
   const [item]=referenceItems.splice(sourceIndex,1);
   let insertIndex=referenceItems.findIndex(candidate=>candidate.key===targetKey);
   if(insertIndex<0)insertIndex=referenceItems.length;
   if(after)insertIndex+=1;
   referenceItems.splice(Math.min(insertIndex,referenceItems.length),0,item);
+  renumberMentions('video',mentionsBefore);
   renderReferencePreview();
 }
 
@@ -1903,7 +1910,7 @@ function renderVideoReferenceList(){
     return '<div class="video-reference-item">'+
       '<video src="'+escapeHtml(item.url)+'" muted preload="metadata"></video>'+
       '<div class="video-reference-meta">'+
-        '<div class="video-reference-name">'+escapeHtml(item.filename)+'</div>'+
+        '<div class="video-reference-name"><b class="mention-name">'+mentionToken('video',item.key)+'</b> '+escapeHtml(item.filename)+'</div>'+
         '<div class="video-reference-size">'+Math.max(.1,item.file.size/1024/1024).toFixed(1)+' MB</div>'+
         roleControl+
       '</div>'+
@@ -1956,7 +1963,9 @@ function addVideoReferenceFiles(fileList){
 function removeVideoReference(key){
   const index=videoReferenceItems.findIndex(item=>item.key===key);
   if(index<0)return;
+  const mentionsBefore=mentionMap('video');
   const [item]=videoReferenceItems.splice(index,1);
+  renumberMentions('video',mentionsBefore);
   if(item.url)URL.revokeObjectURL(item.url);
   renderVideoReferenceList();
   updateCost();
@@ -2000,7 +2009,7 @@ function clearAudioReferenceItems(){
 function renderAudioReferenceList(){
   $('audioReferenceList').innerHTML=audioReferenceItems.map((item,index)=>
     '<div class="video-reference-item audio-reference-item">'+
-      '<div class="audio-reference-tag">'+(item.role==='audio_references'?'@Audio'+(index+1):'♪')+'</div>'+
+      '<div class="audio-reference-tag">'+escapeHtml(mentionToken('video',item.key)||'♪')+'</div>'+
       '<div class="video-reference-meta">'+
         '<div class="video-reference-name">'+escapeHtml(item.filename)+'</div>'+
         '<div class="video-reference-size">'+Math.max(.1,item.file.size/1024/1024).toFixed(1)+' MB · '+escapeHtml(roleLabel(item.role))+'</div>'+
@@ -2051,7 +2060,9 @@ function addAudioReferenceFiles(fileList){
 function removeAudioReference(key){
   const index=audioReferenceItems.findIndex(item=>item.key===key);
   if(index<0)return;
+  const mentionsBefore=mentionMap('video');
   const [item]=audioReferenceItems.splice(index,1);
+  renumberMentions('video',mentionsBefore);
   if(item.url)URL.revokeObjectURL(item.url);
   renderAudioReferenceList();
   updateCost();
@@ -2270,7 +2281,7 @@ function renderImageReferencePreview(){
       'ondragend="imageRefDragEnd()">'+
       '<img src="'+escapeHtml(item.url)+'" alt="'+escapeHtml(item.filename)+'">'+
       '<button type="button" class="remove-reference" onclick="removeImageReference(\''+escapeHtml(item.key)+'\',event)" title="Remove reference image">×</button>'+
-      '<div class="image-name">'+escapeHtml(item.filename)+'</div>'+
+      '<div class="image-name"><b class="mention-name">'+mentionToken('image',item.key)+'</b> '+escapeHtml(item.filename)+'</div>'+
     '</div>'
   ).join('')+(imageReferenceItems.length>1?'<div class="image-order-hint">Drag thumbnails to change the reference order.</div>':'');
 }
@@ -2305,7 +2316,9 @@ function removeImageReference(key,event){
   if(event){event.preventDefault();event.stopPropagation()}
   const index=imageReferenceItems.findIndex(item=>item.key===key);
   if(index<0)return;
+  const mentionsBefore=mentionMap('image');
   const [item]=imageReferenceItems.splice(index,1);
+  renumberMentions('image',mentionsBefore);
   if(item.kind!=='reused'&&item.url)URL.revokeObjectURL(item.url);
   renderImageReferencePreview();
 }
@@ -2315,11 +2328,13 @@ function moveImageReference(sourceKey,targetKey,after=false){
   const sourceIndex=imageReferenceItems.findIndex(item=>item.key===sourceKey);
   const targetIndex=imageReferenceItems.findIndex(item=>item.key===targetKey);
   if(sourceIndex<0||targetIndex<0)return;
+  const mentionsBefore=mentionMap('image');
   const [item]=imageReferenceItems.splice(sourceIndex,1);
   let insert=imageReferenceItems.findIndex(candidate=>candidate.key===targetKey);
   if(insert<0)insert=imageReferenceItems.length;
   if(after)insert+=1;
   imageReferenceItems.splice(Math.min(insert,imageReferenceItems.length),0,item);
+  renumberMentions('image',mentionsBefore);
   renderImageReferencePreview();
 }
 
@@ -3684,6 +3699,141 @@ async function boot(){
   }
 }
 boot();
+
+// ---- @ mentions -------------------------------------------------------------
+// Each attached reference has a name customers can use in the prompt:
+// @Image1, @Video1, @Audio1, numbered per type in the order the files are
+// listed (start/end frames have none: the model uses them as frames). Typing
+// @ in a prompt opens a list of the attached files; removing or reordering a
+// file renumbers the mentions already in the prompt. The names are sent as
+// written; the reference files go to the model in the same order.
+const MENTION_PROMPTS={video:'prompt',image:'imagePrompt'};
+const FRAME_ROLES=['start_image','end_image'];
+
+function mentionEntries(studio){
+  const out=[];
+  const add=(item,kind,n,thumb)=>out.push({key:item.key,kind,token:'@'+kind+n,filename:item.filename||'',thumb});
+  if(studio==='image'){
+    imageReferenceItems.forEach((item,i)=>add(item,'Image',i+1,item.url));
+    return out;
+  }
+  let n=0;
+  for(const item of referenceItems)if(!FRAME_ROLES.includes(item.role))add(item,'Image',++n,item.url);
+  videoReferenceItems.forEach((item,i)=>add(item,'Video',i+1,item.url));
+  audioReferenceItems.forEach((item,i)=>add(item,'Audio',i+1,null));
+  return out;
+}
+function mentionToken(studio,key){return mentionEntries(studio).find(e=>e.key===key)?.token||'';}
+function mentionsSupported(studio){
+  if(studio==='image')return normalizedClientCapabilities(currentImageModel(),'image').image.supported;
+  const c=normalizedClientCapabilities(currentVideoModel(),'video');
+  return (c.image.supported&&c.image.roles.some(r=>!FRAME_ROLES.includes(r)))||c.video.supported||c.audio.supported;
+}
+
+// Call with the names from before a change (mentionMap(studio)); mentions of
+// a moved file follow it, mentions of a removed file are taken out.
+function mentionMap(studio){return Object.fromEntries(mentionEntries(studio).map(e=>[e.token.toLowerCase(),e.key]));}
+function renumberMentions(studio,before){
+  const box=$(MENTION_PROMPTS[studio]);if(!box||!box.value.includes('@'))return;
+  const now=Object.fromEntries(mentionEntries(studio).map(e=>[e.key,e.token]));
+  // A removed mention takes one neighbouring space with it ("a @X b" → "a b", "@X b" → "b", "a @X." → "a.").
+  const next=box.value.replace(/(\s?)@(Image|Video|Audio)(\d+)\b( ?)/gi,(match,space,kind,n,trail)=>{
+    const key=before['@'+kind.toLowerCase()+n];
+    if(!key)return match;
+    if(now[key])return space+now[key]+trail;
+    return space&&trail?space:'';
+  });
+  if(next!==box.value){box.value=next;box.dispatchEvent(new Event('input',{bubbles:true}));}
+}
+
+let mentionState=null;
+function mentionMenu(){
+  let menu=$('mentionMenu');
+  if(!menu){
+    menu=document.createElement('div');
+    menu.id='mentionMenu';menu.className='mention-menu hide';menu.setAttribute('role','listbox');
+    menu.addEventListener('mousedown',e=>e.preventDefault());
+    document.body.appendChild(menu);
+  }
+  return menu;
+}
+function closeMentionMenu(){mentionState=null;mentionMenu().classList.add('hide');}
+
+// Pixel position of the caret in a textarea, from a mirror element with the same text layout.
+function caretPoint(box){
+  const style=getComputedStyle(box),mirror=document.createElement('div');
+  for(const p of ['boxSizing','width','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','wordSpacing','textIndent','tabSize'])mirror.style[p]=style[p];
+  Object.assign(mirror.style,{position:'absolute',visibility:'hidden',whiteSpace:'pre-wrap',overflowWrap:'break-word',top:'0',left:'-9999px'});
+  mirror.textContent=box.value.slice(0,box.selectionStart);
+  const mark=document.createElement('span');mark.textContent='​';mirror.appendChild(mark);
+  document.body.appendChild(mirror);
+  const r=box.getBoundingClientRect(),x=r.left+mark.offsetLeft-box.scrollLeft,y=r.top+mark.offsetTop-box.scrollTop+(parseFloat(style.lineHeight)||parseFloat(style.fontSize)*1.4);
+  mirror.remove();
+  return {x:Math.min(x,r.right-12),y:Math.min(y,r.bottom)};
+}
+
+function updateMentionMenu(studio){
+  const box=$(MENTION_PROMPTS[studio]);
+  if(!box||document.activeElement!==box||box.selectionStart!==box.selectionEnd){closeMentionMenu();return;}
+  const m=box.value.slice(0,box.selectionStart).match(/(^|[\s(\[{"'])@([A-Za-z]*\d*)$/);
+  if(!m||!mentionsSupported(studio)){closeMentionMenu();return;}
+  const query=m[2].toLowerCase(),all=mentionEntries(studio);
+  const items=all.filter(e=>!query||e.token.slice(1).toLowerCase().startsWith(query)||e.filename.toLowerCase().includes(query));
+  const keep=mentionState&&mentionState.studio===studio?mentionState.active:0;
+  mentionState={studio,start:box.selectionStart-m[2].length-1,items,active:Math.min(keep,Math.max(0,items.length-1))};
+  const menu=mentionMenu();
+  const icon=kind=>kind==='Video'?'▶':kind==='Audio'?'♪':'';
+  menu.innerHTML=items.length?items.map((e,i)=>
+    '<button type="button" role="option" class="mention-option'+(i===mentionState.active?' active':'')+'" aria-selected="'+(i===mentionState.active)+'" onclick="chooseMention('+i+')">'+
+      (e.thumb&&e.kind==='Image'?'<img src="'+escapeHtml(e.thumb)+'" alt="">':e.thumb&&e.kind==='Video'?'<video src="'+escapeHtml(e.thumb)+'" muted preload="metadata"></video>':'<span class="mention-icon">'+icon(e.kind)+'</span>')+
+      '<span class="mention-text"><strong>'+escapeHtml(e.token)+'</strong><small>'+escapeHtml(e.filename)+'</small></span>'+
+    '</button>').join('')
+    :'<div class="mention-empty">'+(all.length?'No reference matches “@'+escapeHtml(m[2])+'”.':'Attach reference images'+(studio==='video'?', videos or sound':'')+' above, then type @ to mention them.')+'</div>';
+  const p=caretPoint(box),width=Math.min(280,window.innerWidth-24);
+  menu.style.width=width+'px';
+  menu.style.left=Math.max(12,Math.min(p.x,window.innerWidth-width-12))+'px';
+  menu.classList.remove('hide');
+  const h=menu.offsetHeight;
+  menu.style.top=(p.y+6+h>window.innerHeight-8?Math.max(8,p.y-h-28):p.y+6)+'px';
+}
+
+function chooseMention(index){
+  const s=mentionState;if(!s)return;
+  const e=s.items[index];if(!e)return;
+  const box=$(MENTION_PROMPTS[s.studio]),end=box.selectionStart;
+  const after=box.value.slice(end),insert=e.token+(/^\s/.test(after)?'':' ');
+  box.value=box.value.slice(0,s.start)+insert+after;
+  const caret=s.start+insert.length;
+  box.setSelectionRange(caret,caret);
+  closeMentionMenu();
+  box.focus();
+  box.dispatchEvent(new Event('input',{bubbles:true}));
+}
+
+function setupPromptMentions(){
+  for(const [studio,id] of Object.entries(MENTION_PROMPTS)){
+    const box=$(id);if(!box||box.dataset.mentions)continue;
+    box.dataset.mentions='1';
+    box.setAttribute('aria-autocomplete','list');
+    const refresh=()=>updateMentionMenu(studio);
+    box.addEventListener('input',refresh);
+    box.addEventListener('click',refresh);
+    box.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key))refresh();});
+    box.addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==box)closeMentionMenu();},120));
+    box.addEventListener('scroll',()=>{if(mentionState)refresh();});
+    box.addEventListener('keydown',e=>{
+      const s=mentionState;if(!s||s.studio!==studio||mentionMenu().classList.contains('hide'))return;
+      if(e.key==='Escape'){e.preventDefault();closeMentionMenu();return;}
+      if(!s.items.length)return;
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();
+        s.active=(s.active+(e.key==='ArrowDown'?1:-1)+s.items.length)%s.items.length;
+        refresh();
+      }else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();chooseMention(s.active);}
+    });
+  }
+  window.addEventListener('resize',()=>{if(mentionState)updateMentionMenu(mentionState.studio);});
+}
 </script>
 <a class="wa-fab" href="https://wa.me/923000499907?text=Hi%20CMM%20Tools%2C%20I%20need%20help%20with%20" target="_blank" rel="noopener" aria-label="Chat with CMM Tools support on WhatsApp"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M16.04 3C9.03 3 3.33 8.69 3.33 15.7c0 2.24.59 4.43 1.7 6.36L3.2 28.8l6.9-1.8a12.67 12.67 0 0 0 5.94 1.5h.01c7 0 12.7-5.69 12.7-12.7 0-3.39-1.32-6.58-3.72-8.98A12.62 12.62 0 0 0 16.04 3Zm0 23.36h-.01c-1.89 0-3.75-.51-5.37-1.47l-.39-.23-4.09 1.07 1.09-3.99-.25-.41a10.53 10.53 0 0 1-1.62-5.62c0-5.82 4.74-10.56 10.57-10.56 2.82 0 5.47 1.1 7.46 3.1a10.48 10.48 0 0 1 3.09 7.47c0 5.83-4.74 10.57-10.48 10.64Zm5.79-7.91c-.32-.16-1.88-.93-2.17-1.03-.29-.11-.5-.16-.71.16-.21.32-.82 1.03-1 1.24-.18.21-.37.24-.69.08-.32-.16-1.34-.49-2.55-1.57-.94-.84-1.58-1.88-1.76-2.2-.18-.32-.02-.49.14-.65.14-.14.32-.37.48-.56.16-.18.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.71-1.71-.97-2.34-.26-.62-.52-.53-.71-.54h-.61c-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65s1.14 3.08 1.3 3.29c.16.21 2.24 3.42 5.43 4.8.76.33 1.35.52 1.81.67.76.24 1.45.21 2 .13.61-.09 1.88-.77 2.14-1.51.27-.74.27-1.38.19-1.51-.08-.13-.29-.21-.61-.37Z"/></svg><span>Chat with us</span></a>
 </body>
