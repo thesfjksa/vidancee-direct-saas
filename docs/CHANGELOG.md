@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 — MiniMax H3: reference video, and sound references fixed
+
+- Video Studio's MiniMax H3 (vgenv) takes one reference video (MP4, 2–15 s, 25 MB), on its own or with reference images and sound.
+- Sound references for MiniMax H3 were rejected by vgenv: 4 jobs on 17 October were refunded with "reference_audios.0.asset_id must match /^asset_…/". vgenv's API (api.vgenv.com/docs-json) takes sound and video only as uploaded Project Assets. The worker now uploads each sound clip and the video to vgenv (`POST /v1/assets/uploads`, PUT, `POST /v1/assets/{id}/complete`) and sends `reference_audios: [{asset_id}]` and `reference_video: {asset_id}`. The asset ids are saved on the job (`provider_operation.vgenvAssets`), so a resend after a restart repeats the same request without uploading again. Logged as `vgenv.assets_uploaded`.
+- MiniMax H3 now takes at most 2 sound clips (vgenv's limit, was 3), with a reference image or the reference video. `src/h3_audio.js` is now `src/h3_references.js`.
+
 ## 2026-10-17 — One upload box for references in Video Studio
 
 - Video Studio has one **References** upload box instead of separate image, video and sound boxes. It takes every kind the chosen model accepts (the file picker and the help text follow the model), and each file goes to its list below the box: images as thumbnails, videos and sound as rows. Drop a mix of files at once. Limits per kind are listed above the box.

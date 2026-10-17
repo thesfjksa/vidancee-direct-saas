@@ -652,10 +652,8 @@ class GenerationWorker {
     }
 
     let referenceImageUrls = [];
-    if (job.mode === 'image-to-video') {
-      if (imageCount < 1 || imageCount > 6) {
-        throw new Error('MiniMax H3 supports 1 to 6 reference images in this app.');
-      }
+    if (job.mode === 'image-to-video' && imageCount > 0) {
+      if (imageCount > 6) throw new Error('MiniMax H3 supports up to 6 reference images in this app.');
       const [images] = await db.execute(
         'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
         [job.id]
@@ -663,17 +661,13 @@ class GenerationWorker {
       referenceImageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
     }
 
-    // Sound clips (Video Studio only; always with reference images), served
-    // from generation_media through signed /provider-media links.
-    let referenceAudioUrls = [];
-    if (job.mode === 'image-to-video') {
-      const [audios] = await db.execute(
-        "SELECT position_index FROM generation_media WHERE generation_id=? AND media_kind='audio' ORDER BY position_index ASC",
-        [job.id]
-      );
-      if (Array.isArray(audios)) {
-        referenceAudioUrls = audios.map(a => providerAssetUrl(job.id, a.position_index).replace('/provider-assets/', '/provider-media/'));
-      }
+    // Sound clips and a reference video (Video Studio only) are uploaded to
+    // vgenv as assets. Their ids are saved on the job first, so a resend after
+    // a restart reuses them and repeats the same request (same idempotency key).
+    const { referenceAudioAssetIds, referenceVideoAssetId } = job.mode === 'image-to-video'
+      ? await this.vgenvAssets(db, job) : { referenceAudioAssetIds: [], referenceVideoAssetId: null };
+    if (job.mode === 'image-to-video' && !referenceImageUrls.length && !referenceVideoAssetId) {
+      throw new Error('MiniMax H3 needs a reference image or video for this job.');
     }
 
     const result = await this.vgenv.generateVideo({
@@ -683,7 +677,8 @@ class GenerationWorker {
       resolution: job.resolution === '480p' ? '480p' : '768p',
       aspectRatio: job.aspect_ratio,
       referenceImageUrls,
-      referenceAudioUrls,
+      referenceAudioAssetIds,
+      referenceVideoAssetId,
       idempotencyKey: 'mehroz-' + job.id,
     });
 
@@ -691,6 +686,33 @@ class GenerationWorker {
       "UPDATE generations SET provider='vgenv', status='submitted', provider_job_id=?, provider_cost=?, provider_cost_unit='usd', submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
       [result.id, result.price, job.id]
     );
+  }
+
+  // vgenv asset ids for a job's sound clips and reference video, uploading
+  // only the files not uploaded before (kept in provider_operation.vgenvAssets).
+  async vgenvAssets(db, job) {
+    const [rows] = await db.execute(
+      "SELECT position_index, media_kind, filename, mime_type, media_data FROM generation_media WHERE generation_id=? AND media_kind IN ('audio','video') ORDER BY position_index ASC",
+      [job.id]
+    );
+    const media = Array.isArray(rows) ? rows : [];
+    if (!media.length) return { referenceAudioAssetIds: [], referenceVideoAssetId: null };
+    let op = {};
+    try { op = JSON.parse(job.provider_operation || '{}') || {}; } catch {}
+    const saved = op.vgenvAssets && typeof op.vgenvAssets === 'object' ? { ...op.vgenvAssets } : {};
+    let uploaded = 0;
+    for (const row of media) {
+      const key = String(row.position_index);
+      if (saved[key]) continue;
+      saved[key] = await this.vgenv.uploadAsset({ data: row.media_data, mimeType: row.mime_type, fileName: row.filename || (row.media_kind + '-' + key) });
+      uploaded++;
+      await db.execute('UPDATE generations SET provider_operation=?, updated_at=UTC_TIMESTAMP() WHERE id=?', [JSON.stringify({ ...op, vgenvAssets: saved }), job.id]);
+    }
+    if (uploaded) logActivity({ category: 'provider', event: 'vgenv.assets_uploaded', userId: job.user_id, generationId: job.id, provider: 'vgenv', message: uploaded + ' reference file(s) uploaded to vgenv', details: { assets: saved } });
+    return {
+      referenceAudioAssetIds: media.filter(r => r.media_kind === 'audio').map(r => saved[String(r.position_index)]),
+      referenceVideoAssetId: media.filter(r => r.media_kind === 'video').map(r => saved[String(r.position_index)])[0] || null,
+    };
   }
 
   async submitCreatePulse(db, job, imageCount) {
