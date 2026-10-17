@@ -136,6 +136,7 @@ const {
   createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
 const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
+const { H3_AUDIO_CAPABILITY, validateH3Audio } = require('./src/h3_audio.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
@@ -497,7 +498,8 @@ function directVideoModels(access,providerSettings){
     label:m.label+' · up to '+Math.max(...m.durations.map(d=>d.seconds))+' s',
     defaultDuration:m.durations[0].seconds,
     aspectRatios:ASPECT_RATIOS,defaultAspectRatio:'9:16',
-    capabilities:{image:{supported:true,max:6,min:0,roles:['image_references'],requiredRoles:[]},video:{supported:false,max:0},audio:{supported:false,max:0}},
+    capabilities:{image:{supported:true,max:6,min:0,roles:['image_references'],requiredRoles:[]},video:{supported:false,max:0},
+      audio:m.id==='minimax_h3'?H3_AUDIO_CAPABILITY:{supported:false,max:0}},
   }));
 }
 function seedanceSourcesActive(access,providerSettings){
@@ -727,7 +729,10 @@ async function submitVideoGeneration(user,body,req=null){
         throw httpError(503,'This model is currently unavailable.');
       }
     }
-    generation=await createGenerationForUser(user.id,body,cartoonOptions?{generationOptions:cartoonOptions}:{});
+    // Video Studio's MiniMax H3 also takes sound clips (src/h3_audio.js).
+    const options=cartoonOptions?{generationOptions:cartoonOptions}
+      :requestedModel==='minimax_h3'?{validateAudio:validateH3Audio}:{};
+    generation=await createGenerationForUser(user.id,body,options);
   }
 
   wakeForNewWork(req);

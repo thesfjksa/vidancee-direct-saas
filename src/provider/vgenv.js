@@ -20,6 +20,12 @@ function extractPrice(value) {
   return null;
 }
 
+// Sound references for MiniMax H3. vgenv's docs could not be read when this
+// was added, so the field follows the shape of its reference_images. If vgenv
+// rejects or ignores it, change it here only (Admin -> Activity shows its reply).
+const AUDIO_FIELD = 'reference_audios';
+const audioItems = urls => urls.slice(0, 3).map(url => ({ type: 'audio_url', audio_url: { url } }));
+
 class VgenvClient {
   constructor({ baseUrl = 'https://api.vgenv.com', apiKey }) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
@@ -85,6 +91,7 @@ class VgenvClient {
     resolution = '768p',
     aspectRatio,
     referenceImageUrls = [],
+    referenceAudioUrls = [],
     idempotencyKey = null,
   }) {
     const body = {
@@ -102,6 +109,7 @@ class VgenvClient {
         image_url: { url },
       }));
     }
+    if (referenceAudioUrls.length) body[AUDIO_FIELD] = audioItems(referenceAudioUrls);
 
     const payload = await this.videoRequest('/videos', {
       method: 'POST',
@@ -138,4 +146,4 @@ class VgenvClient {
   }
 }
 
-module.exports = { VgenvClient };
+module.exports = { VgenvClient, AUDIO_FIELD };

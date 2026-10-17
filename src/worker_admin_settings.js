@@ -661,6 +661,19 @@ class GenerationWorker {
       referenceImageUrls = images.map(image => providerAssetUrl(job.id, image.position_index));
     }
 
+    // Sound clips (Video Studio only; always with reference images), served
+    // from generation_media through signed /provider-media links.
+    let referenceAudioUrls = [];
+    if (job.mode === 'image-to-video') {
+      const [audios] = await db.execute(
+        "SELECT position_index FROM generation_media WHERE generation_id=? AND media_kind='audio' ORDER BY position_index ASC",
+        [job.id]
+      );
+      if (Array.isArray(audios)) {
+        referenceAudioUrls = audios.map(a => providerAssetUrl(job.id, a.position_index).replace('/provider-assets/', '/provider-media/'));
+      }
+    }
+
     const result = await this.vgenv.generateVideo({
       prompt: providerPrompt(job),
       duration: Number(job.duration),
@@ -668,6 +681,7 @@ class GenerationWorker {
       resolution: job.resolution === '480p' ? '480p' : '768p',
       aspectRatio: job.aspect_ratio,
       referenceImageUrls,
+      referenceAudioUrls,
       idempotencyKey: 'mehroz-' + job.id,
     });
 
