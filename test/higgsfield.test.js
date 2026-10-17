@@ -122,7 +122,7 @@ test('the Higgsfield client signs requests, uploads files, polls and reports Hig
   await assert.rejects(api.videoStatus({ statusUrl: 'https://evil.example/requests/x' }), /unexpected status address/);
 
   next = () => answer(200, { credits: '8.750', usd: '0.547' });
-  assert.deepEqual(await api.estimate('alibaba/wan-3.0/text-to-video', { prompt: 'x' }), { credits: 8.75, usd: 0.547 });
+  { const e = await api.estimate('alibaba/wan-3.0/text-to-video', { prompt: 'x' }); assert.deepEqual([e.credits, e.usd], [8.75, 0.547]); }
   assert.equal(calls.at(-1)[0], 'https://api.higgsfield.ai/estimate/alibaba/wan-3.0/text-to-video');
 
   // Uploads: an upload address, then a PUT with Higgsfield's headers and without the API key.

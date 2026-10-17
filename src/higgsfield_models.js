@@ -67,9 +67,11 @@ async function fetchHiggsfieldTiers(estimate) {
   const tiers = [], seconds = 5;
   for (const resolution of RESOLUTIONS) {
     for (const audio of [false, true]) {
-      const result = await estimate(WAN_3.paths.t2v, { prompt: 'A calm lake at sunrise.', duration: seconds, resolution, aspect_ratio: '16:9', generate_audio: audio });
+      let result;
+      try { result = await estimate(WAN_3.paths.t2v, { prompt: 'A calm lake at sunrise.', duration: seconds, resolution, aspect_ratio: '16:9', generate_audio: audio }); }
+      catch (error) { throw Object.assign(new Error('Price estimate for ' + resolution + (audio ? ' with sound' : '') + ' failed: ' + error.message), { statusCode: error.statusCode || 502, providerStatus: error.providerStatus, detail: error.detail }); }
       const usd = Number(result?.usd);
-      if (!(usd > 0)) throw Object.assign(new Error('Higgsfield returned no price for Wan 3.0 at ' + resolution + '.'), { statusCode: 502 });
+      if (!(usd > 0)) throw Object.assign(new Error('Higgsfield returned no price for Wan 3.0 at ' + resolution + ' (answer: ' + JSON.stringify(result).slice(0, 200) + ').'), { statusCode: 502 });
       tiers.push({ resolution, audio, cost_per_second: usd / seconds });
     }
   }
