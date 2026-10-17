@@ -73,6 +73,7 @@ async function fetchHiggsfieldTiers(estimate) {
       const usd = Number(result?.usd);
       if (!(usd > 0)) throw Object.assign(new Error('Higgsfield returned no price for Wan 3.0 at ' + resolution + ' (answer: ' + JSON.stringify(result).slice(0, 200) + ').'), { statusCode: 502 });
       tiers.push({ resolution, audio, cost_per_second: usd / seconds });
+      if (typeof result?.raw?.pricing_description === 'string') tiers.description = result.raw.pricing_description.slice(0, 500);
     }
   }
   return tiers;

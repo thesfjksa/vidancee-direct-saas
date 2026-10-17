@@ -19,6 +19,14 @@ function statusUrl(value) {
   return url;
 }
 
+// USD per second for a resolution from a per-second price description, or null.
+function describedRate(text, resolution) {
+  if (!/per (generated |output |video )?second/i.test(text)) return null;
+  const rates = {};
+  for (const m of text.matchAll(/(\d{3,4}p)\s*(?:[:=-]\s*)?\$\s*(\d+(?:\.\d+)?)/gi)) rates[m[1].toLowerCase()] = Number(m[2]);
+  return rates[String(resolution || '').toLowerCase()] ?? null;
+}
+
 class HiggsfieldClient {
   // apiKey is "KEY_ID:KEY_SECRET", as Higgsfield Console shows the pair.
   constructor({ apiKey = '', fetchImpl = fetch } = {}) { this.apiKey = String(apiKey || '').trim(); this.fetch = fetchImpl; }
@@ -52,9 +60,18 @@ class HiggsfieldClient {
   }
 
   // {credits, usd} for a request, without charging.
+  // Most models answer with numbers. Some (Wan 3.0) answer with a price list
+  // instead: {"type":"description","pricing_description":"... per generated
+  // second by resolution: 480p $0.05, 720p $0.10, or 1080p $0.20 ..."}; then
+  // the price is that rate for the requested resolution times the duration.
   async estimate(path, input) {
     const r = await this.json(API_ORIGIN + '/estimate/' + path, { body: input, timeoutMs: 20000 });
-    return { credits: Number(r.credits), usd: Number(r.usd), raw: r };
+    let usd = Number(r.usd);
+    if (!(usd > 0) && typeof r.pricing_description === 'string') {
+      const rate = describedRate(r.pricing_description, input?.resolution);
+      if (rate > 0 && Number(input?.duration) > 0) usd = rate * Number(input.duration);
+    }
+    return { credits: Number(r.credits), usd, raw: r };
   }
 
   // Puts one input file in Higgsfield's storage and returns its public URL.
@@ -142,4 +159,4 @@ class HiggsfieldClient {
   }
 }
 
-module.exports = { HiggsfieldClient, UPLOAD_TYPES };
+module.exports = { HiggsfieldClient, UPLOAD_TYPES, describedRate };
