@@ -20,11 +20,15 @@ function extractPrice(value) {
   return null;
 }
 
-// Sound references for MiniMax H3. vgenv's docs could not be read when this
-// was added, so the field follows the shape of its reference_images. If vgenv
-// rejects or ignores it, change it here only (Admin -> Activity shows its reply).
-const AUDIO_FIELD = 'reference_audios';
-const audioItems = urls => urls.slice(0, 3).map(url => ({ type: 'audio_url', audio_url: { url } }));
+// Sound and video references are vgenv Project Assets (api.vgenv.com/docs-json):
+// POST /v1/assets/uploads {fileName, contentType, sizeBytes} → {asset: {id},
+// upload: {url, method: PUT, headers}}, PUT the bytes, then POST
+// /v1/assets/{id}/complete. A video request then names them by id:
+// reference_audios: [{asset_id}] (1-2, "Audio 1/2") and reference_video:
+// {asset_id} (one MP4). Reference images stay URLs.
+const ASSET_TYPES = { 'audio/mpeg': 'audio/mpeg', 'audio/mp3': 'audio/mpeg', 'audio/wav': 'audio/wav', 'audio/x-wav': 'audio/wav',
+  'audio/wave': 'audio/wav', 'audio/vnd.wave': 'audio/wav', 'video/mp4': 'video/mp4', 'image/jpeg': 'image/jpeg', 'image/png': 'image/png', 'image/webp': 'image/webp' };
+const ASSET_ID = /^asset_[a-zA-Z0-9_-]+$/;
 
 class VgenvClient {
   constructor({ baseUrl = 'https://api.vgenv.com', apiKey }) {
@@ -91,7 +95,8 @@ class VgenvClient {
     resolution = '768p',
     aspectRatio,
     referenceImageUrls = [],
-    referenceAudioUrls = [],
+    referenceAudioAssetIds = [],
+    referenceVideoAssetId = null,
     idempotencyKey = null,
   }) {
     const body = {
@@ -109,7 +114,8 @@ class VgenvClient {
         image_url: { url },
       }));
     }
-    if (referenceAudioUrls.length) body[AUDIO_FIELD] = audioItems(referenceAudioUrls);
+    if (referenceAudioAssetIds.length) body.reference_audios = referenceAudioAssetIds.slice(0, 2).map(asset_id => ({ asset_id }));
+    if (referenceVideoAssetId) body.reference_video = { asset_id: referenceVideoAssetId };
 
     const payload = await this.videoRequest('/videos', {
       method: 'POST',
@@ -126,6 +132,28 @@ class VgenvClient {
       price: extractPrice(payload),
       raw: payload,
     };
+  }
+
+  // Uploads one file as a vgenv Project Asset and returns its id once vgenv has confirmed it.
+  async uploadAsset({ data, mimeType, fileName = 'reference' }) {
+    const contentType = ASSET_TYPES[String(mimeType || '').toLowerCase()];
+    if (!contentType) throw new Error('vgenv does not take ' + (mimeType || 'this file type') + ' references.');
+    if (!Buffer.isBuffer(data) || !data.length) throw new Error('The reference file is empty.');
+    const created = await this.request('/v1/assets/uploads', { method: 'POST',
+      body: JSON.stringify({ fileName: String(fileName).slice(0, 255) || 'reference', contentType, sizeBytes: data.length }) });
+    const id = String(created?.asset?.id || ''), upload = created?.upload;
+    if (!ASSET_ID.test(id) || !upload?.url) throw new Error('vgenv returned no upload address.');
+    let put;
+    try {
+      // Only vgenv's own upload headers go to the storage address, never the API key.
+      put = await fetch(String(upload.url), { method: upload.method || 'PUT', body: data, redirect: 'error', signal: AbortSignal.timeout(180000),
+        headers: { ...(upload.headers && typeof upload.headers === 'object' ? upload.headers : {}) } });
+    } catch { throw Object.assign(new Error('The reference file could not be uploaded to vgenv.'), { retryable: true }); }
+    await put.body?.cancel?.().catch(() => {});
+    if (!put.ok) throw new Error('The reference file could not be uploaded to vgenv (HTTP ' + put.status + ').');
+    const done = await this.request('/v1/assets/' + encodeURIComponent(id) + '/complete', { method: 'POST' });
+    if (done?.status && done.status !== 'ready') throw new Error('vgenv did not accept the uploaded reference file (' + done.status + ').');
+    return id;
   }
 
   async getVideo(videoId) {
@@ -146,4 +174,4 @@ class VgenvClient {
   }
 }
 
-module.exports = { VgenvClient, AUDIO_FIELD };
+module.exports = { VgenvClient, ASSET_TYPES };

@@ -229,7 +229,10 @@ async function createGenerationForUser(userId, input, options = {}) {
     error.statusCode = 400;
     throw error;
   }
-  if (!options.dynamicModel && freshVideos.length) {
+  // Fixed-price models take sound and video only when the caller passes a
+  // validator (MiniMax H3, src/h3_references.js); it sees the files and the image count.
+  const staticMedia = !options.dynamicModel && typeof options.validateMedia === 'function';
+  if (!options.dynamicModel && freshVideos.length && !staticMedia) {
     const error = new Error('This model does not accept video references.');
     error.statusCode = 400;
     throw error;
@@ -239,15 +242,12 @@ async function createGenerationForUser(userId, input, options = {}) {
     error.statusCode = 400;
     throw error;
   }
-  // Fixed-price models take sound only when the caller passes a validator
-  // (MiniMax H3, src/h3_audio.js); it sees the clips and the image count.
-  const staticAudio = !options.dynamicModel && typeof options.validateAudio === 'function';
-  if (!options.dynamicModel && freshAudios.length && !staticAudio) {
+  if (!options.dynamicModel && freshAudios.length && !staticMedia) {
     const error = new Error('This model does not accept sound references.');
     error.statusCode = 400;
     throw error;
   }
-  if (staticAudio) options.validateAudio(freshAudios, freshImages.length + reuseImageIds.length);
+  if (staticMedia) options.validateMedia(freshAudios, freshVideos, freshImages.length + reuseImageIds.length);
   if (options.dynamicModel && audioRoles.length !== freshAudios.length) {
     const error = new Error('Sound reference roles do not match the uploaded files.');
     error.statusCode = 400;
@@ -501,16 +501,17 @@ async function createGenerationForUser(userId, input, options = {}) {
       }
     }
 
-    // Fixed-price sound clips go after the image positions, so their signed
-    // provider links never share a position with a reference image.
-    if (staticAudio) {
-      for (let i = 0; i < freshAudios.length; i += 1) {
-        const audio = freshAudios[i];
+    // Fixed-price sound clips and videos go after the image positions, so
+    // their signed provider links never share a position with a reference image.
+    if (staticMedia) {
+      const extra = [...freshAudios.map(f => ['audio', 'audio_references', f]), ...freshVideos.map(f => ['video', 'video_references', f])];
+      for (let i = 0; i < extra.length; i += 1) {
+        const [kind, role, file] = extra[i];
         await conn.execute(
           `INSERT INTO generation_media
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
-          [id, orderedImages.length + i, 'audio', 'audio_references', audio.filename, audio.mimeType, audio.data],
+          [id, orderedImages.length + i, kind, role, file.filename, file.mimeType, file.data],
         );
       }
     }

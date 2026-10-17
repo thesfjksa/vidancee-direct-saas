@@ -1149,6 +1149,7 @@ function normalizedClientCapabilities(model,mediaType){
       requiredRoles:[...new Set(requiredRoles)],
       maxBytes:Number(source.maxBytes||0),
       needsImage:source.needsImage===true,
+      formats:Array.isArray(source.formats)?source.formats.map(f=>String(f).toLowerCase()):[],
     };
   };
 
@@ -1285,13 +1286,14 @@ function renderVideoReferenceControls(modelChanged=false){
     const max=videoCap.max||1;
     required=required||videoCap.min>0||videoCap.requiredRoles.length>0;
     kinds.push('videos');
-    parts.push('Videos: up to '+max+' (MP4, WebM, MOV · 25 MB)');
+    const mp4Only=videoCap.formats.length&&videoCap.formats.every(f=>f==='mp4');
+    parts.push((max===1?'Video: 1':'Videos: up to '+max)+' ('+(mp4Only?'MP4':'MP4, WebM, MOV')+' · '+Math.round((videoCap.maxBytes||25*1024*1024)/1024/1024)+' MB)');
   }
   if(audioCap.supported){
     const max=audioCap.max||1;
     kinds.push('sound');
     parts.push('Sound: '+(audioCap.roles.includes('audio_track')?'1 file, drives the video or voices your reference video':
-      'up to '+max+(audioCap.needsImage?', 2–15 s each, with at least one image':'')+' (MP3, WAV · 15 MB)'));
+      'up to '+max+(audioCap.needsImage?', 2–15 s each, with an image'+(videoCap.supported?' or the video':''):'')+' (MP3, WAV · 15 MB)'));
   }
   $('videoReferencesBlock').classList.toggle('hide',!kinds.length);
   const list=kinds.length>1?kinds.slice(0,-1).join(', ')+' or '+kinds.at(-1):kinds[0]||'';
@@ -1302,7 +1304,7 @@ function renderVideoReferenceControls(modelChanged=false){
   $('videoReferenceDropHelp').textContent=(kinds.length>1?'Drop any mix of files here · ':'Drag files here · ')+'type @ in the prompt to mention them';
   $('referenceInput').accept=[
     imageCap.supported?'image/jpeg,image/png,image/webp':'',
-    videoCap.supported?'video/mp4,video/webm,video/quicktime':'',
+    videoCap.supported?(videoCap.formats.length&&videoCap.formats.every(f=>f==='mp4')?'video/mp4':'video/mp4,video/webm,video/quicktime'):'',
     audioCap.supported?'audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav':'',
   ].filter(Boolean).join(',');
 
@@ -1937,7 +1939,10 @@ function addVideoReferenceFiles(fileList){
     return;
   }
   const all=[...fileList];
-  const valid=all.filter(file=>['video/mp4','video/webm','video/quicktime'].includes(String(file.type||'').toLowerCase())&&file.size<=25*1024*1024);
+  // MiniMax H3 takes MP4 only; other models also take WebM and MOV.
+  const types=cap.formats.length&&cap.formats.every(f=>f==='mp4')?['video/mp4']:['video/mp4','video/webm','video/quicktime'];
+  const limit=cap.maxBytes||25*1024*1024;
+  const valid=all.filter(file=>types.includes(String(file.type||'').toLowerCase())&&file.size<=limit);
   const max=cap.max||1;
   const slots=Math.max(0,max-videoReferenceItems.length);
   for(const file of valid.slice(0,slots)){
@@ -1948,7 +1953,7 @@ function addVideoReferenceFiles(fileList){
 
   if(valid.length!==all.length){
     $('genMsg').className='msg err';
-    $('genMsg').textContent='Video references must be MP4, WebM or MOV and 25 MB or smaller.';
+    $('genMsg').textContent='Video references for this model must be '+(types.length===1?'MP4':'MP4, WebM or MOV')+' and '+Math.round(limit/1024/1024)+' MB or smaller.';
   }else if(valid.length>slots){
     $('genMsg').className='msg err';
     $('genMsg').textContent='This model accepts at most '+max+' video reference'+(max===1?'':'s')+'.';
@@ -2896,7 +2901,7 @@ function validateClientReferenceSelection(){
   if(videoReferenceItems.length&&!videoCap.supported)throw new Error('This model does not accept video references.');
   if(audioReferenceItems.length&&!caps.audio.supported)throw new Error('This model does not accept sound references.');
   if(caps.audio.max>0&&audioReferenceItems.length>caps.audio.max)throw new Error('This model accepts at most '+caps.audio.max+' sound references.');
-  if(caps.audio.needsImage&&audioReferenceItems.length&&!referenceItems.length)throw new Error('Add at least one reference image to use a sound reference with this model.');
+  if(caps.audio.needsImage&&audioReferenceItems.length&&!referenceItems.length&&!videoReferenceItems.length)throw new Error('Add a reference image'+(caps.video.supported?' or video':'')+' to use a sound reference with this model.');
   if(imageCap.max>0&&referenceItems.length>imageCap.max)throw new Error('This model accepts at most '+imageCap.max+' image references.');
   if(videoCap.max>0&&videoReferenceItems.length>videoCap.max)throw new Error('This model accepts at most '+videoCap.max+' video references.');
   if(imageCap.min>0&&referenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' image reference'+(imageCap.min===1?'':'s')+'.');
