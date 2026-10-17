@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-17 — Sound references for MiniMax H3
+
+- Video Studio's MiniMax H3 (vgenv) takes up to 3 sound clips (MP3 or WAV, 15 MB each, 2–15 s each), sent together with at least one reference image, as MiniMax requires. The rules are checked before credits are taken (`src/h3_audio.js`; WAV lengths are measured, MP3 lengths are left to vgenv). Clips are stored with the job (`generation_media`, kind `audio`, positions after the images) and handed to vgenv as signed `/provider-media` links. Prices are unchanged. Cartoon Studio and the Claude connector do not send sound.
+- vgenv's API docs could not be read when this was built. The request field (`reference_audios`, items `{type: "audio_url", audio_url: {url}}`, following vgenv's `reference_images`) is set in one place, `AUDIO_FIELD` in `src/provider/vgenv.js`. Check the first real job with sound in Admin → Activity; if vgenv rejects or ignores the field, change it there.
+
 ## 2026-10-15 — Comparison box on both pricing pages
 
 - The public Pricing page and the dashboard Plans page show a small "Compared with other platforms" box: four clips, our live price next to the cheapest other platform listed for that clip, and a link to `/compare`. It stays hidden if prices are unavailable, and an empty comparison is no longer cached.

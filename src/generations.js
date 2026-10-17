@@ -239,11 +239,15 @@ async function createGenerationForUser(userId, input, options = {}) {
     error.statusCode = 400;
     throw error;
   }
-  if (!options.dynamicModel && freshAudios.length) {
+  // Fixed-price models take sound only when the caller passes a validator
+  // (MiniMax H3, src/h3_audio.js); it sees the clips and the image count.
+  const staticAudio = !options.dynamicModel && typeof options.validateAudio === 'function';
+  if (!options.dynamicModel && freshAudios.length && !staticAudio) {
     const error = new Error('This model does not accept sound references.');
     error.statusCode = 400;
     throw error;
   }
+  if (staticAudio) options.validateAudio(freshAudios, freshImages.length + reuseImageIds.length);
   if (options.dynamicModel && audioRoles.length !== freshAudios.length) {
     const error = new Error('Sound reference roles do not match the uploaded files.');
     error.statusCode = 400;
@@ -494,6 +498,20 @@ async function createGenerationForUser(userId, input, options = {}) {
           [id, mediaPosition, 'audio', String(audioRoles[i] || ''), audio.filename, audio.mimeType, audio.data],
         );
         mediaPosition += 1;
+      }
+    }
+
+    // Fixed-price sound clips go after the image positions, so their signed
+    // provider links never share a position with a reference image.
+    if (staticAudio) {
+      for (let i = 0; i < freshAudios.length; i += 1) {
+        const audio = freshAudios[i];
+        await conn.execute(
+          `INSERT INTO generation_media
+           (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
+           VALUES (?,?,?,?,?,?,?)`,
+          [id, orderedImages.length + i, 'audio', 'audio_references', audio.filename, audio.mimeType, audio.data],
+        );
       }
     }
 
