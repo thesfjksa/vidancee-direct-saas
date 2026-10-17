@@ -56,7 +56,11 @@ class ArgoLinkQueue extends VercelQueue {
     }
     // Rendered at the source resolution when HD enhancement follows.
     const params = { ...options, resolution: options.sourceResolution || options.resolution };
-    if (isSeedance25(model) && this.fal() && this.credits?.isOut('argolink')) return this.renderOnFal(db, job, model, params, references, 'ArgoLink is out of credits.');
+    // fal's Seedance cannot fetch our signed links either, so fal also gets the
+    // files from ArgoLink's storage (uploads work while ArgoLink has no balance).
+    if (isSeedance25(model) && this.fal() && this.credits?.isOut('argolink')) {
+      return this.renderOnFal(db, job, model, params, await this.uploadReferences(db, job, client, model, references), 'ArgoLink is out of credits.');
+    }
     const uploaded = await this.uploadReferences(db, job, client, model, references);
     let requestBody = null;
     try { requestBody = client.videoBody?.(model, params, uploaded); } catch {}
@@ -67,7 +71,7 @@ class ArgoLinkQueue extends VercelQueue {
       if (!isSeedance25(model) || !looksOutOfCredits(error)) throw error;
       this.credits?.markOut('argolink');
       if (!this.fal()) throw error;
-      return this.renderOnFal(db, job, model, params, references, error.message);
+      return this.renderOnFal(db, job, model, params, uploaded, error.message);
     }
     this.log(job, 'argolink.accepted', 'ArgoLink request ' + requestId, { requestId });
     // The request id is saved before the first poll, so a restart resumes the
@@ -104,7 +108,7 @@ class ArgoLinkQueue extends VercelQueue {
         // If fal cannot take it either, the job is refunded below.
         if (this.fal()) {
           try { return await this.renderOnFal(db, job, options.model, { ...options, resolution: options.sourceResolution || options.resolution },
-            await this.references(db, job), error.message || 'ArgoLink is out of credits.'); }
+            await this.uploadReferences(db, job, client, options.model, await this.references(db, job)), error.message || 'ArgoLink is out of credits.'); }
           catch (falError) { this.log(job, 'fal.seedance_failed', 'fal.ai could not take the job: ' + falError.message, errorDetails(falError), 'error'); }
         }
       }

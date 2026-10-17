@@ -939,8 +939,10 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
     if (await connector.handle(req,res,url,routePath)) return;
 
+    // Reference files for providers. HEAD is answered too: some downloaders
+    // check a file with HEAD before fetching it (Node sends no body for HEAD).
     const providerAssetMatch=routePath.match(/^\/provider-assets\/([0-9a-f-]{36})\/(\d+)$/i);
-    if (req.method==='GET' && providerAssetMatch) {
+    if ((req.method==='GET'||req.method==='HEAD') && providerAssetMatch) {
       requireDatabase();
       const generationId=providerAssetMatch[1];
       const position=Number(providerAssetMatch[2]);
@@ -960,7 +962,7 @@ const server=http.createServer(async (req,res)=>{
       res.setHeader('content-length',image.image_data.length);
       res.setHeader('cache-control','private, max-age=300');
       res.setHeader('x-content-type-options','nosniff');
-      return res.end(image.image_data);
+      return res.end(req.method==='HEAD'?undefined:image.image_data);
     }
 
     // A finished video for the upscaler to download (signed link, no login).
@@ -981,14 +983,14 @@ const server=http.createServer(async (req,res)=>{
     }
 
     const providerMediaMatch=routePath.match(/^\/provider-media\/([0-9a-f-]{36})\/(\d+)$/i);
-    if(req.method==='GET'&&providerMediaMatch){
+    if((req.method==='GET'||req.method==='HEAD')&&providerMediaMatch){
       requireDatabase();
       const id=providerMediaMatch[1],position=Number(providerMediaMatch[2]);
       if(!verifyAssetSignature(id,position,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
       const [[media]]=await getPool().execute('SELECT mime_type,media_data FROM generation_media WHERE generation_id=? AND position_index=? LIMIT 1',[id,position]);
       if(!media)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
       res.writeHead(200,{'content-type':media.mime_type,'content-length':media.media_data.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});
-      return res.end(media.media_data);
+      return res.end(req.method==='HEAD'?undefined:media.media_data);
     }
 
     if (req.method==='GET' && routePath==='/live') {
