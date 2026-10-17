@@ -88,57 +88,31 @@
       <div class="create-layout">
         <aside class="creator">
           <div class="creator-head">
-            <div><strong>Create video</strong><div class="sub">Prompt + optional reference images</div></div>
+            <div><strong>Create video</strong><div class="sub">Prompt + optional references</div></div>
             <div class="kicker">Studio</div>
           </div>
 
           <div class="creator-scroll">
-            <div id="videoImageReferenceBlock" class="block">
-              <div id="videoImageReferenceTitle" class="block-title">Reference images</div>
-              <div id="videoImageReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
-              <input id="imageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="previewImages()">
-              <label id="refDrop" class="ref-drop" for="imageInput">
+            <div id="videoReferencesBlock" class="block">
+              <div id="videoReferenceTitle" class="block-title">References</div>
+              <div id="videoReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
+              <!-- One upload box: images, videos and sound each go to their own list. -->
+              <input id="referenceInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addAnyReferenceFiles(this.files);this.value=''">
+              <input id="imageInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
+              <input id="videoReferenceInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
+              <input id="audioReferenceInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
+              <label id="refDrop" class="ref-drop" for="referenceInput">
                 <div>
                   <div class="ref-icon">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
                   </div>
-                  <strong id="videoImageReferenceAction">Add visual references</strong>
-                  <span id="videoImageReferenceDropHelp">Optional · drag files here</span>
+                  <strong id="videoReferenceAction">Add references</strong>
+                  <span id="videoReferenceDropHelp">Optional · drag files here</span>
                 </div>
               </label>
-              <div id="imagePreview" class="image-preview"></div>
-            </div>
-
-            <div id="videoVideoReferenceBlock" class="block hide">
-              <div class="block-title">Video references</div>
-              <div id="videoVideoReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
-              <input id="videoReferenceInput" class="hide" type="file" accept="video/mp4,video/webm,video/quicktime" multiple onchange="addVideoReferenceFiles(this.files)">
-              <label id="videoRefDrop" class="ref-drop" for="videoReferenceInput">
-                <div>
-                  <div class="ref-icon">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>
-                  </div>
-                  <strong>Add video references</strong>
-                  <span id="videoVideoReferenceDropHelp">MP4, WebM or MOV</span>
-                </div>
-              </label>
-              <div id="videoReferenceList" class="video-reference-list"></div>
-            </div>
-
-            <div id="videoAudioReferenceBlock" class="block hide">
-              <div class="block-title">Sound references</div>
-              <div id="videoAudioReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
-              <input id="audioReferenceInput" class="hide" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" multiple onchange="addAudioReferenceFiles(this.files)">
-              <label id="audioRefDrop" class="ref-drop" for="audioReferenceInput">
-                <div>
-                  <div class="ref-icon">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                  </div>
-                  <strong>Add sound references</strong>
-                  <span id="videoAudioReferenceDropHelp">MP3 or WAV</span>
-                </div>
-              </label>
-              <div id="audioReferenceList" class="video-reference-list"></div>
+              <div id="videoImageReferenceBlock"><div id="imagePreview" class="image-preview"></div></div>
+              <div id="videoVideoReferenceBlock" class="hide"><div id="videoReferenceList" class="video-reference-list"></div></div>
+              <div id="videoAudioReferenceBlock" class="hide"><div id="audioReferenceList" class="video-reference-list"></div></div>
             </div>
 
             <div class="block">
@@ -1295,33 +1269,42 @@ function renderVideoReferenceControls(modelChanged=false){
   videoBlock.classList.toggle('hide',!videoCap.supported);
   $('videoAudioReferenceBlock').classList.toggle('hide',!audioCap.supported);
 
+  // One upload box for every kind the model takes; its title, help and the
+  // file picker's accepted types follow the model.
+  const kinds=[];
+  const parts=[];
+  let required=false;
   if(imageCap.supported){
     const max=imageCap.max||6;
-    const required=imageCap.min>0||imageCap.requiredRoles.length>0;
-    $('videoImageReferenceTitle').textContent=
-      imageCap.roles.length===1&&imageCap.roles[0]==='start_image'?'Start frame':
-      imageCap.roles.length===2&&imageCap.roles.includes('start_image')&&imageCap.roles.includes('end_image')?'Start / end frames':
-      'Reference images';
-    $('videoImageReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' image'+(max===1?'':'s');
-    $('videoImageReferenceDropHelp').textContent='JPEG, PNG or WebP · max '+max;
+    required=required||imageCap.min>0||imageCap.requiredRoles.length>0;
+    const framesOnly=imageCap.roles.every(r=>['start_image','end_image'].includes(r));
+    kinds.push(framesOnly?(imageCap.roles.includes('end_image')?'start/end frames':'a start frame'):'images');
+    parts.push((framesOnly?(imageCap.roles.includes('end_image')?'Frames':'Start frame'):'Images')+': up to '+max+' (JPEG, PNG, WebP)');
   }
-
   if(videoCap.supported){
     const max=videoCap.max||1;
-    const required=videoCap.min>0||videoCap.requiredRoles.length>0;
-    $('videoVideoReferenceNote').textContent=(required?'Required':'Optional')+' · up to '+max+' video'+(max===1?'':'s');
-    $('videoVideoReferenceDropHelp').textContent='MP4, WebM or MOV · max '+max+' · 25 MB each';
+    required=required||videoCap.min>0||videoCap.requiredRoles.length>0;
+    kinds.push('videos');
+    parts.push('Videos: up to '+max+' (MP4, WebM, MOV · 25 MB)');
   }
-
   if(audioCap.supported){
     const max=audioCap.max||1;
-    $('videoAudioReferenceNote').textContent=(audioCap.roles.includes('audio_track')
-      ?'Optional · 1 file · drives a text or start-frame video, or voices your reference video'
-      :audioCap.needsImage
-      ?'Optional · up to '+max+' sound clip'+(max===1?'':'s')+', 2–15 s each · needs at least one reference image'
-      :'Optional · up to '+max+' sound clip'+(max===1?'':'s')+' · type @ in the prompt to mention them');
-    $('videoAudioReferenceDropHelp').textContent='MP3 or WAV · max '+max+' · 15 MB each';
+    kinds.push('sound');
+    parts.push('Sound: '+(audioCap.roles.includes('audio_track')?'1 file, drives the video or voices your reference video':
+      'up to '+max+(audioCap.needsImage?', 2–15 s each, with at least one image':'')+' (MP3, WAV · 15 MB)'));
   }
+  $('videoReferencesBlock').classList.toggle('hide',!kinds.length);
+  const list=kinds.length>1?kinds.slice(0,-1).join(', ')+' or '+kinds.at(-1):kinds[0]||'';
+  $('videoReferenceTitle').textContent=kinds.length===1&&!imageCap.roles.includes('image_references')&&imageCap.supported&&!videoCap.supported&&!audioCap.supported
+    ?(imageCap.roles.includes('end_image')?'Start / end frames':'Start frame'):'References';
+  $('videoReferenceAction').textContent='Add '+list;
+  $('videoReferenceNote').textContent=(required?'Required':'Optional')+' · '+parts.join(' · ');
+  $('videoReferenceDropHelp').textContent=(kinds.length>1?'Drop any mix of files here · ':'Drag files here · ')+'type @ in the prompt to mention them';
+  $('referenceInput').accept=[
+    imageCap.supported?'image/jpeg,image/png,image/webp':'',
+    videoCap.supported?'video/mp4,video/webm,video/quicktime':'',
+    audioCap.supported?'audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav':'',
+  ].filter(Boolean).join(',');
 
   let changed=false;
   if(!imageCap.supported && referenceItems.length){
@@ -1879,6 +1862,22 @@ function previewImages(){
   addReferenceFiles($('imageInput').files);
 }
 
+// Files from the one upload box (picker or drop), sent to the list for their kind.
+function referenceFileKind(file){
+  const type=String(file.type||'').toLowerCase(),name=String(file.name||'').toLowerCase();
+  if(type.startsWith('image/'))return 'image';
+  if(type.startsWith('video/')||/\.(mp4|webm|mov)$/.test(name))return 'video';
+  if(type.startsWith('audio/')||/\.(mp3|wav)$/.test(name))return 'audio';
+  return 'image';
+}
+function addAnyReferenceFiles(fileList){
+  const files=[...(fileList||[])];
+  const of=kind=>files.filter(file=>referenceFileKind(file)===kind);
+  if(of('image').length)addReferenceFiles(of('image'));
+  if(of('video').length)addVideoReferenceFiles(of('video'));
+  if(of('audio').length)addAudioReferenceFiles(of('audio'));
+}
+
 function videoReferenceItem(file,role){
   return {
     key:'video-ref-'+(++videoReferenceSeq),
@@ -2089,7 +2088,7 @@ function setupReferenceDrop(){
       if(type==='drop' && event.dataTransfer?.files?.length){
         event.preventDefault();
         event.stopPropagation();
-        addReferenceFiles(event.dataTransfer.files);
+        addAnyReferenceFiles(event.dataTransfer.files);
       }
       drop.classList.remove('drag-over');
     });
