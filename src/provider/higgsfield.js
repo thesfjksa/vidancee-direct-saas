@@ -27,6 +27,15 @@ function describedRate(text, resolution) {
   return rates[String(resolution || '').toLowerCase()] ?? null;
 }
 
+// The presigned upload is signed over Higgsfield's own headers: send exactly
+// those (one Content-Type, whatever its case), or the storage answers 403.
+function uploadHeaders(given, type) {
+  const headers = {};
+  for (const [name, value] of Object.entries(given && typeof given === 'object' ? given : {})) headers[name.toLowerCase()] = String(value);
+  if (!headers['content-type']) headers['content-type'] = type;
+  return headers;
+}
+
 class HiggsfieldClient {
   // apiKey is "KEY_ID:KEY_SECRET", as Higgsfield Console shows the pair.
   constructor({ apiKey = '', fetchImpl = fetch } = {}) { this.apiKey = String(apiKey || '').trim(); this.fetch = fetchImpl; }
@@ -84,7 +93,7 @@ class HiggsfieldClient {
     try {
       // No Higgsfield credentials go to the presigned storage address.
       put = await this.fetch(String(u.upload_url), { method: 'PUT', body: data, redirect: 'error', signal: AbortSignal.timeout(120000),
-        headers: { 'content-type': type, ...(u.upload_headers && typeof u.upload_headers === 'object' ? u.upload_headers : {}) } });
+        headers: uploadHeaders(u.upload_headers, type) });
     } catch { throw Object.assign(new Error('The file could not be uploaded to Higgsfield.'), { retryable: true }); }
     await put.body?.cancel?.().catch(() => {});
     if (!put.ok) throw Object.assign(new Error('The file could not be uploaded to Higgsfield (HTTP ' + put.status + ').'), { retryable: put.status >= 500 });

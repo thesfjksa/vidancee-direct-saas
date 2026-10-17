@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 — Wan 3.0 (Higgsfield) reference video fixes
+
+- Three Wan 3.0 jobs on 17 October failed at Higgsfield ("Generation failed", refunded). All three were 30 s videos with a reference video; the 30 s jobs with only images completed. Wan 3.0 counts reference video time against its 30 s output, so a request is now refused before credits are taken when duration + reference video length is over 30 s, with the longest duration it can make.
+- Uploads to Higgsfield's storage were refused (HTTP 403) because Content-Type was sent twice in different case, breaking the presigned signature; references then went as the app's signed links. The upload now sends exactly Higgsfield's headers.
+- The `higgsfield.request` log entry shows each reference video's length and whether a file went through Higgsfield storage or a signed link.
+
 ## 2026-10-17 — MiniMax H3: reference video, and sound references fixed
 
 - Video Studio's MiniMax H3 (vgenv) takes one reference video (MP4, 2–15 s, 25 MB), on its own or with reference images and sound.
