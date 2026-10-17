@@ -1,6 +1,6 @@
 const { VercelQueue } = require('./vercel_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
-const { YottaQueue } = require('./yotta_queue.js');
+const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VidanceeClient } = require('./provider/vidancee.js');
@@ -64,8 +64,8 @@ class GenerationWorker {
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
     // Video Studio: Seedance 2.5 renders on fal.ai while ArgoLink is out of credits.
     this.argoLinkQueue = new ArgoLinkQueue({ credits });
-    // Video Studio: Wan 3.0 and Wan 2.7 on Yotta Labs.
-    this.yottaQueue = new YottaQueue();
+    // Video Studio: Wan 3.0 on the Higgsfield API.
+    this.higgsfieldQueue = new HiggsfieldQueue();
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -117,7 +117,7 @@ class GenerationWorker {
     this.stopped = false;
     this.vercelQueue.start();
     this.argoLinkQueue.start();
-    this.yottaQueue.start();
+    this.higgsfieldQueue.start();
     this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
@@ -130,7 +130,7 @@ class GenerationWorker {
     clearTimeout(this.smartImageTimer);
     this.vercelQueue.stop();
     this.argoLinkQueue.stop();
-    this.yottaQueue.stop();
+    this.higgsfieldQueue.stop();
     this.upscaleQueue.stop();
   }
 
@@ -544,10 +544,12 @@ class GenerationWorker {
     }
   }
 
-  // Atlas Cloud and Higgsfield were removed. Jobs still open on them can no
+  // Atlas Cloud and Yotta Labs were removed. Jobs still open on them can no
   // longer be followed, so they are refunded (once; refundGeneration is idempotent).
   async retireRemovedSources(db) {
-    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','higgsfield')
+    // Old Higgsfield (MCP) jobs were refunded when it was removed; 'higgsfield'
+    // is the Higgsfield API source again, so only Atlas and Yotta are retired here.
+    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','yotta')
       AND status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 50`);
     for (const row of rows) {
       await refundGeneration(row.id, 'failed', 'This generation source was retired. Credits were refunded.', null)

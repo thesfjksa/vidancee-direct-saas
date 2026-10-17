@@ -48,13 +48,13 @@ function argoVideoView(model, withFal, { hd = true } = {}) {
     defaultResolution: resolutions.includes('720p') ? '720p' : resolutions[0] || null };
 }
 
-// Yotta's Wan models in Video Studio: 480p is rendered natively; with fal,
-// 720p is rendered at 480p and 1080p at 720p, both upscaled to 1080p (HD
-// enhancement), which costs less than Yotta's own 720p/1080p. A model with no
-// 480p render (Wan 2.7) offers 720p natively. Without fal, every resolution
-// the model renders is offered as it is.
-const YOTTA_RESOLUTIONS = ['480p', '720p', '1080p'];
-function yottaPlan(nativeResolutions, display, withFal) {
+// Wan models in Video Studio (Higgsfield): 480p is rendered natively; with
+// fal, 720p is rendered at 480p and 1080p at 720p, both upscaled to 1080p (HD
+// enhancement), which costs less than the source's own 720p/1080p. A model with
+// no 480p render offers 720p natively. Without fal, every resolution the model
+// renders is offered as it is.
+const WAN_RESOLUTIONS = ['480p', '720p', '1080p'];
+function wanPlan(nativeResolutions, display, withFal) {
   const has = r => nativeResolutions.includes(r);
   if (display === '480p') return has('480p') ? { source: '480p', upscale: false } : null;
   if (display === '720p') {
@@ -68,16 +68,16 @@ function yottaPlan(nativeResolutions, display, withFal) {
   return null;
 }
 
-function yottaVideoView(model, withFal, { hd = true } = {}) {
+function wanVideoView(model, withFal, { hd = true } = {}) {
   if (model?.mediaType !== 'video') return model;
   const native = model.resolutions || [];
-  const plans = Object.fromEntries(YOTTA_RESOLUTIONS.map(d => [d, hd ? yottaPlan(native, d, withFal) : (native.includes(d) ? { source: d, upscale: false } : null)]).filter(([, p]) => p));
+  const plans = Object.fromEntries(WAN_RESOLUTIONS.map(d => [d, hd ? wanPlan(native, d, withFal) : (native.includes(d) ? { source: d, upscale: false } : null)]).filter(([, p]) => p));
   const resolutions = Object.keys(plans);
   return { ...model, nativeResolutions: native, resolutions, hdPlans: plans,
     defaultResolution: resolutions.includes('720p') ? '720p' : resolutions[0] || null };
 }
 
-// Price of an ArgoLink (or Yotta) video in Video Studio: the source's render at
+// Price of an ArgoLink (or Higgsfield) video in Video Studio: the source's render at
 // the source resolution, plus fal's upscale when one is needed.
 function quoteArgoVideo(model, body, settings, { hd = true, view: viewFor = argoVideoView, creditsPerUsd = settings.argoLinkCustomerCreditsPerUsd } = {}) {
   const withFal = falReady(settings);
@@ -101,4 +101,4 @@ function quoteArgoVideo(model, body, settings, { hd = true, view: viewFor = argo
     sourceUsd: render.sourceUsd + extraUsd, cost: render.cost + extraCredits, enhance };
 }
 
-module.exports = { DISPLAY_RESOLUTIONS, YOTTA_RESOLUTIONS, falReady, hdPlan, argoVideoView, yottaPlan, yottaVideoView, quoteArgoVideo };
+module.exports = { DISPLAY_RESOLUTIONS, WAN_RESOLUTIONS, falReady, hdPlan, argoVideoView, wanPlan, wanVideoView, quoteArgoVideo };

@@ -16,9 +16,9 @@ const DEFAULTS = {
   argolink_enabled: 'true',
   argolink_max_inflight: '3',
   argolink_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
-  yotta_api_key: '',
-  yotta_enabled: 'true',
-  yotta_max_inflight: '3',
+  higgsfield_api_key: '',
+  higgsfield_enabled: 'true',
+  higgsfield_max_inflight: '3',
   fal_api_key: '',
   fal_enabled: 'true',
   fal_max_inflight: '3',
@@ -155,10 +155,10 @@ async function getProviderSettings() {
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
     argoLinkCustomerCreditsPerUsd: CREDITS_PER_USD,
-    yottaApiKey: String(read('yotta_api_key') || '').trim(),
-    yottaEnabled: asBool(read('yotta_enabled')),
-    yottaMaxInflight: Math.max(1, Math.min(10, Number(read('yotta_max_inflight') || 3))),
-    yottaCustomerCreditsPerUsd: CREDITS_PER_USD,
+    higgsfieldApiKey: String(read('higgsfield_api_key') || '').trim(),
+    higgsfieldEnabled: asBool(read('higgsfield_enabled')),
+    higgsfieldMaxInflight: Math.max(1, Math.min(10, Number(read('higgsfield_max_inflight') || 3))),
+    higgsfieldCustomerCreditsPerUsd: CREDITS_PER_USD,
     falApiKey: String(read('fal_api_key') || '').trim(),
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
@@ -208,11 +208,11 @@ async function getAdminProviderSettings() {
       enabled: s.argoLinkEnabled, active: Boolean(s.argoLinkEnabled && s.argoLinkApiKey),
       maxInflight: s.argoLinkMaxInflight, customerCreditsPerUsd: s.argoLinkCustomerCreditsPerUsd,
     },
-    yotta: {
-      baseUrl: 'https://gateway.yottalabs.ai/api/maas',
-      apiKeyConfigured: Boolean(s.yottaApiKey), configured: Boolean(s.yottaApiKey),
-      enabled: s.yottaEnabled, active: Boolean(s.yottaEnabled && s.yottaApiKey),
-      maxInflight: s.yottaMaxInflight, customerCreditsPerUsd: s.yottaCustomerCreditsPerUsd,
+    higgsfield: {
+      baseUrl: 'https://api.higgsfield.ai',
+      apiKeyConfigured: Boolean(s.higgsfieldApiKey), configured: Boolean(s.higgsfieldApiKey),
+      enabled: s.higgsfieldEnabled, active: Boolean(s.higgsfieldEnabled && s.higgsfieldApiKey),
+      maxInflight: s.higgsfieldMaxInflight, customerCreditsPerUsd: s.higgsfieldCustomerCreditsPerUsd,
     },
     fal: {
       baseUrl: 'https://queue.fal.run',
@@ -326,17 +326,19 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('ArgoLink credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
     argoUpdates.push(['argolink_customer_credits_per_usd',String(n)]);
   }
-  const yottaUpdates=[];
-  if ('yottaEnabled' in input) {
-    if (typeof input.yottaEnabled !== 'boolean') throw Object.assign(new Error('Yotta enabled must be true or false.'), {statusCode:400});
-    yottaUpdates.push(['yotta_enabled',input.yottaEnabled?'true':'false']);
+  const higgsfieldUpdates=[];
+  if ('higgsfieldEnabled' in input) {
+    if (typeof input.higgsfieldEnabled !== 'boolean') throw Object.assign(new Error('Higgsfield enabled must be true or false.'), {statusCode:400});
+    higgsfieldUpdates.push(['higgsfield_enabled',input.higgsfieldEnabled?'true':'false']);
   }
-  if ('yottaApiKey' in input && (typeof input.yottaApiKey !== 'string' || input.yottaApiKey.length>512))
-    throw Object.assign(new Error('Invalid Yotta API key.'), {statusCode:400});
-  if ('yottaMaxInflight' in input) {
-    const n=Number(input.yottaMaxInflight);
-    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Yotta max inflight must be 1 to 10.'), {statusCode:400});
-    yottaUpdates.push(['yotta_max_inflight',String(n)]);
+  // Higgsfield credentials are a key ID and a secret, saved together as "ID:SECRET".
+  if ('higgsfieldApiKey' in input && (typeof input.higgsfieldApiKey !== 'string' || input.higgsfieldApiKey.length>512 ||
+    (input.higgsfieldApiKey.trim() && !/^[^\s:]+:[^\s:]+$/.test(input.higgsfieldApiKey.trim()))))
+    throw Object.assign(new Error('Enter the Higgsfield API key as KEY_ID:KEY_SECRET.'), {statusCode:400});
+  if ('higgsfieldMaxInflight' in input) {
+    const n=Number(input.higgsfieldMaxInflight);
+    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Higgsfield max inflight must be 1 to 10.'), {statusCode:400});
+    higgsfieldUpdates.push(['higgsfield_max_inflight',String(n)]);
   }
   if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
     throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
@@ -422,9 +424,9 @@ async function updateProviderSettings(input = {}) {
   if (input.clearArgoLinkApiKey===true) await del('argolink_api_key');
   else if (String(input.argoLinkApiKey||'').trim()) await put('argolink_api_key',input.argoLinkApiKey.trim(),true);
 
-  for (const [key,value] of yottaUpdates) await put(key,value);
-  if (input.clearYottaApiKey===true) await del('yotta_api_key');
-  else if (String(input.yottaApiKey||'').trim()) await put('yotta_api_key',input.yottaApiKey.trim(),true);
+  for (const [key,value] of higgsfieldUpdates) await put(key,value);
+  if (input.clearHiggsfieldApiKey===true) await del('higgsfield_api_key');
+  else if (String(input.higgsfieldApiKey||'').trim()) await put('higgsfield_api_key',input.higgsfieldApiKey.trim(),true);
 
   if ('routing' in input) {
     const routing = String(input.routing || '');
@@ -450,7 +452,7 @@ async function migrateLegacyProviderEnvSettings() {
   plain('vercel_enabled', 'AI_GATEWAY_ENABLED');
   plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
-  secret('yotta_api_key', 'YOTTA_API_KEY');
+  secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('fal_api_key', 'FAL_KEY');
   plain('vidancee_base_url', 'VIDANCEE_BASE_URL');
   plain('vidancee_email', 'VIDANCEE_EMAIL');

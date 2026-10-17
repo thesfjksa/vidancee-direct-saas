@@ -81,7 +81,7 @@ These names are operational details for the owner and developer. Customer genera
 | Studio | Sources |
 | --- | --- |
 | Video Studio | ArgoLink at 720p/1080p (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3); rendered lower and upscaled by fal.ai. Seedance 2.5 renders on fal.ai while ArgoLink is out of credits |
-| Video Studio (Wan 3.0, Wan 2.7) | Yotta Labs: 480p native; 720p/1080p rendered lower and upscaled by fal.ai. See `docs/YOTTA.md` |
+| Video Studio (Wan 3.0) | Higgsfield API: 480p native; 720p/1080p rendered lower and upscaled by fal.ai. See `docs/HIGGSFIELD.md` |
 | Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
 | Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
 | Upscaler and Video Studio HD enhancement | fal.ai (ByteDance Video Upscaler). See `docs/FAL_UPSCALER.md` |
@@ -97,7 +97,7 @@ Atlas Cloud and Higgsfield were removed on 12 October 2026; jobs still open on t
 | vgenv | MiniMax H3 video generation | Admin API key |
 | SmartAIPI | GPT image generation and reference edits | Admin API key and model pricing |
 | Vercel AI Gateway | Image Studio (its video models are no longer offered) | Admin API key, model eligibility and positive USD pricing |
-| Yotta Labs | Video Studio Wan 3.0 and Wan 2.7 | Admin API key; prices from Yotta's public catalog. See `docs/YOTTA.md` |
+| Higgsfield | Video Studio Wan 3.0 | Admin API key (KEY_ID:KEY_SECRET); prices from Higgsfield's estimates. See `docs/HIGGSFIELD.md` |
 | ArgoLink | Video Studio, and Image Studio backup when Vercel or SmartAIPI run out of credits | Admin API key and wallet balance; prices from ArgoLink's public catalog. See `docs/ARGOLINK.md` |
 | Vibi | Text-to-speech and MiniMax voice cloning | Admin API key |
 | Google Gemini | Optional image and video prompt enhancement in the web process | Admin API key |

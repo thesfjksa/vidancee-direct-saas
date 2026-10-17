@@ -3,12 +3,12 @@
 // Customers never see which companies run CMM Tools' models. Provider error
 // messages are passed through this before they reach a customer or Claude;
 // the activity log and Admin keep the real names.
-const VENDORS = /\b(?:Vercel\s+AI\s+Gateway|AI\s+Gateway|Vercel|ArgoLink|Argo\s*Link|Vidancee|CreatePulse|Create\s*Pulse|vgenv|SmartAIPI|Smart\s*AIPI|fal\.ai|fal|Vibi|Gemini|ByteDance|Alibaba\s+Cloud|aliyuncs?|Yotta\s*Labs|Yotta)\b/gi;
+const VENDORS = /\b(?:Vercel\s+AI\s+Gateway|AI\s+Gateway|Vercel|ArgoLink|Argo\s*Link|Vidancee|CreatePulse|Create\s*Pulse|vgenv|SmartAIPI|Smart\s*AIPI|fal\.ai|fal|Vibi|Gemini|ByteDance|Alibaba\s+Cloud|aliyuncs?|Yotta\s*Labs|Yotta|Higgsfield)\b/gi;
 
 function hideVendors(text) {
   if (typeof text !== 'string' || !text) return text;
   return text
-    .replace(/\b(?:CREATEPULSE|VIDANCEE|VGENV|ARGOLINK|SMARTAIPI|VERCEL|FAL|VIBI|GEMINI|YOTTA)_[A-Z_]+\b/g, 'service setting')
+    .replace(/\b(?:CREATEPULSE|VIDANCEE|VGENV|ARGOLINK|SMARTAIPI|VERCEL|FAL|VIBI|GEMINI|YOTTA|HIGGSFIELD)_[A-Z_]+\b/g, 'service setting')
     .replace(VENDORS, 'the generation service')
     .replace(/the generation service(?:\s+the generation service)+/gi, 'the generation service')
     .replace(/\b(?:the|a|an|our)\s+the generation service/gi, 'the generation service')

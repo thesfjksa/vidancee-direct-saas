@@ -1,6 +1,6 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
-const { yottaMediaModels, yottaReferenceCapabilities } = require('./yotta_models.js');
+const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
@@ -137,15 +137,13 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','yotta'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
-// Yotta rows saved before the family was stored get it from the model id, and
-// every row takes its reference rules from the current code.
-function yottaFields(row,options) {
-  const yotta={...(options.yotta||{}),family:options.yotta?.family||String(row.provider_model_id||'')};
-  const referenceCapabilities=yottaReferenceCapabilities(yotta);
-  return {yotta,referenceCapabilities,mediaRoles:referenceCapabilities.image.roles};
+// Higgsfield rows take their endpoints and reference rules from the current code.
+function higgsfieldFields(options) {
+  const referenceCapabilities=higgsfieldReferenceCapabilities();
+  return {higgsfield:higgsfieldMediaModels()[0].options.higgsfield,referenceCapabilities,mediaRoles:referenceCapabilities.image.roles};
 }
 
 function serializeProviderModel(row, { includeInternal = true } = {}) {
@@ -182,7 +180,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       supportsAudio:options.supportsAudio===true,
     }:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
-    ...(row.provider==='yotta'?yottaFields(row,options):{}),
+    ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -444,22 +442,28 @@ async function ensureArgoCatalog() {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_argolink_catalog_seed')");conn.release();}
 }
 
-// First start: Yotta's Wan models come from the bundled catalog snapshot until
-// an admin syncs the live catalog.
-async function ensureYottaCatalog() {
+// First start: Higgsfield's Wan 3.0 is listed but stays hidden until an admin
+// syncs its prices. Yotta Labs was replaced by Higgsfield; its model rows are
+// switched off so they are never listed or started again.
+async function ensureHiggsfieldCatalog() {
   const db=getPool();
   const conn=await db.getConnection();let locked=false;
   try {
-    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_yotta_catalog_seed',10) AS acquired");
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_higgsfield_catalog_seed',10) AS acquired");
     locked=Number(lock?.acquired)===1;if(!locked)return;
-    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='yotta'");
-    if(!Number(count.total))await syncProviderModels('yotta',yottaMediaModels(require('./provider/yotta_catalog.json')));
-  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_yotta_catalog_seed')");conn.release();}
+    await conn.query("UPDATE provider_models SET enabled=0,available=0 WHERE provider='yotta' AND (enabled=1 OR available=1)");
+    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='higgsfield'");
+    if(!Number(count.total)){
+      // Customer Sources switches saved for the earlier Higgsfield connection do not apply to this one.
+      await conn.query("DELETE FROM user_provider_access WHERE provider='higgsfield'");
+      await syncProviderModels('higgsfield',higgsfieldMediaModels());
+    }
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_higgsfield_catalog_seed')");conn.release();}
 }
 
 module.exports = {
   ensureArgoCatalog,
-  ensureYottaCatalog,
+  ensureHiggsfieldCatalog,
   isPricedSource,
   setGatewayPrice,
   ensureGatewayCatalog,

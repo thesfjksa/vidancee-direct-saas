@@ -34,7 +34,7 @@ test('usage combines provider balances with 30-day consumption from job records'
   const rows = await usage.providerUsage(db, settings, admin, { fetchImpl });
   const by = Object.fromEntries(rows.map(r => [r.key, r]));
   assert.equal(rows.length, 9);
-  assert.deepEqual(rows.map(r => r.key), ['argolink', 'yotta', 'vercel', 'smartaipi', 'vidancee', 'createpulse', 'vgenv', 'fal', 'vibi']);
+  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'vercel', 'smartaipi', 'vidancee', 'createpulse', 'vgenv', 'fal', 'vibi']);
   assert.deepEqual([by.argolink.balance.remaining, by.argolink.balance.unit], [12.34, 'USD']);
   assert.match(by.fal.balance.note, /does not report/);
   assert.equal(by.vidancee.balance.remaining, 318);
