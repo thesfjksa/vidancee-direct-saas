@@ -666,7 +666,12 @@ async function quoteHiggsfieldVideo(model,body,settings){
 async function syncHiggsfieldPrices(){
   const s=await getProviderSettings();
   const client=new HiggsfieldClient({apiKey:s.higgsfieldApiKey});
-  const tiers=await fetchHiggsfieldTiers((path,input)=>client.estimate(path,input));
+  let tiers;
+  try{tiers=await fetchHiggsfieldTiers((path,input)=>client.estimate(path,input));}
+  catch(error){
+    logActivity({level:'error',category:'admin',event:'higgsfield.prices_sync_failed',provider:'higgsfield',message:'Wan 3.0 prices could not be read: '+error.message,details:errorDetails(error)});
+    throw error;
+  }
   const models=await syncProviderModels('higgsfield',higgsfieldMediaModels(tiers));
   logActivity({category:'admin',event:'higgsfield.prices_synced',provider:'higgsfield',message:'Wan 3.0 prices synced from Higgsfield estimates',details:{tiers}});
   return {models,tiers};

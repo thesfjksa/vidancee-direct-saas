@@ -54,7 +54,7 @@ class HiggsfieldClient {
   // {credits, usd} for a request, without charging.
   async estimate(path, input) {
     const r = await this.json(API_ORIGIN + '/estimate/' + path, { body: input, timeoutMs: 20000 });
-    return { credits: Number(r.credits), usd: Number(r.usd) };
+    return { credits: Number(r.credits), usd: Number(r.usd), raw: r };
   }
 
   // Puts one input file in Higgsfield's storage and returns its public URL.
