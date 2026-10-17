@@ -319,7 +319,8 @@ test('Seedance 2.5 renders on fal.ai while ArgoLink is out of credits, then cont
   assert.equal(falSeedanceUsd(model('seedance-2.5'), { resolution: '480p', renderUsd: 5 * 0.0874 }).toFixed(4), (5 * 0.2205).toFixed(4));
 
   const writes = [], refunds = [], falCalls = [], marks = [];
-  const conn = { async execute(text, args) { writes.push([text.replace(/\s+/g, ' '), args]); if (text.includes('FOR UPDATE')) return [[{ status: 'processing', refunded_at: null }]]; return [{ affectedRows: 1 }]; },
+  const conn = { async execute(text, args) { writes.push([text.replace(/\s+/g, ' '), args]); if (text.includes('FOR UPDATE')) return [[{ status: 'processing', refunded_at: null }]];
+    if (text.includes('media_data FROM generation_media')) return [[{ position_index: 0, mime_type: 'image/png', media_data: Buffer.from('png') }]]; return [{ affectedRows: 1 }]; },
     beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {} };
   const db = { getConnection: async () => conn, execute: conn.execute };
   let falState = { state: 'pending' };
@@ -339,20 +340,26 @@ test('Seedance 2.5 renders on fal.ai while ArgoLink is out of credits, then cont
   const broke = { uploadMedia: async () => 'https://media.argolink.io/1.png', videoBody: () => ({}),
     startVideo: async () => { argoStarts++; throw Object.assign(new Error('ArgoLink has insufficient balance.'), { providerStatus: 402 }); } };
 
-  // ArgoLink refuses for balance: ArgoLink is marked out and the same request goes to fal with the app's signed links.
+  // ArgoLink refuses for balance: ArgoLink is marked out and the same request goes to fal, with the
+  // files from ArgoLink's storage (Seedance cannot fetch the app's signed links, on fal either).
   await queue.submit(db, job, broke);
   assert.deepEqual([argoStarts, marks], [1, ['argolink']]);
   assert.equal(falCalls[0][0], 'bytedance/seedance-2.5/reference-to-video');
-  assert.deepEqual(falCalls[0][1].image_urls, [ref('', '', 0).url]);
+  assert.deepEqual(falCalls[0][1].image_urls, ['https://media.argolink.io/1.png']);
   assert.equal(falCalls[0][1].resolution, '480p');
   const saved = writes.at(-1);
   assert.match(saved[0], /SET status='submitted',provider_operation=\?/);
   assert.deepEqual(JSON.parse(saved[1][0]), { stage: 'fal', fal: { requestId: 'f1', statusUrl: 'https://queue.fal.run/x/requests/f/status', responseUrl: 'https://queue.fal.run/x/requests/f' }, path: falCalls[0][0] });
   assert.equal(saved[1][2].toFixed(4), (5 * 0.2205 + 0.036).toFixed(4));
 
-  // While ArgoLink is marked out, the next Seedance 2.5 job skips it.
+  // While ArgoLink is marked out, the next Seedance 2.5 job skips it (its files are still uploaded).
   await queue.submit(db, job, broke);
   assert.deepEqual([argoStarts, falCalls.length], [1, 2]);
+  assert.deepEqual(falCalls[1][1].image_urls, ['https://media.argolink.io/1.png']);
+  // If the upload fails, fal gets the signed links rather than no job at all.
+  await queue.submit(db, job, { ...broke, uploadMedia: async () => { throw new Error('upload down'); } });
+  assert.deepEqual(falCalls[2][1].image_urls, [ref('', '', 0).url]);
+  falCalls.pop();
 
   // Other models keep ArgoLink's refusal (the job is refunded as before), and without fal so does Seedance 2.5.
   out = false;
@@ -366,9 +373,10 @@ test('Seedance 2.5 renders on fal.ai while ArgoLink is out of credits, then cont
 
   // A job ArgoLink fails later for lack of balance moves to fal too.
   out = false; marks.length = 0;
-  const lateFail = { videoStatus: async () => ({ status: 'failed', error: { code: 'insufficient_balance', message: 'Wallet balance too low.', retryable: true } }) };
+  const lateFail = { uploadMedia: broke.uploadMedia, videoStatus: async () => ({ status: 'failed', error: { code: 'insufficient_balance', message: 'Wallet balance too low.', retryable: true } }) };
   await queue.pollJob(db, lateFail, { ...job, status: 'submitted', provider_operation: JSON.stringify({ requestId: 'r1' }) });
   assert.deepEqual([marks, falCalls.length, refunds.length], [['argolink'], 3, 0]);
+  assert.deepEqual(falCalls[2][1].image_urls, ['https://media.argolink.io/1.png']);
 
   // If fal refuses that job too, it is refunded instead of being retried on every poll.
   const refusing = { ...fal, submit: async () => { throw new Error('fal.ai has insufficient balance.'); } };

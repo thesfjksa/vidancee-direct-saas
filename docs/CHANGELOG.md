@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-17 — Seedance 2.5 on fal.ai gets reference files from ArgoLink storage
+
+- Every Seedance 2.5 job with reference files that went to fal.ai while ArgoLink was out of credits failed ("Failed to download the file", 6 of 6 since 15 October; prompt-only jobs worked). fal's Seedance could not fetch the app's signed `/provider-media` links, the same problem ArgoLink's Seedance had. The files are now uploaded to ArgoLink's storage first (this works while ArgoLink has no balance) and those links are sent to fal; if the upload fails, the signed links are sent as before. HD enhancement is unchanged.
+- `/provider-assets` and `/provider-media` answer HEAD requests (headers, no body); they returned 404 before.
+
 ## 2026-10-17 — Sound references for MiniMax H3
 
 - Video Studio's MiniMax H3 (vgenv) takes up to 3 sound clips (MP3 or WAV, 15 MB each, 2–15 s each), sent together with at least one reference image, as MiniMax requires. The rules are checked before credits are taken (`src/h3_audio.js`; WAV lengths are measured, MP3 lengths are left to vgenv). Clips are stored with the job (`generation_media`, kind `audio`, positions after the images) and handed to vgenv as signed `/provider-media` links. Prices are unchanged. Cartoon Studio and the Claude connector do not send sound.
