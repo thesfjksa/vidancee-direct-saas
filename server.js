@@ -673,7 +673,7 @@ async function syncHiggsfieldPrices(){
     throw error;
   }
   const models=await syncProviderModels('higgsfield',higgsfieldMediaModels(tiers));
-  logActivity({category:'admin',event:'higgsfield.prices_synced',provider:'higgsfield',message:'Wan 3.0 prices synced from Higgsfield estimates',details:{tiers}});
+  logActivity({category:'admin',event:'higgsfield.prices_synced',provider:'higgsfield',message:'Wan 3.0 prices synced from Higgsfield estimates',details:{tiers,description:tiers.description||null}});
   return {models,tiers};
 }
 async function quoteArgoStudioVideo(model,body,settings){

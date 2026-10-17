@@ -125,6 +125,20 @@ test('the Higgsfield client signs requests, uploads files, polls and reports Hig
   { const e = await api.estimate('alibaba/wan-3.0/text-to-video', { prompt: 'x' }); assert.deepEqual([e.credits, e.usd], [8.75, 0.547]); }
   assert.equal(calls.at(-1)[0], 'https://api.higgsfield.ai/estimate/alibaba/wan-3.0/text-to-video');
 
+  // Wan 3.0 answers estimates with a price list rather than numbers (seen live, 17 October 2026).
+  const listed = { type: 'description', pricing_description: 'Billed per generated second by resolution: 480p $0.05, 720p $0.10, or 1080p $0.20. Rates shown are before any applicable credits.' };
+  next = () => answer(200, listed);
+  for (const [resolution, usd] of [['480p', 0.25], ['720p', 0.5], ['1080p', 1]]) {
+    const e = await api.estimate('alibaba/wan-3.0/text-to-video', { prompt: 'x', duration: 5, resolution });
+    assert.equal(e.usd.toFixed(4), usd.toFixed(4), resolution);
+  }
+  const tiers = await fetchHiggsfieldTiers((path, input) => api.estimate(path, input));
+  assert.deepEqual(tiers.filter(t => !t.audio).map(t => [t.resolution, +t.cost_per_second.toFixed(4)]), [['480p', 0.05], ['720p', 0.1], ['1080p', 0.2]]);
+  assert.match(tiers.description, /per generated second/);
+  // A description without per-second rates gives no price.
+  next = () => answer(200, { type: 'description', pricing_description: 'Priced per request.' });
+  assert.ok(!((await api.estimate('alibaba/wan-3.0/text-to-video', { prompt: 'x', duration: 5, resolution: '480p' })).usd > 0));
+
   // Uploads: an upload address, then a PUT with Higgsfield's headers and without the API key.
   next = url => url.endsWith('/files/generate-upload-url')
     ? answer(200, { public_url: 'https://cdn.higgsfield.example/in.png', upload_url: 'https://storage.example/put', upload_headers: { 'Content-Type': 'image/png', 'x-amz-tagging': 'retention=temporary' } })
