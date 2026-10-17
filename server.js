@@ -436,6 +436,17 @@ async function enableVoiceForCustomersOnce(){
   logActivity({category:'admin',event:'voice_access.default_on',message:'Voice Studio turned on for '+count+' customer(s) who had it off under the old default'});
   return count;
 }
+// Wan 3.0 on Higgsfield for every customer (17 October 2026): switches left
+// off for Higgsfield are cleared once; the admin can turn it off again per customer.
+const HIGGSFIELD_ALL_ON_SETTING='higgsfield_access_all_on_at';
+async function enableHiggsfieldForCustomersOnce(){
+  if(await getSettingValue(HIGGSFIELD_ALL_ON_SETTING,''))return 0;
+  const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='higgsfield' AND enabled=0");
+  await setSettingValue(HIGGSFIELD_ALL_ON_SETTING,new Date().toISOString());
+  const count=Number(result?.affectedRows||0);
+  logActivity({category:'admin',event:'higgsfield_access.all_on',message:'Higgsfield (Wan 3.0) turned on for every customer; '+count+' had it off'});
+  return count;
+}
 async function getUserProviderAccess(userId){
   const access=defaultCustomerProviderAccess();
   if(!userId||!dbConfigured())return access;
@@ -2192,6 +2203,7 @@ function bootstrap() {
       const migrated=await migrateLegacyProviderEnvSettings();
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
+      await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
