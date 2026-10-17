@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-17 — One upload box for references in Video Studio
+
+- Video Studio has one **References** upload box instead of separate image, video and sound boxes. It takes every kind the chosen model accepts (the file picker and the help text follow the model), and each file goes to its list below the box: images as thumbnails, videos and sound as rows. Drop a mix of files at once. Limits per kind are listed above the box.
+
 ## 2026-10-17 — Wan 3.0 (Higgsfield) for every customer
 
 - On its next start the web app turns Higgsfield on for every customer once: Sources switches left off for Higgsfield are cleared (`higgsfield_access_all_on_at`, logged as `higgsfield_access.all_on`). New customers have it on by default; the admin can still turn it off per customer.
