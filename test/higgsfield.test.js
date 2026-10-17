@@ -257,3 +257,16 @@ test('the Higgsfield key is saved as KEY_ID:KEY_SECRET', async () => {
   await assert.rejects(settings.updateProviderSettings({ higgsfieldApiKey: 'only-one-part' }), /KEY_ID:KEY_SECRET/);
   await assert.rejects(settings.updateProviderSettings({ higgsfieldApiKey: 'a b:c' }), /KEY_ID:KEY_SECRET/);
 });
+
+test('Higgsfield is switched on for every customer once', async () => {
+  const src = require('fs').readFileSync(require.resolve('../server.js'), 'utf8');
+  const fn = src.slice(src.indexOf('async function enableHiggsfieldForCustomersOnce'), src.indexOf('async function getUserProviderAccess'));
+  const store = new Map(), sql = [], logs = [];
+  const run = new Function('getSettingValue', 'setSettingValue', 'getPool', 'logActivity', 'HIGGSFIELD_ALL_ON_SETTING', fn + '; return enableHiggsfieldForCustomersOnce();');
+  const deps = [async k => store.get(k) || '', async (k, v) => store.set(k, v), () => ({ execute: async q => { sql.push(q); return [{ affectedRows: 3 }]; } }), e => logs.push(e), 'higgsfield_access_all_on_at'];
+  assert.equal(await run(...deps), 3);
+  assert.match(sql[0], /DELETE FROM user_provider_access WHERE provider='higgsfield' AND enabled=0/);
+  assert.equal(await run(...deps), 0); // only once
+  assert.equal(sql.length, 1);
+  assert.match(logs[0].message, /3 had it off/);
+});

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-17 — Wan 3.0 (Higgsfield) for every customer
+
+- On its next start the web app turns Higgsfield on for every customer once: Sources switches left off for Higgsfield are cleared (`higgsfield_access_all_on_at`, logged as `higgsfield_access.all_on`). New customers have it on by default; the admin can still turn it off per customer.
+
 ## 2026-10-17 — @ mentions for reference files in prompts
 
 - In Video Studio and Image Studio, every attached reference has a name: @Image1, @Video1, @Audio1, numbered per type in list order (start/end frames have none). Each thumbnail and row shows its name.
