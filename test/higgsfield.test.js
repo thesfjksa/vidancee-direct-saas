@@ -146,6 +146,9 @@ test('the Higgsfield client signs requests, uploads files, polls and reports Hig
   assert.equal(await api.upload({ data: Buffer.from('png'), mimeType: 'image/png' }), 'https://cdn.higgsfield.example/in.png');
   const put = calls.at(-1);
   assert.deepEqual([put[0], put[1], put[2]['x-amz-tagging'], 'authorization' in put[2]], ['https://storage.example/put', 'PUT', 'retention=temporary', false]);
+  // Exactly one Content-Type, as signed (a second one in other case made the storage answer 403).
+  assert.deepEqual(Object.keys(put[2]).filter(k => k.toLowerCase() === 'content-type'), ['content-type']);
+  assert.equal(new Headers(put[2]).get('content-type'), 'image/png');
   await assert.rejects(api.upload({ data: Buffer.from('mp3'), mimeType: 'audio/mpeg' }), /does not take audio\/mpeg/);
 
   // Errors, as Higgsfield documents them.
@@ -175,6 +178,10 @@ test('reference rules: frames do not mix with reference files, and clip lengths 
   assert.throws(() => validateHiggsfieldReferences(w3, { referenceOrder: order(['start_image']), videos: [mp4(5)] }, { mp4Seconds }), /either start\/end frames/);
   assert.throws(() => validateHiggsfieldReferences(w3, { videos: [mp4(20), mp4(11)] }, { mp4Seconds }), /30 seconds long in total/);
   assert.throws(() => validateHiggsfieldReferences(w3, { videos: [mp4(0.5)] }, { mp4Seconds }), /at least 1 second/);
+  // Reference video time counts against Wan 3.0's 30 s (30 s + a video failed on Higgsfield, 17 October).
+  assert.throws(() => validateHiggsfieldReferences(w3, { duration: 30, videos: [mp4(8)] }, { mp4Seconds }), /runs 8 s, so Wan 3\.0 can make up to 22 s/);
+  validateHiggsfieldReferences(w3, { duration: 22, videos: [mp4(8)] }, { mp4Seconds });
+  validateHiggsfieldReferences(w3, { duration: 30 }, { mp4Seconds });
   // Counts and formats come from the shared check.
   const img = { mimeType: 'image/png', data: Buffer.from('x') };
   assert.throws(() => validateReferences(w3, { images: Array(11).fill(img), referenceOrder: order(Array(11).fill('image_references')) }), /too many files/);

@@ -22,7 +22,8 @@ const VIDEO_BYTES = 25 * 1024 * 1024;
 const AUDIO_BYTES = 15 * 1024 * 1024;
 // Higgsfield's Wan 3.0 reference route: up to 10 images, 5 videos (1-30 s each,
 // 30 s in total) and 5 sound clips (WAV or MP3, 30 s in total), cited as
-// @Image1, @Video1, @Audio1 in the prompt. Its frame route takes a start frame
+// @Image1, @Video1, @Audio1 in the prompt; reference video time counts against
+// the 30 s output. Its frame route takes a start frame
 // and an optional end frame, and no other files.
 const REFERENCES = { images: 10, videos: 5, audios: 5, videoSeconds: 30, audioSeconds: 30, clipMinSeconds: 1 };
 
@@ -99,6 +100,12 @@ function validateHiggsfieldReferences(model, body = {}, { mp4Seconds = () => nul
     if (lengths.some(s => s != null && s < r.clipMinSeconds - 0.05)) refFail('Each reference video must be at least 1 second long.');
     const total = lengths.reduce((sum, s) => sum + (s ?? 0), 0);
     if (total > r.videoSeconds + 0.05) refFail('Reference videos can be ' + r.videoSeconds + ' seconds long in total for this model.');
+    // Wan 3.0 counts reference video time against its 30 s: a 30 s video with
+    // any reference video failed on Higgsfield ("Generation failed", 17 October).
+    const duration = Number(body.duration), max = Math.max(...(model.durations || [30]));
+    if (total > 0 && duration + total > max + 0.05) {
+      refFail('Your reference video' + (videos.length > 1 ? 's run ' : ' runs ') + Math.ceil(total) + ' s, so Wan 3.0 can make up to ' + Math.max(0, Math.floor(max - total)) + ' s with it. Choose a shorter duration or a shorter reference video.');
+    }
   }
   if (audios.length) {
     const total = audios.reduce((sum, a) => sum + (wavSeconds(a?.data) ?? 0), 0);

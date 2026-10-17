@@ -8,6 +8,7 @@ const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { savedOptions } = require('./vercel_queue.js');
 const { HiggsfieldClient, UPLOAD_TYPES } = require('./provider/higgsfield.js');
 const { errorDetails } = require('./activity_log.js');
+const { mp4Seconds } = require('./vercel_models.js');
 
 class HiggsfieldQueue extends ArgoLinkQueue {
   constructor(options = {}) {
@@ -28,8 +29,11 @@ class HiggsfieldQueue extends ArgoLinkQueue {
     if (!Array.isArray(rows) || rows.length !== references.length) return references;
     const out = [];
     let uploaded = 0;
-    for (const [i, ref] of references.entries()) {
+    for (const [i, original] of references.entries()) {
       const row = rows[i];
+      // Reference video lengths go in the request log entry.
+      const seconds = String(row.mime_type || '').startsWith('video/') ? mp4Seconds(row.media_data) : null;
+      const ref = seconds == null ? original : { ...original, seconds: Math.round(seconds * 10) / 10 };
       if (!UPLOAD_TYPES.includes(String(row.mime_type || '').toLowerCase())) { out.push(ref); continue; }
       try { out.push({ ...ref, url: await client.upload({ data: row.media_data, mimeType: row.mime_type }) }); uploaded++; }
       catch (error) {
@@ -50,7 +54,7 @@ class HiggsfieldQueue extends ArgoLinkQueue {
     let request = null;
     try { request = client.videoRequest?.(model, params, references); } catch {}
     this.log(job, 'higgsfield.request', 'POST /' + (request?.path || '?') + ' · ' + params.resolution,
-      { input: request?.input, references: references.map(r => ({ role: r.role, mimeType: r.mimeType })) });
+      { input: request?.input, references: references.map(r => ({ role: r.role, mimeType: r.mimeType, ...(r.seconds != null ? { seconds: r.seconds } : {}), storage: /cmmtools\.site\//.test(r.url) ? 'signed link' : 'higgsfield' })) });
     // The job id as idempotency key: a resend after a lost answer returns the same request.
     const op = await client.startVideo(model, params, references, 'cmm-' + job.id);
     this.log(job, 'higgsfield.accepted', 'Higgsfield request ' + op.requestId, op);
