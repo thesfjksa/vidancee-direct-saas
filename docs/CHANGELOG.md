@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-20 — Price previews checked against charges for every model
+
+- Every model's price shown before generating was compared with what the job charges (Video, Image, Cartoon, Voice and Upscaler studios, and Claude's estimate_cost). Three gaps remained; the rest already priced both from the same function.
+- Video Studio reference videos: the page read a clip's length from the video player, the server from the MP4 header. When they disagree (a fragmented MP4 has no length in its header, so it is charged as the longest allowed clip) the preview was lower than the charge. The page now reads the same header the same way.
+- Upscaler uploads: the same change for the uploaded clip's length and size, which set the upscale price (whole seconds, rounded up).
+- Image Studio: a page opened before AI Gateway or SmartAIPI ran out of credits still showed that source's price, but the job went to ArgoLink at ArgoLink's price. It now costs the price shown, as a job already moved by the worker does. ArgoLink's price applies only if the first source cannot price the request.
+
 ## 2026-10-20 — Price preview includes reference video seconds
 
 - A customer reported Seedance 2.5 charging more than the price shown before generating. ArgoLink bills each reference video's length on top of the output (at 0.6x per second), and the charge included it, but the preview never sent the reference videos, so it showed the price without them (19 October: 15 s with 2 reference videos, charged 10,912 credits). Video Studio now reads each reference video's length in the browser and sends it with the price request (`previewVideoSeconds`), so the preview matches the charge. Jobs are still priced from the uploaded files; preview lengths are ignored on submit.

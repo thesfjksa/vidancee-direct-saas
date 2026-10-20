@@ -782,10 +782,17 @@ async function submitImageGeneration(user,body,req=null){
   // AI Gateway and SmartAIPI come first; while one is out of credits its
   // models run on the same ArgoLink model instead.
   const firstSource=isGatewayModel(requestedModel)?'vercel':smartImageModel(requestedModel)?'smartaipi':null;
+  let shownCost;
   if(firstSource){
-    const label=firstSource==='vercel'?(await getProviderModelByPublicId('vercel',requestedModel,'image'))?.label:smartImageModel(requestedModel).label;
-    const swap=await submissionFailover(getPool(),{source:firstSource,label,body,settings:providerSettings,access:customerAccess});
+    const firstModel=firstSource==='vercel'?await getProviderModelByPublicId('vercel',requestedModel,'image'):null;
+    const label=firstSource==='vercel'?firstModel?.label:smartImageModel(requestedModel).label;
+    const original={...body};
+    const firstPrice=()=>firstSource==='vercel'
+      ?quoteGateway(firstModel,original,providerSettings.vercelCustomerCreditsPerUsd).cost
+      :smartImageQuote(requestedModel,String(original.aspectRatio||original.aspect_ratio||''),providerSettings,original.quality??'medium').cost;
+    const swap=await submissionFailover(getPool(),{source:firstSource,label,body,settings:providerSettings,access:customerAccess,firstPrice});
     if(swap){
+      shownCost=swap.cost;
       requestedModel=swap.model.publicModelId;
       for(const key of ['imageSize','quality'])if(key in swap.body)body[key]=swap.body[key];else delete body[key];
     }
@@ -812,7 +819,7 @@ async function submitImageGeneration(user,body,req=null){
     const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
     generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'argolink',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
+      costOverride:shownCost??quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
       generationOptions:{...quote,model},
     });
   }
