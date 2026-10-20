@@ -147,6 +147,7 @@ const {
   SUPPORT_WHATSAPP,
   whatsappUrl,
 } = require('./src/plans.js');
+const { adminPlanOptions, setUserPlan, changeUserCredits, verifyAdminMedia, adminMediaLinks, USER_FIELDS } = require('./src/admin_users.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
@@ -1626,6 +1627,37 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,404,{ok:false,error:'Not found.'});
     }
 
+    // Customer media for the admin page, by signed link (media tags cannot send the admin header).
+    const adminMediaMatch=routePath.match(/^\/admin-media\/([0-9a-f-]{36})$/i);
+    if (req.method==='GET' && adminMediaMatch) {
+      requireDatabase();
+      const id=adminMediaMatch[1],type=String(url.searchParams.get('type')||'');
+      if(!['video','poster','image','thumbnail','audio'].includes(type)||!verifyAdminMedia(adminToken,id,type,url.searchParams.get('exp'),url.searchParams.get('sig')))
+        return sendJson(res,403,{ok:false,error:'This link has expired. Refresh the admin page.'});
+      const [rows]=await getPool().execute('SELECT * FROM generations WHERE id=? LIMIT 1',[id]);
+      const row=rows[0];
+      if(!row||!row.output_url)return sendJson(res,404,{ok:false,error:'Media not found.'});
+      if(type==='image'||type==='thumbnail'){
+        if(type==='thumbnail'){const thumb=await getImageThumbnail(getPool(),row);
+          if(thumb){res.writeHead(200,{'content-type':thumb.mimeType,'content-length':thumb.data.length,'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});return res.end(thumb.data);}}
+        if(row.output_url==='db:image'){
+          const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+          if(!outputs[0])return sendJson(res,404,{ok:false,error:'Generated image is unavailable.'});
+          res.writeHead(200,{'content-type':outputs[0].mime_type,'content-length':outputs[0].image_data.length,'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});
+          return res.end(outputs[0].image_data);
+        }
+        return proxyMedia(req,res,row,'video');
+      }
+      if(type==='video'&&row.output_url==='db:video'){
+        try{return await serveVideoOutput(getPool(),req,res,row.id);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
+      if(type==='video'&&row.provider==='vgenv'&&/^https:\/\/[a-z0-9.-]+\.aliyuncs\.com\//i.test(String(row.output_url||''))){
+        res.writeHead(302,{location:row.output_url,'cache-control':'private, no-store','referrer-policy':'no-referrer'});return res.end();
+      }
+      return proxyMedia(req,res,row,type==='poster'?'poster':'video');
+    }
+
     if (routePath.startsWith('/admin/')) {
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
@@ -1924,6 +1956,35 @@ const server=http.createServer(async (req,res)=>{
         }))});
       }
 
+      if (req.method==='GET' && routePath==='/admin/plans') return sendJson(res,200,{ok:true,plans:adminPlanOptions()});
+
+      const userDetailMatch=routePath.match(/^\/admin\/users\/(\d+)$/);
+      if (req.method==='GET' && userDetailMatch) {
+        requireDatabase();
+        const db=getPool(),userId=Number(userDetailMatch[1]);
+        const [users]=await db.execute('SELECT '+USER_FIELDS+' FROM users WHERE id=? LIMIT 1',[userId]);
+        if(!users[0])return sendJson(res,404,{ok:false,error:'User not found.'});
+        const [counts]=await db.execute("SELECT COALESCE(media_type,'video') AS media_type,status,COUNT(*) AS total,COALESCE(SUM(CASE WHEN refunded_at IS NULL THEN credits_cost ELSE 0 END),0) AS credits FROM generations WHERE user_id=? GROUP BY COALESCE(media_type,'video'),status",[userId]);
+        const [ledger]=await db.execute('SELECT id,generation_id,amount,type,note,created_at FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 50',[userId]);
+        const [requests]=await db.execute('SELECT id,plan_code,price_pkr,credits,status,created_at FROM plan_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 10',[userId]);
+        const summary={total:0,completed:0,failed:0,active:0,creditsSpent:0,byType:{}};
+        for(const r of counts){const n=Number(r.total);summary.total+=n;summary.byType[r.media_type]=(summary.byType[r.media_type]||0)+n;
+          if(r.status==='completed'){summary.completed+=n;summary.creditsSpent+=Number(r.credits);}
+          else if(['failed','submit_error'].includes(r.status))summary.failed+=n;else summary.active+=n;}
+        summary.creditsSpent=roundCredits(summary.creditsSpent);
+        return sendJson(res,200,{ok:true,user:{...userPayload(users[0]),provider_access:await getUserProviderAccess(userId)},summary,
+          ledger:ledger.map(r=>({...r,amount:Number(r.amount)})),planRequests:requests,plans:adminPlanOptions()});
+      }
+
+      const userPlanMatch=routePath.match(/^\/admin\/users\/(\d+)\/plan$/);
+      if (req.method==='POST' && userPlanMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const result=await setUserPlan(getPool(),Number(userPlanMatch[1]),body.plan,{grantCredits:body.grantCredits===true,note:body.note});
+        logActivity({category:'admin',event:'user.plan_changed',userId:Number(userPlanMatch[1]),message:'Plan '+(result.previousPlan||'none')+' → '+(result.user.plan_code||'none')+(result.creditsGranted?' with '+result.creditsGranted+' credits':'')});
+        return sendJson(res,200,{ok:true,user:userPayload(result.user),creditsGranted:result.creditsGranted});
+      }
+
       const userProviderMatch=routePath.match(/^\/admin\/users\/(\d+)\/providers$/);
       if ((req.method==='POST'||req.method==='PUT') && userProviderMatch) {
         requireDatabase();
@@ -1992,25 +2053,9 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='POST' && creditMatch) {
         requireDatabase();
         const body=await readJson(req);
-        const amount=roundCredits(Number(body.amount));
-        if (!Number.isFinite(amount)||amount===0) return sendJson(res,400,{ok:false,error:'amount must be a non-zero number'});
-        const db=getPool(); const conn=await db.getConnection();
-        try {
-          await conn.beginTransaction();
-          const [users]=await conn.execute('SELECT * FROM users WHERE id=? FOR UPDATE',[Number(creditMatch[1])]);
-          const user=users[0];
-          if (!user) { await conn.rollback(); return sendJson(res,404,{ok:false,error:'User not found.'}); }
-          if (Number(user.credits)+amount<0) { await conn.rollback(); return sendJson(res,400,{ok:false,error:'Credit adjustment would make balance negative.'}); }
-          await conn.execute('UPDATE users SET credits=credits+? WHERE id=?',[amount,user.id]);
-          await conn.execute(
-            "INSERT INTO credit_transactions (user_id,amount,type,note) VALUES (?,?,'admin_adjustment',?)",
-            [user.id,amount,String(body.note||'Admin credit adjustment').slice(0,255)],
-          );
-          await conn.commit();
-          const [updated]=await db.execute('SELECT id,email,credits,role,status,created_at FROM users WHERE id=?',[user.id]);
-          return sendJson(res,200,{ok:true,user:userPayload(updated[0])});
-        } catch(error) { await conn.rollback(); throw error; }
-        finally { conn.release(); }
+        const result=await changeUserCredits(getPool(),Number(creditMatch[1]),{amount:body.amount,mode:body.mode==='set'?'set':'add',note:body.note});
+        logActivity({category:'admin',event:'user.credits_changed',userId:Number(creditMatch[1]),message:'Credits '+(result.delta>=0?'+':'')+result.delta+' → balance '+Number(result.user.credits)});
+        return sendJson(res,200,{ok:true,user:userPayload(result.user),delta:result.delta});
       }
 
       if (req.method==='GET' && routePath==='/admin/plan-requests') {
@@ -2049,21 +2094,30 @@ const server=http.createServer(async (req,res)=>{
         const q=String(url.searchParams.get('q')||'').trim();
         const clauses=[]; const params=[];
         if (status) { clauses.push('g.status=?'); params.push(status); }
-        if (q) { clauses.push('(u.email LIKE ? OR g.id=? OR CAST(g.provider_job_id AS CHAR)=?)'); params.push('%'+q+'%',q,q); }
+        if (q) { clauses.push('(u.email LIKE ? OR g.id=? OR CAST(g.provider_job_id AS CHAR)=? OR g.prompt LIKE ?)'); params.push('%'+q+'%',q,q,'%'+q+'%'); }
+        const filterUser=Number(url.searchParams.get('user_id')||0);
+        if (filterUser>0) { clauses.push('g.user_id=?'); params.push(filterUser); }
+        const mediaType=String(url.searchParams.get('media_type')||'');
+        if (['video','image','audio'].includes(mediaType)) { clauses.push("COALESCE(g.media_type,'video')=?"); params.push(mediaType); }
+        const limit=Math.min(Math.max(Number(url.searchParams.get('limit'))||200,1),200);
+        const offset=Math.max(Number(url.searchParams.get('offset'))||0,0);
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
           `SELECT
              g.id,g.user_id,g.provider,g.media_type,g.provider_job_id,g.mode,g.model,g.duration,g.resolution,g.aspect_ratio,
              g.prompt,g.status,g.credits_cost,g.provider_cost,g.provider_cost_unit,g.output_url,g.poster_url,
-             g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,
+             g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,g.generation_options,
              u.email
            FROM generations g
            JOIN users u ON u.id=g.user_id`+where+`
-           ORDER BY g.created_at DESC LIMIT 200`,
+           ORDER BY g.created_at DESC LIMIT `+(limit+1)+` OFFSET `+offset,
           params,
         );
-        return sendJson(res,200,{ok:true,generations:rows.map(row=>({
+        const hasMore=rows.length>limit;if(hasMore)rows.length=limit;
+        return sendJson(res,200,{ok:true,hasMore,generations:rows.map(row=>({
           ...serializeGeneration(row),
+          ...adminMediaLinks(adminToken,row),
+          user_id:Number(row.user_id),
           // Admin sees the source's own message (customers get it without vendor names).
           error_message:row.error_message,
           user_email:row.email,
