@@ -32,8 +32,8 @@ test('usage combines provider balances with 30-day consumption from job records'
   const admin = { vercel: { active: true, configured: true }, vgenv: { active: true, configured: true } };
   const rows = await usage.providerUsage(db, settings, admin, { fetchImpl });
   const by = Object.fromEntries(rows.map(r => [r.key, r]));
-  assert.equal(rows.length, 7);
-  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
+  assert.equal(rows.length, 8);
+  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'sluice', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
   assert.deepEqual([by.argolink.balance.remaining, by.argolink.balance.unit], [12.34, 'USD']);
   assert.match(by.vibi.balance.note, /does not report/);
   assert.deepEqual([by.vercel.balance.remaining, by.vercel.balance.used, by.vercel.balance.unit], [95.5, 4.5, 'USD']);

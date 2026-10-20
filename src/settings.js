@@ -19,6 +19,9 @@ const DEFAULTS = {
   higgsfield_api_key: '',
   higgsfield_enabled: 'true',
   higgsfield_max_inflight: '3',
+  sluice_api_key: '',
+  sluice_enabled: 'true',
+  sluice_max_inflight: '3',
   fal_api_key: '',
   fal_enabled: 'true',
   fal_max_inflight: '3',
@@ -149,6 +152,10 @@ async function getProviderSettings() {
     higgsfieldEnabled: asBool(read('higgsfield_enabled')),
     higgsfieldMaxInflight: Math.max(1, Math.min(10, Number(read('higgsfield_max_inflight') || 3))),
     higgsfieldCustomerCreditsPerUsd: CREDITS_PER_USD,
+    sluiceApiKey: String(read('sluice_api_key') || '').trim(),
+    sluiceEnabled: asBool(read('sluice_enabled')),
+    sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),
+    sluiceCustomerCreditsPerUsd: CREDITS_PER_USD,
     falApiKey: String(read('fal_api_key') || '').trim(),
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
@@ -194,6 +201,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.higgsfieldApiKey), configured: Boolean(s.higgsfieldApiKey),
       enabled: s.higgsfieldEnabled, active: Boolean(s.higgsfieldEnabled && s.higgsfieldApiKey),
       maxInflight: s.higgsfieldMaxInflight, customerCreditsPerUsd: s.higgsfieldCustomerCreditsPerUsd,
+    },
+    sluice: {
+      baseUrl: 'https://www.getsluice.com',
+      apiKeyConfigured: Boolean(s.sluiceApiKey), configured: Boolean(s.sluiceApiKey),
+      enabled: s.sluiceEnabled, active: Boolean(s.sluiceEnabled && s.sluiceApiKey),
+      maxInflight: s.sluiceMaxInflight, customerCreditsPerUsd: s.sluiceCustomerCreditsPerUsd,
     },
     fal: {
       baseUrl: 'https://queue.fal.run',
@@ -304,6 +317,18 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Higgsfield max inflight must be 1 to 10.'), {statusCode:400});
     higgsfieldUpdates.push(['higgsfield_max_inflight',String(n)]);
   }
+  const sluiceUpdates=[];
+  if ('sluiceEnabled' in input) {
+    if (typeof input.sluiceEnabled !== 'boolean') throw Object.assign(new Error('Sluice enabled must be true or false.'), {statusCode:400});
+    sluiceUpdates.push(['sluice_enabled',input.sluiceEnabled?'true':'false']);
+  }
+  if ('sluiceApiKey' in input && (typeof input.sluiceApiKey !== 'string' || input.sluiceApiKey.length>512 || /\s/.test(input.sluiceApiKey.trim())))
+    throw Object.assign(new Error('Invalid Sluice API key.'), {statusCode:400});
+  if ('sluiceMaxInflight' in input) {
+    const n=Number(input.sluiceMaxInflight);
+    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Sluice max inflight must be 1 to 10.'), {statusCode:400});
+    sluiceUpdates.push(['sluice_max_inflight',String(n)]);
+  }
   if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
     throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
   }
@@ -376,6 +401,10 @@ async function updateProviderSettings(input = {}) {
   if (input.clearHiggsfieldApiKey===true) await del('higgsfield_api_key');
   else if (String(input.higgsfieldApiKey||'').trim()) await put('higgsfield_api_key',input.higgsfieldApiKey.trim(),true);
 
+  for (const [key,value] of sluiceUpdates) await put(key,value);
+  if (input.clearSluiceApiKey===true) await del('sluice_api_key');
+  else if (String(input.sluiceApiKey||'').trim()) await put('sluice_api_key',input.sluiceApiKey.trim(),true);
+
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
 }
@@ -396,6 +425,7 @@ async function migrateLegacyProviderEnvSettings() {
   plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
+  secret('sluice_api_key', 'SLUICE_API_KEY');
   secret('fal_api_key', 'FAL_KEY');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');

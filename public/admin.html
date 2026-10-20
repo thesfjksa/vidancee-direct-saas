@@ -144,6 +144,18 @@
           <div id="argoActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
+          <div class="source-head"><h3>Video Studio · Sluice (Seedance Lite)</h3><label class="source-switch"><input id="sluiceEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="sluiceEnabledText" class="source-state"></div>
+          <div class="muted">Endpoint · https://www.getsluice.com</div>
+          <label class="muted" for="sluiceApiKey">Sluice API key (slu_live_…)</label><input id="sluiceApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearSluiceApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="sluiceSecretStatus" class="muted" style="margin-top:8px"></div>
+          <label class="muted" for="sluiceInflight" style="display:block;margin-top:12px">Max inflight generations (Sluice allows 3 per key)</label><input id="sluiceInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin:10px 0">Seedance 2.5 / 2.0 / 2.0 Fast Lite, sold at cost (24 credits per rupee) from Sluice's per-second prices, plus $0.10 when reference images are used. Keys have a monthly spend cap (default $50): raise it in Sluice.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkSluice()">Check key &amp; balance</button><button class="secondary" onclick="syncSluiceModels()">Sync models</button></div>
+          <div id="sluiceActionMsg" class="muted" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
           <div class="source-head"><h3>Video Studio · Higgsfield (Wan 3.0)</h3><label class="source-switch"><input id="higgsfieldEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="higgsfieldEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://api.higgsfield.ai</div>
@@ -236,6 +248,7 @@
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -293,7 +306,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -309,6 +322,7 @@ function openProviderAccess(id){
   $('accessVercel').checked=a.vercel!==false;
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
+  $('accessSluice').checked=a.sluice!==false;
   $('accessFal').checked=a.fal!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessSmartaipi').checked=a.smartaipi!==false;
@@ -324,6 +338,7 @@ async function saveProviderAccess(){
     vercel:$('accessVercel').checked,
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
+    sluice:$('accessSluice').checked,
     fal:$('accessFal').checked,
     vgenv:$('accessVgenv').checked,
     smartaipi:$('accessSmartaipi').checked,
@@ -382,6 +397,7 @@ function updateSourceSwitchLabels(){
     ['vercelEnabled','vercelEnabledText'],
     ['argoEnabled','argoEnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
+    ['sluiceEnabled','sluiceEnabledText'],
     ['falEnabled','falEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
@@ -416,6 +432,10 @@ async function loadProviderSettings(){try{
   $('higgsfieldApiKey').value='';$('clearHiggsfieldApiKey').checked=false;
   $('higgsfieldSecretStatus').textContent=s.higgsfield?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('higgsfieldInflight').value=s.higgsfield?.maxInflight||3;
+  $('sluiceEnabled').checked=s.sluice?.enabled!==false;
+  $('sluiceApiKey').value='';$('clearSluiceApiKey').checked=false;
+  $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('sluiceInflight').value=s.sluice?.maxInflight||3;
   $('falEnabled').checked=s.fal?.enabled!==false;
   $('falApiKey').value='';$('clearFalApiKey').checked=false;
   $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -445,6 +465,7 @@ async function saveProviderSettings(){
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
+    sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
@@ -550,6 +571,17 @@ async function checkFal(){
 async function checkArgo(){
   const msg=$('argoActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
   try{const d=await api('/admin/argolink/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.balance?'Connected · '+d.balance.remaining+' '+d.balance.unit+' available':'Connected · balance not reported';}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function checkSluice(){
+  const msg=$('sluiceActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  try{const d=await api('/admin/sluice/check',{method:'POST',body:'{}'});const b=d.balance||{};const f=v=>v==null?'?':'$'+v.toFixed(2);
+    msg.className='ok';msg.textContent='Connected · balance '+f(b.availableUsd)+' · this month '+f(b.monthSpendUsd)+(b.spendLimitUsd!=null?' of '+f(b.spendLimitUsd)+' limit':'');}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function syncSluiceModels(){
+  const msg=$('sluiceActionMsg');msg.className='muted';msg.textContent='Syncing Seedance Lite models and prices...';
+  try{const d=await api('/admin/sluice/sync',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.total+' models synced · '+d.ready+' ready and visible';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function checkHiggsfield(){

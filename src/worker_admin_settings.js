@@ -1,6 +1,7 @@
 const { VercelQueue } = require('./vercel_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
+const { SluiceQueue } = require('./sluice_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
@@ -64,6 +65,8 @@ class GenerationWorker {
     this.argoLinkQueue = new ArgoLinkQueue({ credits });
     // Video Studio: Wan 3.0 on the Higgsfield API.
     this.higgsfieldQueue = new HiggsfieldQueue();
+    // Seedance Lite on Sluice.
+    this.sluiceQueue = new SluiceQueue();
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -108,6 +111,7 @@ class GenerationWorker {
     this.vercelQueue.start();
     this.argoLinkQueue.start();
     this.higgsfieldQueue.start();
+    this.sluiceQueue.start();
     this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
@@ -121,6 +125,7 @@ class GenerationWorker {
     this.vercelQueue.stop();
     this.argoLinkQueue.stop();
     this.higgsfieldQueue.stop();
+    this.sluiceQueue.stop();
     this.upscaleQueue.stop();
   }
 

@@ -21,9 +21,9 @@ test('cartoon styles shape the provider prompt but not the stored prompt', () =>
   assert.equal(cartoon.providerPrompt({ prompt: 'plain video', generation_options: '{}' }), 'plain video');
   assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'oil', model: 'minimax_h3' }), /Choose a cartoon style/);
   assert.deepEqual(cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'minimax_h3' }), { studio: 'cartoon', cartoonStyle: 'anime' });
-  // Seedance Lite (Vidancee/CreatePulse) was removed: Cartoon Studio is MiniMax H3 only.
-  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'clay', model: 'seedance_2.5' }), /supports MiniMax H3/);
-  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'argo_wan_3' }), /supports MiniMax H3/);
+  // Old Seedance ids are gone; Seedance Lite now uses sl_* (Sluice).
+  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'clay', model: 'seedance_2.5' }), /supports Seedance Lite and MiniMax H3/);
+  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'argo_wan_3' }), /supports Seedance Lite and MiniMax H3/);
   assert.equal(cartoon.looksOutOfCredits(new Error('HTTP 402')), true);
   assert.equal(cartoon.looksOutOfCredits(new Error('Network timeout')), false);
   const config = cartoon.publicCartoonConfig(true, [{ id: 'seedance_2.5' }, { id: 'minimax_h3' }]);
