@@ -49,8 +49,9 @@ function shutdown(signal){
   Promise.all([Promise.resolve(worker?.vercelQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),smartDone,
     Promise.resolve(worker?.argoLinkQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
     Promise.resolve(worker?.higgsfieldQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
-    Promise.resolve(worker?.upscaleQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft])=>{
-    left=(left||0)+(argoLeft||0)+(higgsfieldLeft||0)+(upscaleLeft||0)+(worker?.smartImageTasks?.size||0);
+    Promise.resolve(worker?.upscaleQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
+    Promise.resolve(worker?.sluiceQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft,sluiceLeft])=>{
+    left=(left||0)+(argoLeft||0)+(higgsfieldLeft||0)+(upscaleLeft||0)+(sluiceLeft||0)+(worker?.smartImageTasks?.size||0);
     if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
     setTimeout(()=>process.exit(0),150).unref();
   });
@@ -74,6 +75,7 @@ healthServer=http.createServer((req,res)=>{
       gatewayPolling:worker.vercelQueue.health(),
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),
+      sluicePolling:worker.sluiceQueue.health(),
       upscalePolling:worker.upscaleQueue.health(),
       workerEnabled:worker.enabled(),
       polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},

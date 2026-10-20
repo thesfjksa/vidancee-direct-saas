@@ -1,9 +1,11 @@
 'use strict';
 
-// Cartoon Studio: video in a chosen cartoon style, made with MiniMax H3 on vgenv
-// (Seedance on Vidancee/CreatePulse was removed). The customer's own prompt is
+// Cartoon Studio: video in a chosen cartoon style, made with Seedance Lite on
+// Sluice or MiniMax H3 on vgenv. The customer's own prompt is
 // stored on the job; the style direction is added only when it is submitted.
 const CARTOON_MODELS = ['minimax_h3'];
+// Seedance Lite on Sluice (ids sl_…) is in Cartoon Studio too.
+const isCartoonModel = id => CARTOON_MODELS.includes(String(id || '')) || String(id || '').startsWith('sl_');
 
 const CARTOON_STYLES = [
   { id: '3d', label: '3D Animation', hint: 'Feature-film 3D characters',
@@ -25,8 +27,8 @@ function cartoonStyle(id) {
 function normalizeCartoonRequest(body) {
   const style = cartoonStyle(body.cartoonStyle);
   if (!style) throw Object.assign(new Error('Choose a cartoon style.'), { statusCode: 400 });
-  if (!CARTOON_MODELS.includes(String(body.model || ''))) {
-    throw Object.assign(new Error('Cartoon Studio supports MiniMax H3.'), { statusCode: 400 });
+  if (!isCartoonModel(body.model)) {
+    throw Object.assign(new Error('Cartoon Studio supports Seedance Lite and MiniMax H3.'), { statusCode: 400 });
   }
   return { studio: 'cartoon', cartoonStyle: style.id };
 }
@@ -61,7 +63,7 @@ function publicCartoonConfig(enabled, pricing) {
   return {
     enabled: Boolean(enabled),
     styles: CARTOON_STYLES.map(({ id, label, hint }) => ({ id, label, hint })),
-    pricing: pricing.filter(model => CARTOON_MODELS.includes(model.id)),
+    pricing: pricing.filter(model => isCartoonModel(model.id)),
   };
 }
 

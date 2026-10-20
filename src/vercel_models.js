@@ -212,6 +212,8 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
       const refSeconds=p.reference_videos_billed?referenceVideoSeconds(model,input):0;
       const multiplier=refSeconds&&positive(p.reference_video_multiplier)?Number(p.reference_video_multiplier):1;
       sourceUsd=Math.max(...applicable.map(t=>Number(t.cost_per_second)))*(chosen.duration+refSeconds)*multiplier;
+      // Some sources (Sluice) add a flat fee when the request carries any input image.
+      if(positive(p.reference_surcharge_usd)&&hasInputMaterial(input))sourceUsd+=Number(p.reference_surcharge_usd);
     }
     else if (p.video_token_pricing?.tiers?.length) {
       const quote=videoTokenQuote(model,chosen,input);
@@ -242,6 +244,13 @@ function videoTokenQuote(model,chosen,input={}) {
   }
   const rate=Number(tier.with_video_input?.cost_per_million_tokens||tier.no_video_input?.cost_per_million_tokens);
   return positive(rate)?perSecond*(chosen.duration+referenceVideoSeconds(model,input))*rate/1e6:null;
+}
+
+// Whether a request carries reference files (uploaded, reused or, for a price
+// preview, announced with previewHasReferences).
+function hasInputMaterial(input={}) {
+  const listed=value=>{if(Array.isArray(value))return value.length>0;try{const v=JSON.parse(String(value||'[]'));return Array.isArray(v)&&v.length>0;}catch{return false;}};
+  return ['images','videos','audios'].some(k=>Array.isArray(input[k])&&input[k].length>0)||listed(input.reuseImageIds)||input.previewHasReferences===true;
 }
 
 // Reference clips are billed by their own length (read from the MP4 header,

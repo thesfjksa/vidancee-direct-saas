@@ -1536,6 +1536,7 @@ async function updateCost(){
       generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
       generateAudio:$('videoGenerateAudio').checked,
       ...(videoReferenceItems.length?{previewVideoSeconds:videoReferenceItems.map(item=>item.seconds)}:{}),
+      ...(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length?{previewHasReferences:true}:{}),
     });
     if(seq===videoCostRequestSeq){$('cost').textContent=Number(d.cost);$('videoPriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
@@ -3428,6 +3429,9 @@ function renderCartoonDurations(){
   const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value),previous=$('cartoonDuration').value;
   showModelWarning('cartoonModelWarning',m);
   const durations=m?.durations||[];
+  if(m?.aspectRatios?.length){const ratios=m.aspectRatios,r=$('cartoonRatio').value;
+    $('cartoonRatio').innerHTML=ratios.map(x=>'<option>'+escapeHtml(x)+'</option>').join('');
+    $('cartoonRatio').value=ratios.includes(r)?r:(ratios.includes('9:16')?'9:16':ratios[0]);}
   $('cartoonDuration').innerHTML=durations.map(d=>'<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>').join('');
   if(durations.some(d=>String(d.seconds)===previous))$('cartoonDuration').value=previous;
   ensureCustomSelect('cartoonDuration');rebuildCustomSelect('cartoonDuration');
@@ -3436,7 +3440,8 @@ function renderCartoonDurations(){
 }
 function updateCartoonCost(){
   const o=$('cartoonDuration').options[$('cartoonDuration').selectedIndex];
-  $('cartoonCost').textContent=o?.dataset.cost||'—';
+  const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value);
+  $('cartoonCost').textContent=o?.dataset.cost?Number(o.dataset.cost)+(cartoonImageFile&&m?.referenceSurcharge?Number(m.referenceSurcharge):0):'—';
   syncCustomSelect('cartoonDuration');syncCustomSelect('cartoonRatio');
 }
 function setCartoonImage(files){
@@ -3449,6 +3454,7 @@ function setCartoonImage(files){
     else{cartoonImageFile=file;cartoonImageUrl=URL.createObjectURL(file);$('cartoonMsg').textContent='';}
   }
   $('cartoonImageInput').value='';
+  updateCartoonCost();
   $('cartoonImagePreview').innerHTML=cartoonImageFile?'<div class="image-chip"><img src="'+cartoonImageUrl+'" alt="Character"><button type="button" class="remove-reference" onclick="setCartoonImage(null)" aria-label="Remove character image">×</button><div class="image-name">'+escapeHtml(cartoonImageFile.name||'Character')+'</div></div>':'';
 }
 function renderCartoonGallery(){

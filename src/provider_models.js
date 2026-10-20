@@ -1,6 +1,7 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
+const { sluiceMediaModels } = require('./sluice_models.js');
 const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
 
@@ -137,7 +138,7 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -181,6 +182,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     }:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
+    ...(row.provider==='sluice'?{sluice:options.sluice||{},referenceCapabilities:options.referenceCapabilities}:{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -461,7 +463,24 @@ async function ensureHiggsfieldCatalog() {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_higgsfield_catalog_seed')");conn.release();}
 }
 
+// Sluice's catalogue is public: the live one is read on start (the bundled
+// snapshot until it answers), and an admin can sync it again.
+async function ensureSluiceCatalog(fetchCatalog) {
+  let live=null;
+  try{live=await fetchCatalog();}catch(error){console.error('Sluice catalogue unavailable; keeping the saved one:',error.message);}
+  const db=getPool();
+  const conn=await db.getConnection();let locked=false;
+  try {
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_sluice_catalog_seed',10) AS acquired");
+    locked=Number(lock?.acquired)===1;if(!locked)return;
+    if(live){await syncProviderModels('sluice',sluiceMediaModels(live));return;}
+    const [[count]]=await conn.query("SELECT COUNT(*) AS total FROM provider_models WHERE provider='sluice'");
+    if(!Number(count.total))await syncProviderModels('sluice',sluiceMediaModels(require('./provider/sluice_catalog.json')));
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_sluice_catalog_seed')");conn.release();}
+}
+
 module.exports = {
+  ensureSluiceCatalog,
   ensureArgoCatalog,
   ensureHiggsfieldCatalog,
   isPricedSource,

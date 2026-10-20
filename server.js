@@ -184,6 +184,8 @@ const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
+const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
+const { SluiceClient } = require('./src/provider/sluice.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
@@ -198,7 +200,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -404,7 +406,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -541,6 +543,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await publicProviderCatalog('higgsfield',{creditsPerUsd:providerSettings.higgsfield.customerCreditsPerUsd,transform:model=>wanVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
     video=[...video,...catalog.video];
   }
+  // Seedance Lite on Sluice: rendered at the chosen resolution, priced at cost.
+  if(access.sluice && providerSettings.sluice.active){
+    const catalog=await publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd});
+    video=[...video,...catalog.video];
+  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
@@ -549,6 +556,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 function modelVendor(id){
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
+  if(isSluiceModel(id))return 'Sluice';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
   if(id==='minimax_h3')return 'vgenv';
@@ -572,7 +580,7 @@ async function adminModelNameList(){
 // Example price of every model at its default settings, for the public
 // Pricing page (no sign-in needed). Cached for 10 minutes.
 // Seedance 2.5 on ArgoLink looks expensive next to the rest, so the Pricing
-// page leaves it out; Seedance 2.5 Lite stays.
+// page leaves it out; Seedance Lite (Sluice) stays.
 const PRICING_PAGE_HIDDEN=['argo_seedance_2_5'];
 let priceExamplesCache=null;
 async function priceExamples(){
@@ -628,6 +636,13 @@ async function quoteModelForUser(userId,body){
     const quote=mediaType==='video'?await quoteArgoStudioVideo(model,body,await getProviderSettings()):quoteGateway(model,body,providerSettings.argolink.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
+  if(isSluiceModel(body.model)&&mediaType==='video'){
+    if(!access.sluice||!providerSettings.sluice.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('sluice',String(body.model),'video');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    const quote=quoteGateway(model,body,providerSettings.sluice.customerCreditsPerUsd);
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
   if(isHiggsfieldModel(body.model)&&mediaType==='video'){
     if(!access.higgsfield||!providerSettings.higgsfield.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('higgsfield',String(body.model),'video');
@@ -651,6 +666,22 @@ async function quoteModelForUser(userId,body){
 async function quoteHiggsfieldVideo(model,body,settings){
   return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId),view:wanVideoView,creditsPerUsd:settings.higgsfieldCustomerCreditsPerUsd}));
 }
+// Seedance Lite (Sluice) in Cartoon Studio: a fixed price per duration at the
+// default resolution, the image fee, and the ratios the model makes.
+async function sluiceCartoonPricing(providerSettings){
+  const out=[];
+  for(const row of await publicProviderCatalog('sluice',{}).then(c=>c.video).catch(()=>[])){
+    const model=await getProviderModelByPublicId('sluice',row.id,'video');
+    if(!model?.ready)continue;
+    const price=body=>quoteGateway(model,body,providerSettings.sluice.customerCreditsPerUsd).cost;
+    const ratio=model.defaultAspectRatio;
+    out.push({id:model.publicModelId,label:model.label.split(' · ')[0],aspectRatios:model.aspectRatios,
+      durations:model.durations.map(seconds=>({seconds,cost:price({duration:seconds,aspectRatio:ratio})})),
+      referenceSurcharge:price({duration:model.durations[0],aspectRatio:ratio,images:[{}]})-price({duration:model.durations[0],aspectRatio:ratio})});
+  }
+  return out;
+}
+
 // Wan 3.0's per-second prices from Higgsfield's estimates (nothing is charged).
 async function syncHiggsfieldPrices(){
   const s=await getProviderSettings();
@@ -671,8 +702,8 @@ async function quoteArgoStudioVideo(model,body,settings){
 
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
 async function submitVideoGeneration(user,body,req=null){
-  // Preview lengths are for /api/model-cost only; a job is priced from its files.
-  if(body&&typeof body==='object')delete body.previewVideoSeconds;
+  // Preview hints are for /api/model-cost only; a job is priced from its files.
+  if(body&&typeof body==='object'){delete body.previewVideoSeconds;delete body.previewHasReferences;}
   const providerSettings=await getProviderSettings();
   if (!providerSettings.allowProviderCharges) {
     throw httpError(503,'Generation submissions are currently paused.');
@@ -681,7 +712,7 @@ async function submitVideoGeneration(user,body,req=null){
   const requestedModel=String(body.model||'');
   const customerAccess=await getUserProviderAccess(user.id);
   let generation=null;
-  // Cartoon Studio runs on MiniMax H3 (vgenv), never a catalog source.
+  // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
   if(!cartoonOptions&&isArgoModel(requestedModel)){
@@ -694,6 +725,20 @@ async function submitVideoGeneration(user,body,req=null){
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
+    });
+  }
+
+  // Seedance Lite on Sluice, in Video Studio and Cartoon Studio (the style is
+  // kept on the job and added to the prompt when it is sent).
+  if(isSluiceModel(requestedModel)){
+    if(!customerAccess.sluice||!providerSettings.sluiceEnabled||!providerSettings.sluiceApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('sluice',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.sluiceCustomerCreditsPerUsd);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'sluice',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model,...(cartoonOptions||{})},
     });
   }
 
@@ -1002,7 +1047,7 @@ const server=http.createServer(async (req,res)=>{
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -1065,7 +1110,9 @@ const server=http.createServer(async (req,res)=>{
           promptEnhancerConfig.enabled=Boolean(currentUser?.status==='active' && providerSettings.promptEnhancer.active);
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
           const names=await modelDisplayNames().catch(()=>({}));
-          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'&&h3Active),names);
+          cartoonPricing=applyModelNames('cartoon',[
+            ...(customerProviderAccess.sluice&&providerSettings.sluice.active?await sluiceCartoonPricing(providerSettings):[]),
+            ...publicPricing().filter(model=>model.id==='minimax_h3'&&h3Active)],names);
           cartoonEnabled=cartoonPricing.length>0;
 
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});
@@ -1628,6 +1675,15 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('argolink',argoMediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='POST'&&routePath==='/admin/sluice/check'){
+        requireDatabase();const s=await getProviderSettings();
+        return sendJson(res,200,{ok:true,balance:await new SluiceClient({apiKey:s.sluiceApiKey}).balance()});
+      }
+      if(req.method==='POST'&&routePath==='/admin/sluice/sync'){
+        requireDatabase();
+        const models=await syncProviderModels('sluice',sluiceMediaModels(await fetchSluiceCatalog()));
+        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
       if(req.method==='POST'&&routePath==='/admin/higgsfield/check'){
         requireDatabase();const s=await getProviderSettings();
         await new HiggsfieldClient({apiKey:s.higgsfieldApiKey}).verifyKey();
@@ -1728,7 +1784,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -1738,7 +1794,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','higgsfield'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield','sluice'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -1808,6 +1864,7 @@ const server=http.createServer(async (req,res)=>{
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
+            sluice:providerSettings.sluice.enabled,
             fal:providerSettings.fal.enabled,
           },
           providerActive:{
@@ -1817,6 +1874,7 @@ const server=http.createServer(async (req,res)=>{
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
             higgsfield:providerSettings.higgsfield.active,
+            sluice:providerSettings.sluice.active,
             fal:providerSettings.fal.active,
           },
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
@@ -1825,6 +1883,7 @@ const server=http.createServer(async (req,res)=>{
           vercelMaxInflight:providerSettings.vercel.maxInflight,
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
+          sluiceMaxInflight:providerSettings.sluice.maxInflight,
           falMaxInflight:providerSettings.fal.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
@@ -2118,6 +2177,7 @@ function bootstrap() {
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
+      await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});
