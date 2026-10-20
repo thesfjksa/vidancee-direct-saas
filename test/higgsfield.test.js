@@ -58,10 +58,13 @@ test('480p renders natively; 720p and 1080p render lower and are upscaled by fal
   assert.ok(Object.values(wanVideoView(w3, true, { hd: false }).hdPlans).every(p => !p.upscale));
   // 5 s 16:9 without sound at 6,720 credits per USD: 480p is $0.25; 720p is the 480p render + fal's
   // $0.036 upscale (242 credits); 1080p the 720p render + upscale.
-  assert.deepEqual(['480p', '720p', '1080p'].map(r => quote(w3, r).cost), [1680, 1680 + 242, 3360 + 242]);
-  assert.deepEqual(['480p', '720p', '1080p'].map(r => quote(w3, r, false).cost), [1680, 3360, 6720]);
-  // Sound uses the "with sound" price.
+  const silent = { generateAudio: false };
+  assert.deepEqual(['480p', '720p', '1080p'].map(r => quote(w3, r, true, silent).cost), [1680, 1680 + 242, 3360 + 242]);
+  assert.deepEqual(['480p', '720p', '1080p'].map(r => quote(w3, r, false, silent).cost), [1680, 3360, 6720]);
+  // Sound uses the "with sound" price, and is on when not stated.
   assert.equal(quote(w3, '480p', true, { generateAudio: true }).cost, 1848); // 0.055 x 5 s x 6,720
+  assert.equal(quote(w3, '480p').generateAudio, true);
+  assert.equal(quote(w3, '480p').cost, 1848);
   const q = quote(w3, '1080p');
   assert.deepEqual([q.resolution, q.sourceResolution, q.enhance.upscale.input.target_resolution], ['1080p', '720p', '1080p']);
 });

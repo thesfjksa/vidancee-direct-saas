@@ -140,7 +140,7 @@
                   <select id="ratio" onchange="updateCost()"></select>
                 </div>
                 <div id="videoModeControl" class="wide hide"><label class="meta" for="videoGenerationMode">Quality mode</label><select id="videoGenerationMode" onchange="updateCost()"></select></div>
-                <div id="videoAudioControl" class="wide hide"><label class="meta" for="videoGenerateAudio"><input id="videoGenerateAudio" type="checkbox" onchange="updateCost()"> Generate audio</label></div>
+                <input id="videoGenerateAudio" type="hidden" value="">
                 <div id="resolutionControl" class="wide hide">
                   <label class="meta" for="resolution">Resolution</label>
                   <select id="resolution" onchange="renderDurations(false)"></select>
@@ -1481,8 +1481,8 @@ function renderGatewayVideoSettings(model){
   select.innerHTML=modes.map(mode=>'<option value="'+escapeHtml(mode)+'">'+escapeHtml(mode==='std'?'Standard':mode==='pro'?'Pro':mode)+'</option>').join('');
   select.value=modes.includes(previous)?previous:(model.defaultMode||modes[0]||'');
   ensureCustomSelect('videoGenerationMode');rebuildCustomSelect('videoGenerationMode');
-  $('videoAudioControl').classList.toggle('hide',!model.supportsAudio);
-  if(!model.supportsAudio)$('videoGenerateAudio').checked=false;
+  // Videos always come with audio when the model can make it.
+  $('videoGenerateAudio').value=model.supportsAudio?'true':'';
 }
 
 // Server price quotes are cached per selection and time-limited with one retry,
@@ -1534,7 +1534,7 @@ async function updateCost(){
       resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
       aspectRatio:$('ratio').value,
       generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
-      generateAudio:$('videoGenerateAudio').checked,
+      generateAudio:$('videoGenerateAudio').value==='true',
       ...(videoReferenceItems.length?{previewVideoSeconds:videoReferenceItems.map(item=>item.seconds)}:{}),
       ...(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length?{previewHasReferences:true}:{}),
     });
@@ -2951,7 +2951,7 @@ async function createGeneration(){
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
     form.append('aspectRatio',$('ratio').value);
     if(!$('videoModeControl').classList.contains('hide'))form.append('generationMode',$('videoGenerationMode').value);
-    if(!$('videoAudioControl').classList.contains('hide'))form.append('generateAudio',String($('videoGenerateAudio').checked));
+    if($('videoGenerateAudio').value==='true')form.append('generateAudio','true');
 
     const reused=referenceItems.filter(item=>item.kind==='reused');
     const fresh=referenceItems.filter(item=>item.kind==='fresh');
@@ -3019,7 +3019,6 @@ function applyVideoReuseSettings(g){
   if(g.generation_options){
     const mode=g.generation_options.generationMode;
     if([...$('videoGenerationMode').options].some(o=>o.value===mode))$('videoGenerationMode').value=mode;
-    if(!$('videoAudioControl').classList.contains('hide'))$('videoGenerateAudio').checked=g.generation_options.generateAudio===true;
     syncCustomSelect('videoGenerationMode');
   }
   if([...$('duration').options].some(o=>Number(o.value)===Number(g.duration))){
