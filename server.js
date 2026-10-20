@@ -694,6 +694,8 @@ async function quoteArgoStudioVideo(model,body,settings){
 
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
 async function submitVideoGeneration(user,body,req=null){
+  // Preview lengths are for /api/model-cost only; a job is priced from its files.
+  if(body&&typeof body==='object')delete body.previewVideoSeconds;
   const providerSettings=await getProviderSettings();
   if (!providerSettings.allowProviderCharges) {
     throw httpError(503,'Generation submissions are currently paused.');

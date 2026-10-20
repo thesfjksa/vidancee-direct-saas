@@ -1535,6 +1535,7 @@ async function updateCost(){
       aspectRatio:$('ratio').value,
       generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
       generateAudio:$('videoGenerateAudio').checked,
+      ...(videoReferenceItems.length?{previewVideoSeconds:videoReferenceItems.map(item=>item.seconds)}:{}),
     });
     if(seq===videoCostRequestSeq){$('cost').textContent=Number(d.cost);$('videoPriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
@@ -1881,13 +1882,21 @@ function addAnyReferenceFiles(fileList){
 }
 
 function videoReferenceItem(file,role){
-  return {
+  const item={
     key:'video-ref-'+(++videoReferenceSeq),
     file,
     filename:file.name||'reference-video',
     url:URL.createObjectURL(file),
     role,
+    seconds:null,
   };
+  // Some sources bill a reference video's length too: read it so the price
+  // shown before generating includes it.
+  const probe=document.createElement('video');
+  probe.preload='metadata';
+  probe.onloadedmetadata=()=>{if(Number.isFinite(probe.duration)){item.seconds=probe.duration;updateCost();}probe.removeAttribute('src');};
+  probe.src=item.url;
+  return item;
 }
 
 function clearVideoReferenceItems(){

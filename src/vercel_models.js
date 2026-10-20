@@ -246,9 +246,14 @@ function videoTokenQuote(model,chosen,input={}) {
 
 // Reference clips are billed by their own length (read from the MP4 header,
 // or the longest allowed clip when it cannot be read), rounded up.
+// A price preview has no files yet: the page sends the lengths it read
+// (previewVideoSeconds). Submissions are always priced from the uploaded files.
 function referenceVideoSeconds(model,input={}) {
   const videos=Array.isArray(input.videos)?input.videos:[];
   const maxInput=Number(model.inputLimits?.video?.max_duration_seconds||30);
+  if(!videos.length&&Array.isArray(input.previewVideoSeconds)){
+    return Math.ceil(input.previewVideoSeconds.slice(0,10).reduce((sum,s)=>sum+Math.min(maxInput,Number(s)>0?Number(s):maxInput),0));
+  }
   return Math.ceil(videos.reduce((sum,v)=>sum+Math.min(maxInput,mp4Seconds(v?.data)??maxInput),0));
 }
 
