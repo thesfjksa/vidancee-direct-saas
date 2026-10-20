@@ -54,6 +54,17 @@ test('new requests go to ArgoLink only while the first source is out of credits'
   assert.equal(await run('vercel', 'Nano Banana Pro'), null); // the mark expired
 });
 
+test('a request moved to ArgoLink costs the price the page showed for the first source', async () => {
+  const body = { aspectRatio: '16:9', imageSize: '2K' };
+  const run = firstPrice => failover.submissionFailover(db, { source: 'vercel', label: 'Nano Banana Pro', body, settings, access: { argolink: true }, firstPrice });
+  status = { outOfCredits: { vercel: Date.now() + 60000 } };
+  assert.equal((await run(() => 412)).cost, 412);
+  // No first-source price: ArgoLink's own price applies.
+  assert.equal((await run(() => { throw new Error('no price'); })).cost, undefined);
+  assert.equal((await run()).cost, undefined);
+  status = {};
+});
+
 test('a claimed job moves to ArgoLink and keeps its customer price', async () => {
   writes.length = 0; access = []; refCount = 1;
   const job = { id: 'g1', user_id: 3, provider: 'smartaipi', media_type: 'image', model: 'gpt_image_2_studio', aspect_ratio: '3:2', image_quality: 'high', generation_options: null };

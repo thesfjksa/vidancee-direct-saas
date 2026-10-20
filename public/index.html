@@ -1891,12 +1891,39 @@ function videoReferenceItem(file,role){
     seconds:null,
   };
   // Some sources bill a reference video's length too: read it so the price
-  // shown before generating includes it.
-  const probe=document.createElement('video');
-  probe.preload='metadata';
-  probe.onloadedmetadata=()=>{if(Number.isFinite(probe.duration)){item.seconds=probe.duration;updateCost();}probe.removeAttribute('src');};
-  probe.src=item.url;
+  // shown before generating includes it. Read from the MP4 header as the
+  // server does, so an unreadable length counts as the longest clip on both.
+  readMp4Header(file).then(header=>{item.seconds=header.seconds;if(videoReferenceItems.includes(item))updateCost();});
   return item;
+}
+
+// Length ('mvhd') and size (first 'tkhd') from an MP4/MOV header, read the
+// same way as the server's mp4Seconds and mp4Dimensions, which price the job.
+function mp4BoxAt(bytes,tag,from){
+  const [a,b,c,d]=[...tag].map(ch=>ch.charCodeAt(0));
+  for(let i=bytes.indexOf(a,from);i>=0&&i<=bytes.length-4;i=bytes.indexOf(a,i+1)){
+    if(bytes[i+1]===b&&bytes[i+2]===c&&bytes[i+3]===d)return i;
+  }
+  return -1;
+}
+async function readMp4Header(file){
+  const out={seconds:null,width:null,height:null};
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer()),view=new DataView(bytes.buffer);
+    const at=mp4BoxAt(bytes,'mvhd',0);
+    if(at>=4&&at+24<=bytes.length){
+      const v1=bytes[at+4]===1;
+      const scale=view.getUint32(v1?at+24:at+16),duration=v1?Number(view.getBigUint64(at+28)):view.getUint32(at+20);
+      if(scale>0&&duration>0)out.seconds=duration/scale;
+    }
+    for(let t=mp4BoxAt(bytes,'tkhd',0);t>=4;t=mp4BoxAt(bytes,'tkhd',t+4)){
+      const offset=bytes[t+4]===1?t+88:t+80;
+      if(offset+8>bytes.length)break;
+      const w=view.getUint32(offset)/65536,h=view.getUint32(offset+4)/65536;
+      if(w>0&&h>0){out.width=Math.round(w);out.height=Math.round(h);break;}
+    }
+  }catch{}
+  return out;
 }
 
 function clearVideoReferenceItems(){
@@ -3309,7 +3336,7 @@ $('generatedVideoDialog').addEventListener('close',()=>{
 });
 
 // ---------- Upscaler ----------
-let upscaleSource='library',upscaleFile=null,upscaleFileInfo=null,upscaleQuoteToken=0;
+let upscaleSource='library',upscaleFile=null,upscaleFileInfo=null,upscaleQuoteToken=0,upscaleFilePick=0;
 function upscaleLabel(id){return (config?.upscaler?.resolutions||[]).find(r=>r.id===id)?.label||String(id||'').toUpperCase()}
 function renderUpscalerConfig(){
   const cfg=config?.upscaler,enabled=Boolean(cfg?.enabled);
@@ -3341,17 +3368,25 @@ function setUpscaleSource(kind){
 function setUpscaleFile(files){
   const file=files?.[0],info=$('upscaleFileInfo'),m=$('upscaleMsg');
   upscaleFile=null;upscaleFileInfo=null;info.textContent='';m.textContent='';
+  const pick=++upscaleFilePick;
   $('upscaleFileInput').value='';
   if(file){
     if(!['video/mp4','video/quicktime'].includes(file.type)){m.className='msg err';m.textContent='Use an MP4 or MOV video.';}
     else if(file.size>25*1024*1024){m.className='msg err';m.textContent='The video must be 25 MB or smaller.';}
     else{
       const url=URL.createObjectURL(file),probe=document.createElement('video');
+      // The job is priced from the file's MP4 header; the player's numbers are
+      // only used until the header is read (or when it cannot be).
+      let header=null;
+      readMp4Header(file).then(h=>{
+        if(pick!==upscaleFilePick||!h.seconds||!h.width)return;
+        header=h;upscaleFile=file;upscaleFileInfo={width:h.width,height:h.height,seconds:h.seconds};updateUpscaleCost();
+      });
       probe.preload='metadata';
-      probe.onloadedmetadata=()=>{upscaleFile=file;URL.revokeObjectURL(url);
-        upscaleFileInfo={width:probe.videoWidth,height:probe.videoHeight,seconds:Number(probe.duration)||0};
-        info.textContent=file.name+' · '+(probe.videoHeight?probe.videoHeight+'p · ':'')+(upscaleFileInfo.seconds?Math.round(upscaleFileInfo.seconds*10)/10+'s':'length unknown');updateUpscaleCost();};
-      probe.onerror=()=>{upscaleFile=file;URL.revokeObjectURL(url);info.textContent=file.name;updateUpscaleCost();};
+      probe.onloadedmetadata=()=>{URL.revokeObjectURL(url);if(pick!==upscaleFilePick)return;upscaleFile=file;
+        if(!header)upscaleFileInfo={width:probe.videoWidth,height:probe.videoHeight,seconds:Number(probe.duration)||0};
+        info.textContent=file.name+' · '+(probe.videoHeight?probe.videoHeight+'p · ':'')+(probe.duration?Math.round(probe.duration*10)/10+'s':'length unknown');updateUpscaleCost();};
+      probe.onerror=()=>{URL.revokeObjectURL(url);if(pick!==upscaleFilePick)return;upscaleFile=file;info.textContent=file.name;updateUpscaleCost();};
       probe.src=url;
     }
   }

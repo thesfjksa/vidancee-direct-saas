@@ -40,8 +40,11 @@ function argoActive(settings) {
 }
 
 // Web: a new request for a source that is out of credits goes to ArgoLink.
-// Returns { model, body } for ArgoLink, or null to keep the original source.
-async function submissionFailover(db, { source, label, body, settings, access }) {
+// Returns { model, body, cost } for ArgoLink, or null to keep the original source.
+// A page opened before the switch still shows the first source's price, so
+// the customer pays that price (cost, from firstPrice), as when the worker
+// moves a job. cost is undefined when the first source cannot price it.
+async function submissionFailover(db, { source, label, body, settings, access, firstPrice }) {
   if (!FIRST_SOURCES.includes(source) || !access?.argolink || !argoActive(settings)) return null;
   const status = await readProviderStatus(db).catch(() => ({}));
   if (!isOutOfCredits(status, source)) return null;
@@ -49,7 +52,9 @@ async function submissionFailover(db, { source, label, body, settings, access })
   if (!model) return null;
   const adapted = adaptRequest(model, body);
   try { validateReferences(model, adapted); quoteGateway(model, adapted, 1); } catch { return null; }
-  return { model, body: adapted };
+  let cost;
+  try { const n = Number(firstPrice?.()); if (n > 0) cost = n; } catch {}
+  return { model, body: adapted, cost };
 }
 
 function jobLabel(job) {
