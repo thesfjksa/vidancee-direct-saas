@@ -43,7 +43,6 @@ const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
-const { VidanceeClient } = require('./src/provider/vidancee.js');
 const { SmartAipiClient, validateSmartReference } = require('./src/provider/smartaipi.js');
 const { smartImageModel, smartImageQuote, publicSmartImagePricing, SMART_IMAGE_REFS, SMART_IMAGE_MODELS } = require('./src/smartaipi_images.js');
 const { VibiClient } = require('./src/provider/vibi.js');
@@ -230,20 +229,6 @@ function vibiClient(settings) {
   return new VibiClient({baseUrl:settings.vibiBaseUrl,apiKey:settings.vibiApiKey});
 }
 
-async function providerClient() {
-  const settings = await getProviderSettings();
-  if (!settings.vidanceeEmail || !settings.vidanceePassword) {
-    const error = new Error('Primary provider credentials are not configured in the Admin dashboard.');
-    error.statusCode = 503;
-    throw error;
-  }
-  return new VidanceeClient({
-    baseUrl: settings.vidanceeBaseUrl,
-    email: settings.vidanceeEmail,
-    password: settings.vidanceePassword,
-  });
-}
-
 function sendJson(res, status, body) {
   // Customers and Claude never see provider names (Admin and support keep them).
   const route = String(res.req?.url || '');
@@ -419,7 +404,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['vidancee','createpulse','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -492,19 +477,15 @@ async function argoHdOffModels(){
   catch{return new Set();}
 }
 
-// Seedance on Vidancee or CreatePulse (the worker picks whichever is free) and
-// MiniMax H3 on vgenv in Video Studio, beside ArgoLink's models. Their prices
-// are fixed per duration (and resolution for H3).
-const SEEDANCE_VIDEO_MODELS=['seedance_2.5','seedance_2.0_fast'];
-// Shown under the Lite models while their source is unreliable.
-const LITE_MODEL_WARNING='Lite models are having problems right now. Some generations may fail; failed ones are refunded automatically.';
-const withLiteWarning=m=>SEEDANCE_VIDEO_MODELS.includes(m.id)?{...m,warning:LITE_MODEL_WARNING}:m;
-const DIRECT_VIDEO_MODELS=[...SEEDANCE_VIDEO_MODELS,'minimax_h3'];
+// MiniMax H3 on vgenv in Video Studio, beside ArgoLink's and Higgsfield's
+// models. Its prices are fixed per duration and resolution. (Seedance Lite on
+// Vidancee/CreatePulse was removed on 20 October 2026.)
+const DIRECT_VIDEO_MODELS=['minimax_h3'];
 function directVideoSourceActive(id,access,providerSettings){
-  return id==='minimax_h3'?Boolean(access.vgenv&&providerSettings.vgenv.active):seedanceSourcesActive(access,providerSettings);
+  return id==='minimax_h3'&&Boolean(access.vgenv&&providerSettings.vgenv.active);
 }
 function directVideoModels(access,providerSettings){
-  return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(withLiteWarning).map(m=>({
+  return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(m=>({
     ...m,
     label:m.label+' · up to '+Math.max(...m.durations.map(d=>d.seconds))+' s',
     defaultDuration:m.durations[0].seconds,
@@ -513,9 +494,6 @@ function directVideoModels(access,providerSettings){
       video:m.id==='minimax_h3'?H3_VIDEO_CAPABILITY:{supported:false,max:0},
       audio:m.id==='minimax_h3'?H3_AUDIO_CAPABILITY:{supported:false,max:0}},
   }));
-}
-function seedanceSourcesActive(access,providerSettings){
-  return Boolean((access.vidancee&&providerSettings.vidancee.active)||(access.createpulse&&providerSettings.createpulse.active));
 }
 
 // Names the admin gave models ({"video:<id>": "Name"}); studios show these
@@ -574,7 +552,6 @@ function modelVendor(id){
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
   if(id==='minimax_h3')return 'vgenv';
-  if(SEEDANCE_VIDEO_MODELS.includes(id))return 'Vidancee / CreatePulse';
   return '';
 }
 
@@ -704,7 +681,7 @@ async function submitVideoGeneration(user,body,req=null){
   const requestedModel=String(body.model||'');
   const customerAccess=await getUserProviderAccess(user.id);
   let generation=null;
-  // Cartoon Studio always runs on Vidancee or CreatePulse, never a catalog source.
+  // Cartoon Studio runs on MiniMax H3 (vgenv), never a catalog source.
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
   if(!cartoonOptions&&isArgoModel(requestedModel)){
@@ -733,7 +710,7 @@ async function submitVideoGeneration(user,body,req=null){
     });
   }
 
-  // Video Studio runs on ArgoLink and Higgsfield, Seedance on Vidancee/CreatePulse and MiniMax H3 on vgenv.
+  // Video Studio runs on ArgoLink and Higgsfield, and MiniMax H3 on vgenv.
   if (!generation && !cartoonOptions && !DIRECT_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
@@ -741,25 +718,11 @@ async function submitVideoGeneration(user,body,req=null){
       if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
         throw httpError(503,'This model is currently unavailable.');
       }
-    } else if (requestedModel==='seedance_2.5' || requestedModel==='seedance_2.0_fast') {
-      const vidanceeActive=Boolean(
-        customerAccess.vidancee &&
-        providerSettings.vidanceeEnabled &&
-        providerSettings.vidanceeEmail &&
-        providerSettings.vidanceePassword
-      );
-      const createPulseActive=Boolean(
-        customerAccess.createpulse &&
-        providerSettings.createPulseEnabled &&
-        providerSettings.createPulseApiKey
-      );
-      if (!vidanceeActive && !createPulseActive) {
-        throw httpError(503,'This model is currently unavailable.');
-      }
     }
     // Video Studio's MiniMax H3 also takes sound clips and a reference video (src/h3_references.js).
-    const options=cartoonOptions?{generationOptions:cartoonOptions}
-      :requestedModel==='minimax_h3'?{validateMedia:(audios,videos,images)=>validateH3Media(audios,videos,images,{mp4Seconds})}:{};
+    // Every direct model runs on vgenv now (MiniMax H3).
+    const options=cartoonOptions?{provider:'vgenv',generationOptions:cartoonOptions}
+      :{provider:'vgenv',validateMedia:(audios,videos,images)=>validateH3Media(audios,videos,images,{mp4Seconds})};
     generation=await createGenerationForUser(user.id,body,options);
   }
 
@@ -1038,8 +1001,6 @@ const server=http.createServer(async (req,res)=>{
       if (database.connected) {
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
-          providerSettings.vidancee.active ||
-          providerSettings.createpulse.active ||
           providerSettings.vgenv.active ||
           providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active
         );
@@ -1085,8 +1046,7 @@ const server=http.createServer(async (req,res)=>{
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
-      // Video Studio: ArgoLink, plus Seedance on Vidancee/CreatePulse. Cartoon Studio: Vidancee, CreatePulse (Seedance)
-      // and vgenv (MiniMax H3). Image Studio: AI Gateway and SmartAIPI first,
+      // Video Studio: ArgoLink, Higgsfield and MiniMax H3 (vgenv). Cartoon Studio: MiniMax H3 (vgenv). Image Studio: AI Gateway and SmartAIPI first,
       // then ArgoLink models they do not offer. Voice Studio: Vibi.
       let videoPricing=[];
       let imagePricing=[];
@@ -1103,13 +1063,9 @@ const server=http.createServer(async (req,res)=>{
           if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
           promptEnhancerConfig.enabled=Boolean(currentUser?.status==='active' && providerSettings.promptEnhancer.active);
-          const seedanceActive=Boolean(
-            (customerProviderAccess.vidancee && providerSettings.vidancee.active) ||
-            (customerProviderAccess.createpulse && providerSettings.createpulse.active)
-          );
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
           const names=await modelDisplayNames().catch(()=>({}));
-          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'?h3Active:seedanceActive).map(withLiteWarning),names);
+          cartoonPricing=applyModelNames('cartoon',publicPricing().filter(model=>model.id==='minimax_h3'&&h3Active),names);
           cartoonEnabled=cartoonPricing.length>0;
 
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});
@@ -1627,46 +1583,6 @@ const server=http.createServer(async (req,res)=>{
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
-      if (req.method==='POST' && routePath==='/admin/provider/check') {
-        const provider=await providerClient();
-        await provider.login();
-        const snapshot=await provider.getJobs(12);
-        return sendJson(res,200,{ok:true,login:'OK',provider:{
-          credits:snapshot.credits,reserved:snapshot.reserved,concurrency:snapshot.concurrency,
-          processing:snapshot.processing,activeCount:Array.isArray(snapshot.active)?snapshot.active.length:0,
-          returnedHistoryCount:Array.isArray(snapshot.jobs)?snapshot.jobs.length:0,hasMore:snapshot.has_more,
-        }});
-      }
-
-      if (req.method==='GET' && routePath==='/admin/provider/jobs') {
-        const provider=await providerClient();
-        return sendJson(res,200,await provider.getJobs(12));
-      }
-
-      if (req.method==='GET' && routePath==='/admin/provider/job') {
-        const jobId=Number(url.searchParams.get('id'));
-        if (!Number.isFinite(jobId)||jobId<=0) return sendJson(res,400,{ok:false,error:'Valid job id is required.'});
-        const provider=await providerClient();
-        const snapshot=await provider.getJobs(12);
-        const all=[...(snapshot.active||[]),...(snapshot.jobs||[])];
-        const job=all.find(item=>Number(item.id)===jobId)||null;
-        return sendJson(res,200,{ok:true,found:Boolean(job),job:job?provider.normalizeJob(job):null});
-      }
-
-      if (req.method==='POST' && routePath==='/admin/provider/generate') {
-        const settings=await getProviderSettings();
-        if (!settings.allowProviderCharges) return sendJson(res,403,{ok:false,error:'Generation submissions are disabled.'});
-        const body=await readJson(req);
-        const prompt=String(body.prompt||'').trim();
-        if (!prompt) return sendJson(res,400,{ok:false,error:'prompt is required'});
-        const provider=await providerClient();
-        const result=await provider.generateText({
-          prompt, model:String(body.model||'seedance_2.5'), duration:Number(body.duration||10),
-          aspectRatio:String(body.aspectRatio||'9:16'), quantity:Number(body.quantity||1),
-        });
-        return sendJson(res,200,{ok:true,submitted:true,job_id:result.job_id,job_ids:result.job_ids,quantity:result.quantity});
-      }
-
       if (req.method==='POST' && routePath==='/admin/vibi/check') {
         requireDatabase();
         const settings=await getProviderSettings();
@@ -1878,8 +1794,6 @@ const server=http.createServer(async (req,res)=>{
           signupsEnabled:allowSignups,
           workerEnabled:/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true')),
           providers:{
-            vidancee:providerSettings.vidancee.configured,
-            createpulse:providerSettings.createpulse.configured,
             vgenv:providerSettings.vgenv.configured,
             vibi:providerSettings.vibi.configured,
             smartaipi:providerSettings.smartaipi.configured,
@@ -1888,8 +1802,6 @@ const server=http.createServer(async (req,res)=>{
             fal:providerSettings.fal.configured,
           },
           providerEnabled:{
-            vidancee:providerSettings.vidancee.enabled,
-            createpulse:providerSettings.createpulse.enabled,
             vgenv:providerSettings.vgenv.enabled,
             vibi:providerSettings.vibi.enabled,
             smartaipi:providerSettings.smartaipi.enabled,
@@ -1899,8 +1811,6 @@ const server=http.createServer(async (req,res)=>{
             fal:providerSettings.fal.enabled,
           },
           providerActive:{
-            vidancee:providerSettings.vidancee.active,
-            createpulse:providerSettings.createpulse.active,
             vgenv:providerSettings.vgenv.active,
             vibi:providerSettings.vibi.active,
             smartaipi:providerSettings.smartaipi.active,
@@ -1909,8 +1819,6 @@ const server=http.createServer(async (req,res)=>{
             higgsfield:providerSettings.higgsfield.active,
             fal:providerSettings.fal.active,
           },
-          routing:providerSettings.routing,
-          createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
           vibiMaxInflight:providerSettings.vibi.maxInflight,
           smartAipiMaxInflight:providerSettings.smartaipi.maxInflight,

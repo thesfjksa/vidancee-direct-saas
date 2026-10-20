@@ -6,15 +6,14 @@ const { VercelGatewayClient } = require('./provider/vercel.js');
 const { ArgoLinkClient } = require('./provider/argolink.js');
 
 // Grouped by studio: Video (ArgoLink, Higgsfield), Image (AI Gateway, SmartAIPI, then
-// ArgoLink), Cartoon (Vidancee, CreatePulse, vgenv), Upscaler and HD enhancement (fal.ai) and Voice (Vibi).
+// ArgoLink), Video and Cartoon (vgenv), Upscaler and HD enhancement (fal.ai) and Voice (Vibi).
 const PROVIDERS = [
   ['argolink', 'ArgoLink'], ['higgsfield', 'Higgsfield'], ['vercel', 'Vercel AI Gateway'], ['smartaipi', 'SmartAIPI'],
-  ['vidancee', 'Vidancee'], ['createpulse', 'CreatePulse'], ['vgenv', 'MiniMax (vgenv)'], ['fal', 'fal.ai upscaler'], ['vibi', 'Vibi voice'],
+  ['vgenv', 'MiniMax (vgenv)'], ['fal', 'fal.ai upscaler'], ['vibi', 'Vibi voice'],
 ];
 const STATUS_KEY = 'status_provider_runtime';
 
-// The worker already talks to Vidancee every few seconds; it saves what it sees
-// so Admin never needs a second Vidancee login (which could end the worker's).
+// The worker saves what it learns about sources (out-of-credits marks) here.
 async function recordProviderStatus(db, patch) {
   const [rows] = await db.query('SELECT setting_value FROM app_settings WHERE setting_key=?', [STATUS_KEY]);
   let current = {};
@@ -87,12 +86,6 @@ async function smartAipiBalance(baseUrl, apiKey, fetchImpl = globalThis.fetch) {
 
 async function remoteBalances(settings, status, { fetchImpl } = {}) {
   const out = {};
-  const vid = status.vidancee;
-  if (vid && Number.isFinite(Number(vid.credits))) {
-    out.vidancee = { remaining: Number(vid.credits) - Number(vid.reserved || 0), reserved: Number(vid.reserved || 0), unit: 'Vidancee credits',
-      concurrency: Number(vid.concurrency || 0), processing: Number(vid.processing || 0), checkedAt: vid.at || null };
-  } else out.vidancee = { note: settings.vidancee?.active ? 'Waiting for the worker to read the balance.' : 'Source not active.' };
-
   const outOfCredits = status.outOfCredits || {};
   for (const key of Object.keys(outOfCredits)) {
     if (Number(outOfCredits[key]) > Date.now()) out[key] = { ...(out[key] || {}), outOfCreditsUntil: new Date(Number(outOfCredits[key])).toISOString() };
@@ -115,7 +108,7 @@ async function remoteBalances(settings, status, { fetchImpl } = {}) {
 
 async function providerUsage(db, settings, adminSettings, options) {
   const [local, status] = await Promise.all([localUsage(db), readProviderStatus(db)]);
-  const remote = await remoteBalances({ ...settings, vidancee: adminSettings.vidancee }, status, options);
+  const remote = await remoteBalances(settings, status, options);
   return PROVIDERS.map(([key, label]) => ({
     key, label,
     active: Boolean(adminSettings[key]?.active), configured: Boolean(adminSettings[key]?.configured),

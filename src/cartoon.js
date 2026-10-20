@@ -1,9 +1,9 @@
 'use strict';
 
-// Cartoon Studio: video in a chosen cartoon style. Seedance goes to Vidancee or
-// CreatePulse (whichever has provider credits); MiniMax H3 goes to vgenv. The customer's own prompt is
+// Cartoon Studio: video in a chosen cartoon style, made with MiniMax H3 on vgenv
+// (Seedance on Vidancee/CreatePulse was removed). The customer's own prompt is
 // stored on the job; the style direction is added only when it is submitted.
-const CARTOON_MODELS = ['seedance_2.5', 'seedance_2.0_fast', 'minimax_h3'];
+const CARTOON_MODELS = ['minimax_h3'];
 
 const CARTOON_STYLES = [
   { id: '3d', label: '3D Animation', hint: 'Feature-film 3D characters',
@@ -26,7 +26,7 @@ function normalizeCartoonRequest(body) {
   const style = cartoonStyle(body.cartoonStyle);
   if (!style) throw Object.assign(new Error('Choose a cartoon style.'), { statusCode: 400 });
   if (!CARTOON_MODELS.includes(String(body.model || ''))) {
-    throw Object.assign(new Error('Cartoon Studio supports Seedance 2.5, Seedance 2.0 Fast and MiniMax H3.'), { statusCode: 400 });
+    throw Object.assign(new Error('Cartoon Studio supports MiniMax H3.'), { statusCode: 400 });
   }
   return { studio: 'cartoon', cartoonStyle: style.id };
 }
@@ -48,12 +48,6 @@ function providerPrompt(job) {
   return style ? style.directive + ' Scene: ' + prompt : prompt;
 }
 
-// Vidancee charged 6 credits for 10s and 9 for 15s (14 for a 30s image job).
-// 0.6 per second covers all observed jobs; the real charge stays Vidancee's.
-function vidanceeCreditsNeeded(job) {
-  return Math.ceil(Math.max(1, Number(job?.duration || 10)) * 0.6);
-}
-
 function looksOutOfCredits(error) {
   const text = [error?.message, safeStringify(error?.details)].join(' ');
   return /insufficient|not enough|out of credit|no credits|credit balance|balance|top.?up|quota|payment required|\b402\b/i.test(text);
@@ -73,5 +67,5 @@ function publicCartoonConfig(enabled, pricing) {
 
 module.exports = {
   CARTOON_MODELS, CARTOON_STYLES, cartoonStyle, normalizeCartoonRequest, isCartoonJob,
-  providerPrompt, vidanceeCreditsNeeded, looksOutOfCredits, publicCartoonConfig,
+  providerPrompt, looksOutOfCredits, publicCartoonConfig,
 };

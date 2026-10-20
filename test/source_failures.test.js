@@ -18,23 +18,16 @@ const { serializeGeneration } = require('../src/generations.js');
 
 test('a job a source fails after accepting it is refunded with the source\'s reason', async () => {
   const w = new GenerationWorker();
-  w.vidancee = { getJobs: async () => ({ ok: true, active: [], jobs: [{ id: 41, status: 'failed', error_message: 'Vidancee: prompt rejected by moderation' }] }) };
-  w.vidanceeStatusSavedAt = Date.now();
-  await w.syncVidancee(db);
-  w.createPulse = { getStatus: async () => ({ status: 'failed', error: 'Render timed out', amount: null }) };
-  await w.syncCreatePulse(db);
+  w.vgenv = { getVideo: async () => ({ status: 'failed', error: 'vgenv: prompt rejected by moderation', price: null }) };
+  await w.syncVgenv(db);
   w.vgenv = { getVideo: async () => ({ status: 'failed', error: 'Reference image could not be read', price: null }) };
   await w.syncVgenv(db);
   w.vgenv = { getVideo: async () => ({ status: 'cancelled', error: null, price: null }) };
   await w.syncVgenv(db);
-  w.createPulse = { getStatus: async () => ({ status: 'failed', error: 'Upstream 500 from https://internal.example/api/job/9 ', amount: null }) };
-  await w.syncCreatePulse(db);
   assert.deepEqual(refunds, [
-    'Generation failed: Vidancee: prompt rejected by moderation. Credits were refunded.',
-    'Generation failed: Render timed out. Credits were refunded.',
+    'Generation failed: vgenv: prompt rejected by moderation. Credits were refunded.',
     'Generation failed: Reference image could not be read. Credits were refunded.',
     'Generation failed during processing. Credits were refunded.',
-    'Generation failed: Upstream 500 from. Credits were refunded.',
   ]);
   // Customers see the reason without the vendor's name.
   assert.equal(serializeGeneration({ error_message: refunds[0] }).error_message,

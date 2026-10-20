@@ -1,14 +1,9 @@
-const { rsToCredits, usdToCredits } = require('./billing.js');
+const { usdToCredits } = require('./billing.js');
 
 // Fixed-price video models cost the customer exactly what CMM Tools pays for
 // them, in credits (24 credits per rupee of cost; see billing.js), rounded up
 // to whole credits. The profit is in the plan price, not here.
 const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
-
-// Vidancee and CreatePulse: Rs 40 for 30 s of Seedance 2.5. Seedance 2.0 Fast
-// keeps its earlier 5:6 ratio to Seedance 2.5.
-const SEEDANCE_25_PER_SECOND = rsToCredits(40 / 30);
-const SEEDANCE_20_FAST_PER_SECOND = SEEDANCE_25_PER_SECOND * 5 / 6;
 
 // vgenv MiniMax H3, Fast tier (vgenv.com/developers): $0.0015/s at 480p,
 // $0.003/s at 768p.
@@ -28,23 +23,6 @@ function h3ResolutionCosts() {
 
 function pricingMap() {
   return {
-    'seedance_2.5': {
-      label: 'Seedance 2.5',
-      resolutions: [],
-      durations: {
-        10: (perSecond(SEEDANCE_25_PER_SECOND, 10)),
-        15: (perSecond(SEEDANCE_25_PER_SECOND, 15)),
-        30: (perSecond(SEEDANCE_25_PER_SECOND, 30)),
-      },
-    },
-    'seedance_2.0_fast': {
-      label: 'Seedance 2.0 Fast',
-      resolutions: [],
-      durations: {
-        10: (perSecond(SEEDANCE_20_FAST_PER_SECOND, 10)),
-        15: (perSecond(SEEDANCE_20_FAST_PER_SECOND, 15)),
-      },
-    },
     'minimax_h3': {
       label: 'MiniMax H3',
       defaultResolution: '768p',

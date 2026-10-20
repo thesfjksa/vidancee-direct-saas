@@ -25,14 +25,6 @@ const DEFAULTS = {
   fal_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
   prompt_enhancer_enabled: 'true',
   prompt_enhancer_gemini_api_key: '',
-  vidancee_base_url: 'https://vidancee.com',
-  vidancee_email: '',
-  vidancee_password: '',
-  vidancee_enabled: 'true',
-  createpulse_base_url: 'https://createpulse.online',
-  createpulse_api_key: '',
-  createpulse_max_inflight: '3',
-  createpulse_enabled: 'true',
   smartaipi_base_url: 'https://api.smartaipi.com/v1',
   smartaipi_api_key: '',
   smartaipi_enabled: 'true',
@@ -49,7 +41,6 @@ const DEFAULTS = {
   vibi_enabled: 'true',
   vibi_max_inflight: '4',
   vibi_clone_customer_cost: '0',
-  provider_routing: 'overflow',
   allow_provider_charges: 'false',
 };
 
@@ -143,7 +134,6 @@ async function getProviderSettings() {
     if (!row) return DEFAULTS[key];
     return Number(row.is_secret) ? decrypt(row.setting_value) : String(row.setting_value || '');
   };
-  const routing = String(read('provider_routing') || 'overflow');
   return {
     vercelApiKey: String(read('vercel_api_key') || '').trim(),
     vercelEnabled: asBool(read('vercel_enabled')),
@@ -165,14 +155,6 @@ async function getProviderSettings() {
     falCustomerCreditsPerUsd: CREDITS_PER_USD,
     promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
     promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
-    vidanceeBaseUrl: normalizeUrl(read('vidancee_base_url'), DEFAULTS.vidancee_base_url),
-    vidanceeEmail: String(read('vidancee_email') || '').trim(),
-    vidanceePassword: String(read('vidancee_password') || ''),
-    vidanceeEnabled: asBool(read('vidancee_enabled')),
-    createPulseBaseUrl: normalizeUrl(read('createpulse_base_url'), DEFAULTS.createpulse_base_url),
-    createPulseApiKey: String(read('createpulse_api_key') || '').trim(),
-    createPulseMaxInflight: Math.max(1, Math.min(50, Number(read('createpulse_max_inflight') || 3))),
-    createPulseEnabled: asBool(read('createpulse_enabled')),
     smartAipiBaseUrl: smartAipiBaseUrl(read('smartaipi_base_url')),
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
@@ -188,7 +170,6 @@ async function getProviderSettings() {
     vibiEnabled: asBool(read('vibi_enabled')),
     vibiMaxInflight: Math.max(1, Math.min(20, Number(read('vibi_max_inflight') || 4))),
     vibiCloneCustomerCost: Math.max(0, Number(read('vibi_clone_customer_cost') || 0)),
-    routing: ['overflow','balanced','createpulse-first'].includes(routing) ? routing : 'overflow',
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
 }
@@ -225,22 +206,6 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.promptEnhancerApiKey),
       active: Boolean(s.promptEnhancerEnabled && s.promptEnhancerApiKey && s.allowProviderCharges),
     },
-    vidancee: {
-      baseUrl: s.vidanceeBaseUrl,
-      email: s.vidanceeEmail,
-      passwordConfigured: Boolean(s.vidanceePassword),
-      configured: Boolean(s.vidanceeEmail && s.vidanceePassword),
-      enabled: Boolean(s.vidanceeEnabled),
-      active: Boolean(s.vidanceeEnabled && s.vidanceeEmail && s.vidanceePassword),
-    },
-    createpulse: {
-      baseUrl: s.createPulseBaseUrl,
-      apiKeyConfigured: Boolean(s.createPulseApiKey),
-      maxInflight: s.createPulseMaxInflight,
-      configured: Boolean(s.createPulseApiKey),
-      enabled: Boolean(s.createPulseEnabled),
-      active: Boolean(s.createPulseEnabled && s.createPulseApiKey),
-    },
     smartaipi: {
       baseUrl: s.smartAipiBaseUrl,
       apiKeyConfigured: Boolean(s.smartAipiApiKey),
@@ -268,7 +233,6 @@ async function getAdminProviderSettings() {
       enabled: Boolean(s.vibiEnabled),
       active: Boolean(s.vibiEnabled && s.vibiApiKey),
     },
-    routing: s.routing,
     allowProviderCharges: s.allowProviderCharges,
   };
 }
@@ -362,22 +326,6 @@ async function updateProviderSettings(input = {}) {
   }
   if ('smartAipiModels' in input) smartUpdates.push(['smartaipi_models', JSON.stringify(normalizeSmartImageConfig(input.smartAipiModels))]);
 
-  if ('vidanceeBaseUrl' in input) await put('vidancee_base_url', normalizeUrl(input.vidanceeBaseUrl, DEFAULTS.vidancee_base_url));
-  if ('vidanceeEmail' in input) await put('vidancee_email', String(input.vidanceeEmail || '').trim());
-  if ('vidanceeEnabled' in input) await put('vidancee_enabled', input.vidanceeEnabled ? 'true' : 'false');
-  if (input.clearVidanceePassword === true) await del('vidancee_password');
-  else if (String(input.vidanceePassword || '').length) await put('vidancee_password', String(input.vidanceePassword), true);
-
-  if ('createPulseBaseUrl' in input) await put('createpulse_base_url', normalizeUrl(input.createPulseBaseUrl, DEFAULTS.createpulse_base_url));
-  if ('createPulseEnabled' in input) await put('createpulse_enabled', input.createPulseEnabled ? 'true' : 'false');
-  if (input.clearCreatePulseApiKey === true) await del('createpulse_api_key');
-  else if (String(input.createPulseApiKey || '').trim()) await put('createpulse_api_key', String(input.createPulseApiKey).trim(), true);
-
-  if ('createPulseMaxInflight' in input) {
-    const n = Number(input.createPulseMaxInflight);
-    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error('Max inflight must be 1 to 50.');
-    await put('createpulse_max_inflight', String(n));
-  }
   if ('vgenvBaseUrl' in input) await put('vgenv_base_url', normalizeUrl(input.vgenvBaseUrl, DEFAULTS.vgenv_base_url));
   if ('vgenvEnabled' in input) await put('vgenv_enabled', input.vgenvEnabled ? 'true' : 'false');
   if (input.clearVgenvApiKey === true) await del('vgenv_api_key');
@@ -428,11 +376,6 @@ async function updateProviderSettings(input = {}) {
   if (input.clearHiggsfieldApiKey===true) await del('higgsfield_api_key');
   else if (String(input.higgsfieldApiKey||'').trim()) await put('higgsfield_api_key',input.higgsfieldApiKey.trim(),true);
 
-  if ('routing' in input) {
-    const routing = String(input.routing || '');
-    if (!['overflow','balanced','createpulse-first'].includes(routing)) throw new Error('Invalid routing mode.');
-    await put('provider_routing', routing);
-  }
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
 }
@@ -454,14 +397,6 @@ async function migrateLegacyProviderEnvSettings() {
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('fal_api_key', 'FAL_KEY');
-  plain('vidancee_base_url', 'VIDANCEE_BASE_URL');
-  plain('vidancee_email', 'VIDANCEE_EMAIL');
-  secret('vidancee_password', 'VIDANCEE_PASSWORD');
-  plain('vidancee_enabled', 'VIDANCEE_ENABLED');
-  plain('createpulse_base_url', 'CREATEPULSE_BASE_URL');
-  secret('createpulse_api_key', 'CREATEPULSE_API_KEY');
-  plain('createpulse_max_inflight', 'CREATEPULSE_MAX_INFLIGHT');
-  plain('createpulse_enabled', 'CREATEPULSE_ENABLED');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');
   plain('vgenv_max_inflight', 'VGENV_MAX_INFLIGHT');
@@ -471,7 +406,6 @@ async function migrateLegacyProviderEnvSettings() {
   plain('vibi_enabled', 'VIBI_ENABLED');
   plain('vibi_max_inflight', 'VIBI_MAX_INFLIGHT');
   plain('vibi_clone_customer_cost', 'VIBI_CLONE_CUSTOMER_COST');
-  plain('provider_routing', 'PROVIDER_ROUTING');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
   return tasks.length;

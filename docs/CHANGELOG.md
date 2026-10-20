@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-20 — Vidancee and CreatePulse removed
+
+- **Removed:** Vidancee and CreatePulse (Seedance 2.5 Lite and Seedance 2.0 Fast): their API clients, worker polling and routing, Admin cards, routing policy, settings, customer Sources switches, usage rows and the old Admin test routes. Both had been refusing every job (Vidancee HTTP 403, CreatePulse "minimum $10 balance"). Jobs still open on them are refunded by the worker; finished videos stay in customers' libraries.
+- Video Studio: ArgoLink, Higgsfield (Wan 3.0) and MiniMax H3 (vgenv). Cartoon Studio: MiniMax H3 only. ArgoLink's Seedance 2.5 and 2.0 are unchanged.
+- Fixed-price jobs now default to vgenv. MiniMax H3 jobs used to be created under `vidancee` and relabelled by the worker; any still queued that way are moved to vgenv instead of being refunded.
+- Plan descriptions now quote Wan 3.0 (about 71 or 142 five-second videos) instead of Seedance 2.5 Lite.
+
 ## 2026-10-20 — Price preview includes reference video seconds
 
 - A customer reported Seedance 2.5 charging more than the price shown before generating. ArgoLink bills each reference video's length on top of the output (at 0.6x per second), and the charge included it, but the preview never sent the reference videos, so it showed the price without them (19 October: 15 s with 2 reference videos, charged 10,912 credits). Video Studio now reads each reference video's length in the browser and sends it with the price request (`previewVideoSeconds`), so the preview matches the charge. Jobs are still priced from the uploaded files; preview lengths are ignored on submit.

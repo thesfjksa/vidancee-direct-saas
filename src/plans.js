@@ -25,7 +25,7 @@ const PLANS = Object.freeze({
     features: [
       '60,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 62 Seedance 2.5 Lite videos of 30 s, or 297 MiniMax H3 videos of 10 s',
+      'About 71 Wan 3.0 videos of 5 s, or 297 MiniMax H3 videos of 10 s',
       'Up to 3 simultaneous generations',
     ],
   }),
@@ -41,7 +41,7 @@ const PLANS = Object.freeze({
     features: [
       '120,000 AI credits every purchase',
       'Every video, image, cartoon and voice model',
-      'About 125 Seedance 2.5 Lite videos of 30 s, or 595 MiniMax H3 videos of 10 s',
+      'About 142 Wan 3.0 videos of 5 s, or 595 MiniMax H3 videos of 10 s',
       'Priority queue · up to 5 simultaneous generations',
     ],
   }),
