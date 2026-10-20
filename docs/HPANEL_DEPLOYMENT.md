@@ -14,6 +14,8 @@ thesfjksa/vidancee-direct-saas
 
 Use the `main` branch for both Hostinger applications.
 
+Both applications redeploy when a new commit lands on `main`. If a merge does not start a deployment (the site's `/live` `startedAt` stays unchanged), click Redeploy in hPanel for each application, or push another commit to `main`.
+
 ---
 
 ## Production architecture
