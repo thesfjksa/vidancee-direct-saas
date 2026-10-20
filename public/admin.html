@@ -95,38 +95,6 @@
         </div>
         <div class="card">
           <div class="source-head">
-            <h3>Cartoon Studio · Vidancee</h3>
-            <label class="source-switch" title="Enable or disable this backend source">
-              <input id="vidEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
-              <span class="source-switch-track"></span>
-            </label>
-          </div>
-          <div id="vidEnabledText" class="source-state"></div>
-          <div class="muted">Base URL</div><input id="vidBaseUrl" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Login email</div><input id="vidEmail" style="width:100%;margin:6px 0 10px">
-          <div class="muted">Password</div><input id="vidPassword" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearVidPassword" type="checkbox" style="width:auto"> Clear saved password</label>
-          <div id="vidSecretStatus" class="muted" style="margin-top:8px"></div>
-          <button class="secondary" style="margin-top:12px" onclick="checkProvider()">Test connection</button>
-          <pre id="providerOut">Ready.</pre>
-        </div>
-        <div class="card">
-          <div class="source-head">
-            <h3>Cartoon Studio · CreatePulse</h3>
-            <label class="source-switch" title="Enable or disable this backend source">
-              <input id="cpEnabled" type="checkbox" onchange="updateSourceSwitchLabels()">
-              <span class="source-switch-track"></span>
-            </label>
-          </div>
-          <div id="cpEnabledText" class="source-state"></div>
-          <div class="muted">Base URL</div><input id="cpBaseUrl" style="width:100%;margin:6px 0 10px">
-          <div class="muted">API key</div><input id="cpApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearCpApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
-          <div id="cpSecretStatus" class="muted" style="margin-top:8px"></div>
-          <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="cpInflight" type="number" min="1" max="50" value="3" style="width:100%;margin-top:6px">
-        </div>
-        <div class="card">
-          <div class="source-head">
             <h3>Image Studio · SmartAIPI</h3>
             <label class="source-switch" title="Enable or disable this backend source">
               <input id="smartEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span>
@@ -233,7 +201,6 @@
         </div>
       </div>
       <div class="row" style="margin-top:12px">
-        <div><div class="muted">Routing policy</div><select id="providerRouting" style="width:100%;margin-top:6px"><option value="overflow">Primary first, overflow when busy</option><option value="balanced">Balance available capacity</option><option value="createpulse-first">Overflow engine first</option></select></div>
         <div><div class="muted">Generation submissions</div><select id="providerCharges" style="width:100%;margin-top:6px"><option value="true">Enabled</option><option value="false">Paused</option></select></div>
       </div>
       <div id="providerSettingsMsg" class="muted" style="margin-top:10px"></div>
@@ -271,8 +238,6 @@
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Cartoon Studio · Seedance</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
-      <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Cartoon Studio · Seedance (overflow)</span></div><span class="source-switch"><input id="accessCreatepulse" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>SmartAIPI</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessSmartaipi" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>fal.ai</strong><span class="muted">Upscaler tab</span></div><span class="source-switch"><input id="accessFal" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -328,7 +293,7 @@ async function loadUsers(){
     adminUsersById=new Map((d.users||[]).map(u=>[Number(u.id),u]));
     $('userRows').innerHTML=d.users.length?d.users.map(u=>{
       const a=u.provider_access||{};
-      const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['fal','Upscaler'],['vercel','Vercel'],['vidancee','Vidancee'],['createpulse','CreatePulse'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+      const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
       const pills=sourceLabels.map(([key,label])=>'<span class="provider-pill '+(a[key]!==false?'on':'')+'">'+esc(label)+'</span>').join('');
       return '<tr><td>'+u.id+'</td><td>'+esc(u.email)+'</td><td>'+esc((u.plan_code||'none').toUpperCase())+'</td><td><strong>'+u.credits+'</strong></td><td><div class="provider-pills">'+pills+'</div></td><td>'+esc(u.role)+'</td><td><span class="badge">'+esc(u.status)+'</span></td><td>'+fmt(u.created_at)+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
     }).join(''):'<tr><td colspan="9" class="muted">No users found.</td></tr>';
@@ -345,8 +310,6 @@ function openProviderAccess(id){
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessFal').checked=a.fal!==false;
-  $('accessVidancee').checked=a.vidancee!==false;
-  $('accessCreatepulse').checked=a.createpulse!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessSmartaipi').checked=a.smartaipi!==false;
   $('accessVibi').checked=a.vibi!==false;
@@ -362,8 +325,6 @@ async function saveProviderAccess(){
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
     fal:$('accessFal').checked,
-    vidancee:$('accessVidancee').checked,
-    createpulse:$('accessCreatepulse').checked,
     vgenv:$('accessVgenv').checked,
     smartaipi:$('accessSmartaipi').checked,
     vibi:$('accessVibi').checked,
@@ -416,8 +377,6 @@ async function loadCredits(){try{const d=await api('/admin/credits');$('creditRo
 function updateSourceSwitchLabels(){
   const items=[
     ['enhancerEnabled','enhancerEnabledText'],
-    ['vidEnabled','vidEnabledText'],
-    ['cpEnabled','cpEnabledText'],
     ['smartEnabled','smartEnabledText'],
     ['vgenvEnabled','vgenvEnabledText'],
     ['vercelEnabled','vercelEnabledText'],
@@ -439,8 +398,6 @@ async function loadProviderSettings(){try{
   $('enhancerEnabled').checked=s.promptEnhancer?.enabled!==false;
   $('enhancerApiKey').value='';$('clearEnhancerApiKey').checked=false;
   $('enhancerSecretStatus').textContent=s.promptEnhancer?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
-  $('vidEnabled').checked=s.vidancee?.enabled!==false;
-  $('cpEnabled').checked=s.createpulse?.enabled!==false;
   $('smartEnabled').checked=s.smartaipi?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
   $('vercelEnabled').checked=s.vercel?.enabled!==false;
@@ -466,8 +423,6 @@ async function loadProviderSettings(){try{
   $('falCreditsPerUsd').value=s.fal?.customerCreditsPerUsd||(160/0.0265);
   $('vibiEnabled').checked=s.vibi?.enabled!==false;
   updateSourceSwitchLabels();
-  $('vidBaseUrl').value=s.vidancee.baseUrl||'';$('vidEmail').value=s.vidancee.email||'';$('vidPassword').value='';$('clearVidPassword').checked=false;$('vidSecretStatus').textContent=s.vidancee.passwordConfigured?'Saved password: configured':'Saved password: not configured';
-  $('cpBaseUrl').value=s.createpulse.baseUrl||'';$('cpApiKey').value='';$('clearCpApiKey').checked=false;$('cpSecretStatus').textContent=s.createpulse.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('cpInflight').value=s.createpulse.maxInflight||3;
   $('smartBaseUrl').value=s.smartaipi?.baseUrl||'https://api.smartaipi.com/v1';$('smartApiKey').value='';$('clearSmartApiKey').checked=false;
   $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('smartInflight').value=s.smartaipi?.maxInflight||2;$('smartCreditsPerUsd').value=s.smartaipi?.customerCreditsPerUsd||(160/0.0265);
@@ -476,25 +431,23 @@ async function loadProviderSettings(){try{
   $('smartModelPrices').innerHTML=smartModels.map(model=>'<div class="smart-price-row" data-smart-model="'+esc(model.id)+'"><label><input class="smart-model-enabled" type="checkbox" style="width:auto"'+(model.enabled?' checked':'')+'> '+esc(model.label)+'</label><div>'+['low','medium','high'].map(q=>'<input aria-label="'+esc(model.label)+' '+q+' USD" data-smart-quality="'+q+'" class="smart-quality-price'+(q==='medium'?' smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+usd(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'">').join('')+'</div></div>').join('');
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
   $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
-  $('providerRouting').value=s.routing||'overflow';$('providerCharges').value=s.allowProviderCharges?'true':'false';
+  $('providerCharges').value=s.allowProviderCharges?'true':'false';
 }catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
 async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
   const body={
     promptEnhancerEnabled:$('enhancerEnabled').checked,promptEnhancerApiKey:$('enhancerApiKey').value.trim(),clearPromptEnhancerApiKey:$('clearEnhancerApiKey').checked,
-    vidanceeEnabled:$('vidEnabled').checked,createPulseEnabled:$('cpEnabled').checked,vgenvEnabled:$('vgenvEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
+    vgenvEnabled:$('vgenvEnabled').checked,vibiEnabled:$('vibiEnabled').checked,
     smartAipiEnabled:$('smartEnabled').checked,smartAipiBaseUrl:$('smartBaseUrl').value.trim(),smartAipiApiKey:$('smartApiKey').value.trim(),clearSmartAipiApiKey:$('clearSmartApiKey').checked,
     smartAipiMaxInflight:Number($('smartInflight').value),smartAipiCustomerCreditsPerUsd:Number($('smartCreditsPerUsd').value),
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
-    vidanceeBaseUrl:$('vidBaseUrl').value.trim(),vidanceeEmail:$('vidEmail').value.trim(),vidanceePassword:$('vidPassword').value,clearVidanceePassword:$('clearVidPassword').checked,
-    createPulseBaseUrl:$('cpBaseUrl').value.trim(),createPulseApiKey:$('cpApiKey').value.trim(),clearCreatePulseApiKey:$('clearCpApiKey').checked,createPulseMaxInflight:Number($('cpInflight').value),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
-    routing:$('providerRouting').value,allowProviderCharges:$('providerCharges').value==='true'
+    allowProviderCharges:$('providerCharges').value==='true'
   };
   try{const d=await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';
     const hs=d.higgsfieldSync;
@@ -700,7 +653,6 @@ async function checkVibi(){
   }catch(e){m.className='err';m.textContent=e.message}
 }
 
-async function checkProvider(){const o=$('providerOut');o.textContent='Checking...';try{o.textContent=JSON.stringify(await api('/admin/provider/check',{method:'POST'}),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
 async function providerJobs(){const o=$('providerJobsOut');o.textContent='Loading...';try{o.textContent=JSON.stringify(await api('/admin/provider/jobs'),null,2)}catch(e){o.textContent='ERROR: '+e.message}}
 async function loadProviderUsage(){
   const rows=$('usageRows'),note=$('usageNote');

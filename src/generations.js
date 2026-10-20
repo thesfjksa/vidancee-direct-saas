@@ -289,7 +289,7 @@ async function createGenerationForUser(userId, input, options = {}) {
   const cost = hasDynamicCost
     ? roundCredits(dynamicCost)
     : getCost(model, duration, resolution);
-  const provider = String(options.provider || 'vidancee').slice(0, 40);
+  const provider = String(options.provider || 'vgenv').slice(0, 40);
   const providerCost = Number(options.providerCost);
   const providerCostValue = Number.isFinite(providerCost) && providerCost >= 0 ? providerCost : null;
   const providerCostUnit = providerCostValue == null ? null : String(options.providerCostUnit || 'credits').slice(0, 20);

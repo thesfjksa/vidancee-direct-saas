@@ -2,11 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
 
-test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rename any model', async t => {
+test('Video Studio lists MiniMax H3 and the admin can rename any model', async t => {
   process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'test-admin-only';
   const user = { id: 1, email: 'test1@example.com', credits: 50, status: 'active', plan_code: 'pro', role: 'user' };
-  // Vidancee and vgenv are configured; no other source is.
-  const settings = new Map([['vidancee_email', 'ops@example.com'], ['vidancee_password', 'secret'], ['vgenv_api_key', 'vg-test']]);
+  // vgenv is configured; no other source is.
+  const settings = new Map([['vgenv_api_key', 'vg-test']]);
   async function execute(sql, args = []) {
     if (sql.includes('SELECT setting_key')) return [[...settings].map(([setting_key, setting_value]) => ({ setting_key, setting_value, is_secret: 0 }))];
     if (sql.startsWith('INSERT INTO app_settings')) { settings.set(args[0], args[1]); return [{ affectedRows: 1 }]; }
@@ -28,46 +28,40 @@ test('Video Studio lists Seedance on Vidancee/CreatePulse and the admin can rena
   const admin = { 'content-type': 'application/json', 'x-admin-token': 'test-admin-only' };
 
   let config = await (await fetch(origin + '/api/config')).json();
-  const seedance = config.pricing.find(m => m.id === 'seedance_2.5');
-  assert.ok(seedance, 'Seedance 2.5 is in Video Studio');
-  assert.equal(seedance.label, 'Seedance 2.5 · up to 30 s');
-  assert.match(seedance.warning, /may fail/); // Lite models carry a warning
-  assert.equal(config.cartoon.pricing.find(m => m.id === 'seedance_2.5').warning, seedance.warning);
-  assert.ok(seedance.durations.length && seedance.aspectRatios.length && seedance.capabilities.image.supported);
-  assert.ok(config.pricing.some(m => m.id === 'seedance_2.0_fast'));
+  // Seedance Lite (Vidancee/CreatePulse) was removed.
+  assert.equal(config.pricing.some(m => m.id === 'seedance_2.5' || m.id === 'seedance_2.0_fast'), false);
   const h3 = config.pricing.find(m => m.id === 'minimax_h3');
   assert.equal(h3.label, 'MiniMax H3 · up to 15 s');
   assert.equal(h3.warning, undefined);
   assert.deepEqual(h3.resolutions.map(r => r.id), ['480p', '768p']);
   assert.equal(h3.defaultResolution, '768p');
-  // Seedance 2.5 Lite stays on the Pricing page.
-  const examples = await (await fetch(origin + '/api/price-examples')).json();
-  assert.ok(examples.video.some(v => v.name === 'Seedance 2.5 · up to 30 s' && v.warning));
+  assert.ok(h3.durations.length && h3.aspectRatios.length && h3.capabilities.image.supported);
+  assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3']);
 
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
-  assert.ok(list.models.some(m => m.key === 'video:seedance_2.5' && m.vendor === 'Vidancee / CreatePulse' && m.defaultName === 'Seedance 2.5 · up to 30 s' && m.name === ''));
-  assert.ok(list.models.some(m => m.key === 'cartoon:seedance_2.5'));
-  assert.ok(list.models.some(m => m.key === 'video:minimax_h3' && m.vendor === 'vgenv'));
+  assert.ok(list.models.some(m => m.key === 'video:minimax_h3' && m.vendor === 'vgenv' && m.defaultName === 'MiniMax H3 · up to 15 s' && m.name === ''));
+  assert.ok(list.models.some(m => m.key === 'cartoon:minimax_h3'));
+  assert.equal(list.models.some(m => m.key.endsWith(':seedance_2.5')), false);
 
   const save = body => fetch(origin + '/admin/model-names', { method: 'POST', headers: admin, body: JSON.stringify(body) });
-  assert.equal((await save({ names: { 'video:seedance_2.5': 'Seedance Long' } })).status, 200);
+  assert.equal((await save({ names: { 'video:minimax_h3': 'MiniMax Long' } })).status, 200);
   assert.equal((await save({ names: { 'audio:x': 'Nope' } })).status, 400);
-  // HD enhance is set here too, for ArgoLink video models only.
-  assert.equal((await save({ hd: { 'seedance_2.5': false } })).status, 400);
+  // HD enhance is set here too, for ArgoLink and Higgsfield video models only.
+  assert.equal((await save({ hd: { minimax_h3: false } })).status, 400);
   assert.equal((await save({ hd: { argo_seedance_2_5: false } })).status, 200);
   assert.deepEqual(JSON.parse(settings.get('argolink_hd_off_models')), ['argo_seedance_2_5']);
   await save({ hd: { argo_seedance_2_5: true } });
   assert.deepEqual(JSON.parse(settings.get('argolink_hd_off_models')), []);
-  assert.equal((await save({ names: { 'video:seedance_2.5': 'x'.repeat(81) } })).status, 400);
+  assert.equal((await save({ names: { 'video:minimax_h3': 'x'.repeat(81) } })).status, 400);
   assert.equal((await fetch(origin + '/admin/model-names', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
 
   config = await (await fetch(origin + '/api/config')).json();
-  assert.equal(config.pricing.find(m => m.id === 'seedance_2.5').label, 'Seedance Long');
+  assert.equal(config.pricing.find(m => m.id === 'minimax_h3').label, 'MiniMax Long');
   // Names are per studio: Cartoon Studio keeps its own.
-  assert.equal(config.cartoon.pricing.find(m => m.id === 'seedance_2.5').label, 'Seedance 2.5');
+  assert.equal(config.cartoon.pricing.find(m => m.id === 'minimax_h3').label, 'MiniMax H3');
 
   // An empty name goes back to the source's name.
-  await save({ names: { 'video:seedance_2.5': '' } });
+  await save({ names: { 'video:minimax_h3': '' } });
   config = await (await fetch(origin + '/api/config')).json();
-  assert.equal(config.pricing.find(m => m.id === 'seedance_2.5').label, 'Seedance 2.5 · up to 30 s');
+  assert.equal(config.pricing.find(m => m.id === 'minimax_h3').label, 'MiniMax H3 · up to 15 s');
 });

@@ -25,7 +25,7 @@ A push to `main` does not start a deployment on its own (checked 20 October 2026
 | Customer web and API | https://cmmtools.site | server.js | WORKER_ENABLED=false |
 | Standalone generation worker | https://worker.mehroz.online | worker.js | WORKER_ENABLED=true |
 
-Both applications connect to the shared MySQL queue and encrypted Admin settings. The worker handles ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv and Vibi work. Gemini prompt enhancement runs asynchronously in the web process. Its in-memory records are not persistent across restarts.
+Both applications connect to the shared MySQL queue and encrypted Admin settings. The worker handles ArgoLink, Vercel AI Gateway, SmartAIPI, Higgsfield, vgenv and Vibi work. Gemini prompt enhancement runs asynchronously in the web process. Its in-memory records are not persistent across restarts.
 
 The web app and worker use the same database and Admin-managed provider settings.
 

@@ -32,7 +32,7 @@ The reviewed revision identifies the application code behind this documentation.
 
 ## 2 Customer workspaces
 
-Video Studio lists ArgoLink's video models and Seedance 2.5 / 2.0 Fast on Vidancee or CreatePulse (fixed per-duration prices; the worker picks the source) and MiniMax H3 on vgenv. Admin → Provider → Model names sets the name customers see for any model, per studio.
+Video Studio lists ArgoLink's video models, Wan 3.0 on Higgsfield and MiniMax H3 on vgenv. Admin → Provider → Model names sets the name customers see for any model, per studio. (Seedance Lite on Vidancee/CreatePulse was removed on 20 October 2026.)
 
 Signed-out visitors see the landing page (`public/landing.html`) at `/`; the studio is at `/app` and also at `/` for anyone with a session cookie. `/app?signup=1` opens Create account. The landing page shows the live plans from `/api/config`.
 
@@ -83,7 +83,7 @@ These names are operational details for the owner and developer. Customer genera
 | Video Studio | ArgoLink at 720p/1080p (Seedance 2.5/2.0/Fast/Mini, Wan 3.0/Prime, Grok Video 1.5, MiniMax H3); rendered lower and upscaled by fal.ai. Seedance 2.5 renders on fal.ai while ArgoLink is out of credits |
 | Video Studio (Wan 3.0) | Higgsfield API: 480p native; 720p/1080p rendered lower and upscaled by fal.ai. See `docs/HIGGSFIELD.md` |
 | Image Studio | Vercel AI Gateway and SmartAIPI first; ArgoLink takes over a model while its source is out of credits, and ArgoLink-only models are always listed |
-| Cartoon Studio | Vidancee and CreatePulse (Seedance, whichever has credits), vgenv (MiniMax H3) |
+| Cartoon Studio | vgenv (MiniMax H3) |
 | Upscaler and Video Studio HD enhancement | fal.ai (ByteDance Video Upscaler). See `docs/FAL_UPSCALER.md` |
 | Voice Studio | Vibi |
 | Prompt enhancer | Google Gemini 3.8 Flash |
@@ -92,8 +92,6 @@ Atlas Cloud and Higgsfield were removed on 12 October 2026; jobs still open on t
 
 | Source | Implemented role | Configuration method |
 | --- | --- | --- |
-| Vidancee | Seedance video generation through its authenticated website HTTP protocol | Admin login email and password |
-| CreatePulse | Compatible Seedance overflow and routing | Admin API key |
 | vgenv | MiniMax H3 video generation | Admin API key |
 | SmartAIPI | GPT image generation and reference edits | Admin API key and model pricing |
 | Vercel AI Gateway | Image Studio (its video models are no longer offered) | Admin API key, model eligibility and positive USD pricing |
@@ -102,9 +100,7 @@ Atlas Cloud and Higgsfield were removed on 12 October 2026; jobs still open on t
 | Vibi | Text-to-speech and MiniMax voice cloning | Admin API key |
 | Google Gemini | Optional image and video prompt enhancement in the web process | Admin API key |
 
-Vidancee integration uses server-side login, cookies and CSRF tokens. Generation submits to `POST /api/generate.php`; status comes from `GET /api/jobs.php`. Image-to-video uses multipart `images[]` and `max_retries=3`. The project owner's authorization statement is preserved in `docs/VIDANCEE_PROTOCOL.md`. Keep evidence of that authorization with the project owner's business records.
 
-Legacy Seedance routing can use Vidancee as primary and CreatePulse as overflow where the selected job is compatible.
 
 A source can provide models only when it is configured, globally enabled and permitted for that customer. Dynamic catalog entries also need their own model switch enabled. Server-side cost and submission checks enforce this hierarchy. Queued work may wait when its source, model or customer assignment has been disabled. Switching a source off prevents new starts; already submitted jobs are handled according to their provider lifecycle.
 
@@ -155,7 +151,7 @@ There are separate billing rules by source. The former universal description of 
 
 | Source family | Customer credit rule |
 | --- | --- |
-| Seedance (Vidancee/CreatePulse) and vgenv video | Real source cost in credits (Rs 3 each; USD at Rs 280) × 2.5, rounded to two decimals, calculated in src/pricing.js |
+| vgenv video (MiniMax H3) | At cost: 24 credits per rupee of source cost (USD at Rs 280), rounded up, calculated in src/pricing.js |
 | SmartAIPI images | Estimated source USD multiplied by the direct customer-credits-per-USD setting, then rounded up to a whole credit |
 | Vibi TTS | Conservative submission estimate, followed by reconciliation to reported source credits multiplied by the shared multiplier |
 | Vibi cloning | Configurable customer clone cost in Admin |
@@ -258,7 +254,7 @@ Provider settings include Vercel credentials, catalog controls and USD price ove
 
 ### Customer source assignments
 
-Use Admin Users and the Sources action to grant or remove access to ArgoLink, Vercel AI Gateway, SmartAIPI, Vidancee, CreatePulse, vgenv and Voice Studio. Every studio is on by default, Voice included; turn a source off per customer here. The source assignment is checked on the server as well as in the customer catalog.
+Use Admin Users and the Sources action to grant or remove access to ArgoLink, Higgsfield, Vercel AI Gateway, SmartAIPI, vgenv and Voice Studio. Every studio is on by default, Voice included; turn a source off per customer here. The source assignment is checked on the server as well as in the customer catalog.
 
 Use the connection checks appropriate to the source. A successful model-list or account-read check proves only the checked read operation. It does not demonstrate a paid generation, provider queue speed or sufficient quota for every model.
 
