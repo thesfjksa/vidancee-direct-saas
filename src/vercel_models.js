@@ -170,7 +170,8 @@ function selection(model,input={}) {
   const resolution=choose(input.resolution,model.resolutions,model.defaultResolution,'resolution');
   const generationMode=model.modes?.length?choose(input.generationMode,model.modes,model.defaultMode,'generation mode'):null;
   if (input.generationMode&&!model.modes?.length) fail('This model does not support a mode switch.');
-  const generateAudio=input.generateAudio===true||input.generateAudio==='true';
+  // Audio is on by default for models that can make it.
+  const generateAudio=input.generateAudio===undefined||input.generateAudio===null||input.generateAudio===''?Boolean(model.supportsAudio):input.generateAudio===true||input.generateAudio==='true';
   if (generateAudio&&!model.supportsAudio) fail('This model does not support generated audio.');
   return {aspectRatio,duration,resolution,generationMode,generateAudio};
 }
