@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-20 — Seedance 2.5 Lite off the pricing pages
+
+- The public Pricing page no longer lists Seedance 2.5 Lite either (`PRICING_PAGE_HIDDEN` in server.js now holds both Seedance 2.5 ids), and the plan examples on the Pricing page, the landing page and the dashboard Plans page say only "About 297 / 595 MiniMax H3 videos of 10 s". Video Studio, Cartoon Studio and Claude still offer both Seedance 2.5 models.
+
 ## 2026-10-20 — Price preview includes reference video seconds
 
 - A customer reported Seedance 2.5 charging more than the price shown before generating. ArgoLink bills each reference video's length on top of the output (at 0.6x per second), and the charge included it, but the preview never sent the reference videos, so it showed the price without them (19 October: 15 s with 2 reference videos, charged 10,912 credits). Video Studio now reads each reference video's length in the browser and sends it with the price request (`previewVideoSeconds`), so the preview matches the charge. Jobs are still priced from the uploaded files; preview lengths are ignored on submit.
