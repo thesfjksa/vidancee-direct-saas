@@ -69,7 +69,10 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   const duration=Number(params.duration);
   if(!Number.isInteger(duration)||duration<=0)throw new Error('Invalid 888API video length.');
   return {model:model.providerModelId,prompt:String(params.prompt||''),
-    [timeField]:duration,resolution:String(params.resolution||model.defaultResolution||'720p'),
+    // 888API's Go Alias input contract requires seconds as a JSON string.
+    // Fixed-price models continue using numeric duration, as before.
+    [timeField]:timeField==='seconds'?String(duration):duration,
+    resolution:String(params.resolution||model.defaultResolution||'720p'),
     ratio:String(params.aspectRatio||'16:9'),
     ...(images.length?{images:images.map(r=>r.url)}:{})};
 };
