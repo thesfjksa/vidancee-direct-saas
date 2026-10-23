@@ -135,20 +135,15 @@ function describedModel(id,type) {
   const known=isImage?Number(cny)>0:Boolean(spec&&Number(spec[0])>0);
   // Explicitly supported request families. Unreviewed channels are imported
   // as Admin-only entries, never silently mapped to an incompatible API.
-  const implemented=known && (isImage || (
-    /^seedance2\\.[05]-.*wool$/.test(id) ||
-    ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av','doubao-seedance-2.5',
-     'dola-seedance-2.5','dola-seedance-2.5-900','dola-seedance-2.0-900',
-     'xin-seedance-2.0-900','xin-seedance-2.5-900',
-     'seedance2.0-480p','seedance2.0-720p','seedance2.0-stable-480p','seedance2.0-stable-720p',
-     'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
-     'seedance2.5-720p-plus','seedance2.5-720p-pro','seedance2.5-1080p-plus','seedance2.5-1080p-pro',
-     'minimax-h3-480p-t','minimax-h3-768p-t','wan30-720p','wan30-1080p-fast','wan3.0-image',
-     'wan3.0-image-prime','wan3.0-video','wan3.0-video-prime','sora2-480p'].includes(id)
-  ));
+  const implemented=known && (
+    (isImage && Object.hasOwn(IMAGE_CNY,id)) ||
+    (/^seedance2\\.[05]-.*wool$/.test(id)) ||
+    ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
+      'dola-seedance-2.5-900','doubao-seedance-2.5'].includes(id)
+  );
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
   const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id);
-  const refs=isImage?makeCaps(1):makeCaps(spec?.[5]||0,spec?.[6]||0,spec?.[7]||0,requiredImage);
+  const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,0,0,requiredImage);
   const videoFlat=spec?.[1]==='job';
   const pricing=isImage?{image:cny||0}:{video_duration_pricing:known?[{resolution:res,cost_per_second:videoFlat?spec[0]/min:spec[0]}]:[]};
   // Flag fixed-per-request billing separately; quoteApi888 applies the same
