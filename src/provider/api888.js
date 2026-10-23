@@ -19,6 +19,23 @@ class Api888Client {
 
 const {readBounded,checkOutputUrl,imageMime,IMAGE_LIMIT,VIDEO_LIMIT}=require('./vercel.js');
 const {validateCanvas}=require('../image_canvas.js');
+
+// Keep upstream refusal details for the protected Activity log, never include
+// Bearer credentials, signed reference URLs, or raw request/response payloads.
+function safeProviderError(value) {
+  const source=value?.error?.message||value?.error?.detail||value?.message||value?.msg||
+    (typeof value?.error==='string'?value.error:'');
+  if(typeof source!=='string')return '';
+  return source
+    .replace(/https?:\/\/[^\s"'<>]+/gi,'[URL redacted]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+/gi,'Bearer [redacted]')
+    .replace(/\b(?:sk-|cmm_support_)[A-Za-z0-9_\-]{6,}/gi,'[secret redacted]')
+    .replace(/[\r\n\t]+/g,' ').slice(0,300);
+}
+function safeProviderRequestId(value) {
+  const id=String(value?.request_id||value?.requestId||'');
+  return /^[a-zA-Z0-9_-]{4,100}$/.test(id)?id:null;
+}
 Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000){
   if(!this.apiKey)throw new Error('888API key is not configured.');
   let response;
@@ -27,7 +44,11 @@ Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000){
     body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeoutMs),redirect:'error'});}
   catch{throw Object.assign(new Error('888API request interrupted. Paid operations are not retried automatically.'),{statusCode:502,retryable:false});}
   const data=await readBounded(response,4*1024*1024).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
-  if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{statusCode:502,providerStatus:response.status,retryable:false});
+  if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{
+    statusCode:502,providerStatus:response.status,retryable:false,
+    providerMessage:safeProviderError(data),providerRequestId:safeProviderRequestId(data),
+    code:typeof data?.error?.code==='string'?data.error.code.slice(0,50):undefined,
+  });
   if(!data||typeof data!=='object')throw Object.assign(new Error('888API returned an invalid JSON response.'),{statusCode:502});
   return data;
 };
@@ -36,6 +57,8 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   if(references.length!==images.length)throw new Error('This 888API model currently supports image references only.');
   const max=Number(model.referenceCapabilities?.image?.max||0);
   if(images.length>max)throw new Error('Too many image references for this model.');
+  const min=Number(model.referenceCapabilities?.image?.min||0);
+  if(images.length<min)throw new Error('This 888API model requires at least '+min+' reference image'+(min===1?'':'s')+'.');
   const timeField=model.api888?.secondsField==='seconds'?'seconds':'duration';
   const duration=Number(params.duration);
   if(!Number.isInteger(duration)||duration<=0)throw new Error('Invalid 888API video length.');

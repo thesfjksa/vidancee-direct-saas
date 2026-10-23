@@ -193,3 +193,41 @@ test('Sora 2 remains a video model charged a fixed cost per generation',()=>{
   const long=quoteApi888(model,{duration:15});
   assert.equal(short.cost,long.cost);
 });
+
+test('H3 discounted model requires an image before the paid HTTP request',async()=>{
+  const id='minimax-h3-480p-t';
+  const model=modelById(id);
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>{throw Error('must not reach network');}});
+  assert.throws(()=>client.videoBody(model,{prompt:'Scene',duration:5,resolution:'480p',aspectRatio:'16:9'},[]),
+    /requires at least 1 reference image/i);
+  const request=client.videoBody(model,{prompt:'Scene',duration:5,resolution:'480p',aspectRatio:'16:9'},
+    [{mimeType:'image/png',url:'https://cmmtools.site/provider-assets/id/0?sig=stub'}]);
+  assert.equal(request.seconds,5);
+  assert.equal(request.images.length,1);
+});
+test('888API HTTP 400 retains sanitized provider validation details for Activity',async()=>{
+  const key='sk-topsecret-1234567890';
+  let count=0;
+  const client=new Api888Client({apiKey:key,fetchImpl:async(_url,options)=>{
+    count++;
+    assert.equal(options.method,'POST');
+    return new Response(JSON.stringify({
+      error:{code:'invalid_reference',message:'Unable to fetch https://cmmtools.site/provider-assets/id/0?sig=abc123&key=secret'},
+      request_id:'req_987654321'
+    }),{status:400,headers:{'content-type':'application/json'}});
+  }});
+  await assert.rejects(client.startVideo(modelById('minimax-h3-480p-t'),{
+    prompt:'Test',duration:5,resolution:'480p',aspectRatio:'16:9'},[{mimeType:'image/png',url:'https://cmmtools.site/image.png'}]),error=>{
+      assert.equal(error.providerStatus,400);
+      assert.equal(error.providerRequestId,'req_987654321');
+      assert.equal(error.code,'invalid_reference');
+      assert.ok(error.providerMessage.includes('[URL redacted]'));
+      assert.equal(error.providerMessage.includes('abc123'),false);
+      assert.equal(error.providerMessage.includes('secret'),false);
+      assert.equal(error.message.includes(key),false);
+      const {errorDetails}=require('../src/activity_log.js');
+      assert.equal(errorDetails(error).providerRequestId,'req_987654321');
+      return true;
+    });
+  assert.equal(count,1);
+});
