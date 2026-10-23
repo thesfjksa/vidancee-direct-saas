@@ -25,10 +25,15 @@ function roundCredits(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+// CNY parity for 888API only. Its per-second prices may contain 3 decimals.
+function roundYuanCredits(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 10000) / 10000;
+}
+
 function sourceToCustomerCredits(sourceCredits) {
   const source = Number(sourceCredits);
   if (!Number.isFinite(source) || source <= 0) return null;
   return roundCredits(source * creditMultiplier());
 }
 
-module.exports = { positiveNumber, creditMultiplier, roundCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, rsToCredits, usdToCredits };
+module.exports = { positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, rsToCredits, usdToCredits };

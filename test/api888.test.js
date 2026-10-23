@@ -40,42 +40,50 @@ test('key rejection exposes no API token',async()=>{
 });
 
 
-const {quoteApi888,API888_CUSTOMER_MULTIPLIER}=require('../src/api888_models.js');
-const {CREDITS_PER_USD}=require('../src/billing.js');
+const {quoteApi888}=require('../src/api888_models.js');
+const {roundYuanCredits,roundCredits}=require('../src/billing.js');
 function modelById(id){
  const item=api888MediaModels({data:[{id}]})[0];
  return {...item.options,providerModelId:item.providerModelId,mediaType:item.mediaType,provider:'api888',ready:true,priceOverride:null};
 }
-const fx=6.6702;
-test('888API job prices normalize CNY to USD, then multiply customer credits by 3.5',()=>{
+test('888API flat-priced videos charge exactly one customer credit per CNY',()=>{
  const model=modelById('seedance2.5-900-wool');
- const a=quoteApi888(model,{duration:5},fx),b=quoteApi888(model,{duration:25},fx);
- assert.equal(API888_CUSTOMER_MULTIPLIER,3.5);
+ const a=quoteApi888(model,{duration:5}),b=quoteApi888(model,{duration:25});
  assert.equal(a.sourceCny,1.1);
- assert.equal(a.sourceUsd,1.1/fx);
- assert.equal(a.cost,Math.ceil(1.1/fx*CREDITS_PER_USD*3.5));
+ assert.equal(a.cost,1.1);
+ assert.equal(a.pricingMode,'per_request');
  assert.equal(a.cost,b.cost);
- assert.equal(a.sourceUsd,b.sourceUsd);
  assert.equal(a.isEstimate,false);
 });
-test('888API per-second billing converts actual duration to USD',()=>{
+test('888API dynamic billing charges exact CNY rate multiplied by duration',()=>{
  const model=modelById('wan3.0-video');
- model.adapterSupported=true; // isolate price math from provider workflow readiness
- const q=quoteApi888(model,{duration:10},fx);
+ const q=quoteApi888(model,{duration:10});
  assert.equal(q.sourceCny,2.2);
- assert.equal(q.cost,Math.ceil(2.2/fx*CREDITS_PER_USD*3.5));
+ assert.equal(q.cost,2.2);
+ assert.equal(q.pricingMode,'per_second');
 });
-test('888API image generation uses the same isolated 3.5x USD markup',()=>{
- const q=quoteApi888(modelById('gpt-image-2.5-1k'),{},fx);
+test('888API fractional yuan rates preserve 4 decimal credits',()=>{
+ const q=quoteApi888(modelById('minimax-h3-480p-t'),{duration:5});
+ assert.equal(q.cost,0.325);
+ assert.equal(q.sourceCny,0.325);
+ assert.equal(roundYuanCredits(0.325),0.325);
+ assert.equal(roundCredits(0.325),0.33); // other provider rules remain at 2 decimals
+});
+test('888API image models charge exactly their published yuan price',()=>{
+ const q=quoteApi888(modelById('gpt-image-2.5-1k'),{});
+ assert.equal(q.cost,0.06);
  assert.equal(q.sourceCny,0.06);
- assert.equal(q.sourceUsd,0.06/fx);
- assert.equal(q.cost,Math.ceil(0.06/fx*CREDITS_PER_USD*3.5));
+ assert.equal(q.pricingMode,'per_request');
 });
-test('888API rejects unsafe exchange rates and inaccessible models',()=>{
+test('888API model without supported adapter or price cannot be billed',()=>{
  const m=modelById('seedance2.5-900-wool');
- assert.throws(()=>quoteApi888(m,{},0),/USD\/CNY/);
- assert.throws(()=>quoteApi888(m,{},-5),/USD\/CNY/);
- assert.throws(()=>quoteApi888({...m,adapterSupported:false}, {},fx),/requires additional setup|model/i);
+ assert.throws(()=>quoteApi888({...m,adapterSupported:false},{}),/additional setup/i);
+ assert.throws(()=>quoteApi888({...m,api888:{billing:'job',sourceCny:0}},{}),/verified source price/i);
+});
+test('flat price of five yuan is five credits at every allowed duration',()=>{
+ const m=modelById('ss-2.5-720p-v1');
+ assert.equal(quoteApi888(m,{duration:5}).cost,5);
+ assert.equal(quoteApi888(m,{duration:15}).cost,5);
 });
 test('888API video response accepts task IDs and preserves result URLs',async()=>{
  let count=0;
@@ -111,9 +119,9 @@ test('current 888API Seedance offerings become runnable after account-scoped syn
     assert.ok(m.options.durations.includes(15));
     assert.equal(m.options.durations.includes(30),false);
     const quote=quoteApi888({...m.options,providerModelId:m.providerModelId,mediaType:'video',provider:'api888'},
-      {duration:10,resolution:m.options.defaultResolution,aspectRatio:'16:9'},6.6702);
+      {duration:10,resolution:m.options.defaultResolution,aspectRatio:'16:9'});
     assert.equal(quote.sourceCny,expected[i]);
-    assert.equal(quote.cost,Math.ceil(expected[i]/6.6702*6720*3.5));
+    assert.equal(quote.cost,expected[i]);
   }
 });
 test('unknown account models are imported to Admin but never offered as paid generations',()=>{
@@ -148,9 +156,9 @@ test('non-Seedance video families import as runnable video models with verified 
     assert.equal(item.options.defaultDuration,min,id);
     assert.ok(item.options.durations.includes(max),id);
     const model={...item.options,providerModelId:id,mediaType:'video',provider:'api888'};
-    const quote=quoteApi888(model,{duration:max},6.6702);
+    const quote=quoteApi888(model,{duration:max});
     assert.equal(Math.round(quote.sourceCny*10000),Math.round(max*rate*10000),id);
-    assert.equal(quote.cost,Math.ceil(max*rate/6.6702*6720*3.5),id);
+    assert.equal(quote.cost,roundYuanCredits(max*rate),id);
   }
 });
 test('image-to-video Wan and discounted MiniMax H3 require an actual reference image',()=>{
@@ -181,7 +189,7 @@ test('Sora 2 remains a video model charged a fixed cost per generation',()=>{
   assert.equal(item.options.adapterSupported,true);
   assert.equal(item.options.referenceCapabilities.image.max,0);
   const model={...item.options,providerModelId:item.providerModelId,mediaType:'video',provider:'api888'};
-  const short=quoteApi888(model,{duration:5},6.6702);
-  const long=quoteApi888(model,{duration:15},6.6702);
+  const short=quoteApi888(model,{duration:5});
+  const long=quoteApi888(model,{duration:15});
   assert.equal(short.cost,long.cost);
 });

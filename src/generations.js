@@ -5,7 +5,7 @@ const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
-const { roundCredits } = require('./billing.js');
+const { roundCredits, roundYuanCredits } = require('./billing.js');
 
 function serializeGeneration(row) {
   return {
@@ -287,7 +287,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     ? (requestedResolution || String(options.defaultResolution || '').trim() || null)
     : normalizeResolution(model, requestedResolution);
   const cost = hasDynamicCost
-    ? roundCredits(dynamicCost)
+    ? (options.provider==='api888'?roundYuanCredits(dynamicCost):roundCredits(dynamicCost))
     : getCost(model, duration, resolution);
   const provider = String(options.provider || 'vgenv').slice(0, 40);
   const providerCost = Number(options.providerCost);

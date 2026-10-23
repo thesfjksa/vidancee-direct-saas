@@ -196,29 +196,29 @@ function api888MediaModels(live=null) {
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
   return entries.map(v=>describedModel(v.id,v.type));
 }
-// 888API publishes model prices in CNY. Normalize the actual provider cost to
-// USD first, then charge customers 3.5x USD cost in CMM credits. No other source
-// uses this multiplier. The FX rate is 1 USD = rate CNY.
-const API888_CUSTOMER_MULTIPLIER=3.5;
-function quoteApi888(model,input,usdCnyRate,creditsPerUsd=require('./billing.js').CREDITS_PER_USD) {
-  const {quoteGateway}=require('./vercel_models.js');
-  const rate=Number(usdCnyRate),factor=Number(creditsPerUsd);
-  if(!Number.isFinite(rate)||rate<1||rate>20)throw Object.assign(new Error('Configure a valid 888API USD/CNY exchange rate in Admin.'),{statusCode:400});
-  if(!Number.isFinite(factor)||factor<=0)throw Object.assign(new Error('Invalid USD credit conversion.'),{statusCode:400});
-  // Use the shared picker to validate duration/resolution/ratio/prompt without
-  // using its estimated local-price calculation for the actual charge.
-  const selected=quoteGateway(model,input,1);
+// 888API-only policy: 1 CNY of provider cost == 1 CMM customer credit.
+// Fixed-price SKUs are charged once per job; per-second SKUs scale with the
+// selected duration. Do not apply USD/CNY FX, the prior x3.5 multiplier or
+// general provider credit conversion to this source.
+function quoteApi888(model,input={}) {
+  const {selection}=require('./vercel_models.js');
+  const selected=selection(model,input);
+  if(model.adapterSupported===false)
+    throw Object.assign(new Error('This 888API model requires additional setup.'),{statusCode:400});
   const billing=String(model.api888?.billing||'');
-  const sourceRate=Number(model.api888?.sourceCny);
-  if(!Number.isFinite(sourceRate)||sourceRate<=0||!['image','job','second'].includes(billing))
+  const rate=Number(model.api888?.sourceCny);
+  if(!Number.isFinite(rate)||rate<=0||!['image','job','second'].includes(billing))
     throw Object.assign(new Error('888API model has no verified source price.'),{statusCode:400});
-  const sourceCny=billing==='second'?sourceRate*selected.duration:sourceRate;
-  const sourceUsd=sourceCny/rate;
-  const raw=sourceUsd*API888_CUSTOMER_MULTIPLIER*factor;
-  const cost=Math.ceil(raw-Number.EPSILON*Math.abs(raw)*4);
-  if(!Number.isSafeInteger(cost)||cost<=0||cost>999999999)
-    throw Object.assign(new Error('888API generation credit price is invalid.'),{statusCode:400});
-  return {...selected,cost,sourceCny,sourceUsd,isEstimate:false};
+  const duration=billing==='second'?Number(selected.duration):1;
+  if(!Number.isFinite(duration)||duration<=0)
+    throw Object.assign(new Error('Invalid 888API billed duration.'),{statusCode:400});
+  // Wallets, generation charges, and transaction rows use 4 decimal places.
+  // This also preserves e.g. 0.065 CNY/s * 5s = 0.325 credits exactly.
+  const sourceCny=Math.round((rate*duration+Number.EPSILON)*10000)/10000;
+  if(!Number.isFinite(sourceCny)||sourceCny<=0||sourceCny>999999999)
+    throw Object.assign(new Error('888API yuan price exceeds supported precision or range.'),{statusCode:400});
+  return {...selected,cost:sourceCny,sourceCny,isEstimate:false,
+    pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,isApi888Model,api888MediaModels,quoteApi888,API888_CUSTOMER_MULTIPLIER};
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,isApi888Model,api888MediaModels,quoteApi888};
