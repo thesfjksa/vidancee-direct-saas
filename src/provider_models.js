@@ -489,7 +489,12 @@ async function ensureSluiceCatalog(fetchCatalog) {
 async function ensureApi888Catalog(){
   const db=getPool();
   const [[count]]=await db.execute("SELECT COUNT(*) AS total FROM provider_models WHERE provider='api888'");
-  if(!Number(count.total))await syncProviderModels('api888',api888MediaModels());
+  if(!Number(count.total)){
+    await syncProviderModels('api888',api888MediaModels());
+    // Documentation is not proof of account access. Only a successful live
+    // authenticated catalog sync may make a model available for sale.
+    await db.execute("UPDATE provider_models SET available=0 WHERE provider='api888'");
+  }
 }
 
 module.exports = {
