@@ -1863,7 +1863,34 @@ const server=http.createServer(async (req,res)=>{
       if ((req.method==='POST' || req.method==='PUT') && routePath==='/admin/provider-settings') {
         requireDatabase();
         const body=await readJson(req);
+        const previous=await getProviderSettings();
         const settings=await updateProviderSettings(body);
+        // Import the account-specific catalog when the 888API key is saved or
+        // its source is first enabled. Without this import the bundled
+        // documented models stay unavailable by design and Studio looks empty.
+        // Saving unrelated provider settings does not trigger another sync.
+        let api888Sync=null;
+        const saved888Key=typeof body.api888ApiKey==='string'&&body.api888ApiKey.trim().length>0;
+        const activated888=body.api888Enabled===true&&!previous.api888Enabled;
+        if(saved888Key||activated888){
+          const latest=await getProviderSettings();
+          if(latest.api888ApiKey){
+            try {
+              const live=await new Api888Client({apiKey:latest.api888ApiKey}).models();
+              const models=await syncProviderModels('api888',api888MediaModels(live));
+              api888Sync={ok:true,total:models.length,
+                ready:models.filter(m=>m.ready&&m.enabled&&m.available).length};
+              logActivity({category:'admin',event:'api888.models_synced',provider:'api888',
+                message:'888API live catalog imported after provider settings update',
+                details:{total:api888Sync.total,ready:api888Sync.ready}});
+            }catch(error){
+              api888Sync={ok:false,error:error.message};
+              logActivity({level:'error',category:'admin',event:'api888.sync_failed',provider:'api888',
+                message:'888API catalog sync failed after provider settings update',
+                details:{error:String(error.message||'error').slice(0,300)}});
+            }
+          }
+        }
         // Keys and passwords are masked by the activity log.
         logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:body}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
@@ -1872,7 +1899,7 @@ const server=http.createServer(async (req,res)=>{
           try{const r=await syncHiggsfieldPrices();higgsfieldSync={ok:true,ready:r.models.some(m=>m.ready)};}
           catch(error){higgsfieldSync={ok:false,error:error.message};}
         }
-        return sendJson(res,200,{ok:true,settings,higgsfieldSync});
+        return sendJson(res,200,{ok:true,settings,higgsfieldSync,api888Sync});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-models') {

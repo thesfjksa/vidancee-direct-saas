@@ -95,3 +95,29 @@ test('888API video response accepts task IDs and preserves result URLs',async()=
  assert.equal((await c.videoStatus(id)).url,'/v1/videos/task_987654321/content');
  assert.equal(count,2);
 });
+
+test('current 888API Seedance offerings become runnable after account-scoped sync',()=>{
+  const ids=['ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
+    's2-2.5-720p-v4','seedance2.5-930-1080p'];
+  const expected=[5,5,8,7,5];
+  const records=api888MediaModels({data:ids.map(id=>({id}))});
+  assert.equal(records.length,ids.length);
+  for(const [i,m] of records.entries()){
+    assert.equal(m.mediaType,'video',m.providerModelId);
+    assert.equal(m.options.adapterSupported,true,m.providerModelId);
+    assert.equal(m.options.api888.billing,'job');
+    assert.equal(m.options.api888.sourceCny,expected[i]);
+    assert.ok(m.options.durations.includes(5));
+    assert.ok(m.options.durations.includes(15));
+    assert.equal(m.options.durations.includes(30),false);
+    const quote=quoteApi888({...m.options,providerModelId:m.providerModelId,mediaType:'video',provider:'api888'},
+      {duration:10,resolution:m.options.defaultResolution,aspectRatio:'16:9'},6.6702);
+    assert.equal(quote.sourceCny,expected[i]);
+    assert.equal(quote.cost,Math.ceil(expected[i]/6.6702*6720*3.5));
+  }
+});
+test('unknown account models are imported to Admin but never offered as paid generations',()=>{
+  const [row]=api888MediaModels({data:[{id:'upcoming-video-unknown'}]});
+  assert.equal(row.options.adapterSupported,false);
+  assert.equal(row.options.api888.sourceCny,undefined);
+});
