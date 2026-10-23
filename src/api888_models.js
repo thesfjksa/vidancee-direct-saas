@@ -140,12 +140,21 @@ function describedModel(id,type) {
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
     ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','doubao-seedance-2.5',
-      // Current officially listed Seedance 2.5 video SKUs.
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
-      's2-2.5-720p-v4','seedance2.5-930-1080p'].includes(id)
+      's2-2.5-720p-v4','seedance2.5-930-1080p',
+      // Official per-second video SKUs: all use POST /v1/videos with
+      // "seconds" and optional public-URL images (except text-only Seedance).
+      'seedance2.0-480p','seedance2.0-720p',
+      'seedance2.0-stable-480p','seedance2.0-stable-720p',
+      'wan30-720p','wan30-1080p-fast',
+      'wan3.0-video','wan3.0-video-prime',
+      'wan3.0-image','wan3.0-image-prime',
+      'minimax-h3-480p-t','minimax-h3-768p-t',
+      // A fixed-price text-only video model.
+      'sora2-480p'].includes(id)
   );
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
-  const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id);
+  const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id);
   const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,0,0,requiredImage);
   const videoFlat=spec?.[1]==='job';
   const pricing=isImage?{image:cny||0}:{video_duration_pricing:known?[{resolution:res,cost_per_second:videoFlat?spec[0]/min:spec[0]}]:[]};
@@ -175,7 +184,15 @@ function api888MediaModels(live=null) {
   if(live!==null&&!Array.isArray(available))throw new Error('888API returned no model list; existing catalog retained.');
   const entries=live===null?[...VIDEO_IDS.map(id=>({id,type:'video'})),...IMAGE_IDS.map(id=>({id,type:'image'}))]:
     available.filter(v=>typeof v?.id==='string'&&v.id.length<192)
-      .map(v=>({id:v.id,type:IMAGE_IDS.includes(v.id)||/image|imagen|banana|seedream|flux/i.test(v.id)?'image':'video'}));
+      .map(v=>{
+        const id=v.id;
+        // A Wan "*-image" model is IMAGE-to-VIDEO, not an image generator.
+        // Exact documented video IDs must win over generic word heuristics.
+        const type=VIDEO_IDS.includes(id)?'video':
+          IMAGE_IDS.includes(id)?'image':
+          v.type==='image'||v.media_type==='image'||/image|imagen|banana|seedream|flux/i.test(id)&&!/video/i.test(id)?'image':'video';
+        return {id,type};
+      });
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
   return entries.map(v=>describedModel(v.id,v.type));
 }

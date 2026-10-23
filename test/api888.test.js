@@ -121,3 +121,67 @@ test('unknown account models are imported to Admin but never offered as paid gen
   assert.equal(row.options.adapterSupported,false);
   assert.equal(row.options.api888.sourceCny,undefined);
 });
+
+
+test('non-Seedance video families import as runnable video models with verified CNY prices',()=>{
+  const fixtures=[
+    ['wan30-720p',0.25,4,30],
+    ['wan30-1080p-fast',0.4,4,30],
+    ['wan3.0-video',0.22,2,30],
+    ['wan3.0-video-prime',0.25,2,30],
+    ['wan3.0-image',0.22,2,30],
+    ['wan3.0-image-prime',0.25,2,30],
+    ['minimax-h3-480p-t',0.065,5,15],
+    ['minimax-h3-768p-t',0.07,5,15],
+    ['seedance2.0-480p',0.5,4,15],
+    ['seedance2.0-720p',0.75,4,15],
+    ['seedance2.0-stable-480p',0.4,4,15],
+    ['seedance2.0-stable-720p',0.63,4,15],
+  ];
+  for(const [id,rate,min,max] of fixtures){
+    const [item]=api888MediaModels({data:[{id}]});
+    assert.equal(item.mediaType,'video',id);
+    assert.equal(item.options.adapterSupported,true,id);
+    assert.equal(item.options.api888.billing,'second',id);
+    assert.equal(item.options.api888.secondsField,'seconds',id);
+    assert.equal(item.options.api888.sourceCny,rate,id);
+    assert.equal(item.options.defaultDuration,min,id);
+    assert.ok(item.options.durations.includes(max),id);
+    const model={...item.options,providerModelId:id,mediaType:'video',provider:'api888'};
+    const quote=quoteApi888(model,{duration:max},6.6702);
+    assert.equal(Math.round(quote.sourceCny*10000),Math.round(max*rate*10000),id);
+    assert.equal(quote.cost,Math.ceil(max*rate/6.6702*6720*3.5),id);
+  }
+});
+test('image-to-video Wan and discounted MiniMax H3 require an actual reference image',()=>{
+  for(const id of ['wan3.0-image','wan3.0-image-prime','minimax-h3-480p-t','minimax-h3-768p-t']){
+    const m=api888MediaModels({data:[{id}]})[0];
+    assert.equal(m.mediaType,'video',id);
+    assert.equal(m.options.referenceCapabilities.textOnly,false,id);
+    assert.equal(m.options.referenceCapabilities.image.min,1,id);
+  }
+  const textToVideo=api888MediaModels({data:[{id:'wan3.0-video'}]})[0];
+  assert.equal(textToVideo.options.referenceCapabilities.textOnly,true);
+});
+test('888API video adapter uses seconds for per-second Wan and MiniMax models',()=>{
+  const client=new Api888Client({apiKey:'sk-test'});
+  for(const id of ['wan3.0-video','wan30-720p','minimax-h3-480p-t']){
+    const item=api888MediaModels({data:[{id}]})[0];
+    const model={...item.options,providerModelId:item.providerModelId};
+    const body=client.videoBody(model,{prompt:'Scene',duration:10,aspectRatio:'16:9',resolution:model.defaultResolution},
+      id.startsWith('minimax')?[{mimeType:'image/png',url:'https://images.example.test/test.png'}]:[]);
+    assert.equal(body.seconds,10,id);
+    assert.equal(body.duration,undefined,id);
+    assert.equal(body.model,id);
+  }
+});
+test('Sora 2 remains a video model charged a fixed cost per generation',()=>{
+  const item=api888MediaModels({data:[{id:'sora2-480p'}]})[0];
+  assert.equal(item.mediaType,'video');
+  assert.equal(item.options.adapterSupported,true);
+  assert.equal(item.options.referenceCapabilities.image.max,0);
+  const model={...item.options,providerModelId:item.providerModelId,mediaType:'video',provider:'api888'};
+  const short=quoteApi888(model,{duration:5},6.6702);
+  const long=quoteApi888(model,{duration:15},6.6702);
+  assert.equal(short.cost,long.cost);
+});
