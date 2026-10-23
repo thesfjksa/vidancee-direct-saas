@@ -4,7 +4,7 @@ const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
-const { roundCredits } = require('./billing.js');
+const { roundCredits, roundYuanCredits } = require('./billing.js');
 const { THUMB_WIDTH } = require('./image_thumbnails.js');
 
 function serializeImageGeneration(row) {
@@ -84,7 +84,7 @@ async function createImageGenerationForUser(userId, input, options = {}) {
   }
   const dynamicCost = Number(options.costOverride);
   const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost >= 0;
-  const cost = hasDynamicCost ? roundCredits(dynamicCost) : getImageCost(model);
+  const cost = hasDynamicCost ? (options.provider==='api888'?roundYuanCredits(dynamicCost):roundCredits(dynamicCost)) : getImageCost(model);
   const imageQuality = options.imageQuality || null;
   if (imageQuality !== null && !['low','medium','high'].includes(imageQuality)) {
     throw Object.assign(new Error('Unsupported image quality.'), { statusCode: 400 });
