@@ -174,13 +174,29 @@ function api888MediaModels(live=null) {
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
   return entries.map(v=>describedModel(v.id,v.type));
 }
-function quoteApi888(model,input,creditsPerCny) {
+// 888API publishes model prices in CNY. Normalize the actual provider cost to
+// USD first, then charge customers 3.5x USD cost in CMM credits. No other source
+// uses this multiplier. The FX rate is 1 USD = rate CNY.
+const API888_CUSTOMER_MULTIPLIER=3.5;
+function quoteApi888(model,input,usdCnyRate,creditsPerUsd=require('./billing.js').CREDITS_PER_USD) {
   const {quoteGateway}=require('./vercel_models.js');
-  if(!(Number(creditsPerCny)>0))throw Object.assign(new Error('Configure the CNY-to-customer-credit rate in Admin.'),{statusCode:400});
-  const base=quoteGateway(model,input,Number(creditsPerCny));
-  if(model.mediaType!=='video'||model.api888?.billing!=='job')return {...base,sourceCny:base.sourceUsd};
-  const sourceCny=Number(model.api888.sourceCny);
-  if(!(sourceCny>0))throw new Error('Missing fixed job price.');
-  return {...base,cost:Math.ceil(sourceCny*Number(creditsPerCny)-1e-9),sourceCny,sourceUsd:sourceCny};
+  const rate=Number(usdCnyRate),factor=Number(creditsPerUsd);
+  if(!Number.isFinite(rate)||rate<1||rate>20)throw Object.assign(new Error('Configure a valid 888API USD/CNY exchange rate in Admin.'),{statusCode:400});
+  if(!Number.isFinite(factor)||factor<=0)throw Object.assign(new Error('Invalid USD credit conversion.'),{statusCode:400});
+  // Use the shared picker to validate duration/resolution/ratio/prompt without
+  // using its estimated local-price calculation for the actual charge.
+  const selected=quoteGateway(model,input,1);
+  const billing=String(model.api888?.billing||'');
+  const sourceRate=Number(model.api888?.sourceCny);
+  if(!Number.isFinite(sourceRate)||sourceRate<=0||!['image','job','second'].includes(billing))
+    throw Object.assign(new Error('888API model has no verified source price.'),{statusCode:400});
+  const sourceCny=billing==='second'?sourceRate*selected.duration:sourceRate;
+  const sourceUsd=sourceCny/rate;
+  const raw=sourceUsd*API888_CUSTOMER_MULTIPLIER*factor;
+  const cost=Math.ceil(raw-Number.EPSILON*Math.abs(raw)*4);
+  if(!Number.isSafeInteger(cost)||cost<=0||cost>999999999)
+    throw Object.assign(new Error('888API generation credit price is invalid.'),{statusCode:400});
+  return {...selected,cost,sourceCny,sourceUsd,isEstimate:false};
 }
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,isApi888Model,api888MediaModels,quoteApi888};
+
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,isApi888Model,api888MediaModels,quoteApi888,API888_CUSTOMER_MULTIPLIER};
