@@ -181,6 +181,8 @@ const { createUpscaleJob, publicUpscalerConfig, quoteForCustomer } = require('./
 const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
+const { Api888Client } = require('./src/provider/api888.js');
+const { api888MediaModels } = require('./src/api888_models.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
@@ -201,7 +203,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog, ensureApi888Catalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -407,7 +409,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -1696,6 +1698,18 @@ const server=http.createServer(async (req,res)=>{
         await new FalClient({apiKey:s.falApiKey}).verifyKey();
         return sendJson(res,200,{ok:true});
       }
+      if(req.method==='POST'&&routePath==='/admin/api888/check'){
+        requireDatabase();const s=await getProviderSettings();
+        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        return sendJson(res,200,{ok:true,accessibleModels:catalog.data.length});
+      }
+      if(req.method==='POST'&&routePath==='/admin/api888/sync'){
+        requireDatabase();const s=await getProviderSettings();
+        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        const models=await syncProviderModels('api888',api888MediaModels(catalog));
+        return sendJson(res,200,{ok:true,total:models.length,ready:0,
+          note:'Catalog imported to Admin. Generation remains disabled until execution contracts and CNY pricing are confirmed.'});
+      }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();
         const balance=await new ArgoLinkClient({apiKey:s.argoLinkApiKey}).balance();
@@ -1816,7 +1830,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -2230,6 +2244,7 @@ function bootstrap() {
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
+      await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
       startWorkerChild();
