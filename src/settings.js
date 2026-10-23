@@ -12,6 +12,10 @@ const DEFAULTS = {
   vercel_enabled: 'true',
   vercel_max_inflight: '2',
   vercel_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
+  api888_api_key: '',
+  api888_enabled: 'false',
+  api888_max_inflight: '2',
+  api888_credits_per_cny: '0',
   argolink_api_key: '',
   argolink_enabled: 'true',
   argolink_max_inflight: '3',
@@ -144,6 +148,10 @@ async function getProviderSettings() {
     // Every USD-priced source converts at cost (1 credit = Rs 1, Rs 280 per USD);
     // the profit is in the plan price, so these rates are no longer settings.
     vercelCustomerCreditsPerUsd: CREDITS_PER_USD,
+    api888ApiKey: String(read('api888_api_key') || '').trim(),
+    api888Enabled: asBool(read('api888_enabled')),
+    api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||2))),
+    api888CreditsPerCny: Math.max(0,Number(read('api888_credits_per_cny')||0)),
     argoLinkApiKey: String(read('argolink_api_key') || '').trim(),
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
@@ -189,6 +197,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.vercelApiKey), configured: Boolean(s.vercelApiKey),
       enabled: s.vercelEnabled, active: Boolean(s.vercelEnabled && s.vercelApiKey),
       maxInflight: s.vercelMaxInflight, customerCreditsPerUsd: s.vercelCustomerCreditsPerUsd,
+    },
+    api888: {
+      baseUrl: 'https://888api.xin/v1',
+      apiKeyConfigured: Boolean(s.api888ApiKey), configured: Boolean(s.api888ApiKey),
+      enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey && s.api888CreditsPerCny>0),
+      maxInflight: s.api888MaxInflight, creditsPerCny: s.api888CreditsPerCny,
     },
     argolink: {
       baseUrl: 'https://argolink.io/v1',
@@ -285,6 +299,25 @@ async function updateProviderSettings(input = {}) {
     const n=Number(input.falCustomerCreditsPerUsd);
     if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('fal.ai credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
     falUpdates.push(['fal_customer_credits_per_usd',String(n)]);
+  }
+  if('api888Enabled' in input) {
+    if(typeof input.api888Enabled!=='boolean')throw Object.assign(new Error('888API enabled must be boolean.'),{statusCode:400});
+    await put('api888_enabled',input.api888Enabled?'true':'false');
+  }
+  if('api888MaxInflight' in input){
+    const n=Number(input.api888MaxInflight);
+    if(!Number.isInteger(n)||n<1||n>10)throw Object.assign(new Error('888API inflight limit must be 1–10.'),{statusCode:400});
+    await put('api888_max_inflight',String(n));
+  }
+  if('api888CreditsPerCny' in input){
+    const n=Number(input.api888CreditsPerCny);
+    if(!Number.isFinite(n)||n<0||n>1000000)throw Object.assign(new Error('888API credits per CNY must be between 0 and 1000000.'),{statusCode:400});
+    await put('api888_credits_per_cny',String(n));
+  }
+  if(input.clearApi888ApiKey===true)await del('api888_api_key');
+  else if('api888ApiKey' in input && String(input.api888ApiKey||'').trim()){
+    if(typeof input.api888ApiKey!=='string'||input.api888ApiKey.length>512||/\s/.test(input.api888ApiKey.trim()))throw Object.assign(new Error('Invalid 888API key.'),{statusCode:400});
+    await put('api888_api_key',input.api888ApiKey.trim(),true);
   }
   const argoUpdates=[];
   if ('argoLinkEnabled' in input) {
@@ -423,6 +456,7 @@ async function migrateLegacyProviderEnvSettings() {
   secret('vercel_api_key', 'AI_GATEWAY_API_KEY');
   plain('vercel_enabled', 'AI_GATEWAY_ENABLED');
   plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
+  secret('api888_api_key', 'API888_API_KEY');
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('sluice_api_key', 'SLUICE_API_KEY');
