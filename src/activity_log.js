@@ -45,7 +45,7 @@ function serializeDetails(details) {
 
 function errorDetails(error) {
   if (!error) return null;
-  return { message: String(error.message || error).slice(0, 1000), statusCode: error.statusCode, providerStatus: error.providerStatus, providerMessage: error.providerMessage,
+  return { message: String(error.message || error).slice(0, 1000), statusCode: error.statusCode, providerStatus: error.providerStatus, providerMessage: error.providerMessage, providerRequestId: error.providerRequestId,
     detail: error.detail, code: error.code,
     cause: error.cause ? String(error.cause.code || '') + ' ' + String(error.cause.message || error.cause).slice(0, 300) : undefined, stack: String(error.stack || '').split('\n').slice(1, 4).join(' | ') };
 }
