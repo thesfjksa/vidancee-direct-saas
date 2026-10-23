@@ -178,7 +178,7 @@ test('888API video adapter uses seconds for per-second Wan and MiniMax models',(
     const model={...item.options,providerModelId:item.providerModelId};
     const body=client.videoBody(model,{prompt:'Scene',duration:10,aspectRatio:'16:9',resolution:model.defaultResolution},
       id.startsWith('minimax')?[{mimeType:'image/png',url:'https://images.example.test/test.png'}]:[]);
-    assert.equal(body.seconds,10,id);
+    assert.equal(body.seconds,'10',id);
     assert.equal(body.duration,undefined,id);
     assert.equal(body.model,id);
   }
@@ -202,7 +202,7 @@ test('H3 discounted model requires an image before the paid HTTP request',async(
     /requires at least 1 reference image/i);
   const request=client.videoBody(model,{prompt:'Scene',duration:5,resolution:'480p',aspectRatio:'16:9'},
     [{mimeType:'image/png',url:'https://cmmtools.site/provider-assets/id/0?sig=stub'}]);
-  assert.equal(request.seconds,5);
+  assert.equal(request.seconds,'5');
   assert.equal(request.images.length,1);
 });
 test('888API HTTP 400 retains sanitized provider validation details for Activity',async()=>{
@@ -275,4 +275,41 @@ test('888API image errors remain bounded to 4 MiB even if image payloads may be 
   })});
   await assert.rejects(client.generateImage({providerModelId:'gpt-image-2.5-sunburst-4k'},
     {prompt:'Scene',aspectRatio:'1:1'}),/exceeds the supported size limit/);
+});
+
+test('888API sends seconds as a JSON string in an actual video POST body',async()=>{
+ const cases=['minimax-h3-480p-t','wan30-720p','wan3.0-video','seedance2.0-720p'];
+ for(const id of cases){
+   let sent=0;
+   const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,options)=>{
+     sent++;
+     assert.equal(url,'https://888api.xin/v1/videos');
+     assert.equal(options.method,'POST');
+     const request=JSON.parse(options.body);
+     assert.equal(request.model,id);
+     assert.equal(request.seconds,'5');
+     assert.equal(typeof request.seconds,'string');
+     assert.equal(Object.hasOwn(request,'duration'),false);
+     return new Response(JSON.stringify({id:'task_12345678'}),{status:200});
+   }});
+   const model=modelById(id);
+   const refs=model.referenceCapabilities.image.min
+      ?[{mimeType:'image/png',url:'https://images.example.test/reference.png'}]:[];
+   const task=await client.startVideo(model,{prompt:'A moving scene',duration:5,
+     resolution:model.defaultResolution,aspectRatio:'16:9'},refs);
+   assert.equal(task,'task_12345678');
+   assert.equal(sent,1);
+ }
+});
+test('888API fixed-job models keep numeric duration in video POST body',async()=>{
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   const body=JSON.parse(opts.body);
+   assert.equal(body.duration,10);
+   assert.equal(typeof body.duration,'number');
+   assert.equal(Object.hasOwn(body,'seconds'),false);
+   return new Response(JSON.stringify({id:'task_12345678'}),{status:200});
+ }});
+ const model=modelById('ss-2.5-720p-v1');
+ assert.equal(await client.startVideo(model,{prompt:'A scene',duration:10,
+   resolution:'720p',aspectRatio:'16:9'},[]),'task_12345678');
 });
