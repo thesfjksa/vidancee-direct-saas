@@ -57,6 +57,8 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   if(references.length!==images.length)throw new Error('This 888API model currently supports image references only.');
   const max=Number(model.referenceCapabilities?.image?.max||0);
   if(images.length>max)throw new Error('Too many image references for this model.');
+  const min=Number(model.referenceCapabilities?.image?.min||0);
+  if(images.length<min)throw new Error('This 888API model requires at least '+min+' reference image'+(min===1?'':'s')+'.');
   const timeField=model.api888?.secondsField==='seconds'?'seconds':'duration';
   const duration=Number(params.duration);
   if(!Number.isInteger(duration)||duration<=0)throw new Error('Invalid 888API video length.');
