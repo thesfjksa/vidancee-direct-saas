@@ -231,3 +231,48 @@ test('888API HTTP 400 retains sanitized provider validation details for Activity
     });
   assert.equal(count,1);
 });
+
+
+test('888API 4K base64 image JSON larger than 4 MiB is accepted within the media limit',async()=>{
+  const image=Buffer.alloc(5*1024*1024,19);
+  Buffer.from('89504e470d0a1a0a','hex').copy(image,0);
+  image.write('IHDR',12,'ascii');
+  image.writeUInt32BE(4096,16);
+  image.writeUInt32BE(4096,20);
+  const payload=JSON.stringify({data:[{b64_json:image.toString('base64')}]});
+  assert.ok(Buffer.byteLength(payload)>4*1024*1024);
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+    assert.equal(url,'https://888api.xin/v1/images/generations');
+    assert.equal(opts.method,'POST');
+    return new Response(payload,{status:200,headers:{'content-type':'application/json'}});
+  }});
+  const result=await client.generateImage({providerModelId:'gpt-image-2.5-sunburst-4k'},
+    {prompt:'An illustrated castle',aspectRatio:'1:1'});
+  assert.equal(result.mimeType,'image/png');
+  assert.equal(result.data.length,image.length);
+  assert.equal(result.data.compare(image),0);
+});
+
+test('888API ordinary metadata/status JSON keeps the 4 MiB limit',async()=>{
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>new Response('{}',{
+    status:200,headers:{'content-length':String(4*1024*1024+1)}
+  })});
+  await assert.rejects(client.json('/v1/videos/test_123'),/exceeds the supported size limit/);
+});
+
+test('888API image JSON cannot exceed the maximum permitted base64 payload',async()=>{
+  const maxJson=Math.ceil(20*1024*1024*4/3)+64*1024;
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>new Response('{}',{
+    status:200,headers:{'content-length':String(maxJson+1)}
+  })});
+  await assert.rejects(client.generateImage({providerModelId:'gpt-image-2.5-sunburst-4k'},
+    {prompt:'Scene',aspectRatio:'1:1'}),/exceeds the supported size limit/);
+});
+
+test('888API image errors remain bounded to 4 MiB even if image payloads may be larger',async()=>{
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>new Response('{}',{
+    status:400,headers:{'content-length':String(5*1024*1024)}
+  })});
+  await assert.rejects(client.generateImage({providerModelId:'gpt-image-2.5-sunburst-4k'},
+    {prompt:'Scene',aspectRatio:'1:1'}),/exceeds the supported size limit/);
+});
