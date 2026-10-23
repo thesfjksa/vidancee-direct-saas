@@ -651,7 +651,7 @@ async function quoteModelForUser(userId,body){
     if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
     const model=await getProviderModelByPublicId('api888',String(body.model),mediaType);
     if(!model?.ready)throw httpError(404,'888API model not ready.');
-    const quote=quoteApi888(model,body,providerSettings.api888.usdCnyRate);
+    const quote=quoteApi888(model,body);
     return {cost:quote.cost,isEstimate:false};
   }
   if(isArgoModel(body.model)){
@@ -741,14 +741,14 @@ async function submitVideoGeneration(user,body,req=null){
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
   if(!cartoonOptions&&isApi888Model(requestedModel)){
-    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888UsdCnyRate>=1 && providerSettings.api888UsdCnyRate<=20))throw httpError(503,'888API video generation is unavailable.');
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey )throw httpError(503,'888API video generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'888API model not ready.');
     validateReferences(model,body);
-    const quote=quoteApi888(model,body,providerSettings.api888UsdCnyRate);
+    const quote=quoteApi888(model,body);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model}});
+      costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',generationOptions:{...quote,model}});
   }
   if(!cartoonOptions&&isArgoModel(requestedModel)){
     if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This video model is currently unavailable.');
@@ -848,12 +848,12 @@ async function submitImageGeneration(user,body,req=null){
   }
 
   if(isApi888Model(requestedModel)){
-    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888UsdCnyRate>=1 && providerSettings.api888UsdCnyRate<=20))throw httpError(503,'888API image generation is unavailable.');
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey )throw httpError(503,'888API image generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'image');
     if(!model?.ready)throw httpError(404,'888API image model not ready.');
     if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
     validateReferences(model,body);
-    const quote=quoteApi888(model,body,providerSettings.api888UsdCnyRate);
+    const quote=quoteApi888(model,body);
     generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'api888',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
