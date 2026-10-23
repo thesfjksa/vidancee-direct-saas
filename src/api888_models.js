@@ -136,7 +136,7 @@ function describedModel(id,type) {
   // Explicitly supported request families. Unreviewed channels are imported
   // as Admin-only entries, never silently mapped to an incompatible API.
   const implemented=known && (
-    (isImage && Object.hasOwn(IMAGE_CNY,id)) ||
+    (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k'].includes(id)) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
     ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','doubao-seedance-2.5'].includes(id)
