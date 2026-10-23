@@ -107,8 +107,8 @@ function describedModel(id,type) {
   return {
     providerModelId:id,publicModelId:PUBLIC_ID(id),label:id.replace(/[-_]/g,' ').replace(/\b\w/g,m=>m.toUpperCase()),
     mediaType:type,options:{
-      catalogVerified:true,adapterSupported:known,
-      setupReason:known?'':'No verified 888API price/contract for this model; keep disabled.',
+      catalogVerified:true,adapterSupported:false,
+      setupReason:known?'888API execution adapter not yet validated. Catalog import only.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
         secondsField:spec?.[1]==='second'?'seconds':'duration',
         imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images'},
@@ -125,8 +125,7 @@ function api888MediaModels(live=null) {
   if(live!==null&&!Array.isArray(available))throw new Error('888API returned no model list; existing catalog retained.');
   const entries=live===null?[...VIDEO_IDS.map(id=>({id,type:'video'})),...IMAGE_IDS.map(id=>({id,type:'image'}))]:
     available.filter(v=>typeof v?.id==='string'&&v.id.length<192)
-      .map(v=>({id:v.id,type:IMAGE_IDS.includes(v.id)?'image':VIDEO_IDS.includes(v.id)?'video':null}))
-      .filter(v=>v.type);
+      .map(v=>({id:v.id,type:IMAGE_IDS.includes(v.id)||/image|imagen|banana|seedream|flux/i.test(v.id)?'image':'video'}));
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
   return entries.map(v=>describedModel(v.id,v.type));
 }
