@@ -75,6 +75,42 @@ const SPECS = {
   'seedance2.5-101010-wool':[1.5,'job',5,30,'720p',9,0,0],
   'seedance2.5-301010-wool':[1.9,'job',5,30,'720p',9,0,0],
 };
+
+Object.assign(SPECS, {
+ 'seedance2.5-900-wool':[1.1,'job',4,30,'720p',9,0,0],
+ 'seedance2.0-900-wool':[0.9,'job',4,15,'720p',9,0,0],
+ 'seedance2.0-933-wool':[1.1,'job',4,15,'720p',9,0,0],
+ 'seedance2.5-101010-wool':[1.3,'job',4,30,'720p',10,0,0],
+ 'seedance2.5-301010-wool':[1.7,'job',4,30,'720p',30,0,0],
+ 'seedance2.5-900':[5.7,'job',5,30,'720p',9,0,0],
+ 'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
+ 'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
+ 'seedance2.5-930-1080p':[5,'job',5,30,'1080p',9,0,3],
+ 'ss-2.5-720p-v1':[5,'job',5,30,'720p',30,10,10],
+ 'ss-2.0-933-720p':[1.5,'job',5,15,'720p',9,3,3],
+ 's2-2.5-480p-v2':[5,'job',5,30,'480p',30,0,10],
+ 's2-2.5-720p-v3':[8,'job',5,30,'720p',30,10,10],
+ 's2-2.5-720p-v4':[7,'job',5,30,'720p',30,10,10],
+ 'seedance2.5-vip-30-10-10':[4,'job',5,30,'720p',30,10,10],
+ 'seedance2.5-vip-30-0-10':[3.5,'job',30,30,'720p',30,0,10],
+ 'xin-seedance-2.5-3010':[2.9,'job',4,30,'720p',30,0,10],
+ 'xin-seedance-2.5-900':[1.7,'job',4,30,'720p',9,0,0],
+ 'dola-seedance-2.5':[1.7,'job',4,30,'720p',30,0,0],
+ 'dola-seedance-2.5-900':[1.45,'job',5,30,'720p',9,0,0],
+ 'dola-seedance-2.5-301010':[1.5,'job',5,30,'720p',30,10,10],
+ 'dola-seedance-2.0-fast':[1.5,'job',4,15,'720p',9,0,0],
+ 'dola-seedance-2.0-900':[1.3,'job',4,15,'720p',9,0,0],
+ 'dola-seedance-2.0-933':[1.5,'job',4,15,'720p',9,3,3],
+ 'doubao-seedance-2.0-mini':[1.6,'job',5,15,'720p',9,0,0],
+ 'doubao-seedance-2.5':[6.5,'job',5,30,'720p',9,0,0],
+ 'seedance-doubao12-803':[1.1,'job',4,12,'720p',8,0,3],
+ 'seedance-doubao12-813':[1.3,'job',4,12,'720p',8,0,3],
+ 'seedance-doubao12-503':[0.9,'job',4,12,'720p',5,0,3],
+ 'sora2-480p':[4,'job',4,15,'480p',0,0,0],
+ 'pidoi-veo31-fast':[0.6,'job',4,8,'720p',2,0,0],
+ 'seedance2.0-933-mini':[1,'job',5,12,'720p',9,0,3],
+});
+
 const IMAGE_CNY = {
   'gpt-image-2.5-1k':0.06,'gpt-image-2.5-4k':0.09,
   'gpt-image-2.5-flare':0.05,'gpt-image-2.5-flare-4k':0.09,
@@ -97,6 +133,19 @@ function describedModel(id,type) {
   const isImage=type==='image';
   const spec=SPECS[id],cny=IMAGE_CNY[id];
   const known=isImage?Number(cny)>0:Boolean(spec&&Number(spec[0])>0);
+  // Explicitly supported request families. Unreviewed channels are imported
+  // as Admin-only entries, never silently mapped to an incompatible API.
+  const implemented=known && (isImage || (
+    /^seedance2\\.[05]-.*wool$/.test(id) ||
+    ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av','doubao-seedance-2.5',
+     'dola-seedance-2.5','dola-seedance-2.5-900','dola-seedance-2.0-900',
+     'xin-seedance-2.0-900','xin-seedance-2.5-900',
+     'seedance2.0-480p','seedance2.0-720p','seedance2.0-stable-480p','seedance2.0-stable-720p',
+     'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
+     'seedance2.5-720p-plus','seedance2.5-720p-pro','seedance2.5-1080p-plus','seedance2.5-1080p-pro',
+     'minimax-h3-480p-t','minimax-h3-768p-t','wan30-720p','wan30-1080p-fast','wan3.0-image',
+     'wan3.0-image-prime','wan3.0-video','wan3.0-video-prime','sora2-480p'].includes(id)
+  ));
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
   const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id);
   const refs=isImage?makeCaps(1):makeCaps(spec?.[5]||0,spec?.[6]||0,spec?.[7]||0,requiredImage);
@@ -107,12 +156,13 @@ function describedModel(id,type) {
   return {
     providerModelId:id,publicModelId:PUBLIC_ID(id),label:id.replace(/[-_]/g,' ').replace(/\b\w/g,m=>m.toUpperCase()),
     mediaType:type,options:{
-      catalogVerified:true,adapterSupported:false,
-      setupReason:known?'888API execution adapter not yet validated. Catalog import only.':'No verified 888API price/contract for this model; keep disabled.',
+      catalogVerified:true,adapterSupported:implemented,
+      setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
         secondsField:spec?.[1]==='second'?'seconds':'duration',
         imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images'},
-      durations:isImage?[]:range(min,max),resolutions:isImage?[]:[res],aspectRatios:isImage?['1:1','16:9','9:16']:RATS,
+      durations:isImage?[]:id==='seedance2.5-900'?[5,10,15,30]:id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
+      resolutions:isImage?[]:[res],aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):RATS,
       defaultAspectRatio:isImage?'1:1':'16:9',defaultDuration:min,defaultResolution:res,
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
       supportedOperations:isImage?['text-to-image','image-edit']:['text-to-video',...(refs.image.supported?['reference-to-video']:[])],
