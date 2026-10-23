@@ -182,7 +182,7 @@ const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { Api888Client } = require('./src/provider/api888.js');
-const { api888MediaModels } = require('./src/api888_models.js');
+const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
@@ -539,6 +539,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
+  if(access.api888 && providerSettings.api888.active){
+    const catalog=await publicProviderCatalog('api888',{});
+    video.push(...catalog.video);
+    image.push(...catalog.image);
+  }
   // Higgsfield's Wan 3.0: 480p native; 720p/1080p rendered lower and upscaled by fal.
   if(access.higgsfield && providerSettings.higgsfield.active){
     const hd=falReady(await getProviderSettings());
@@ -557,6 +562,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
+  if(isApi888Model(id))return '888API';
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
   if(isSluiceModel(id))return 'Sluice';
@@ -631,6 +637,13 @@ async function quoteModelForUser(userId,body){
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
+  }
+  if(isApi888Model(body.model)){
+    if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
+    const model=await getProviderModelByPublicId('api888',String(body.model),mediaType);
+    if(!model?.ready)throw httpError(404,'888API model not ready.');
+    const quote=quoteApi888(model,body,providerSettings.api888.creditsPerCny);
+    return {cost:quote.cost,isEstimate:false};
   }
   if(isArgoModel(body.model)){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -718,6 +731,16 @@ async function submitVideoGeneration(user,body,req=null){
   // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
+  if(!cartoonOptions&&isApi888Model(requestedModel)){
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888CreditsPerCny>0))throw httpError(503,'888API video generation is unavailable.');
+    const model=await getProviderModelByPublicId('api888',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'888API model not ready.');
+    validateReferences(model,body);
+    const quote=quoteApi888(model,body,providerSettings.api888CreditsPerCny);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',generationOptions:{...quote,model}});
+  }
   if(!cartoonOptions&&isArgoModel(requestedModel)){
     if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
@@ -815,6 +838,18 @@ async function submitImageGeneration(user,body,req=null){
     });
   }
 
+  if(isApi888Model(requestedModel)){
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888CreditsPerCny>0))throw httpError(503,'888API image generation is unavailable.');
+    const model=await getProviderModelByPublicId('api888',requestedModel,'image');
+    if(!model?.ready)throw httpError(404,'888API image model not ready.');
+    if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
+    validateReferences(model,body);
+    const quote=quoteApi888(model,body,providerSettings.api888CreditsPerCny);
+    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+      provider:'api888',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',
+      generationOptions:{...quote,model}});
+  }
   if(isArgoModel(requestedModel)){
     if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This image model is currently unavailable.');
     const model=await getProviderModelByPublicId('argolink',requestedModel,'image');
