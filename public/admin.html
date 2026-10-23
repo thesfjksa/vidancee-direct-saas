@@ -638,7 +638,7 @@ async function checkApi888(){
 }
 async function syncApi888Models(){
   const m=$('api888ActionMsg');m.textContent='Importing catalog...';
-  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported to Admin. Paid generation remains unavailable.';}
+  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported ('+d.adapterSupported+' supported adapters). Enable 888API after verifying pricing and access.';}
   catch(e){m.className='err';m.textContent=e.message;}
 }
 async function loadProviderSettings(){try{
