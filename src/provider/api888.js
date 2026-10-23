@@ -36,28 +36,37 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   if(references.length!==images.length)throw new Error('This 888API model currently supports image references only.');
   const max=Number(model.referenceCapabilities?.image?.max||0);
   if(images.length>max)throw new Error('Too many image references for this model.');
+  const timeField=model.api888?.secondsField==='seconds'?'seconds':'duration';
+  const duration=Number(params.duration);
+  if(!Number.isInteger(duration)||duration<=0)throw new Error('Invalid 888API video length.');
   return {model:model.providerModelId,prompt:String(params.prompt||''),
-    duration:Number(params.duration),ratio:String(params.aspectRatio||'16:9'),
+    [timeField]:duration,resolution:String(params.resolution||model.defaultResolution||'720p'),
+    ratio:String(params.aspectRatio||'16:9'),
     ...(images.length?{images:images.map(r=>r.url)}:{})};
 };
 Api888Client.prototype.startVideo=async function(model,params,references=[]){
   const data=await this.json('/v1/videos',this.videoBody(model,params,references),120000);
   const id=String(data.id||data.task_id||'');
-  if(!/^video_[A-Za-z0-9_-]+$/.test(id))throw new Error('888API did not return a valid video job ID.');
+  if(!/^[A-Za-z0-9_-]{5,191}$/.test(id))throw new Error('888API did not return a valid video job ID.');
   return id;
 };
 Api888Client.prototype.videoStatus=async function(id){
-  if(!/^video_[A-Za-z0-9_-]+$/.test(String(id)))throw new Error('Invalid 888API video job.');
+  if(!/^[A-Za-z0-9_-]{5,191}$/.test(String(id)))throw new Error('Invalid 888API video job.');
   const data=await this.json('/v1/videos/'+encodeURIComponent(id));
   const status=String(data.status||'').toLowerCase();
-  if(['completed','succeeded','success'].includes(status))return {status:'done',url:data.url||data.video_url||data.result_url||null,id};
+  if(['completed','succeeded','success'].includes(status))return {status:'done',url:data.url||data.video_url||data.result_url||data.task_result?.videos?.[0]?.url||null,id};
   if(['failed','cancelled','canceled'].includes(status))return {status:'failed',error:String(data.error?.message||data.error||status).slice(0,200)};
   return {status:'pending'};
 };
 Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT){
-  let current=checkOutputUrl(url);
+  // 888API also returns same-origin relative /v1/videos/..../content URLs.
+  const uri=String(url||'');
+  const absolute=uri.startsWith('/v1/videos/')?ORIGIN+uri:uri;
+  let current=checkOutputUrl(absolute);
   for(let i=0;i<5;i++){
-    const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(180000)});
+    const authenticated=new URL(current).origin===ORIGIN && new URL(current).pathname.startsWith('/v1/videos/');
+    const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(180000),
+      headers:authenticated?{authorization:'Bearer '+this.apiKey}:{}});
     const next=r.headers.get('location');
     if(r.status>=300&&r.status<400&&next){current=checkOutputUrl(new URL(next,current).toString());await r.body?.cancel?.().catch(()=>{});continue;}
     if(!r.ok){await r.body?.cancel?.().catch(()=>{});throw new Error('888API output could not be retrieved.');}
