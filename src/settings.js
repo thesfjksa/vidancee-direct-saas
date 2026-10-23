@@ -202,9 +202,8 @@ async function getAdminProviderSettings() {
     api888: {
       baseUrl: 'https://888api.xin/v1',
       apiKeyConfigured: Boolean(s.api888ApiKey), configured: Boolean(s.api888ApiKey),
-      enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey && s.api888UsdCnyRate>=1 && s.api888UsdCnyRate<=20),
-      maxInflight: s.api888MaxInflight, usdCnyRate: s.api888UsdCnyRate,
-      creditsPerUsd: CREDITS_PER_USD, customerMultiplier: 3.5,
+      enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey),
+      maxInflight: s.api888MaxInflight, creditPolicy: 'cny_parity', creditsPerCny: 1,
     },
     argolink: {
       baseUrl: 'https://argolink.io/v1',
