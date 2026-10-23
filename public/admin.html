@@ -132,12 +132,13 @@
         </div>
         <div class="card">
           <div class="source-head"><h3>888API · Video + Image Catalog</h3><label class="source-switch"><input id="api888Enabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div><div id="api888EnabledText" class="source-state"></div>
-          <div class="muted">Endpoint · https://888api.xin/v1 · Import-only until generation adapters are validated</div>
+          <div class="muted">Endpoint · https://888api.xin/v1 · Video + Image Studio for supported models</div>
           <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="api888SecretStatus" class="muted"></div>
           <label class="muted" for="api888UsdCnyRate" style="display:block;margin-top:12px">Exchange rate: 1 USD = ? CNY</label><input id="api888UsdCnyRate" type="number" min="1" max="20" step="0.0001" style="width:100%;margin-top:6px" value="6.6702"><div class="muted" style="margin-top:6px">888API alone: provider charge converted to USD, customer charged 3.5× (6,720 CMM credits/USD). Initial FX reference 23 Oct 2026; update to your real payment rate when it changes.</div>
-          <div class="muted" style="margin:10px 0">Imported models are listed in Admin, not customer Studio, until provider request bodies, price units, reference limits, and queue handling pass verification. Do not assume model access from documentation alone.</div>
+          <div class="muted" style="margin:10px 0">After you save a valid key, supported models are imported automatically. Turn on the provider to show those models in Video and Image Studio. Unpriced or incompatible models remain Admin-only.</div>
+          <div id="api888ModelSummary" class="muted" role="status">888API catalog: checking…</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
@@ -631,6 +632,18 @@ function updateSourceSwitchLabels(){
 }
 
 
+async function loadApi888ModelSummary(){
+  const m=$('api888ModelSummary');if(!m)return;
+  try{
+    const d=await api('/admin/provider-models?provider=api888');
+    const list=Array.isArray(d.models)?d.models:[];
+    const live=list.filter(x=>x.available),ready=live.filter(x=>x.enabled&&x.ready);
+    const videos=ready.filter(x=>x.mediaType==='video').length;
+    const images=ready.filter(x=>x.mediaType==='image').length;
+    m.textContent='888API catalog: '+live.length+' account-accessible · '+videos+' video and '+images+' image models ready'+
+      (live.length===0?' · Import all accessible models after saving an API key.':'');
+  }catch(e){m.textContent='888API model status unavailable: '+e.message;}
+}
 async function checkApi888(){
   const m=$('api888ActionMsg');m.textContent='Checking catalog access...';
   try{const d=await api('/admin/api888/check',{method:'POST'});m.className='ok';m.textContent='Key accepted · '+d.accessibleModels+' accessible models.';}
@@ -638,7 +651,7 @@ async function checkApi888(){
 }
 async function syncApi888Models(){
   const m=$('api888ActionMsg');m.textContent='Importing catalog...';
-  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported ('+d.adapterSupported+' supported adapters). Enable 888API after verifying pricing and access.';}
+  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported ('+d.adapterSupported+' supported adapters). Enable 888API after verifying pricing and access.';await loadApi888ModelSummary();}
   catch(e){m.className='err';m.textContent=e.message;}
 }
 async function loadProviderSettings(){try{
@@ -658,6 +671,7 @@ async function loadProviderSettings(){try{
   $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;
   $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('api888UsdCnyRate').value=s.api888?.usdCnyRate||6.6702;
+  loadApi888ModelSummary();
   $('argoEnabled').checked=s.argolink?.enabled!==false;
   $('argoApiKey').value='';$('clearArgoApiKey').checked=false;
   $('argoSecretStatus').textContent=s.argolink?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -709,6 +723,12 @@ async function saveProviderSettings(){
   };
   try{const d=await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';
     const hs=d.higgsfieldSync;
+    if(d.api888Sync){
+      $('api888ActionMsg').className=d.api888Sync.ok?'ok':'err';
+      $('api888ActionMsg').textContent=d.api888Sync.ok
+        ?'888API imported '+d.api888Sync.total+' models · '+d.api888Sync.ready+' ready to show when enabled'
+        :'888API catalog import failed: '+d.api888Sync.error;
+    }
     if(hs){
       $('higgsfieldActionMsg').className=hs.ok?'ok':'err';
       $('higgsfieldActionMsg').textContent=hs.ok?'Wan 3.0 prices read from Higgsfield · model '+(hs.ready?'visible':'hidden'):'Prices could not be read: '+hs.error;
