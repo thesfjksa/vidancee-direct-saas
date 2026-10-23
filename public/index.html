@@ -127,6 +127,7 @@
 
               <label class="meta" for="model">Model</label>
               <select id="model" onchange="handleVideoModelChange()"></select>
+              <div id="videoCatalogEmpty" class="model-warning hide" role="status" aria-live="polite"></div>
               <div id="videoModelWarning" class="model-warning hide" role="note"></div>
               <div id="videoModelCapabilitySummary" class="model-capability-summary"></div>
 
@@ -1405,6 +1406,12 @@ function renderImageReferenceControls(modelChanged=false){
 function renderConfig(){
   if(!config)return;
   $('model').innerHTML=(config.pricing||[]).map(m=>'<option value="'+m.id+'">'+escapeHtml(m.label)+'</option>').join('');
+  const missing=!(config.pricing||[]).length;
+  $('videoCatalogEmpty').classList.toggle('hide',!missing);
+  $('videoCatalogEmpty').textContent=missing?(config.catalogError
+    ?'Video models could not be loaded. Please contact support or try again later.'
+    :'No video models are currently available for your account. Please contact support.') : '';
+  $('generateBtn').disabled=missing;
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
   renderDurations(true);
