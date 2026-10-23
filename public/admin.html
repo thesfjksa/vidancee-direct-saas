@@ -131,7 +131,7 @@
           <div class="muted" style="margin-top:12px">Max inflight H3 jobs</div><input id="vgenvInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
-          <div class="source-head"><h3>888API · Video + Image Catalog</h3></div>
+          <div class="source-head"><h3>888API · Video + Image Catalog</h3><label class="source-switch"><input id="api888Enabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div><div id="api888EnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://888api.xin/v1 · Import-only until generation adapters are validated</div>
           <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
@@ -306,6 +306,7 @@
     </div>
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
+      <label class="provider-access-item"><div><strong>888API</strong><span class="muted">Video Studio + Image Studio</span></div><span class="source-switch"><input id="accessApi888" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -534,6 +535,7 @@ function openProviderAccess(id){
   const a=user.provider_access||{};
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
+  $('accessApi888').checked=a.api888!==false;
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessSluice').checked=a.sluice!==false;
@@ -550,6 +552,7 @@ async function saveProviderAccess(){
   const m=$('providerAccessMsg');m.className='muted';m.textContent='Saving access...';
   const providers={
     vercel:$('accessVercel').checked,
+    api888:$('accessApi888').checked,
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
     sluice:$('accessSluice').checked,
@@ -613,6 +616,7 @@ function updateSourceSwitchLabels(){
     ['vgenvEnabled','vgenvEnabledText'],
     ['vercelEnabled','vercelEnabledText'],
     ['argoEnabled','argoEnabledText'],
+    ['api888Enabled','api888EnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
     ['sluiceEnabled','sluiceEnabledText'],
     ['falEnabled','falEnabledText'],
@@ -650,6 +654,7 @@ async function loadProviderSettings(){try{
   $('vercelInflight').value=s.vercel?.maxInflight||2;
   $('vercelCreditsPerUsd').value=s.vercel?.customerCreditsPerUsd||(160/0.0265);
   loadVercelModels();
+  $('api888Enabled').checked=s.api888?.enabled===true;
   $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;
   $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('api888CreditsPerCny').value=s.api888?.creditsPerCny||0;
@@ -694,7 +699,7 @@ async function saveProviderSettings(){
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
-    api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,api888CreditsPerCny:Number($('api888CreditsPerCny').value),
+    api888Enabled:$('api888Enabled').checked,api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,api888CreditsPerCny:Number($('api888CreditsPerCny').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
