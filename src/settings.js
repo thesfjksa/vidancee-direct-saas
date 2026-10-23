@@ -15,7 +15,8 @@ const DEFAULTS = {
   api888_api_key: '',
   api888_enabled: 'false',
   api888_max_inflight: '2',
-  api888_credits_per_cny: '0',
+  // USD/CNY 23 October 2026 reference rate (ECB). Admin can update any time.
+  api888_usd_cny_rate: '6.6702',
   argolink_api_key: '',
   argolink_enabled: 'true',
   argolink_max_inflight: '3',
@@ -151,7 +152,7 @@ async function getProviderSettings() {
     api888ApiKey: String(read('api888_api_key') || '').trim(),
     api888Enabled: asBool(read('api888_enabled')),
     api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||2))),
-    api888CreditsPerCny: Math.max(0,Number(read('api888_credits_per_cny')||0)),
+    api888UsdCnyRate: Number(read('api888_usd_cny_rate')),
     argoLinkApiKey: String(read('argolink_api_key') || '').trim(),
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
@@ -201,8 +202,9 @@ async function getAdminProviderSettings() {
     api888: {
       baseUrl: 'https://888api.xin/v1',
       apiKeyConfigured: Boolean(s.api888ApiKey), configured: Boolean(s.api888ApiKey),
-      enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey && s.api888CreditsPerCny>0),
-      maxInflight: s.api888MaxInflight, creditsPerCny: s.api888CreditsPerCny,
+      enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey && s.api888UsdCnyRate>=1 && s.api888UsdCnyRate<=20),
+      maxInflight: s.api888MaxInflight, usdCnyRate: s.api888UsdCnyRate,
+      creditsPerUsd: CREDITS_PER_USD, customerMultiplier: 3.5,
     },
     argolink: {
       baseUrl: 'https://argolink.io/v1',
@@ -309,10 +311,11 @@ async function updateProviderSettings(input = {}) {
     if(!Number.isInteger(n)||n<1||n>10)throw Object.assign(new Error('888API inflight limit must be 1–10.'),{statusCode:400});
     await put('api888_max_inflight',String(n));
   }
-  if('api888CreditsPerCny' in input){
-    const n=Number(input.api888CreditsPerCny);
-    if(!Number.isFinite(n)||n<0||n>1000000)throw Object.assign(new Error('888API credits per CNY must be between 0 and 1000000.'),{statusCode:400});
-    await put('api888_credits_per_cny',String(n));
+  if('api888UsdCnyRate' in input){
+    const n=Number(input.api888UsdCnyRate);
+    if(!Number.isFinite(n)||n<1||n>20)
+      throw Object.assign(new Error('888API USD/CNY rate must be between 1 and 20 CNY per USD.'),{statusCode:400});
+    await put('api888_usd_cny_rate',String(n));
   }
   if(input.clearApi888ApiKey===true)await del('api888_api_key');
   else if('api888ApiKey' in input && String(input.api888ApiKey||'').trim()){
