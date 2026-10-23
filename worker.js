@@ -73,6 +73,7 @@ healthServer=http.createServer((req,res)=>{
       uptimeSeconds:Math.round(process.uptime()),
       revision:6,
       gatewayPolling:worker.vercelQueue.health(),
+      api888Polling:worker.api888Queue.health(),
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),
       sluicePolling:worker.sluiceQueue.health(),
