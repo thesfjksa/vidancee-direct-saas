@@ -358,6 +358,10 @@ function publicVideoModel(model) {
     defaultAspectRatio: model.defaultAspectRatio || null,
     defaultDuration: model.defaultDuration || null,
     capabilities: normalizedReferenceCapabilities(model),
+    ...(model.provider==='api888'?{
+      billingMode:model.api888?.billing==='second'?'per_second':'per_request',
+      billingRateCredits:Number(model.api888?.sourceCny)||null,
+    }:{}),
     ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }
@@ -371,6 +375,10 @@ function publicImageModel(model) {
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
     capabilities: normalizedReferenceCapabilities(model),
+    ...(model.provider==='api888'?{
+      billingMode:'per_request',
+      billingRateCredits:Number(model.api888?.sourceCny)||null,
+    }:{}),
     ...(isPricedSource(model.provider)?{qualities:model.qualities,defaultQuality:model.defaultQuality,imageSizes:model.imageSizes,defaultImageSize:model.defaultImageSize}:{}),
   };
 }
