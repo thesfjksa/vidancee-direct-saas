@@ -131,6 +131,17 @@
           <div class="muted" style="margin-top:12px">Max inflight H3 jobs</div><input id="vgenvInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
         <div class="card">
+          <div class="source-head"><h3>888API · Video + Image Catalog</h3></div>
+          <div class="muted">Endpoint · https://888api.xin/v1 · Import-only until generation adapters are validated</div>
+          <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="api888SecretStatus" class="muted"></div>
+          <label class="muted" for="api888CreditsPerCny" style="display:block;margin-top:12px">Customer credits per CNY (0 = not priced)</label><input id="api888CreditsPerCny" type="number" min="0" max="1000000" step="any" style="width:100%;margin-top:6px" value="0">
+          <div class="muted" style="margin:10px 0">Imported models are listed in Admin, not customer Studio, until provider request bodies, price units, reference limits, and queue handling pass verification. Do not assume model access from documentation alone.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button></div>
+          <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
           <div class="source-head"><h3>Video Studio + image backup · ArgoLink</h3><label class="source-switch"><input id="argoEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="argoEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://argolink.io/v1</div>
@@ -615,6 +626,17 @@ function updateSourceSwitchLabels(){
   }
 }
 
+
+async function checkApi888(){
+  const m=$('api888ActionMsg');m.textContent='Checking catalog access...';
+  try{const d=await api('/admin/api888/check',{method:'POST'});m.className='ok';m.textContent='Key accepted · '+d.accessibleModels+' accessible models.';}
+  catch(e){m.className='err';m.textContent=e.message;}
+}
+async function syncApi888Models(){
+  const m=$('api888ActionMsg');m.textContent='Importing catalog...';
+  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported to Admin. Paid generation remains unavailable.';}
+  catch(e){m.className='err';m.textContent=e.message;}
+}
 async function loadProviderSettings(){try{
   const d=await api('/admin/provider-settings');const s=d.settings;
   $('enhancerEnabled').checked=s.promptEnhancer?.enabled!==false;
@@ -628,6 +650,9 @@ async function loadProviderSettings(){try{
   $('vercelInflight').value=s.vercel?.maxInflight||2;
   $('vercelCreditsPerUsd').value=s.vercel?.customerCreditsPerUsd||(160/0.0265);
   loadVercelModels();
+  $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;
+  $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('api888CreditsPerCny').value=s.api888?.creditsPerCny||0;
   $('argoEnabled').checked=s.argolink?.enabled!==false;
   $('argoApiKey').value='';$('clearArgoApiKey').checked=false;
   $('argoSecretStatus').textContent=s.argolink?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -669,6 +694,7 @@ async function saveProviderSettings(){
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
+    api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,api888CreditsPerCny:Number($('api888CreditsPerCny').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
