@@ -39,11 +39,59 @@ test('key rejection exposes no API token',async()=>{
   await assert.rejects(client.models(),e=>!e.message.includes('sk-private'));
 });
 
-test('fixed price does not rise with video duration',()=>{
- const {quoteApi888}=require('../src/api888_models.js');
- const row=api888MediaModels({data:[{id:'seedance2.5-900-wool'}]})[0];
- const model={...row.options,providerModelId:row.providerModelId,mediaType:'video',provider:'api888',ready:true,priceOverride:null,...row.options};
- const a=quoteApi888(model,{duration:5},200),b=quoteApi888(model,{duration:25},200);
- assert.equal(a.cost,b.cost);
+
+const {quoteApi888,API888_CUSTOMER_MULTIPLIER}=require('../src/api888_models.js');
+const {CREDITS_PER_USD}=require('../src/billing.js');
+function modelById(id){
+ const item=api888MediaModels({data:[{id}]})[0];
+ return {...item.options,providerModelId:item.providerModelId,mediaType:item.mediaType,provider:'api888',ready:true,priceOverride:null};
+}
+const fx=6.6702;
+test('888API job prices normalize CNY to USD, then multiply customer credits by 3.5',()=>{
+ const model=modelById('seedance2.5-900-wool');
+ const a=quoteApi888(model,{duration:5},fx),b=quoteApi888(model,{duration:25},fx);
+ assert.equal(API888_CUSTOMER_MULTIPLIER,3.5);
  assert.equal(a.sourceCny,1.1);
+ assert.equal(a.sourceUsd,1.1/fx);
+ assert.equal(a.cost,Math.ceil(1.1/fx*CREDITS_PER_USD*3.5));
+ assert.equal(a.cost,b.cost);
+ assert.equal(a.sourceUsd,b.sourceUsd);
+ assert.equal(a.isEstimate,false);
+});
+test('888API per-second billing converts actual duration to USD',()=>{
+ const model=modelById('wan3.0-video');
+ model.adapterSupported=true; // isolate price math from provider workflow readiness
+ const q=quoteApi888(model,{duration:10},fx);
+ assert.equal(q.sourceCny,2.2);
+ assert.equal(q.cost,Math.ceil(2.2/fx*CREDITS_PER_USD*3.5));
+});
+test('888API image generation uses the same isolated 3.5x USD markup',()=>{
+ const q=quoteApi888(modelById('gpt-image-2.5-1k'),{},fx);
+ assert.equal(q.sourceCny,0.06);
+ assert.equal(q.sourceUsd,0.06/fx);
+ assert.equal(q.cost,Math.ceil(0.06/fx*CREDITS_PER_USD*3.5));
+});
+test('888API rejects unsafe exchange rates and inaccessible models',()=>{
+ const m=modelById('seedance2.5-900-wool');
+ assert.throws(()=>quoteApi888(m,{},0),/USD\/CNY/);
+ assert.throws(()=>quoteApi888(m,{},-5),/USD\/CNY/);
+ assert.throws(()=>quoteApi888({...m,adapterSupported:false}, {},fx),/requires additional setup|model/i);
+});
+test('888API video response accepts task IDs and preserves result URLs',async()=>{
+ let count=0;
+ const c=new Api888Client({apiKey:'sk-test',fetchImpl:async(u,o)=>{
+   count++;
+   if(u.endsWith('/v1/videos')&&o.method==='POST'){
+     assert.equal(JSON.parse(o.body).duration,10);
+     return new Response(JSON.stringify({task_id:'task_987654321'}),{status:200});
+   }
+   if(u.endsWith('/v1/videos/task_987654321'))
+     return new Response(JSON.stringify({status:'completed',task_result:{videos:[{url:'/v1/videos/task_987654321/content'}]}}),{status:200});
+   throw Error('Unexpected request '+u);
+ }});
+ const m=modelById('seedance2.5-900-wool');
+ const id=await c.startVideo(m,{prompt:'Hello',duration:10,resolution:'720p',aspectRatio:'16:9'});
+ assert.equal(id,'task_987654321');
+ assert.equal((await c.videoStatus(id)).url,'/v1/videos/task_987654321/content');
+ assert.equal(count,2);
 });
