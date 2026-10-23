@@ -14,6 +14,12 @@ class Api888Queue extends VercelQueue{
       const result=await client.generateImage(model,options,refs);
       return this.complete(db,job,result);
     }
+    // Log metadata, never customer prompts, signed reference links or credentials.
+    this.log(job,'job.request_prepared','888API video parameters checked',{
+      model:model.providerModelId,duration:options.duration,resolution:options.resolution,
+      billedTimeField:model.api888?.secondsField==='seconds'?'seconds':'duration',
+      imageReferenceCount:refs.filter(r=>r.mimeType?.startsWith('image/')).length,
+    });
     const id=await client.startVideo(model,options,refs);
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify({requestId:id}),id.slice(0,191),job.id]);
