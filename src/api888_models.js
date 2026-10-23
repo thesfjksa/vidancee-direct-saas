@@ -3,7 +3,7 @@
 // 888API's account-scoped GET /v1/models is the source of truth for availability.
 // This snapshot contains documented media IDs, including unpriced models which
 // stay visible to Admin but are NEVER offered for paid generation.
-const VIDEO_IDS = String.raw\`
+const VIDEO_IDS = String.raw`
 jimeng-video-seedance-2.0-fast jimeng-video-seedance-2.0-vip jimeng-video-seedance-2.0-mini jimeng-video-seedance-2.0-fast-vip
 seedance2.0-ycy-5s seedance2.0-ycy-10s seedance2.0-ycy-15s doubao-seedance-2-0-fast doubao-seedance-2-0
 seedance2.0-full-9img seedance2.0-full-4img seedance2.0-fast-4img seedance2.0-ss seedance2.0-ss-fast
@@ -20,12 +20,12 @@ ss-2.5-720p-v1 ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doub
 wan30-720p wan30-1080p-fast wan3.0-video wan3.0-video-prime wan3.0-image wan3.0-image-prime
 sora2-480p minimax-h3 minimax-h3-c4 pidoi-h3video-2k minimax-h3-480p-t minimax-h3-768p-t
 pidoi-omni-flash-720p pidoi-veo31-fast grok-imagine-video-1.5-preview
-\`.trim().split(/\s+/);
-const IMAGE_IDS = String.raw\`
+`.trim().split(/\s+/);
+const IMAGE_IDS = String.raw`
 gpt-image-2-1k gpt-image-2 gpt-image-2-plus gpt-image-2-pro gpt-image-2pro gpt-image-2.5-1k gpt-image-2.5-4k gpt-image-2-4k
 gpt-image-2.5-flare gpt-image-2.5-flare-4k gpt-image-2.5-sunburst gpt-image-2.5-sunburst-4k
 gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-preview gemini-3.1-flash-image-preview-c
-\`.trim().split(/\s+/);
+`.trim().split(/\s+/);
 
 // Published 888API prices in CNY, checked 24 October 2026. Absence does not
 // mean zero. Do not enable unknown pricing or silently substitute another SKU.
