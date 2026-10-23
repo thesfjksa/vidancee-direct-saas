@@ -136,7 +136,7 @@
           <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="api888SecretStatus" class="muted"></div>
-          <label class="muted" for="api888CreditsPerCny" style="display:block;margin-top:12px">Customer credits per CNY (0 = not priced)</label><input id="api888CreditsPerCny" type="number" min="0" max="1000000" step="any" style="width:100%;margin-top:6px" value="0">
+          <label class="muted" for="api888UsdCnyRate" style="display:block;margin-top:12px">Exchange rate: 1 USD = ? CNY</label><input id="api888UsdCnyRate" type="number" min="1" max="20" step="0.0001" style="width:100%;margin-top:6px" value="6.6702"><div class="muted" style="margin-top:6px">888API alone: provider charge converted to USD, customer charged 3.5× (6,720 CMM credits/USD). Initial FX reference 23 Oct 2026; update to your real payment rate when it changes.</div>
           <div class="muted" style="margin:10px 0">Imported models are listed in Admin, not customer Studio, until provider request bodies, price units, reference limits, and queue handling pass verification. Do not assume model access from documentation alone.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
@@ -657,7 +657,7 @@ async function loadProviderSettings(){try{
   $('api888Enabled').checked=s.api888?.enabled===true;
   $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;
   $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
-  $('api888CreditsPerCny').value=s.api888?.creditsPerCny||0;
+  $('api888UsdCnyRate').value=s.api888?.usdCnyRate||6.6702;
   $('argoEnabled').checked=s.argolink?.enabled!==false;
   $('argoApiKey').value='';$('clearArgoApiKey').checked=false;
   $('argoSecretStatus').textContent=s.argolink?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -699,7 +699,7 @@ async function saveProviderSettings(){
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
-    api888Enabled:$('api888Enabled').checked,api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,api888CreditsPerCny:Number($('api888CreditsPerCny').value),
+    api888Enabled:$('api888Enabled').checked,api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,api888UsdCnyRate:Number($('api888UsdCnyRate').value),
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
