@@ -137,7 +137,7 @@ function describedModel(id,type) {
   // as Admin-only entries, never silently mapped to an incompatible API.
   const implemented=known && (
     (isImage && Object.hasOwn(IMAGE_CNY,id)) ||
-    (/^seedance2\\.[05]-.*wool$/.test(id)) ||
+    (/^seedance2\.[05]-.*wool$/.test(id)) ||
     ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','doubao-seedance-2.5'].includes(id)
   );
