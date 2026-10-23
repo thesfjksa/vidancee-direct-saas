@@ -18,6 +18,10 @@ class Api888Client {
 }
 
 const {readBounded,checkOutputUrl,imageMime,IMAGE_LIMIT,VIDEO_LIMIT}=require('./vercel.js');
+// Large 4K images are often returned inline as base64 JSON. The default 4 MiB
+// bound is for small status/metadata responses, not image payloads.
+const API888_JSON_LIMIT=4*1024*1024;
+const API888_IMAGE_JSON_LIMIT=Math.ceil(IMAGE_LIMIT*4/3)+64*1024;
 const {validateCanvas}=require('../image_canvas.js');
 
 // Keep upstream refusal details for the protected Activity log, never include
@@ -36,14 +40,16 @@ function safeProviderRequestId(value) {
   const id=String(value?.request_id||value?.requestId||'');
   return /^[a-zA-Z0-9_-]{4,100}$/.test(id)?id:null;
 }
-Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000){
+Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxBytes=API888_JSON_LIMIT){
   if(!this.apiKey)throw new Error('888API key is not configured.');
   let response;
   try{response=await this.fetch(ORIGIN+path,{method:body?'POST':'GET',
     headers:{authorization:'Bearer '+this.apiKey,accept:'application/json',...(body?{'content-type':'application/json'}:{})},
     body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeoutMs),redirect:'error'});}
   catch{throw Object.assign(new Error('888API request interrupted. Paid operations are not retried automatically.'),{statusCode:502,retryable:false});}
-  const data=await readBounded(response,4*1024*1024).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
+  // Upstream failure bodies must stay small even for image requests.
+  const limit=response.ok?maxBytes:API888_JSON_LIMIT;
+  const data=await readBounded(response,limit).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
   if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{
     statusCode:502,providerStatus:response.status,retryable:false,
     providerMessage:safeProviderError(data),providerRequestId:safeProviderRequestId(data),
@@ -114,12 +120,13 @@ Api888Client.prototype.videoContent=async function(id,url){
 Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   if(refs.length)throw new Error('888API image editing requires the dedicated multipart adapter; choose text-to-image.');
   const result=await this.json('/v1/images/generations',{model:model.providerModelId,
-    prompt:String(params.prompt||''),n:1},180000);
+    prompt:String(params.prompt||''),n:1},180000,API888_IMAGE_JSON_LIMIT);
   const item=result.data?.[0];
   let data;
-  if(item?.b64_json){if(item.b64_json.length>IMAGE_LIMIT*1.5)throw new Error('Image too large.');data=Buffer.from(item.b64_json,'base64');}
+  if(item?.b64_json){if(item.b64_json.length>Math.ceil(IMAGE_LIMIT*4/3)+8)throw new Error('The generated image exceeds the supported 20 MiB limit.');data=Buffer.from(item.b64_json,'base64');}
   else if(item?.url)data=await this.download(item.url,IMAGE_LIMIT);
   if(!data?.length)throw new Error('888API did not return an image.');
+  if(data.length>IMAGE_LIMIT)throw new Error('The generated image exceeds the supported 20 MiB limit.');
   const mimeType=imageMime(data);
   validateCanvas(data,mimeType,params.aspectRatio);
   return {data,mimeType};
