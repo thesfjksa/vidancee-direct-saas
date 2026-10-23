@@ -15,8 +15,6 @@ const DEFAULTS = {
   api888_api_key: '',
   api888_enabled: 'false',
   api888_max_inflight: '2',
-  // USD/CNY 23 October 2026 reference rate (ECB). Admin can update any time.
-  api888_usd_cny_rate: '6.6702',
   argolink_api_key: '',
   argolink_enabled: 'true',
   argolink_max_inflight: '3',
@@ -152,7 +150,6 @@ async function getProviderSettings() {
     api888ApiKey: String(read('api888_api_key') || '').trim(),
     api888Enabled: asBool(read('api888_enabled')),
     api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||2))),
-    api888UsdCnyRate: Number(read('api888_usd_cny_rate')),
     argoLinkApiKey: String(read('argolink_api_key') || '').trim(),
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
@@ -309,12 +306,6 @@ async function updateProviderSettings(input = {}) {
     const n=Number(input.api888MaxInflight);
     if(!Number.isInteger(n)||n<1||n>10)throw Object.assign(new Error('888API inflight limit must be 1–10.'),{statusCode:400});
     await put('api888_max_inflight',String(n));
-  }
-  if('api888UsdCnyRate' in input){
-    const n=Number(input.api888UsdCnyRate);
-    if(!Number.isFinite(n)||n<1||n>20)
-      throw Object.assign(new Error('888API USD/CNY rate must be between 1 and 20 CNY per USD.'),{statusCode:400});
-    await put('api888_usd_cny_rate',String(n));
   }
   if(input.clearApi888ApiKey===true)await del('api888_api_key');
   else if('api888ApiKey' in input && String(input.api888ApiKey||'').trim()){
