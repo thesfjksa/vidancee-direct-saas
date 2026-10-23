@@ -522,25 +522,34 @@ async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
 async function sourceMediaCatalog(access,adminSettings=null){
   const providerSettings=adminSettings||await getAdminProviderSettings();
   let video=[],image=[];
+  const safeCatalog=async(source,load)=>{
+    try{return await load();}
+    catch(error){
+      logActivity({level:'error',category:'system',event:'catalog.source_failed',provider:source,
+        message:'A provider catalog could not be loaded',details:{error:String(error?.message||'error').slice(0,300)}});
+      return {video:[],image:[]};
+    }
+  };
   const creditStatus=await readProviderStatus(getPool()).catch(()=>({}));
   const argoReady=Boolean(access.argolink && providerSettings.argolink.active);
   const usable=source=>!(argoReady&&isOutOfCredits(creditStatus,source));
   if (access.smartaipi && providerSettings.smartaipi.active && usable('smartaipi')) {
-    image.push(...publicSmartImagePricing(await getProviderSettings()));
+    const catalog=await safeCatalog('smartaipi',async()=>({image:publicSmartImagePricing(await getProviderSettings())}));
+    image.push(...catalog.image);
   }
   if(access.vercel && providerSettings.vercel.active && usable('vercel')){
-    const catalog=await publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd});
+    const catalog=await safeCatalog('vercel',()=>publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd}));
     image=addMissingImageModels(image,catalog.image);
   }
   if(access.argolink && providerSettings.argolink.active){
     const hd=falReady(await getProviderSettings());
     const hdOff=await argoHdOffModels();
-    const catalog=await publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
+    const catalog=await safeCatalog('argolink',()=>publicProviderCatalog('argolink',{creditsPerUsd:providerSettings.argolink.customerCreditsPerUsd,transform:model=>argoVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})}));
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
   if(access.api888 && providerSettings.api888.active){
-    const catalog=await publicProviderCatalog('api888',{});
+    const catalog=await safeCatalog('api888',()=>publicProviderCatalog('api888',{}));
     video.push(...catalog.video);
     image.push(...catalog.image);
   }
@@ -548,12 +557,12 @@ async function sourceMediaCatalog(access,adminSettings=null){
   if(access.higgsfield && providerSettings.higgsfield.active){
     const hd=falReady(await getProviderSettings());
     const hdOff=await argoHdOffModels();
-    const catalog=await publicProviderCatalog('higgsfield',{creditsPerUsd:providerSettings.higgsfield.customerCreditsPerUsd,transform:model=>wanVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})});
+    const catalog=await safeCatalog('higgsfield',()=>publicProviderCatalog('higgsfield',{creditsPerUsd:providerSettings.higgsfield.customerCreditsPerUsd,transform:model=>wanVideoView(model,hd,{hd:!hdOff.has(model.publicModelId)})}));
     video=[...video,...catalog.video];
   }
   // Seedance Lite on Sluice: rendered at the chosen resolution, priced at cost.
   if(access.sluice && providerSettings.sluice.active){
-    const catalog=await publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd});
+    const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
   video=[...video,...directVideoModels(access,providerSettings)];
@@ -1132,6 +1141,7 @@ const server=http.createServer(async (req,res)=>{
       // Video Studio: ArgoLink, Higgsfield and MiniMax H3 (vgenv). Cartoon Studio: MiniMax H3 (vgenv). Image Studio: AI Gateway and SmartAIPI first,
       // then ArgoLink models they do not offer. Voice Studio: Vibi.
       let videoPricing=[];
+      let catalogError=false;
       let imagePricing=[];
       let cartoonPricing=[];
       let voiceConfig={enabled:false};
@@ -1161,7 +1171,9 @@ const server=http.createServer(async (req,res)=>{
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
             voiceConfig={enabled:true,cloningAvailable:true,maxTextChars:10000,cloneMaxBytes:20*1024*1024};
           }
-        } catch {
+        } catch (error) {
+          catalogError=true;
+          logActivity({level:'error',category:'system',event:'catalog.config_failed',message:'Public model catalog could not be assembled',details:{error:String(error?.message||'error').slice(0,300)}});
           // Keep public config usable during transient database/provider-setting issues.
         }
       }
@@ -1170,6 +1182,7 @@ const server=http.createServer(async (req,res)=>{
         ok:true,
         signupsEnabled:allowSignups,
         pricing:videoPricing,
+        catalogError,
         aspectRatios:ASPECT_RATIOS,
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
