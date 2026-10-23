@@ -1,0 +1,31 @@
+name: Node tests
+on:
+  push:
+    branches:
+      - feature/888api-integration
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Syntax check
+        run: |
+          node --check src/api888_models.js
+          node --check src/provider/api888.js
+          node --check src/api888_queue.js
+          node --check src/settings.js
+          node --check src/provider_models.js
+          node --check server.js
+          node --check worker.js
+      - name: Unit tests
+        run: npm test

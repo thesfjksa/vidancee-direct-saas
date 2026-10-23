@@ -181,6 +181,8 @@ const { createUpscaleJob, publicUpscalerConfig, quoteForCustomer } = require('./
 const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
+const { Api888Client } = require('./src/provider/api888.js');
+const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
@@ -201,7 +203,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog, ensureApi888Catalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -407,7 +409,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // Every studio is on for a customer until the admin turns a source off for them.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -537,6 +539,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video=catalog.video;
     image=addMissingImageModels(image,catalog.image);
   }
+  if(access.api888 && providerSettings.api888.active){
+    const catalog=await publicProviderCatalog('api888',{});
+    video.push(...catalog.video);
+    image.push(...catalog.image);
+  }
   // Higgsfield's Wan 3.0: 480p native; 720p/1080p rendered lower and upscaled by fal.
   if(access.higgsfield && providerSettings.higgsfield.active){
     const hd=falReady(await getProviderSettings());
@@ -555,6 +562,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
+  if(isApi888Model(id))return '888API';
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
   if(isSluiceModel(id))return 'Sluice';
@@ -629,6 +637,13 @@ async function quoteModelForUser(userId,body){
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
+  }
+  if(isApi888Model(body.model)){
+    if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
+    const model=await getProviderModelByPublicId('api888',String(body.model),mediaType);
+    if(!model?.ready)throw httpError(404,'888API model not ready.');
+    const quote=quoteApi888(model,body,providerSettings.api888.usdCnyRate);
+    return {cost:quote.cost,isEstimate:false};
   }
   if(isArgoModel(body.model)){
     if(!access.argolink||!providerSettings.argolink.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -716,6 +731,16 @@ async function submitVideoGeneration(user,body,req=null){
   // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
+  if(!cartoonOptions&&isApi888Model(requestedModel)){
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888UsdCnyRate>=1 && providerSettings.api888UsdCnyRate<=20))throw httpError(503,'888API video generation is unavailable.');
+    const model=await getProviderModelByPublicId('api888',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'888API model not ready.');
+    validateReferences(model,body);
+    const quote=quoteApi888(model,body,providerSettings.api888UsdCnyRate);
+    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model}});
+  }
   if(!cartoonOptions&&isArgoModel(requestedModel)){
     if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('argolink',requestedModel,'video');
@@ -813,6 +838,18 @@ async function submitImageGeneration(user,body,req=null){
     });
   }
 
+  if(isApi888Model(requestedModel)){
+    if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey||!(providerSettings.api888UsdCnyRate>=1 && providerSettings.api888UsdCnyRate<=20))throw httpError(503,'888API image generation is unavailable.');
+    const model=await getProviderModelByPublicId('api888',requestedModel,'image');
+    if(!model?.ready)throw httpError(404,'888API image model not ready.');
+    if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
+    validateReferences(model,body);
+    const quote=quoteApi888(model,body,providerSettings.api888UsdCnyRate);
+    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+      provider:'api888',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
+      generationOptions:{...quote,model}});
+  }
   if(isArgoModel(requestedModel)){
     if(!customerAccess.argolink||!providerSettings.argoLinkEnabled||!providerSettings.argoLinkApiKey)throw httpError(503,'This image model is currently unavailable.');
     const model=await getProviderModelByPublicId('argolink',requestedModel,'image');
@@ -1696,6 +1733,18 @@ const server=http.createServer(async (req,res)=>{
         await new FalClient({apiKey:s.falApiKey}).verifyKey();
         return sendJson(res,200,{ok:true});
       }
+      if(req.method==='POST'&&routePath==='/admin/api888/check'){
+        requireDatabase();const s=await getProviderSettings();
+        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        return sendJson(res,200,{ok:true,accessibleModels:catalog.data.length});
+      }
+      if(req.method==='POST'&&routePath==='/admin/api888/sync'){
+        requireDatabase();const s=await getProviderSettings();
+        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        const models=await syncProviderModels('api888',api888MediaModels(catalog));
+        return sendJson(res,200,{ok:true,total:models.length,adapterSupported:models.filter(m=>m.adapterSupported).length,
+          note:'Catalog imported. Models require a valid token, USD/CNY exchange rate and an explicit provider enable switch before customer generation.'});
+      }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();
         const balance=await new ArgoLinkClient({apiKey:s.argoLinkApiKey}).balance();
@@ -1816,7 +1865,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -2230,6 +2279,7 @@ function bootstrap() {
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
+      await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
       startWorkerChild();

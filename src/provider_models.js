@@ -1,5 +1,6 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
+const { api888MediaModels } = require('./api888_models.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { sluiceMediaModels } = require('./sluice_models.js');
 const { modelFamily } = require('./model_families.js');
@@ -138,7 +139,7 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','api888'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -180,6 +181,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       imageSizes:options.imageSizes||[],defaultImageSize:options.defaultImageSize,
       supportsAudio:options.supportsAudio===true,
     }:{}),
+    ...(row.provider==='api888'?{api888:options.api888||{}}:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
     ...(row.provider==='sluice'?{sluice:options.sluice||{},referenceCapabilities:options.referenceCapabilities}:{}),
@@ -191,6 +193,11 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.inputSchema = safeJson(row.input_schema, {});
   }
   if(row.provider==='vercel')applyModelFixups(base);
+  if(row.provider==='api888'){
+    base.ready=Boolean(base.adapterSupported&&base.api888.sourceCny>0);
+    if(!base.ready&&!base.setupReason)base.setupReason='888API model requires a verified contract and price.';
+    return base;
+  }
   if(isPricedSource(row.provider)){base.ready=modelReady(base);if(!base.ready&&!base.setupReason)base.setupReason='Configure USD pricing or account eligibility before generation.';}
   // Token-billed GPT Image models are priced from OpenAI's published per-image table.
   if(row.provider==='vercel'&&!base.priceOverride&&!positiveNumber(base.pricing?.image)&&!(base.pricing?.image_dimension_quality_pricing||[]).length&&publishedImageTiers(base.providerModelId).length)base.publishedPrices=true;
@@ -402,7 +409,7 @@ async function publicProviderCatalog(provider, { creditsPerUsd, transform } = {}
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
     .filter(isPlausibleCustomerModel).filter(model=>!isPricedSource(provider)||model.ready)
     .map(model => transform ? transform(model) : model).filter(model => model.mediaType !== 'video' || model.resolutions.length);
-  const withCosts = model => isPricedSource(provider) && creditsPerUsd
+  const withCosts = model => provider==='api888' ? publicImageModel(model) : isPricedSource(provider) && creditsPerUsd
     ? { ...publicImageModel(model), ...imageCostTable(model,creditsPerUsd) } : publicImageModel(model);
   return {
     video: models.filter(model => model.mediaType === 'video').map(publicVideoModel),
@@ -479,7 +486,19 @@ async function ensureSluiceCatalog(fetchCatalog) {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_sluice_catalog_seed')");conn.release();}
 }
 
+async function ensureApi888Catalog(){
+  const db=getPool();
+  const [[count]]=await db.execute("SELECT COUNT(*) AS total FROM provider_models WHERE provider='api888'");
+  if(!Number(count.total)){
+    await syncProviderModels('api888',api888MediaModels());
+    // Documentation is not proof of account access. Only a successful live
+    // authenticated catalog sync may make a model available for sale.
+    await db.execute("UPDATE provider_models SET available=0 WHERE provider='api888'");
+  }
+}
+
 module.exports = {
+  ensureApi888Catalog,
   ensureSluiceCatalog,
   ensureArgoCatalog,
   ensureHiggsfieldCatalog,

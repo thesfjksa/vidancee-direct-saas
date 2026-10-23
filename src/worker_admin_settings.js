@@ -1,4 +1,5 @@
 const { VercelQueue } = require('./vercel_queue.js');
+const { Api888Queue } = require('./api888_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { SluiceQueue } = require('./sluice_queue.js');
@@ -61,6 +62,7 @@ class GenerationWorker {
     // Image Studio: AI Gateway and SmartAIPI first, ArgoLink when they run out of credits.
     this.imageFailover = { ...credits, move: async (db, job) => moveImageJobToArgo(db, job, await getProviderSettings()) };
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
+    this.api888Queue = new Api888Queue();
     // Video Studio: Seedance 2.5 renders on fal.ai while ArgoLink is out of credits.
     this.argoLinkQueue = new ArgoLinkQueue({ credits });
     // Video Studio: Wan 3.0 on the Higgsfield API.
@@ -109,6 +111,7 @@ class GenerationWorker {
     if (!dbConfigured()) return;
     this.stopped = false;
     this.vercelQueue.start();
+    this.api888Queue.start();
     this.argoLinkQueue.start();
     this.higgsfieldQueue.start();
     this.sluiceQueue.start();
@@ -123,6 +126,7 @@ class GenerationWorker {
     clearTimeout(this.timer);
     clearTimeout(this.smartImageTimer);
     this.vercelQueue.stop();
+    this.api888Queue.stop();
     this.argoLinkQueue.stop();
     this.higgsfieldQueue.stop();
     this.sluiceQueue.stop();
