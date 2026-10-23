@@ -50,7 +50,7 @@ async function initDb() {
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       email VARCHAR(190) NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
-      credits DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      credits DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
       plan_code VARCHAR(20) NULL,
       role VARCHAR(20) NOT NULL DEFAULT 'user',
       status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -88,7 +88,7 @@ async function initDb() {
       aspect_ratio VARCHAR(20) NOT NULL,
       prompt TEXT NOT NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'queued',
-      credits_cost DECIMAL(12,2) NOT NULL,
+      credits_cost DECIMAL(12,4) NOT NULL,
       provider_cost DECIMAL(12,4) NULL,
       provider_cost_unit VARCHAR(20) NULL,
       output_url TEXT NULL,
@@ -177,7 +177,7 @@ async function initDb() {
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       user_id BIGINT UNSIGNED NOT NULL,
       generation_id CHAR(36) NULL,
-      amount DECIMAL(12,2) NOT NULL,
+      amount DECIMAL(12,4) NOT NULL,
       type VARCHAR(40) NOT NULL,
       note VARCHAR(255) NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -418,18 +418,18 @@ async function initDb() {
   await ensureGenerationColumn('provider_meta', "provider_meta LONGTEXT NULL AFTER provider_cost_unit");
 
   const [userCreditsColumn] = await db.query("SHOW COLUMNS FROM users LIKE 'credits'");
-  if (userCreditsColumn[0] && !/decimal\(12,2\)/i.test(String(userCreditsColumn[0].Type || ''))) {
-    await db.query("ALTER TABLE users MODIFY credits DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+  if (userCreditsColumn[0] && !/decimal\(12,4\)/i.test(String(userCreditsColumn[0].Type || ''))) {
+    await db.query("ALTER TABLE users MODIFY credits DECIMAL(12,4) NOT NULL DEFAULT 0.0000");
   }
 
   const [generationCreditsColumn] = await db.query("SHOW COLUMNS FROM generations LIKE 'credits_cost'");
-  if (generationCreditsColumn[0] && !/decimal\(12,2\)/i.test(String(generationCreditsColumn[0].Type || ''))) {
-    await db.query("ALTER TABLE generations MODIFY credits_cost DECIMAL(12,2) NOT NULL");
+  if (generationCreditsColumn[0] && !/decimal\(12,4\)/i.test(String(generationCreditsColumn[0].Type || ''))) {
+    await db.query("ALTER TABLE generations MODIFY credits_cost DECIMAL(12,4) NOT NULL");
   }
 
   const [transactionAmountColumn] = await db.query("SHOW COLUMNS FROM credit_transactions LIKE 'amount'");
-  if (transactionAmountColumn[0] && !/decimal\(12,2\)/i.test(String(transactionAmountColumn[0].Type || ''))) {
-    await db.query("ALTER TABLE credit_transactions MODIFY amount DECIMAL(12,2) NOT NULL");
+  if (transactionAmountColumn[0] && !/decimal\(12,4\)/i.test(String(transactionAmountColumn[0].Type || ''))) {
+    await db.query("ALTER TABLE credit_transactions MODIFY amount DECIMAL(12,4) NOT NULL");
   }
 
   initialized = true;
