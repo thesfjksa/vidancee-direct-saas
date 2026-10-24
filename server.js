@@ -1746,6 +1746,43 @@ const server=http.createServer(async (req,res)=>{
         await new FalClient({apiKey:s.falApiKey}).verifyKey();
         return sendJson(res,200,{ok:true});
       }
+      // Read-only, existing paid task lookup. This cannot start a new generation.
+      // Response never includes private provider output URLs, tokens or prompts.
+      if(req.method==='GET'&&routePath==='/admin/api888/task-status'){
+        requireDatabase();
+        const id=String(url.searchParams.get('generation')||'');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+          return sendJson(res,400,{ok:false,error:'Enter a valid CMM Tools generation ID.'});
+        const [[job]]=await getPool().execute(
+          "SELECT id,status,provider_job_id,provider_operation,refunded_at FROM generations WHERE id=? AND provider='api888' AND media_type='video' LIMIT 1",
+          [id]);
+        if(!job)return sendJson(res,404,{ok:false,error:'888API video generation not found.'});
+        let saved={};
+        try{saved=JSON.parse(job.provider_operation||'{}')||{};}catch{}
+        const taskId=String(job.provider_job_id||saved.requestId||'');
+        if(!/^[A-Za-z0-9_-]{5,191}$/.test(taskId))
+          return sendJson(res,409,{ok:false,error:'No valid 888API task ID was saved for this generation.'});
+        const config=await getProviderSettings();
+        if(!config.api888ApiKey)return sendJson(res,503,{ok:false,error:'888API key is not configured in Admin.'});
+        try{
+          const result=await new Api888Client({apiKey:config.api888ApiKey}).videoStatus(taskId);
+          const output={ok:true,localStatus:job.status,refunded:Boolean(job.refunded_at),
+            providerTaskId:taskId,providerStatus:result.providerStatus,
+            state:result.status,progress:result.progress,
+            hasVideoResult:result.status==='done',
+            providerError:result.status==='failed'?result.error:null};
+          logActivity({category:'admin',event:'api888.task_status_checked',provider:'api888',
+            generationId:id,message:'Read-only status lookup of existing 888API task',
+            details:{state:output.state,providerStatus:output.providerStatus,progress:output.progress,
+              localStatus:output.localStatus}});
+          return sendJson(res,200,output);
+        }catch(error){
+          return sendJson(res,502,{ok:false,error:'888API task status check failed.',
+            requestMethod:'GET',failureType:error.failureType||null,
+            networkCode:error.networkCode||null,providerStatus:error.providerStatus||null,
+            providerMessage:error.providerMessage||null});
+        }
+      }
       if(req.method==='POST'&&routePath==='/admin/api888/check'){
         requireDatabase();const s=await getProviderSettings();
         const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();

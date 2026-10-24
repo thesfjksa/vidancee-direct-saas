@@ -120,9 +120,27 @@ Api888Client.prototype.videoStatus=async function(id){
   if(!/^[A-Za-z0-9_-]{5,191}$/.test(String(id)))throw new Error('Invalid 888API video job.');
   const data=await this.json('/v1/videos/'+encodeURIComponent(id));
   const status=String(data.status||'').toLowerCase();
-  if(['completed','succeeded','success'].includes(status))return {status:'done',url:data.url||data.video_url||data.result_url||data.task_result?.videos?.[0]?.url||null,id};
-  if(['failed','cancelled','canceled'].includes(status))return {status:'failed',error:String(data.error?.message||data.error||status).slice(0,200)};
-  return {status:'pending'};
+  // Some 888API gateways additionally send task_status (e.g. SUCCESS / FAILURE).
+  // Only use it when the top-level status is absent or unrecognized.
+  const fallback=String(data.task_status||'').toLowerCase();
+  const normalize=(value)=>{
+    if(['completed','succeeded','success'].includes(value))return 'done';
+    if(['failed','failure','cancelled','canceled'].includes(value))return 'failed';
+    if(['queued','pending','submitted','processing','in_progress','running'].includes(value))return 'pending';
+    return null;
+  };
+  const normalized=normalize(status)||normalize(fallback);
+  const progress=typeof data.progress==='number'&&Number.isFinite(data.progress)
+    ?Math.max(0,Math.min(100,data.progress)):null;
+  if(normalized==='done')return {status:'done',url:data.url||data.video_url||data.result_url||data.task_result?.videos?.[0]?.url||null,
+    id,providerStatus:status||fallback,progress};
+  if(normalized==='failed')return {status:'failed',error:safeProviderError(data)||'888API reported generation failure.',
+    id,providerStatus:status||fallback,progress};
+  if(normalized==='pending')return {status:'pending',id,providerStatus:status||fallback,progress};
+  throw Object.assign(new Error('888API returned an unrecognized video task status.'),{
+    statusCode:502,providerStatus:200,
+    providerMessage:String(status||fallback||'missing').replace(/[^a-z0-9_-]/gi,'').slice(0,50),
+  });
 };
 Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT){
   // 888API also returns same-origin relative /v1/videos/..../content URLs.

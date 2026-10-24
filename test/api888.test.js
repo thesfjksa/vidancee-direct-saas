@@ -387,3 +387,39 @@ test('888API queue clears stale transient video polling warning on successful po
  assert.match(executed.sql,/status='processing'/);
  assert.equal(executed.args[0],'c2ebddd1-ab9b-4d25-805e-3f8d2c9c9627');
 });
+
+
+test('888API live task check reads provider progress without exposing output URLs',async()=>{
+ let requests=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   requests++;assert.equal(url,'https://888api.xin/v1/videos/task_67890123');
+   assert.equal(opts.method,'GET');
+   return new Response(JSON.stringify({id:'task_67890123',status:'processing',task_status:'RUNNING',progress:42,
+      url:'https://signed-private.example.test/?sig=SECRET'}),{status:200});
+ }});
+ const state=await client.videoStatus('task_67890123');
+ assert.equal(state.status,'pending');
+ assert.equal(state.providerStatus,'processing');
+ assert.equal(state.progress,42);
+ assert.equal(Object.hasOwn(state,'url'),false);
+ assert.equal(requests,1);
+});
+
+test('888API fallback task_status reports succeeded and failed safely',async()=>{
+ const statuses=[
+   [{task_status:'SUCCESS',progress:100,url:'https://example.test/clip.mp4'},'done'],
+   [{task_status:'FAILURE',error:{message:'job rejected'},progress:0},'failed'],
+   [{task_status:'SUBMITTED',progress:0},'pending'],
+ ];
+ for(const [response,expected] of statuses){
+   const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>new Response(JSON.stringify(response),{status:200})});
+   const state=await client.videoStatus('task_67890123');
+   assert.equal(state.status,expected);
+   if(expected==='failed')assert.equal(state.error,'job rejected');
+ }
+});
+test('888API unknown task status no longer silently looks like pending forever',async()=>{
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>new Response(JSON.stringify({status:'unexpected',task_status:'UNKNOWN'}),
+   {status:200})});
+ await assert.rejects(client.videoStatus('task_67890123'),/unrecognized video task status/);
+});
