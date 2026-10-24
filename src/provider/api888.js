@@ -158,19 +158,49 @@ Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT){
   }
   throw new Error('888API output redirected too often.');
 };
+// Video downloads are idempotent GET requests. An upstream status result may
+// contain an expired link while the official authenticated /content endpoint
+// still works, so use the latter as a bounded fallback. Never retry a paid POST.
 Api888Client.prototype.videoContent=async function(id,url){
-  let data;
-  if(url)data=await this.download(url,VIDEO_LIMIT);
-  else{
+  if(!/^[A-Za-z0-9_-]{5,191}$/.test(String(id)))throw new Error('Invalid 888API video job.');
+  const validMp4=bytes=>Buffer.isBuffer(bytes)&&bytes.length>=12&&bytes.toString('ascii',4,8)==='ftyp';
+  let directError=null;
+  if(url){
+    try{
+      const result=await this.download(url,VIDEO_LIMIT);
+      if(validMp4(result))return {data:result,mimeType:'video/mp4'};
+      throw new Error('Provider URL did not return an MP4 file.');
+    }catch(error){directError=error;}
+  }
+  try{
     const path='/v1/videos/'+encodeURIComponent(id)+'/content';
-    const response=await this.fetch(ORIGIN+path,{headers:{authorization:'Bearer '+this.apiKey},redirect:'manual',signal:AbortSignal.timeout(180000)});
+    const response=await this.fetch(ORIGIN+path,{headers:{authorization:'Bearer '+this.apiKey},
+      redirect:'manual',signal:AbortSignal.timeout(180000)});
+    let data;
     if(response.status>=300&&response.status<400&&response.headers.get('location')){
       data=await this.download(new URL(response.headers.get('location'),ORIGIN+path).toString(),VIDEO_LIMIT);
       await response.body?.cancel?.().catch(()=>{});
-    }else{if(!response.ok)throw new Error('888API video content is not accessible.');data=await readBounded(response,VIDEO_LIMIT);}
+    }else{
+      if(!response.ok){
+        await response.body?.cancel?.().catch(()=>{});
+        throw Object.assign(new Error('Authenticated 888API content endpoint returned HTTP '+response.status+'.'),
+          {providerStatus:response.status});
+      }
+      data=await readBounded(response,VIDEO_LIMIT);
+    }
+    if(!validMp4(data))throw new Error('Authenticated 888API content endpoint did not return MP4 video.');
+    return {data,mimeType:'video/mp4'};
+  }catch(contentError){
+    const parts=[];
+    if(directError)parts.push('Provider URL: '+safeProviderError({message:directError.message}));
+    parts.push('Content endpoint: '+safeProviderError({message:contentError.message}));
+    throw Object.assign(new Error('888API completed video could not be downloaded using either available GET route.'),{
+      statusCode:502,recoveryStage:'video.download',
+      providerMessage:parts.join(' | ').slice(0,350),
+      providerStatus:contentError.providerStatus||directError?.providerStatus||null,
+      networkCode:safeNetworkCode(contentError)||safeNetworkCode(directError),
+    });
   }
-  if(!data.length||data.toString('ascii',4,8)!=='ftyp')throw new Error('888API did not return MP4 video.');
-  return {data,mimeType:'video/mp4'};
 };
 Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   if(refs.length)throw new Error('888API image editing requires the dedicated multipart adapter; choose text-to-image.');

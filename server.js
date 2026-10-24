@@ -1763,9 +1763,15 @@ const server=http.createServer(async (req,res)=>{
           logActivity({level:'error',category:'admin',event:'api888.video_recovery_failed',
             provider:'api888',generationId:/^[0-9a-f-]{36}$/i.test(String(body.generationId||''))?body.generationId:null,
             message:'888API video recovery failed',details:errorDetails(error)});
-          return sendJson(res,error.statusCode>=400&&error.statusCode<500?error.statusCode:502,
-            {ok:false,error:error.statusCode>=400&&error.statusCode<500?error.message:
-              'Could not retrieve or store the existing 888API video. Check Activity for details.'});
+          const recoveryStage=['video.status','video.download','video.storage'].includes(error.recoveryStage)?
+            error.recoveryStage:null;
+          const hint=error.providerMessage&&recoveryStage==='video.download'?String(error.providerMessage).slice(0,350):null;
+          return sendJson(res,error.statusCode>=400&&error.statusCode<500?error.statusCode:502,{
+            ok:false,recoveryStage,providerStatus:error.providerStatus||null,
+            error:error.statusCode>=400&&error.statusCode<500?error.message:
+              '888API recovery failed at '+(recoveryStage||'an unknown stage')+'.'+(hint?' '+hint:
+              ' See Admin Activity for details.'),
+          });
         }
       }
       // Read-only, existing paid task lookup. This cannot start a new generation.
