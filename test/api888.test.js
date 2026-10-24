@@ -462,3 +462,61 @@ test('888API reports safe per-route diagnostics when both completed-video GET ro
    return true;
  });
 });
+
+test('888API video download resolves provider-relative completed URLs without losing auth',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ const {publicMediaUrl}=require('../src/provider/api888.js');
+ assert.equal(publicMediaUrl('/v1/videos/task_12345678/content'),
+   'https://888api.xin/v1/videos/task_12345678/content');
+ assert.equal(publicMediaUrl('v1/videos/task_12345678/content?sig=123'),
+   'https://888api.xin/v1/videos/task_12345678/content?sig=123');
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   assert.equal(url,'https://888api.xin/v1/videos/task_12345678/content');
+   assert.equal(opts.headers.authorization,'Bearer sk-test');
+   return new Response(mp4,{status:200});
+ }});
+ assert.deepEqual((await client.videoContent('task_12345678','/v1/videos/task_12345678/content')).data,mp4);
+});
+test('888API HTTP public media link is upgraded to HTTPS without leaking Bearer credentials',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(28)]);
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   assert.equal(url,'https://media.example.test/output.mp4?sig=private');
+   assert.equal(opts.headers?.authorization,undefined);
+   return new Response(mp4,{status:200});
+ }});
+ const result=await client.videoContent('task_12345678','http://media.example.test/output.mp4?sig=private');
+ assert.deepEqual(result.data,mp4);
+});
+test('888API authenticated content route accepts provider HTTP CDN redirect as HTTPS',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(64)]);
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   calls++;
+   if(url==='https://888api.xin/v1/videos/task_12345678/content'){
+     assert.equal(opts.headers.authorization,'Bearer sk-test');
+     return new Response(null,{status:302,headers:{location:'http://cdn.example.test/result.mp4?sig=secret'}});
+   }
+   assert.equal(url,'https://cdn.example.test/result.mp4?sig=secret');
+   assert.equal(opts.headers?.authorization,undefined);
+   return new Response(mp4,{status:200});
+ }});
+ const result=await client.videoContent('task_12345678',null);
+ assert.deepEqual(result.data,mp4);
+ assert.equal(calls,2);
+});
+test('888API rejects unsafe video media targets without leaking signed URLs',()=>{
+ const {publicMediaUrl}=require('../src/provider/api888.js');
+ const unsafe=['http://127.0.0.1/secret','http://localhost/secret',
+  'https://192.168.1.10/video.mp4','ftp://cdn.example.test/video.mp4',
+  'data:video/mp4;base64,AA==','https://example.test:8080/movie.mp4',
+  'https://user:password@example.test/movie.mp4'];
+ for(const url of unsafe){
+   assert.throws(()=>publicMediaUrl(url),error=>{
+     assert.match(error.message,/unsupported video download URL/i);
+     assert.equal(error.message.includes('secret'),false);
+     assert.equal(error.message.includes('password'),false);
+     assert.equal(error.mediaUrlPort===undefined,false);
+     return true;
+   },url);
+ }
+});

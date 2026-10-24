@@ -142,17 +142,58 @@ Api888Client.prototype.videoStatus=async function(id){
     providerMessage:String(status||fallback||'missing').replace(/[^a-z0-9_-]/gi,'').slice(0,50),
   });
 };
+// Some 888API responses use relative /v1/videos/.../content addresses, and
+// some upstream gateways emit http:// URLs for otherwise HTTPS-capable public
+// CDNs. Never request cleartext HTTP; safely resolve provider-relative URLs
+// and attempt HTTPS upgrade only for public DNS names on the default port.
+// Retain the shared SSRF guard for every target and redirect.
+function publicMediaUrl(raw,base=ORIGIN){
+  const value=String(raw||'').trim();
+  const shape=/^https?:\/\//i.test(value)?'absolute':
+    value.startsWith('//')?'protocol_relative':
+    value.startsWith('/')||/^v1\/videos\//i.test(value)?'provider_relative':'other';
+  const classify=(error,uri)=>{
+    const host=String(uri?.hostname||'').toLowerCase();
+    const hostnameType=!host?'missing':host==='localhost'||host.endsWith('.local')?'local':
+      /^\d+\.\d+\.\d+\.\d+$/.test(host)||host.includes(':')?'ip':'dns';
+    const scheme=String(uri?.protocol||'invalid').replace(/[^a-z0-9:]/gi,'').slice(0,20);
+    const port=uri?.port?'custom':'default';
+    return Object.assign(new Error('888API returned an unsupported video download URL ('+
+      'shape='+shape+', scheme='+scheme+', target='+hostnameType+', port='+port+').'),{
+      statusCode:502,mediaUrlShape:shape,mediaUrlScheme:scheme,
+      mediaUrlTarget:hostnameType,mediaUrlPort:port,cause:error,
+    });
+  };
+  let target;
+  try {
+    if(!value)throw new Error('empty');
+    if(shape==='other')throw new Error('unrecognized relative URL');
+    const input=shape==='provider_relative'&&!value.startsWith('/')?'/'+value:value;
+    target=new URL(input,base);
+    if(target.protocol==='http:'){
+      // HTTPS upgrade is allowed only for regular DNS hosts. Reject raw IPs
+      // and hostnames that may point to local infrastructure.
+      const host=target.hostname.toLowerCase();
+      if(target.port&&target.port!=='80'||host==='localhost'||host.endsWith('.local')||
+         host.includes(':')||/^\d+\.\d+\.\d+\.\d+$/.test(host))
+        throw new Error('unsafe HTTP target');
+      target.protocol='https:';
+      target.port='';
+    }
+    if(target.protocol!=='https:')throw new Error('non-HTTPS target');
+    return checkOutputUrl(target.toString());
+  }catch(error){throw classify(error,target);}
+}
+
 Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT){
   // 888API also returns same-origin relative /v1/videos/..../content URLs.
-  const uri=String(url||'');
-  const absolute=uri.startsWith('/v1/videos/')?ORIGIN+uri:uri;
-  let current=checkOutputUrl(absolute);
+  let current=publicMediaUrl(url);
   for(let i=0;i<5;i++){
     const authenticated=new URL(current).origin===ORIGIN && new URL(current).pathname.startsWith('/v1/videos/');
     const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(180000),
       headers:authenticated?{authorization:'Bearer '+this.apiKey}:{}});
     const next=r.headers.get('location');
-    if(r.status>=300&&r.status<400&&next){current=checkOutputUrl(new URL(next,current).toString());await r.body?.cancel?.().catch(()=>{});continue;}
+    if(r.status>=300&&r.status<400&&next){current=publicMediaUrl(next,current);await r.body?.cancel?.().catch(()=>{});continue;}
     if(!r.ok){await r.body?.cancel?.().catch(()=>{});throw new Error('888API output could not be retrieved.');}
     return readBounded(r,maxBytes);
   }
@@ -178,7 +219,7 @@ Api888Client.prototype.videoContent=async function(id,url){
       redirect:'manual',signal:AbortSignal.timeout(180000)});
     let data;
     if(response.status>=300&&response.status<400&&response.headers.get('location')){
-      data=await this.download(new URL(response.headers.get('location'),ORIGIN+path).toString(),VIDEO_LIMIT);
+      data=await this.download(publicMediaUrl(response.headers.get('location'),ORIGIN+path),VIDEO_LIMIT);
       await response.body?.cancel?.().catch(()=>{});
     }else{
       if(!response.ok){
@@ -216,5 +257,5 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   validateCanvas(data,mimeType,params.aspectRatio);
   return {data,mimeType};
 };
-module.exports={Api888Client,ORIGIN};
+module.exports={Api888Client,ORIGIN,publicMediaUrl};
 
