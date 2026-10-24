@@ -112,3 +112,25 @@ test('completed result must be an MP4 buffer before storage',async()=>{
   await assert.rejects(recoverApi888Video({...f,generationId:ID}),/valid MP4/);
   assert.equal(f.stats.transactions,0);
 });
+
+test('recovery preserves a failed, refunded job when both GET download routes fail',async()=>{
+ const f=fixture();
+ f.client.videoContent=async()=>{throw Object.assign(new Error('888API completed video could not be downloaded.'),{statusCode:502})};
+ await assert.rejects(recoverApi888Video({...f,generationId:ID}),error=>{
+   assert.equal(error.recoveryStage,'video.download');
+   return true;
+ });
+ assert.equal(f.state.status,'failed');
+ assert.ok(f.state.refunded_at);
+ assert.equal(f.stats.transactions,0);
+ assert.equal(f.events.length,0);
+});
+test('recovery distinguishes a provider-status lookup failure from media download failure',async()=>{
+ const f=fixture();
+ f.client.videoStatus=async()=>{throw Object.assign(new Error('Failed to query original task.'),{statusCode:502})};
+ await assert.rejects(recoverApi888Video({...f,generationId:ID}),error=>{
+   assert.equal(error.recoveryStage,'video.status');return true;
+ });
+ assert.equal(f.stats.downloadCalls,0);
+ assert.equal(f.stats.transactions,0);
+});
