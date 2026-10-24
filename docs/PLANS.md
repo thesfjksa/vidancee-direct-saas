@@ -1,14 +1,16 @@
 # CMM Tools plans
 
-Updated 11 October 2026.
+Updated 25 October 2026 to reflect current `src/plans.js`; see [latest handoff](PROJECT_HANDOFF_2026-10-25.md). **GitHub source may be newer than Hostinger production**, which had a blocked repository clone.
 
-## Public plans
+## Currently offered plans (request + manual approval)
 
-| Plan | Monthly price | Included credits | Concurrent generations | Queue |
+| Plan | Price per approved purchase | Included credits | Concurrent generations | Queue |
 | --- | ---: | ---: | ---: | --- |
-| Basic | PKR 1,500 | 500 | 2 | Standard |
-| Pro | PKR 4,500 | 1,500 | 3 | Priority |
-| Premium | PKR 12,000 | 4,000 | 5 | Highest |
+| Creator | PKR 5,000 | 60,000 | 3 | Priority 20 |
+| Studio | PKR 10,000 | 120,000 | 5 | Priority 30 |
+| Enterprise | Custom / contact | Custom | Custom | Custom |
+
+Former **Basic** (PKR 1,500, 500 credits), **Pro** (PKR 4,500, 1,500 credits) and **Premium** (PKR 12,000, 4,000 credits) are **legacy plans** supported for existing customers but are no longer offered as new public purchases. No automatic monthly renewal is implemented.
 
 All plans use one customer balance, with source-specific generation pricing:
 
@@ -23,7 +25,7 @@ The plan price does not multiply generation costs again. Source assignments and 
 There is no automatic payment gateway, recurring billing or scheduled monthly credit grant. Included credits are granted for each approved purchase request. The displayed monthly price does not implement automatic renewal.
 
 1. Customer opens **Plans**.
-2. Customer requests Basic, Pro, or Premium.
+2. Customer requests Creator or Studio (Enterprise requires manual contact).
 3. The request appears in **Admin → Plans**.
 4. Admin verifies payment externally.
 5. Admin approves the request.
