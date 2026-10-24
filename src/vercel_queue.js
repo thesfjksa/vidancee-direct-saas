@@ -194,9 +194,9 @@ class VercelQueue {
       const [[current]]=await conn.execute('SELECT status,refunded_at FROM generations WHERE id=? FOR UPDATE',[job.id]);
       if(!current||current.refunded_at||!['submitting','submitted','processing'].includes(current.status)){await conn.rollback();return;}
       if(job.media_type==='image')await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?)',[job.id,output.mimeType,output.data]);
-      else await saveVideoOutput(conn,job.id,output);
+      const videoStorage=job.media_type==='image'?null:await saveVideoOutput(conn,job.id,output);
       await conn.execute("UPDATE generations SET status='completed',output_url=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?",
-        [job.media_type==='image'?'db:image':'db:video',job.id]);
+        [job.media_type==='image'?'db:image':videoStorage,job.id]);
       await conn.commit();
       this.log(job,'job.completed','Completed',{bytes:output.data?.length,mimeType:output.mimeType});
     } catch(error){await conn.rollback();throw error;}finally{conn.release();}
