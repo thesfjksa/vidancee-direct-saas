@@ -12,9 +12,10 @@ This applies to all worker save flows that call \`saveVideoOutput\` (888API, Ver
 3. Create **OAuth Client ID → Web application**, and add **exactly**
    \`https://cmmtools.site/admin/google-drive/callback\`
    to Authorized redirect URIs.
-4. In **both** Hostinger apps, set \`GOOGLE_DRIVE_CLIENT_ID\`, \`GOOGLE_DRIVE_CLIENT_SECRET\`, and \`GOOGLE_DRIVE_REDIRECT_URI\` as documented in \`.env.example\`. Keep \`SETTINGS_ENCRYPTION_KEY\` identical across both apps. **Never commit client secrets, refresh tokens, access tokens, or private video links to GitHub.**
-5. Redeploy the website and worker from the merged main commit. Open **Admin → Storage → Connect Google Drive** and authorize the Google account with \`drive.file\` (file-level app scope) and offline access. The refresh token is stored encrypted in \`app_settings\`; neither customers nor front-end JavaScript can read it.
-6. Refresh the Admin Storage tab to verify **Connected and accessible** and see the current number of database videos. Connection switches **new uploads immediately to Drive** and enables the **worker's automatic, one-by-one migration**. Use Pause/Resume to control old-video migration. Confirm \`worker.mehroz.online\` is running.
+4. Redeploy the website and worker from the merged main commit, and keep \`SETTINGS_ENCRYPTION_KEY\` (or the existing same encryption root) identical across both apps. **No Google OAuth environment variables are required.**
+5. In **Admin → Storage**, enter the **Client ID** and the newly rotated **Client Secret** from Google Cloud → Clients, then click **Save Google credentials securely**. Both are stored AES-GCM encrypted in the existing \`app_settings\` table through one MySQL transaction. The secret is never returned in the Admin API response or shown again after saving. Legacy \`GOOGLE_DRIVE_CLIENT_ID\`/\`GOOGLE_DRIVE_CLIENT_SECRET\` Hostinger variables remain supported only as a fallback for older setups.
+6. Click **Connect Google Drive** and authorize the Google account with \`drive.file\` and offline access. The OAuth refresh token is separately encrypted in \`app_settings\`; customers and front-end JavaScript never receive it.
+7. Refresh the Admin Storage tab to verify **Connected and accessible** and see the current number of database videos. Connection switches **new uploads immediately to Drive** and enables the **worker's automatic, one-by-one migration**. Use Pause/Resume to control old-video migration. Confirm \`worker.mehroz.online\` is running.
 
 **Use a Google account/Workspace Drive with enough free storage.** A typical free personal Google account starts with shared storage of 15 GB across Drive, Gmail and Photos; this is not an unlimited free database. Shared Drives require suitable Google Workspace access. Plain service accounts cannot own files in personal My Drive; this implementation uses a real user's OAuth authorization. Google Drive is not a substitute for a purpose-built streaming CDN at high request volumes.
 
@@ -34,7 +35,7 @@ This applies to all worker save flows that call \`saveVideoOutput\` (888API, Ver
 
 The OAuth connection is initiated only by authenticated Admin; Google callback uses a one-time, expiring OAuth \`state\` stored in encrypted server settings. Customer video playback routes maintain existing per-owner authorization. Drive files remain private, not shared by "Anyone with the link". Untrusted Drive \`Location\` upload URLs are constrained to the Google API host.
 
-Do not give Google Cloud credentials to ChatGPT or put them in screenshots. Enter them in Hostinger environment variables. No account is connected by merging code; the owner must complete Google consent.
+Do not give Google Cloud credentials to ChatGPT or put them in screenshots. Enter them into the authenticated Admin → Storage form; Google OAuth secrets are encrypted in MySQL and never logged. No account is connected by merging code; the owner must complete Google consent.
 
 ## Verification after connecting
 
@@ -53,3 +54,14 @@ Drive metadata/downloads: https://developers.google.com/workspace/drive/api/refe
 ## Customer video deletion
 
 When a customer deletes a completed Drive-backed generation, CMM Tools first commits the existing MySQL generation/reference deletion and then requests deletion of that exact private Drive file. If Google's delete request fails, the customer library removal remains committed; Admin Activity records \`gdrive.delete_failed\` so orphaned Drive files can be cleaned up later. No other customer's Drive file can be named by the client.
+
+
+## Admin-managed OAuth credentials
+
+CMM Tools provides \`POST /admin/google-drive/credentials\` (Admin-token authenticated) for saving \`clientId\` and \`clientSecret\` as **encrypted** settings. The server stores them atomically and invalidates any in-progress OAuth state. \`GET /admin/google-drive/status\` reports only whether valid credentials are configured and whether the source is \`admin\`, \`environment\`, or \`none\`; it never returns either credential.
+
+Both Hostinger applications share the same encrypted MySQL settings, so the worker reads the values without a deployment or its own Google secret variable. The built-in OAuth redirect remains locked to \`https://cmmtools.site/admin/google-drive/callback\`.
+
+For safety, once a Drive account is connected, changing the OAuth **Client ID** in Admin is blocked; switching clients could strand customers' previously stored videos. Rotating the secret for the *same* OAuth Client ID is supported. If the client ID must change, first arrange a migration/reconnection plan that preserves access to existing Drive files.
+
+An OAuth **Client Secret shown in any chat or screenshot must be rotated** in Google Cloud, and the replacement entered only in Admin → Storage. Do not paste credentials into ChatGPT, GitHub or public logs.
