@@ -129,3 +129,20 @@ test('bad or missing MySQL chunks abort migration before any Drive upload',async
  await assert.rejects(readStoredRange(db,ID,1024*1024,0,1024*1024),/missing data chunks/i);
  assert.equal(called,false);
 });
+
+test('Google Drive deletes only the stored private video file ID after customer deletion',async()=>{
+ let removed=0;
+ const client=new GoogleDriveStore({clientId:'client_delete_case',clientSecret:'secret',
+   refreshToken:'refresh_unique_delete_case',folderId:FOLDER,fetchImpl:async(url,options)=>{
+     if(url==='https://oauth2.googleapis.com/token')
+       return new Response(JSON.stringify({access_token:'token',expires_in:3600}),{status:200});
+     assert.equal(url,'https://www.googleapis.com/drive/v3/files/'+FILE);
+     assert.equal(options.method,'DELETE');
+     assert.equal(options.headers.authorization,'Bearer token');
+     removed++;
+     return new Response(null,{status:204});
+   }});
+ await client.deleteFile(FILE);
+ assert.equal(removed,1);
+ await assert.rejects(client.deleteFile('http://localhost'),/Invalid Google Drive file ID/);
+});
