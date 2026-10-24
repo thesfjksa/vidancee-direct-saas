@@ -146,6 +146,29 @@ async function setSettingValue(key, value, { secret = false } = {}) {
   await put(String(key), value == null ? '' : String(value), secret);
 }
 
+/** Save OAuth client credentials atomically, encrypted at rest in app_settings. */
+async function saveGoogleDriveOAuthCredentials(clientId, clientSecret) {
+  const db=getPool();
+  await ensureSettingsTable(db);
+  const conn=await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for(const [key,value] of [['gdrive_oauth_client_id',clientId],['gdrive_oauth_client_secret',clientSecret]]) {
+      await conn.execute(
+        'INSERT INTO app_settings (setting_key, setting_value, is_secret) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_secret=1, updated_at=UTC_TIMESTAMP()',
+        [key,encrypt(value)]
+      );
+    }
+    // An in-progress OAuth exchange for an older client must not be allowed
+    // after the credentials have changed.
+    await conn.execute('DELETE FROM app_settings WHERE setting_key=?',['gdrive_oauth_state']);
+    await conn.commit();
+  }catch(error) {
+    await conn.rollback().catch(()=>{});
+    throw error;
+  }finally{conn.release();}
+}
+
 async function deleteSettingValue(key) {
   await del(String(key));
 }
@@ -503,6 +526,7 @@ module.exports = {
   migrateLegacyProviderEnvSettings,
   getSettingValue,
   setSettingValue,
+  saveGoogleDriveOAuthCredentials,
   deleteSettingValue,
 };
 
