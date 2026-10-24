@@ -108,7 +108,7 @@ class GoogleDriveStore{
     if(!GEN_ID.test(id)||!FILE_ID.test(this.folderId))throw new Error('Google Drive folder is not configured.');
     const q="'"+this.folderId+"' in parents and name = 'cmm-video-"+id+".mp4' and trashed = false";
     const url='/drive/v3/files?'+new URLSearchParams({q,fields:'files(id,size,md5Checksum),nextPageToken',
-      page_size:'100'}).toString();
+      pageSize:'100'}).toString();
     const found=await this.api(url);
     for(const file of found.files||[]){
       if(FILE_ID.test(file.id)&&Number(file.size)===size&&(!checksum||file.md5Checksum===checksum))
@@ -199,7 +199,7 @@ class GoogleDriveStore{
     res.writeHead(upstream.status,h);
     if(upstream.status===416||!upstream.body)return res.end();
     const stream=Readable.fromWeb(upstream.body);
-    req.on('close',()=>stream.destroy());
+    res.on('close',()=>stream.destroy());
     stream.on('error',()=>res.destroy());
     stream.pipe(res);
   }
