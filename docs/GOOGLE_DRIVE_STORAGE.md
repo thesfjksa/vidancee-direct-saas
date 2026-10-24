@@ -49,3 +49,7 @@ Generate one small video from a reliable provider, verify playback and downloadi
 Google OAuth: https://developers.google.com/identity/protocols/oauth2/web-server
 Drive resumable uploads: https://developers.google.com/workspace/drive/api/guides/manage-uploads
 Drive metadata/downloads: https://developers.google.com/workspace/drive/api/reference/rest/v3/files/get
+
+## Customer video deletion
+
+When a customer deletes a completed Drive-backed generation, CMM Tools first commits the existing MySQL generation/reference deletion and then requests deletion of that exact private Drive file. If Google's delete request fails, the customer library removal remains committed; Admin Activity records \`gdrive.delete_failed\` so orphaned Drive files can be cleaned up later. No other customer's Drive file can be named by the client.
