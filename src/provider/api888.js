@@ -235,11 +235,20 @@ Api888Client.prototype.videoContent=async function(id,url){
     const parts=[];
     if(directError)parts.push('Provider URL: '+safeProviderError({message:directError.message}));
     parts.push('Content endpoint: '+safeProviderError({message:contentError.message}));
+    // Two independently obtained provider links both point to an unsafe
+    // HTTP raw-IP/custom-port target. Retrying the same completed task cannot
+    // make those locations safe; fail/refund locally rather than show a spinner
+    // and misleading "resumes automatically" warning for three hours.
+    const unsafeProviderLink=error=>error?.mediaUrlTarget==='ip'&&error?.mediaUrlPort==='custom';
+    const permanentlyInaccessible=unsafeProviderLink(directError)&&unsafeProviderLink(contentError);
     throw Object.assign(new Error('888API completed video could not be downloaded using either available GET route.'),{
       statusCode:502,recoveryStage:'video.download',
       providerMessage:parts.join(' | ').slice(0,350),
       providerStatus:contentError.providerStatus||directError?.providerStatus||null,
       networkCode:safeNetworkCode(contentError)||safeNetworkCode(directError),
+      // No raw download URL, IP address or port is stored in diagnostics.
+      unretrievableOutput:permanentlyInaccessible,
+      providerOutputProblem:permanentlyInaccessible?'unsafe_upstream_media_url':null,
     });
   }
 };
