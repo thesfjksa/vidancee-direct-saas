@@ -74,28 +74,55 @@ function decrypt(value) {
   return Buffer.concat([decipher.update(Buffer.from(parts[3], 'base64url')), decipher.final()]).toString('utf8');
 }
 
-async function ensureSettingsTable() {
-  const db = getPool();
-  await db.query(`CREATE TABLE IF NOT EXISTS app_settings (
-    setting_key VARCHAR(120) NOT NULL,
-    setting_value LONGTEXT NOT NULL,
-    is_secret TINYINT(1) NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (setting_key)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+const settingsTableReady=new WeakSet();
+
+// MySQL checks CREATE privileges even for CREATE TABLE IF NOT EXISTS when
+// the table already exists. Hostinger production users can have SELECT/INSERT/
+// UPDATE rights on app_settings without CREATE; reading settings must still work.
+async function ensureSettingsTable(db=getPool()) {
+  if(settingsTableReady.has(db))return;
+  try {
+    // Read-only schema probe: no DDL privilege needed for existing tables.
+    await db.query('SELECT setting_key, setting_value, is_secret FROM app_settings LIMIT 0');
+    settingsTableReady.add(db);
+    return;
+  }catch(error){
+    // A missing table still needs creation; do not mask SELECT permission errors.
+    if(error.code!=='ER_NO_SUCH_TABLE')throw error;
+  }
+  try {
+    await db.query(`CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key VARCHAR(120) NOT NULL,
+      setting_value LONGTEXT NOT NULL,
+      is_secret TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (setting_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  }catch(error){
+    if(['ER_TABLEACCESS_DENIED_ERROR','ER_DBACCESS_DENIED_ERROR','ER_SPECIFIC_ACCESS_DENIED_ERROR'].includes(error.code)){
+      const denied=new Error('app_settings is missing and this MySQL user cannot create it. Create the table with a database administrator account or grant CREATE permission in Hostinger.');
+      denied.code='APP_SETTINGS_CREATE_PERMISSION_REQUIRED';
+      denied.cause=error;
+      throw denied;
+    }
+    throw error;
+  }
+  // Verify the table and required columns before claiming settings are ready.
+  await db.query('SELECT setting_key, setting_value, is_secret FROM app_settings LIMIT 0');
+  settingsTableReady.add(db);
 }
 
 async function rowsMap() {
   const db = getPool();
-  await ensureSettingsTable();
+  await ensureSettingsTable(db);
   const [rows] = await db.query('SELECT setting_key, setting_value, is_secret FROM app_settings');
   return new Map(rows.map(r => [r.setting_key, r]));
 }
 
 async function put(key, value, secret = false) {
   const db = getPool();
-  await ensureSettingsTable();
+  await ensureSettingsTable(db);
   await db.execute(
     'INSERT INTO app_settings (setting_key, setting_value, is_secret) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_secret=VALUES(is_secret), updated_at=UTC_TIMESTAMP()',
     [key, secret ? encrypt(value) : String(value), secret ? 1 : 0]
@@ -104,7 +131,7 @@ async function put(key, value, secret = false) {
 
 async function del(key) {
   const db = getPool();
-  await ensureSettingsTable();
+  await ensureSettingsTable(db);
   await db.execute('DELETE FROM app_settings WHERE setting_key=?', [key]);
 }
 
@@ -469,6 +496,7 @@ async function migrateLegacyProviderEnvSettings() {
 }
 
 module.exports = {
+  ensureSettingsTable,
   getProviderSettings,
   getAdminProviderSettings,
   updateProviderSettings,

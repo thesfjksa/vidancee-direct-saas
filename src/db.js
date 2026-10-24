@@ -39,6 +39,33 @@ function getPool() {
   return pool;
 }
 
+// A production MySQL account may have CRUD rights on existing tables but no
+// DDL privileges. CREATE TABLE IF NOT EXISTS still requests CREATE permission
+// in MySQL; probe each existing table via SELECT before attempting DDL.
+async function ensureSchemaTable(db,sql) {
+  const name=/^CREATE TABLE IF NOT EXISTS ([a-z_][a-z0-9_]*)\s*\(/i.exec(String(sql).trim())?.[1];
+  if(!name)throw new Error('Unexpected database schema statement.');
+  try {
+    await db.query('SELECT 1 FROM '+name+' LIMIT 0');
+    return false;
+  }catch(error){
+    if(error.code!=='ER_NO_SUCH_TABLE')throw error;
+  }
+  try {
+    await db.query(sql);
+  }catch(error){
+    if(['ER_TABLEACCESS_DENIED_ERROR','ER_DBACCESS_DENIED_ERROR','ER_SPECIFIC_ACCESS_DENIED_ERROR'].includes(error.code)){
+      const denied=new Error('Required MySQL table '+name+' does not exist and the database user has no CREATE permission. Restore the table with a database administrator or grant CREATE permission in Hostinger.');
+      denied.code='SCHEMA_CREATE_PERMISSION_REQUIRED';
+      denied.cause=error;
+      throw denied;
+    }
+    throw error;
+  }
+  await db.query('SELECT 1 FROM '+name+' LIMIT 0');
+  return true;
+}
+
 async function initDb() {
   if (!dbConfigured()) return false;
   if (initialized) return true;
@@ -357,7 +384,7 @@ async function initDb() {
   ];
 
   for (const sql of statements) {
-    await db.query(sql);
+    await ensureSchemaTable(db,sql);
   }
 
   async function ensureGenerationColumn(name, definition) {
@@ -448,5 +475,5 @@ async function dbHealth() {
   }
 }
 
-module.exports = { dbConfigured, getPool, initDb, dbHealth };
+module.exports = { dbConfigured, getPool, initDb, dbHealth, ensureSchemaTable };
 
