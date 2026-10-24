@@ -31,14 +31,20 @@ async function recoverApi888Video({db,client,generationId,log=logActivity}){
 
   // Only GET the original provider task status and its completed video content.
   // No POST /v1/videos; no credit or balance mutation.
-  const status=await client.videoStatus(taskId);
+  let status;
+  try{status=await client.videoStatus(taskId);}
+  catch(error){error.recoveryStage='video.status';throw error;}
   if(status.status!=='done')
     throw recoveryError('888API has not reported this task completed. Current provider state: '+status.status+'.');
-  const video=await client.videoContent(taskId,status.url);
+  let video;
+  try{video=await client.videoContent(taskId,status.url);}
+  catch(error){error.recoveryStage='video.download';throw error;}
   if(!Buffer.isBuffer(video?.data)||video.data.length===0||video.mimeType!=='video/mp4')
     throw recoveryError('888API did not return a valid MP4 video.',502);
 
-  const conn=await db.getConnection();
+  let conn;
+  try{conn=await db.getConnection();}
+  catch(error){error.recoveryStage='video.storage';throw error;}
   let userId;
   try{
     await conn.beginTransaction();
@@ -58,6 +64,7 @@ async function recoverApi888Video({db,client,generationId,log=logActivity}){
     // IMPORTANT: preserve refunded_at and the refund transaction (no re-charge).
     await conn.commit();
   }catch(error){
+    error.recoveryStage='video.storage';
     await conn.rollback().catch(()=>{});
     throw error;
   }finally{conn.release();}
