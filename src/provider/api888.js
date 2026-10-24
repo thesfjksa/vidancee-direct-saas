@@ -142,12 +142,23 @@ Api888Client.prototype.videoStatus=async function(id){
     providerMessage:String(status||fallback||'missing').replace(/[^a-z0-9_-]/gi,'').slice(0,50),
   });
 };
-// Some 888API responses use relative /v1/videos/.../content addresses, and
-// some upstream gateways emit http:// URLs for otherwise HTTPS-capable public
-// CDNs. Never request cleartext HTTP; safely resolve provider-relative URLs
-// and attempt HTTPS upgrade only for public DNS names on the default port.
-// Retain the shared SSRF guard for every target and redirect.
-function publicMediaUrl(raw,base=ORIGIN){
+// Only completed video downloads may use literal public IPv4 media servers.
+// Literal addresses avoid DNS rebinding; private, special-use and metadata
+// ranges stay blocked. Never forward provider credentials to these servers.
+function publicIpv4(host) {
+  if(require('node:net').isIP(host)!==4)return false;
+  const [a,b,c]=host.split('.').map(Number);
+  return !(a===0||a===10||a===127||a>=224||
+    a===100&&b>=64&&b<=127||a===169&&b===254||
+    a===172&&b>=16&&b<=31||
+    a===192&&(b===168||b===0&&(c===0||c===2)||b===88&&c===99)||
+    a===198&&(b===18||b===19||b===51&&c===100)||
+    a===203&&b===0&&c===113||host==='168.63.129.16');
+}
+// DNS media hosts retain the existing HTTPS-only policy. HTTP literal public
+// IPv4 links are accepted only by the video path, without HTTPS rewriting:
+// these provider media servers may not offer TLS on their custom port.
+function publicMediaUrl(raw,base=ORIGIN,allowPublicIp=false){
   const value=String(raw||'').trim();
   const shape=/^https?:\/\//i.test(value)?'absolute':
     value.startsWith('//')?'protocol_relative':
@@ -170,6 +181,8 @@ function publicMediaUrl(raw,base=ORIGIN){
     if(shape==='other')throw new Error('unrecognized relative URL');
     const input=shape==='provider_relative'&&!value.startsWith('/')?'/'+value:value;
     target=new URL(input,base);
+    if(allowPublicIp&&['http:','https:'].includes(target.protocol)&&
+       !target.username&&!target.password&&publicIpv4(target.hostname))return target.toString();
     if(target.protocol==='http:'){
       // HTTPS upgrade is allowed only for regular DNS hosts. Reject raw IPs
       // and hostnames that may point to local infrastructure.
@@ -185,15 +198,15 @@ function publicMediaUrl(raw,base=ORIGIN){
   }catch(error){throw classify(error,target);}
 }
 
-Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT){
+Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT,{allowPublicIp=false}={}){
   // 888API also returns same-origin relative /v1/videos/..../content URLs.
-  let current=publicMediaUrl(url);
+  let current=publicMediaUrl(url,ORIGIN,allowPublicIp);
   for(let i=0;i<5;i++){
     const authenticated=new URL(current).origin===ORIGIN && new URL(current).pathname.startsWith('/v1/videos/');
     const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(180000),
       headers:authenticated?{authorization:'Bearer '+this.apiKey}:{}});
     const next=r.headers.get('location');
-    if(r.status>=300&&r.status<400&&next){current=publicMediaUrl(next,current);await r.body?.cancel?.().catch(()=>{});continue;}
+    if(r.status>=300&&r.status<400&&next){await r.body?.cancel?.().catch(()=>{});current=publicMediaUrl(next,current,allowPublicIp);continue;}
     if(!r.ok){await r.body?.cancel?.().catch(()=>{});throw new Error('888API output could not be retrieved.');}
     return readBounded(r,maxBytes);
   }
@@ -208,7 +221,7 @@ Api888Client.prototype.videoContent=async function(id,url){
   let directError=null;
   if(url){
     try{
-      const result=await this.download(url,VIDEO_LIMIT);
+      const result=await this.download(url,VIDEO_LIMIT,{allowPublicIp:true});
       if(validMp4(result))return {data:result,mimeType:'video/mp4'};
       throw new Error('Provider URL did not return an MP4 file.');
     }catch(error){directError=error;}
@@ -219,8 +232,9 @@ Api888Client.prototype.videoContent=async function(id,url){
       redirect:'manual',signal:AbortSignal.timeout(180000)});
     let data;
     if(response.status>=300&&response.status<400&&response.headers.get('location')){
-      data=await this.download(publicMediaUrl(response.headers.get('location'),ORIGIN+path),VIDEO_LIMIT);
+      const location=response.headers.get('location');
       await response.body?.cancel?.().catch(()=>{});
+      data=await this.download(publicMediaUrl(location,ORIGIN+path,true),VIDEO_LIMIT,{allowPublicIp:true});
     }else{
       if(!response.ok){
         await response.body?.cancel?.().catch(()=>{});
@@ -267,4 +281,5 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   return {data,mimeType};
 };
 module.exports={Api888Client,ORIGIN,publicMediaUrl};
+
 

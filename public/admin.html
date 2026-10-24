@@ -539,7 +539,7 @@ function openProviderAccess(id){
   const a=user.provider_access||{};
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
-  $('accessApi888').checked=a.api888!==false;
+  $('accessApi888').checked=a.api888===true;
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessSluice').checked=a.sluice!==false;
@@ -1017,3 +1017,4 @@ async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringif
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
 </script></body></html>
+

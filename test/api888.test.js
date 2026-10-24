@@ -546,3 +546,64 @@ test('888API does not permanently fail when an expired signed URL and HTTP 503 c
    return true;
  });
 });
+
+
+test('888API completed video accepts public IPv4 HTTP custom-port output without credentials',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ const url='http://8.8.8.8:19876/video.mp4?sig=private';
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(target,opts)=>{
+   assert.equal(target,url);assert.equal(opts.redirect,'manual');
+   assert.equal(opts.headers.authorization,undefined);
+   assert.equal(opts.method||'GET','GET');return new Response(mp4);
+ }});
+ assert.deepEqual((await client.videoContent('task_12345678',url)).data,mp4);
+ // Image/general downloads do not gain this exception.
+ await assert.rejects(client.download(url),/unsupported video download URL/);
+});
+test('888API content endpoint can redirect to public IPv4 and strips provider authorization',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   calls++;
+   if(calls===1){assert.equal(opts.headers.authorization,'Bearer sk-test');
+     return new Response(null,{status:302,headers:{location:'http://8.8.8.8:19876/output.mp4'}});}
+   assert.equal(url,'http://8.8.8.8:19876/output.mp4');
+   assert.equal(opts.headers.authorization,undefined);return new Response(mp4);
+ }});
+ assert.deepEqual((await client.videoContent('task_12345678',null)).data,mp4);
+ assert.equal(calls,2);
+});
+test('888API video exception blocks private, special-use, encoded loopback and credential URLs',()=>{
+ const {publicMediaUrl}=require('../src/provider/api888.js');
+ const hosts=['0.0.0.0','10.1.2.3','100.64.0.1','100.127.255.254','127.1',
+ '2130706433','0x7f000001','169.254.169.254','172.16.0.1','172.31.255.255',
+ '192.168.0.1','192.0.0.8','192.0.2.1','192.88.99.1','198.18.0.1',
+ '198.19.0.1','198.51.100.1','203.0.113.1','224.0.0.1','255.255.255.255',
+ '168.63.129.16','[::1]','[::ffff:127.0.0.1]','user:secret@8.8.8.8'];
+ for(const host of hosts)for(const scheme of ['http','https']){
+   assert.throws(()=>publicMediaUrl(`${scheme}://${host}:19876/video.mp4`,undefined,true),
+     /unsupported video download URL/,host);
+ }
+});
+test('888API public IPv4 redirects cannot reach metadata or private addresses',async()=>{
+ for(const destination of ['http://169.254.169.254/latest/meta-data',
+   'http://127.0.0.1:19876/video.mp4','https://192.168.0.1/video.mp4']){
+   let calls=0;
+   const client=new Api888Client({fetchImpl:async(url)=>{
+     calls++;assert.equal(url,'http://8.8.8.8:19876/video.mp4');
+     return new Response(null,{status:302,headers:{location:destination}});
+   }});
+   await assert.rejects(client.download('http://8.8.8.8:19876/video.mp4',1024,{allowPublicIp:true}),
+     /unsupported video download URL/);
+   assert.equal(calls,1);
+ }
+});
+test('888API public IPv4 download retains size and MP4 checks',async()=>{
+ const client=new Api888Client({fetchImpl:async()=>new Response('not a video')});
+ await assert.rejects(client.videoContent('task_12345678','http://8.8.8.8:19876/video.mp4'),
+   /could not be downloaded/);
+ const oversized=new Api888Client({fetchImpl:async()=>new Response('data',{
+   headers:{'content-length':'67108865'}})});
+ await assert.rejects(oversized.download('http://8.8.8.8:19876/video.mp4',67108864,{allowPublicIp:true}),
+   /size limit/);
+});
