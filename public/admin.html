@@ -629,7 +629,17 @@ async function checkApi888Task(button,generationId){
       '\nProvider status: '+remote+progress+
       '\nTask: '+data.providerTaskId+
       '\n'+disposition+(data.providerError?'\nProvider error: '+data.providerError:''));
-  }catch(error){alert('888API task check failed: '+error.message);}
+    if(data.state==='done' && data.refunded && local==='failed'){
+      if(confirm('888API has completed this video but CMM Tools timed out and refunded the customer.\n\nRecover the existing MP4 into the original customer Library?\n\nNo new video will be generated. The customer keeps the refund.')){
+        button.textContent='Recovering…';
+        const result=await api('/admin/api888/recover-video',{method:'POST',
+          body:JSON.stringify({generationId})});
+        alert(result.recovered?'Video recovered successfully. The original customer can now play it in their Library. Their credit refund was preserved.':
+          'This video has already been recovered.');
+        await loadGenerations();
+      }
+    }
+  }catch(error){alert('888API task check / recovery failed: '+error.message);}
   finally{button.disabled=false;button.textContent=label;}
 }
 async function loadCredits(){try{const d=await api('/admin/credits');$('creditRows').innerHTML=d.transactions.length?d.transactions.map(c=>'<tr><td>'+fmt(c.created_at)+'</td><td>'+esc(c.email)+'</td><td>'+(c.generation_id||'—')+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.note||'—')+'</td><td class="'+(c.amount>0?'ok':'err')+'">'+(c.amount>0?'+':'')+c.amount+'</td></tr>').join(''):'<tr><td colspan="6" class="muted">No credit activity.</td></tr>'}catch(e){}}
