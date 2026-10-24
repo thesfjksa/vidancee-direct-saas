@@ -17,7 +17,7 @@ function fakeGoogle(){
       assert.match(url,/pageSize=100/);
       return new Response(JSON.stringify({files:[]}),{status:200});
     }
-    if(url.startsWith('https://www.googleapis.com/upload/drive/v3/files?')){
+    if(url.startsWith('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable')){
       assert.equal(opts.method,'POST');
       const info=JSON.parse(opts.body);
       assert.equal(info.name,'cmm-video-'+ID+'.mp4');
