@@ -55,6 +55,8 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   const access = new Map([[1, new Map([['vibi', 0]])]]); const updates = []; const settingsSaved = [];
   async function execute(sql, args = []) {
     if (sql.startsWith('CREATE')) return [[], []];
+    if (sql.startsWith('INSERT IGNORE INTO app_settings')) return [{affectedRows:0}];
+    if (sql.startsWith('SELECT setting_value FROM app_settings')) return [[{setting_value:'done'}]];
     if (sql.startsWith('INSERT INTO app_settings')) { settingsSaved.push(args[0]); return [{ affectedRows: 1 }]; }
     if (sql === "DELETE FROM user_provider_access WHERE provider='vibi' AND enabled=0") {
       let n = 0; for (const m of access.values()) if (m.get('vibi') === 0) { m.delete('vibi'); n++; }
@@ -72,7 +74,7 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
     if (sql.includes('FROM runtime_boots')) return [[{ service: 'web', pid: 1, node_version: 'v20', started_at: new Date('2026-10-12T00:00:00Z') }]];
     throw new Error('Unexpected test SQL: ' + sql);
   }
-  const db = { execute, query: execute };
+  const db = { execute, query: execute, getConnection: async()=>({execute,beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}}) };
   const dbModule = require('../src/db.js'); const originalDb = { ...dbModule };
   Object.assign(dbModule, { dbConfigured: () => true, getPool: () => db, initDb: async () => true, dbHealth: async () => ({ connected: true }) });
   const auth = require('../src/auth.js'); const originalAuth = { ...auth };
@@ -103,6 +105,11 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   const saved = await post('/admin/users/1/providers', { providers: { vercel: false } }, true);
   assert.equal(saved.status, 200);
   assert.equal(saved.data.provider_access.vercel, false);
+  assert.equal(saved.data.provider_access.api888, false);
+  const optedIn=await post('/admin/users/1/providers',{providers:{api888:true}},true);
+  assert.equal(optedIn.status,200);
+  assert.equal(optedIn.data.provider_access.api888,true);
+  assert.equal((await post('/admin/users/1/providers',{providers:{api888:true}})).status,401);
   assert.equal(saved.data.provider_access.vibi, true);
   assert.equal(saved.data.provider_access.argolink, true);
   assert.equal((await post('/admin/users/1/providers', { providers: { vercel: true } })).status, 401);
@@ -141,4 +148,5 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   assert.equal(diag.boots[0].service, 'web');
   assert.equal((await fetch(origin + '/admin/diagnostics')).status, 401);
 });
+
 

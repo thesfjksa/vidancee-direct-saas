@@ -30,8 +30,10 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.equal(pricing.status, 200);
   assert.match(pricing.body, /Creator[\s\S]*Studio[\s\S]*Enterprise/);
   assert.match(landing.body, /href="\/pricing"/);
-  // Every studio, Voice included, is on unless the admin turns a source off.
+  // 888API is opt-in; other studios keep their existing defaults.
   const config = JSON.parse((await page('/api/config')).body);
-  assert.ok(Object.values(config.providerAccess).every(Boolean));
+  assert.equal(config.providerAccess.api888, false);
+  assert.ok(Object.entries(config.providerAccess).filter(([key])=>key!=='api888').every(([,enabled])=>enabled));
   assert.equal(config.providerAccess.vibi, true);
 });
+
