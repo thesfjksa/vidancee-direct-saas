@@ -24,6 +24,11 @@ class Api888Queue extends VercelQueue{
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify({requestId:id}),id.slice(0,191),job.id]);
   }
+  // A successful status check removes any previous transient polling warning.
+  // This does not clear real failures, completed jobs or refunded jobs.
+  async markProcessing(db,job){
+    await db.execute("UPDATE generations SET status='processing',error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",[job.id]);
+  }
   async pollJob(db,client,job){
     let op={};
     try{op=JSON.parse(job.provider_operation||'{}');}catch{}

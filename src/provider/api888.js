@@ -40,23 +40,57 @@ function safeProviderRequestId(value) {
   const id=String(value?.request_id||value?.requestId||'');
   return /^[a-zA-Z0-9_-]{4,100}$/.test(id)?id:null;
 }
+// GET checks are idempotent. Only an existing task may be queried again;
+// NEVER retry POST /v1/videos or POST /v1/images/generations.
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function networkKind(error){
+  const name=String(error?.name||'');
+  return name==='TimeoutError'||name==='AbortError'?'timeout':'connection';
+}
+function safeNetworkCode(error){
+  const code=String(error?.cause?.code||error?.code||'').slice(0,50);
+  return /^[A-Z][A-Z0-9_]{1,49}$/.test(code)?code:null;
+}
 Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxBytes=API888_JSON_LIMIT){
   if(!this.apiKey)throw new Error('888API key is not configured.');
-  let response;
-  try{response=await this.fetch(ORIGIN+path,{method:body?'POST':'GET',
-    headers:{authorization:'Bearer '+this.apiKey,accept:'application/json',...(body?{'content-type':'application/json'}:{})},
-    body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeoutMs),redirect:'error'});}
-  catch{throw Object.assign(new Error('888API request interrupted. Paid operations are not retried automatically.'),{statusCode:502,retryable:false});}
-  // Upstream failure bodies must stay small even for image requests.
-  const limit=response.ok?maxBytes:API888_JSON_LIMIT;
-  const data=await readBounded(response,limit).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
-  if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{
-    statusCode:502,providerStatus:response.status,retryable:false,
-    providerMessage:safeProviderError(data),providerRequestId:safeProviderRequestId(data),
-    code:typeof data?.error?.code==='string'?data.error.code.slice(0,50):undefined,
-  });
-  if(!data||typeof data!=='object')throw Object.assign(new Error('888API returned an invalid JSON response.'),{statusCode:502});
-  return data;
+  const isGet=body==null;
+  const isVideoStatus=isGet&&/^\/v1\/videos\/[A-Za-z0-9_-]+$/.test(path);
+  // Provider documentation recommends 60s timeout on video task reads.
+  const requestTimeout=isVideoStatus?Math.max(timeoutMs,60000):timeoutMs;
+  const attempts=isVideoStatus?2:1;
+  for(let attempt=1;attempt<=attempts;attempt++){
+    let response;
+    try{
+      response=await this.fetch(ORIGIN+path,{method:isGet?'GET':'POST',
+        headers:{authorization:'Bearer '+this.apiKey,accept:'application/json',...(!isGet?{'content-type':'application/json'}:{})},
+        body:isGet?undefined:JSON.stringify(body),signal:AbortSignal.timeout(requestTimeout),redirect:'error'});
+    }catch(error){
+      // A GET may be safely repeated; a POST may have been charged upstream.
+      if(isVideoStatus&&attempt<attempts){await sleep(500);continue;}
+      throw Object.assign(new Error(isVideoStatus?'888API video status request interrupted; original task will be checked again.':
+        '888API request interrupted. Paid operations are not retried automatically.'),{
+        statusCode:502,retryable:isVideoStatus,requestMethod:isGet?'GET':'POST',
+        failureType:networkKind(error),networkCode:safeNetworkCode(error),
+        attempts:attempt,timeoutMs:requestTimeout,
+      });
+    }
+    if(isVideoStatus&&attempt<attempts&&[429,502,503,504].includes(response.status)){
+      await response.body?.cancel?.().catch(()=>{});
+      await sleep(500);
+      continue;
+    }
+    // Upstream failure bodies stay small even for large image responses.
+    const limit=response.ok?maxBytes:API888_JSON_LIMIT;
+    const data=await readBounded(response,limit).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
+    if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{
+      statusCode:502,providerStatus:response.status,retryable:isVideoStatus&&[429,502,503,504].includes(response.status),
+      providerMessage:safeProviderError(data),providerRequestId:safeProviderRequestId(data),
+      requestMethod:isGet?'GET':'POST',attempts:attempt,
+      code:typeof data?.error?.code==='string'?data.error.code.slice(0,50):undefined,
+    });
+    if(!data||typeof data!=='object')throw Object.assign(new Error('888API returned an invalid JSON response.'),{statusCode:502});
+    return data;
+  }
 };
 Api888Client.prototype.videoBody=function(model,params,references=[]){
   const images=references.filter(r=>r.mimeType?.startsWith('image/'));
