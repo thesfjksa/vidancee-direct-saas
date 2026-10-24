@@ -1,6 +1,30 @@
 # CMM Tools Hostinger Deployment
 
-Updated 11 October 2026.
+**25 October 2026 — incident update:** Before acting, read [the current comprehensive production recovery handoff](PROJECT_HANDOFF_2026-10-25.md). The original architectural instructions below remain useful, but **the active shared MySQL DB was over its 3,072 MB limit**, latest web deploy `089d08f` **failed during GitHub repository cloning**, and the last screenshot-confirmed active web commit was `316e103`; the worker's deployed commit was not verified. **Do not assume the latest GitHub features are live.** The owner downloaded a local DB export; no backup restore or confirmed video deletion has been carried out.
+
+### Active deployment incident: repository cloning failed
+
+- Hostinger hPanel → Deployments screenshot for `cmmtools.site`: `089d08f` §Build failed§, diagnostic: §Failed to clone the repository§ for private `thesfjksa/vidancee-direct-saas`, branch `main`. Failure happened **before** npm install and Node execution; it does **not** prove the app has a code/build error.
+- GitHub's Hostinger App configuration showed **All repositories** selected, yet the Hostinger deployment could not clone. Repo remains reachable from a separate authenticated GitHub connection. Verify account-level repository integration, reconnect Hostinger's GitHub authorization if necessary, inspect the complete clone log, and involve Hostinger support if needed. **Keep the repo private.** Do not remove the working deployment to troubleshoot cloning.
+- The `316e103` web deployment was shown as **Completed / Current**. It contains Google Drive support (#36) but **not** the Admin OAuth credential entry from #37 (`089d08f`), so old Admin Storage still asked for Hostinger env variables. After clone succeeds, deploy a newer `main` to **web and worker**, verify separately with `/live` and Hostinger deployment records.
+
+### Active data incident: quota & blocked writes
+
+- `u449234337_saas` used **3,143 / 3,072 MB**; Hostinger UI showed the database-size alarm. MySQL `#1142 UPDATE denied` for `credit_transactions` and earlier `CREATE denied` for `app_settings`, although hPanel user permissions displayed SELECT/INSERT/UPDATE/DELETE/CREATE checked. This is consistent with a **quota-induced write restriction**; re-check against live hPanel rules or support. Permission changes alone may not resolve it. The #35 probe-first CREATE fix does not remove actual MySQL quota restrictions.
+- Manual phpMyAdmin video cleanup **failed on its first UPDATE**; **no successful video DELETE is documented**. The owner has a SQL export on a local computer, but it has not been test-restored. Do not DROP the original DB or delete the backup.
+- **Emergency option proposed, not executed:** make a fresh Hostinger database and selectively restore schema + necessary account, settings, plan and credit/financial data **without video chunks** from a copy of the export; audit FK/import order/ledger integrity and encryption root; update DB env variables for both web and worker and restart. A minimal account-only restore omits credit history and must not be mistaken for full financial recovery. Original tables, backups and environment variables must be preserved for rollback.
+- Deleting rows might not reduce allocated MySQL space immediately. Never run a large `OPTIMIZE TABLE` on an over-quota DB without checking available temporary disk space, grant rights and having a backup.
+
+### Current Google Drive configuration
+
+- PR #36 (`316e103`) adds private Drive video storage and verified MySQL migration **after OAuth connection**; PR #37 (`089d08f`) adds **Admin → Storage** Client ID + Client Secret entry encrypted in shared MySQL, eliminating the need to set Google OAuth env vars in both apps. If Admin still displays an instruction to set `GOOGLE_DRIVE_CLIENT_ID` in Hostinger, **the website is running the older #36 UI**.
+- OAuth redirect: `https://cmmtools.site/admin/google-drive/callback`. Google account authorization, quota and refresh-token lifecycle still require verification. A secret previously appeared in a screenshot and **must be rotated**; do not commit or repeat its value. Both apps must use the same settings encryption root.
+- Last observed Admin storage: **Not connected**, **MySQL default**, **106 video outputs ~1.07 GiB**, **0 Drive files**, migration paused. The merge did **not** migrate files.
+- Source code, worker migration, approved deletion and security notes: [Google Drive storage](GOOGLE_DRIVE_STORAGE.md).
+
+---
+
+Updated 11 October 2026 (original architecture baseline; amended with the incident details above).
 
 The production deployment uses **two separate Hostinger Node.js applications** connected to the same GitHub repository and the same MySQL database.
 
