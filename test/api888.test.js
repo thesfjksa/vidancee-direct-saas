@@ -520,3 +520,29 @@ test('888API rejects unsafe video media targets without leaking signed URLs',()=
    },url);
  }
 });
+
+test('888API marks both raw-IP/custom-port video links as permanently inaccessible without fetching the unsafe hosts',async()=>{
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   assert.equal(url,'https://888api.xin/v1/videos/task_12345678/content');
+   assert.equal(opts.headers.authorization,'Bearer sk-test');
+   return new Response(null,{status:302,
+     headers:{location:'http://10.0.0.2:19876/video.mp4'}});
+ }});
+ await assert.rejects(client.videoContent('task_12345678','http://10.0.0.2:19876/video.mp4'),error=>{
+   assert.equal(error.unretrievableOutput,true);
+   assert.equal(error.providerOutputProblem,'unsafe_upstream_media_url');
+   assert.equal(error.recoveryStage,'video.download');
+   assert.ok(!error.message.includes('10.0.0.2'));
+   assert.ok(!error.providerMessage.includes('10.0.0.2'));
+   return true;
+ });
+});
+test('888API does not permanently fail when an expired signed URL and HTTP 503 content route may recover',async()=>{
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url)=>{
+   return new Response('unavailable',{status:url.includes('/content')?503:403});
+ }});
+ await assert.rejects(client.videoContent('task_12345678','https://cdn.example.test/expired.mp4'),error=>{
+   assert.equal(error.unretrievableOutput,false);
+   return true;
+ });
+});
