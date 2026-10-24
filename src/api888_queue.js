@@ -1,6 +1,7 @@
 'use strict';
 const {VercelQueue,savedOptions}=require('./vercel_queue.js');
 const {Api888Client}=require('./provider/api888.js');
+const {errorDetails}=require('./activity_log.js');
 class Api888Queue extends VercelQueue{
   constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;}
   apiKey(s){return s.api888ApiKey||'';}
@@ -36,7 +37,20 @@ class Api888Queue extends VercelQueue{
     const result=await client.videoStatus(op.requestId);
     if(result.status==='pending')return this.markProcessing(db,job);
     if(result.status==='failed')return this.refund(job.id,'failed','888API could not complete the video. Credits were refunded.',null);
-    return this.complete(db,job,await client.videoContent(op.requestId,result.url));
+    let video;
+    try{video=await client.videoContent(op.requestId,result.url);}
+    catch(error){
+      if(error.unretrievableOutput===true){
+        this.log(job,'job.video_output_unavailable',
+          '888API completed video was not accessible via safe downloads; generation refunded.',
+          errorDetails(error),'error');
+        return this.refund(job.id,'failed',
+          'Video finished at 888API, but the provider supplied unsafe download links. Credits were refunded.',
+          null);
+      }
+      throw error;
+    }
+    return this.complete(db,job,video);
   }
 }
 module.exports={Api888Queue};
