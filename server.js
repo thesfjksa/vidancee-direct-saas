@@ -195,6 +195,8 @@ const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js'
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
+const {GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig}=require('./src/google_drive.js');
+const {videoMigrationStats}=require('./src/google_drive_migration.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const { attachReusedImageReferences } = require('./src/reference_reuse.js');
 const { createConnector } = require('./src/connector.js');
@@ -1021,6 +1023,48 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
     if (req.method==='GET' && routePath==='/compare') return sendHtml(res,200,comparePage);
     if (req.method==='GET' && routePath==='/admin-console') return sendHtml(res,200,adminPage);
+
+    // Google OAuth redirects cannot carry the x-admin-token header. A strong,
+    // single-use, short-lived state is issued only from authenticated Admin.
+    if(req.method==='GET'&&routePath==='/admin/google-drive/callback'){
+      const page=message=>sendHtml(res,200,'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>CMM Tools Google Drive</title><body style="font:16px system-ui;max-width:600px;margin:70px auto;padding:20px"><h2>Google Drive connection</h2><p>'+message+'</p><a href="/admin-console">Back to Admin</a></body></html>');
+      const state=String(url.searchParams.get('state')||'');
+      const code=String(url.searchParams.get('code')||'');
+      const stored=await getSettingValue('gdrive_oauth_state','');
+      let pending=null;
+      try{pending=JSON.parse(stored||'null');}catch{}
+      const stateHash=crypto.createHash('sha256').update(state).digest('hex');
+      if(!pending||!state||!code||pending.hash!==stateHash||Date.now()>pending.expiresAt)
+        return sendJson(res,400,{ok:false,error:'Invalid or expired Google Drive authorization. Restart from Admin.'});
+      await setSettingValue('gdrive_oauth_state','');
+      try{
+        const refreshToken=await exchangeCode(code);
+        const config=oauthConfig(),drive=new GoogleDriveStore({...config,refreshToken});
+        const existingFolder=await getSettingValue('gdrive_folder_id','');
+        let folderId=null;
+        if(existingFolder){
+          try{
+            const existing=await drive.metadata(existingFolder);
+            if(existing.mimeType==='application/vnd.google-apps.folder'&&!existing.trashed)folderId=existingFolder;
+          }catch{}
+          if(!folderId){
+            const [[count]]=await getPool().query("SELECT COUNT(*) AS total FROM generations WHERE output_url LIKE 'gdrive:%'");
+            if(Number(count.total)>0)throw new Error('Cannot switch to a different Google Drive while existing customer videos are stored in the previously connected account.');
+          }
+        }
+        if(!folderId)folderId=await drive.createFolder();
+        await setSettingValue('gdrive_refresh_token',refreshToken,{secret:true});
+        await setSettingValue('gdrive_folder_id',folderId);
+        await setSettingValue('gdrive_enabled','true');
+        await setSettingValue('gdrive_migration_enabled','true');
+        logActivity({category:'admin',event:'gdrive.connected',message:'Private Google Drive video storage connected; migration enabled.'});
+        return page('Connected successfully. New generated videos will be saved privately to Google Drive. Existing MySQL videos will migrate gradually in the separate worker. Return to Admin → Storage to monitor.');
+      }catch(error){
+        logActivity({level:'error',category:'admin',event:'gdrive.connect_failed',message:'Google Drive authorization setup failed',details:{message:error.message}});
+        return page('Connection could not be completed. Please return to Admin and check the Drive setup and runtime logs.');
+      }
+    }
+
     if (await connector.handle(req,res,url,routePath)) return;
 
     // Reference files for providers. HEAD is answered too: some downloaders
@@ -1061,6 +1105,10 @@ const server=http.createServer(async (req,res)=>{
       if(!row?.stored&&!row?.output_url)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
       if(row.stored){
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
+      if(driveIdFromMarker(row.output_url)){
+        try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
       return proxyMedia(req,res,row,'video');
@@ -1637,6 +1685,10 @@ const server=http.createServer(async (req,res)=>{
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
+      if(type==='video'&&driveIdFromMarker(row.output_url)){
+        try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
       // vgenv's storage (Alibaba Cloud, Shanghai) is too slow to stream through
       // the host; until the worker has copied the video, the browser loads
       // vgenv's signed link directly.
@@ -1703,6 +1755,10 @@ const server=http.createServer(async (req,res)=>{
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
+      if(type==='video'&&driveIdFromMarker(row.output_url)){
+        try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
       if(type==='video'&&row.provider==='vgenv'&&/^https:\/\/[a-z0-9.-]+\.aliyuncs\.com\//i.test(String(row.output_url||''))){
         res.writeHead(302,{location:row.output_url,'cache-control':'private, no-store','referrer-policy':'no-referrer'});return res.end();
       }
@@ -1713,6 +1769,40 @@ const server=http.createServer(async (req,res)=>{
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
+
+      if(req.method==='GET'&&routePath==='/admin/google-drive/status'){
+        requireDatabase();
+        const config=await driveConfiguration(),stats=await videoMigrationStats(getPool());
+        let available=null;
+        if(config.connected){
+          try{await (await configuredDrive({requireEnabled:false})).metadata(config.folderId);available=true;}
+          catch{available=false;}
+        }
+        return sendJson(res,200,{ok:true,oauthConfigured:Boolean(process.env.GOOGLE_DRIVE_CLIENT_ID&&process.env.GOOGLE_DRIVE_CLIENT_SECRET),
+          connected:config.connected,enabled:config.enabled,driveAvailable:available,
+          migrationEnabled:await getSettingValue('gdrive_migration_enabled','false')==='true',
+          folderId:config.connected?config.folderId:null,stats});
+      }
+      if(req.method==='POST'&&routePath==='/admin/google-drive/connect'){
+        requireDatabase();oauthConfig();
+        const state=crypto.randomBytes(32).toString('base64url');
+        await setSettingValue('gdrive_oauth_state',JSON.stringify({
+          hash:crypto.createHash('sha256').update(state).digest('hex'),
+          expiresAt:Date.now()+10*60*1000,
+        }),{secret:true});
+        return sendJson(res,200,{ok:true,url:authUrl(state)});
+      }
+      if(req.method==='POST'&&routePath==='/admin/google-drive/migration'){
+        requireDatabase();
+        const body=await readJson(req);
+        const cfg=await driveConfiguration();
+        if(!cfg.connected) return sendJson(res,409,{ok:false,error:'Connect Google Drive first.'});
+        if(typeof body.enabled!=='boolean')return sendJson(res,400,{ok:false,error:'enabled must be true or false.'});
+        await setSettingValue('gdrive_migration_enabled',body.enabled?'true':'false');
+        logActivity({category:'admin',event:'gdrive.migration_toggled',
+          message:'Google Drive migration '+(body.enabled?'started':'paused')});
+        return sendJson(res,200,{ok:true,migrationEnabled:body.enabled});
+      }
       if (req.method==='POST' && routePath==='/admin/vibi/check') {
         requireDatabase();
         const settings=await getProviderSettings();
