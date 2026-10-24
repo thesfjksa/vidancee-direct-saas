@@ -1,5 +1,7 @@
 # Google Drive video storage for CMM Tools
 
+> **25 October 2026 deployment status:** This is **implemented in GitHub, not yet connected in verified production**. PR #36 (`316e103`) added the Storage tab / Drive video storage and migration. PR #37 (`089d08f`) added **Google Client ID and Client Secret fields in Admin → Storage** (encrypted in shared MySQL; **no Hostinger Google env variables necessary**). Hostinger's deployment of #37 **failed at GitHub cloning**; older site UI still instructs setting env variables. The active MySQL database reached **3,143 / 3,072 MB**, which can block saving OAuth settings and video-migration DB updates. Owner has local SQL export, but **no Drive connection, migration, or verified recovered space**. Prior exposed OAuth client secret **must be rotated**. Read [the recovery handoff](PROJECT_HANDOFF_2026-10-25.md) before setup.
+
 ## What this changes
 Customer-generated **videos** are stored as private MP4 files in a Google Drive folder named **CMM Tools Videos**. Video generation rows store \`gdrive:<file_id>\` instead of large MySQL BLOB chunks. Customer video playback/download and Admin video previews retain their existing CMM Tools URLs and authentication—**Google Drive files are not made public**.
 

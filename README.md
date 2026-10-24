@@ -2,11 +2,13 @@
 
 Deployed multi-user platform for video, image and voice generation, with customer accounts, a credit ledger, plan requests and a private Admin dashboard.
 
-Documentation updated 11 October 2026, including Vercel AI Gateway image and video integration.
+**Current development / incident checkpoint: 25 October 2026.** Read [the full recovery and implementation handoff](docs/PROJECT_HANDOFF_2026-10-25.md) **before deploying or modifying production**. GitHub `main` includes all changes through PR #37 (`089d08f`), but the latest Hostinger deployment for that revision **failed at cloning**; last screenshot-confirmed live web commit was `316e103`. The shared MySQL database `u449234337_saas` was **over quota (3,143 / 3,072 MB)** with denied write operations; an owner-held local SQL export and emergency selective new-database restore are **not yet verified/executed**. **No videos were confirmed deleted and Google Drive is not yet connected.** Production worker commit unknown.
+
+The October 11 architectural documentation below is supplemented by the dated handoff and the later provider/storage docs.
 
 ## Current features
 
-- Vercel AI Gateway live image/video catalog, encrypted API credentials, per-model pricing and account access.
+- Vercel AI Gateway, SmartAIPI and ArgoLink image catalogs; ArgoLink/Higgsfield/Sluice/vgenv and optional 888API video providers, subject to Admin switches and per-customer access.
 - CMM Tools branding, light UI and horizontal workspace navigation.
 - Video generation with model-specific duration, ratio, resolution and reference controls.
 - Image generation with GPT models, quality selection, vector ratio picker and a light floating preview.
@@ -14,8 +16,15 @@ Documentation updated 11 October 2026, including Vercel AI Gateway image and vid
 - Optional asynchronous Gemini prompt enhancement with request recovery.
 - Vibi-backed Voice Studio and customer-owned MiniMax voice clones.
 - Persistent MySQL generation queues, transactional credit reservations and idempotent refunds.
-- Manual Basic, Pro and Premium plan requests with Admin approval.
+- Manual Creator (PKR 5,000 / 60,000 credits) and Studio (PKR 10,000 / 120,000 credits) purchase requests with Admin approval; custom Enterprise, legacy Basic/Pro/Premium honored for existing accounts.
 - Admin-managed encrypted provider settings, global switches and per-customer source access.
+
+## October 2026 additions
+
+- **888API** (PRs #20–#34): model import, video/image integrations, **¥1 source cost = 1 customer credit**, per-request vs per-second tags, idempotent status polling, protected activity logs, Admin task checks, refunds and optional restricted media downloads; **disabled by default / Admin opt-in**. See [888API](docs/API888.md).
+- **Google Drive** (PRs #36–#37): private Drive video output after successful OAuth connection, authenticated playback, verified background MySQL video migration, and **Admin → Storage** OAuth Client ID / Secret entry (encrypted in shared MySQL). **Not yet connected in verified production screenshots.** See [Google Drive](docs/GOOGLE_DRIVE_STORAGE.md).
+- **MySQL existing-table permissions** (#35): read-only table probes avoid unnecessary CREATE attempts; quota-induced write suspension is a separate emergency.
+- **Recovery:** GitHub/Hostinger clone failure + database quota need remediation **before** activating Drive migration. See [25 Oct handoff](docs/PROJECT_HANDOFF_2026-10-25.md).
 
 ## Production deployment
 
@@ -28,7 +37,7 @@ Both Hostinger applications use `main`, the same MySQL database and the same enc
 
 Node.js 20 or later is required. Install dependencies with `npm install`. Start the web app using `npm start`; a separately configured worker uses `npm run worker`. Run automated checks with `npm test`.
 
-Health routes are `/live` and `/health` on the web app, and `/health` on the worker. Worker health revision 5 includes independent SmartAIPI image polling and Vercel gateway polling, readiness and active task diagnostics. Recent polling timestamps matter in addition to HTTP reachability.
+Health routes are `/live` and `/health` on the web app, and `/health` on the worker. Worker health includes provider polling, readiness and active task diagnostics; confirm **actual deployed revision and recent polling timestamps** rather than relying on HTTP 200 alone. Recent polling timestamps matter in addition to HTTP reachability.
 
 ## Admin and billing
 

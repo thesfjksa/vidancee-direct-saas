@@ -1,6 +1,22 @@
 # CMM Tools Web App Documentation
 
-Updated 11 October 2026. Operational handoff for the project owner and the next developer.
+> **LATEST OPERATIONAL HANDOFF — 25 October 2026:** Read **[PROJECT_HANDOFF_2026-10-25.md](PROJECT_HANDOFF_2026-10-25.md)** **first**. It contains the complete October 20–25 changes (#16–#37), the 888API incident timeline, Google Drive integration and Admin credentials, database quota/write restrictions, GitHub/Hostinger clone failure, security actions, and the emergency restore runbook. **This file's October 11 details are retained as historical architectural background, not an accurate current live-deployment checkpoint.** Current last-verified GitHub head before documentation changes: `089d08f`; last screenshot-confirmed Hostinger web deployment: `316e103` (newer deploy failed while cloning). **No production DB cleanup, new-DB restore, Drive OAuth connection or migration has yet been performed.**
+
+## 0 Latest incident status (25 October 2026)
+
+- **Database P0:** `u449234337_saas` at **3,143 / 3,072 MB**. MySQL writes are denied despite user permissions being checked in hPanel; attempted video cleanup stopped at its **first UPDATE** with MySQL error 1142, so there is no evidence its DELETE statements ran. The owner exported the database to a local computer; backup integrity not verified.
+- **Deploy P0:** GitHub `main` includes PR #37 Admin OAuth ID/secret entry, but Hostinger's clone of `089d08f` failed **before Node build/install**. Hostinger GitHub App shows repository access to All repositories. Latest successful web deployment screenshot: `316e103`; worker revision unknown.
+- **Drive P1:** PR #36 added private Drive storage, automatic verified MySQL video migration and customer playback. PR #37 moved client credential entry to **Admin → Storage** (encrypted in shared MySQL). Google Client Secret appeared in a screenshot and must be rotated. Live Drive remains **not connected**, migration **paused**, 106 MySQL videos (~1.07 GiB) awaiting disposition; migration only starts after stable DB/deploy and owner OAuth consent.
+- **888API P1:** PRs #20–#34 implemented model catalog, ¥1 = 1 credit fixed/dynamic pricing, repaired `seconds` typing and status polling, Admin task inspection and rescue, guarded output URLs and refund-on-unsafe-link. A MiniMax H3 job completed upstream but timed out and refunded locally; download recovery was not confirmed. Owner requested cancellation/no further recovery. 888API remains opt-in/disabled by default in source.
+- **Emergency path only proposed, not done:** keep original DB and local export; consider a **selective restore to a new separate MySQL database** omitting large video blobs, preserve accounts/balances/ledger and encryption root, update both web/worker DB env variables, restart and verify. Repair Hostinger clone integration separately.
+
+Continue from the **[dated 25 October handoff](PROJECT_HANDOFF_2026-10-25.md)**, not this historical `1 checkpoint. Dates, commits and verification boundaries matter.
+
+---
+
+### Historical baseline — 11 October 2026
+
+Updated 11 October 2026. Operational handoff as originally recorded for the project owner and developer.
 
 CMM Tools is a deployed, multi-user application for video generation, image generation and voice tools. Customers use the CMM Tools dashboard; the application manages provider access, generation queues and customer credits on the server. This document describes the current implementation, deployment and operating procedures.
 
