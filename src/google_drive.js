@@ -13,22 +13,36 @@ const GEN_ID=/^[0-9a-f-]{36}$/i;
 const tokenCache=new Map();
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
-function oauthConfig(){
-  const clientId=String(process.env.GOOGLE_DRIVE_CLIENT_ID||'').trim();
-  const clientSecret=String(process.env.GOOGLE_DRIVE_CLIENT_SECRET||'').trim();
-  const redirectUri=String(process.env.GOOGLE_DRIVE_REDIRECT_URI||'https://cmmtools.site/admin/google-drive/callback').trim();
-  if(!clientId||!clientSecret||!redirectUri.startsWith('https://'))
-    throw new Error('Configure GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET and an HTTPS redirect URI in Hostinger.');
-  return {clientId,clientSecret,redirectUri};
+// Admin-managed OAuth credentials take precedence over legacy Hostinger env
+// values. Both the web and worker read the same encrypted MySQL settings.
+const OAUTH_ID_SETTING='gdrive_oauth_client_id';
+const OAUTH_SECRET_SETTING='gdrive_oauth_client_secret';
+const OAUTH_REDIRECT='https://cmmtools.site/admin/google-drive/callback';
+
+function validateOAuthClient({clientId,clientSecret}){
+  if(!/^[a-zA-Z0-9_-]{6,180}\.apps\.googleusercontent\.com$/.test(String(clientId||'')))
+    throw new Error('Enter a valid Google OAuth Web Client ID (ending in .apps.googleusercontent.com).');
+  if(typeof clientSecret!=='string'||clientSecret.length<10||clientSecret.length>512||
+     /[\s\x00-\x1f\x7f]/.test(clientSecret))
+    throw new Error('Enter a valid Google OAuth client secret (10–512 characters, no spaces).');
 }
-function authUrl(state){
-  const cfg=oauthConfig();
+async function oauthConfig({getSetting=getSettingValue,env=process.env}={}){
+  const clientId=String(await getSetting(OAUTH_ID_SETTING,'')||env.GOOGLE_DRIVE_CLIENT_ID||'').trim();
+  const clientSecret=String(await getSetting(OAUTH_SECRET_SETTING,'')||env.GOOGLE_DRIVE_CLIENT_SECRET||'').trim();
+  if(!clientId||!clientSecret)throw new Error('Save the Google OAuth Client ID and Client Secret in Admin → Storage first.');
+  validateOAuthClient({clientId,clientSecret});
+  // One registered HTTPS callback per production app; do not accept an
+  // arbitrary redirect URI from customers or saved settings.
+  return {clientId,clientSecret,redirectUri:OAUTH_REDIRECT};
+}
+function authUrl(state,cfg){
+  if(!cfg?.clientId||!cfg?.redirectUri)throw new Error('Google OAuth configuration is missing.');
   const p=new URLSearchParams({client_id:cfg.clientId,redirect_uri:cfg.redirectUri,
     response_type:'code',scope:DRIVE_SCOPE,access_type:'offline',prompt:'consent',state});
   return 'https://accounts.google.com/o/oauth2/v2/auth?'+p;
 }
-async function exchangeCode(code,{fetchImpl=fetch}={}){
-  const cfg=oauthConfig();
+async function exchangeCode(code,{fetchImpl=fetch,config=null}={}){
+  const cfg=config||await oauthConfig();
   const response=await fetchImpl('https://oauth2.googleapis.com/token',{
     method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({client_id:cfg.clientId,client_secret:cfg.clientSecret,
@@ -217,6 +231,6 @@ async function configuredDrive({requireEnabled=true}={}){
   const cfg=await driveConfiguration();
   if(requireEnabled&&!cfg.enabled)return null;
   if(!cfg.connected)throw new Error('Connect Google Drive in Admin before saving video output.');
-  return new GoogleDriveStore({...oauthConfig(),refreshToken:cfg.refreshToken,folderId:cfg.folderId});
+  return new GoogleDriveStore({...await oauthConfig(),refreshToken:cfg.refreshToken,folderId:cfg.folderId});
 }
-module.exports={GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig,DRIVE_SCOPE,CHUNK};
+module.exports={GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig,validateOAuthClient,OAUTH_ID_SETTING,OAUTH_SECRET_SETTING,OAUTH_REDIRECT,DRIVE_SCOPE,CHUNK};
