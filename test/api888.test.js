@@ -313,3 +313,77 @@ test('888API fixed-job models keep numeric duration in video POST body',async()=
  assert.equal(await client.startVideo(model,{prompt:'A scene',duration:10,
    resolution:'720p',aspectRatio:'16:9'},[]),'task_12345678');
 });
+
+test('888API video status safely retries a transient GET without starting a new paid request',async()=>{
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,options)=>{
+   calls++;
+   assert.equal(url,'https://888api.xin/v1/videos/task_12345678');
+   assert.equal(options.method,'GET');
+   assert.equal(options.body,undefined);
+   if(calls===1)throw Object.assign(new Error('socket hung up'),{code:'ECONNRESET'});
+   return new Response(JSON.stringify({status:'completed',url:'https://example.test/video.mp4'}),{status:200});
+ }});
+ assert.equal((await client.videoStatus('task_12345678')).status,'done');
+ assert.equal(calls,2);
+});
+test('888API video status retries transient HTTP 503, not another creation request',async()=>{
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(_url,options)=>{
+   calls++;
+   assert.equal(options.method,'GET');
+   if(calls===1)return new Response(JSON.stringify({error:{message:'Temporarily unavailable'}}),{status:503});
+   return new Response(JSON.stringify({status:'processing'}),{status:200});
+ }});
+ assert.equal((await client.videoStatus('task_12345678')).status,'pending');
+ assert.equal(calls,2);
+});
+test('888API interrupted status reads retain nonsecret diagnostics after safe retry',async()=>{
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(_url,options)=>{
+   calls++;
+   assert.equal(options.method,'GET');
+   throw Object.assign(new Error('do not log sensitive origin or token'),{cause:{code:'UND_ERR_CONNECT_TIMEOUT'}});
+ }});
+ await assert.rejects(client.videoStatus('task_12345678'),error=>{
+   assert.equal(error.statusCode,502);
+   assert.equal(error.retryable,true);
+   assert.equal(error.requestMethod,'GET');
+   assert.equal(error.failureType,'connection');
+   assert.equal(error.networkCode,'UND_ERR_CONNECT_TIMEOUT');
+   assert.equal(error.timeoutMs,60000);
+   assert.equal(error.attempts,2);
+   const details=require('../src/activity_log.js').errorDetails(error);
+   assert.equal(details.networkCode,'UND_ERR_CONNECT_TIMEOUT');
+   assert.equal(JSON.stringify(details).includes('sensitive origin'),false);
+   return true;
+ });
+ assert.equal(calls,2);
+});
+test('888API paid POST creation is never retried after an ambiguous interruption',async()=>{
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(_url,options)=>{
+   calls++;
+   assert.equal(options.method,'POST');
+   throw Object.assign(new Error('network down'),{code:'ECONNRESET'});
+ }});
+ await assert.rejects(client.startVideo(modelById('ss-2.5-720p-v1'),
+   {prompt:'A scene',duration:10,resolution:'720p',aspectRatio:'16:9'}),error=>{
+     assert.equal(error.retryable,false);
+     assert.equal(error.requestMethod,'POST');
+     assert.equal(error.attempts,1);
+     assert.match(error.message,/Paid operations are not retried automatically/);
+     return true;
+   });
+ assert.equal(calls,1);
+});
+test('888API queue clears stale transient video polling warning on successful poll',async()=>{
+ const {Api888Queue}=require('../src/api888_queue.js');
+ const queue=new Api888Queue();
+ let executed;
+ const db={execute:async(sql,args)=>{executed={sql,args};return [{affectedRows:1}];}};
+ await queue.markProcessing(db,{id:'c2ebddd1-ab9b-4d25-805e-3f8d2c9c9627'});
+ assert.match(executed.sql,/error_message=NULL/);
+ assert.match(executed.sql,/status='processing'/);
+ assert.equal(executed.args[0],'c2ebddd1-ab9b-4d25-805e-3f8d2c9c9627');
+});
