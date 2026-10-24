@@ -2,6 +2,7 @@
 const crypto=require('node:crypto');
 const {Readable}=require('node:stream');
 const {getSettingValue}=require('./settings.js');
+const {dbConfigured}=require('./db.js');
 
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DRIVE_ORIGIN='https://www.googleapis.com';
@@ -205,6 +206,10 @@ class GoogleDriveStore{
   }
 }
 async function configuredDrive({requireEnabled=true}={}){
+  // Unit-test and fresh-install processes without a configured MySQL database
+  // retain the previous local storage behavior. In production (DB configured),
+  // a Drive-enabled state must NEVER silently fall back to MySQL.
+  if(requireEnabled&&!dbConfigured())return null;
   const cfg=await driveConfiguration();
   if(requireEnabled&&!cfg.enabled)return null;
   if(!cfg.connected)throw new Error('Connect Google Drive in Admin before saving video output.');
