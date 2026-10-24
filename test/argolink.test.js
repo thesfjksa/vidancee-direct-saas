@@ -201,7 +201,7 @@ test('HD enhancement: ArgoLink renders low, fal upscales, and a failed upscale r
   await queue.pollJob(qdb, argo, { ...job, provider_operation: JSON.stringify(op) });
   assert.ok(sql.some(([t]) => t.startsWith('DELETE FROM generation_video_chunks')));
   assert.equal(sql.find(([t]) => t.includes('INSERT INTO generation_video_chunks'))[1][2].toString(), 'ftypHD');
-  assert.ok(sql.some(([t]) => t.includes("SET status='completed',output_url='db:video'")));
+  assert.ok(sql.some(([t,args]) => t.includes("SET status='completed',output_url=?") && args[0]==='db:video'));
 
   // Upscale failed: the render is delivered and only the 216 upscale credits are refunded.
   sql.length = 0; falState = { state: 'failed', error: 'busy' };

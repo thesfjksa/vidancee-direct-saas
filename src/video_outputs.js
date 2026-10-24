@@ -11,13 +11,23 @@ function byteRange(header,total) {
   return {start,end,partial:true};
 }
 
+// The one video-storage entry point shared by provider workers. A connected,
+// enabled Drive account becomes the default; no MySQL BLOB is written. When
+// disabled, legacy MySQL storage remains available unchanged.
 async function saveVideoOutput(conn,id,output) {
+  const {configuredDrive}=require('./google_drive.js');
+  const drive=await configuredDrive();
+  if(drive){
+    const fileId=await drive.uploadBuffer(id,output.data);
+    return 'gdrive:'+fileId;
+  }
   await conn.execute('INSERT INTO generation_video_outputs (generation_id,mime_type,byte_length) VALUES (?,?,?)',
     [id,output.mimeType,output.data.length]);
   for(let offset=0,index=0;offset<output.data.length;offset+=CHUNK_SIZE,index++) {
     await conn.execute('INSERT INTO generation_video_chunks (generation_id,chunk_index,video_data) VALUES (?,?,?)',
       [id,index,output.data.subarray(offset,offset+CHUNK_SIZE)]);
   }
+  return 'db:video';
 }
 
 async function serveVideoOutput(db,req,res,id) {

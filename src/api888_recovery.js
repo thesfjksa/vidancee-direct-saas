@@ -20,7 +20,7 @@ async function recoverApi888Video({db,client,generationId,log=logActivity}){
     "SELECT id,user_id,status,media_type,provider,provider_job_id,provider_operation,refunded_at,output_url FROM generations WHERE id=? AND provider='api888' AND media_type='video' LIMIT 1",
     [id]);
   if(!job)throw recoveryError('888API video generation not found.',404);
-  if(job.status==='completed'&&job.output_url==='db:video')
+  if(job.status==='completed'&&(job.output_url==='db:video'||String(job.output_url||'').startsWith('gdrive:')))
     return {recovered:false,alreadyRecovered:true,generationId:id,refundPreserved:Boolean(job.refunded_at)};
   if(job.status!=='failed'||!job.refunded_at||job.output_url)
     throw recoveryError('Only failed, refunded 888API video jobs without saved output can be recovered.');
@@ -50,17 +50,17 @@ async function recoverApi888Video({db,client,generationId,log=logActivity}){
     await conn.beginTransaction();
     const [[fresh]]=await conn.execute(
       "SELECT id,user_id,status,refunded_at,output_url FROM generations WHERE id=? FOR UPDATE",[id]);
-    if(fresh?.status==='completed'&&fresh.output_url==='db:video'){
+    if(fresh?.status==='completed'&&(fresh.output_url==='db:video'||String(fresh.output_url||'').startsWith('gdrive:'))){
       await conn.rollback();
       return {recovered:false,alreadyRecovered:true,generationId:id,refundPreserved:Boolean(fresh.refunded_at)};
     }
     if(!fresh||fresh.status!=='failed'||!fresh.refunded_at||fresh.output_url)
       throw recoveryError('Generation changed while recovering; no media was saved.');
     userId=Number(fresh.user_id);
-    await saveVideoOutput(conn,id,video);
+    const storedAt=await saveVideoOutput(conn,id,video);
     await conn.execute(
-      "UPDATE generations SET status='completed',output_url='db:video',error_message=NULL,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=?",
-      [id]);
+      "UPDATE generations SET status='completed',output_url=?,error_message=NULL,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=?",
+      [storedAt,id]);
     // IMPORTANT: preserve refunded_at and the refund transaction (no re-charge).
     await conn.commit();
   }catch(error){

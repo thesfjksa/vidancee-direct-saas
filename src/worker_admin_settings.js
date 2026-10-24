@@ -311,8 +311,8 @@ class GenerationWorker {
           if (!current || current.output_url !== row.output_url) { await conn.rollback(); continue; }
           await conn.execute('DELETE FROM generation_video_chunks WHERE generation_id=?', [row.id]);
           await conn.execute('DELETE FROM generation_video_outputs WHERE generation_id=?', [row.id]);
-          await saveVideoOutput(conn, row.id, { data, mimeType: 'video/mp4' });
-          await conn.execute("UPDATE generations SET output_url='db:video', updated_at=UTC_TIMESTAMP() WHERE id=?", [row.id]);
+          const storedAt=await saveVideoOutput(conn, row.id, { data, mimeType: 'video/mp4' });
+          await conn.execute("UPDATE generations SET output_url=?, updated_at=UTC_TIMESTAMP() WHERE id=?", [storedAt,row.id]);
           await conn.commit();
         } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
         this.vgenvCopyRetryAt.delete(row.id);

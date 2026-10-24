@@ -594,12 +594,13 @@ async function getUserGenerationReferenceImage(userId, generationId, imageId) {
 async function deleteUserGeneration(userId, generationId) {
   const db = getPool();
   const conn = await db.getConnection();
+  let deletedDriveId=null;
 
   try {
     await conn.beginTransaction();
 
     const [rows] = await conn.execute(
-      "SELECT id, user_id, status FROM generations WHERE id = ? AND user_id = ? AND media_type='video' FOR UPDATE",
+      "SELECT id, user_id, status, output_url FROM generations WHERE id = ? AND user_id = ? AND media_type='video' FOR UPDATE",
       [generationId, userId],
     );
     const row = rows[0];
@@ -645,13 +646,27 @@ async function deleteUserGeneration(userId, generationId) {
     }
 
     await conn.commit();
-    return true;
+    deletedDriveId=String(row.output_url||'').startsWith('gdrive:')?String(row.output_url).slice(7):null;
   } catch (error) {
     await conn.rollback();
     throw error;
   } finally {
     conn.release();
   }
+  if(deletedDriveId){
+    try{
+      const {configuredDrive}=require('./google_drive.js');
+      const drive=await configuredDrive({requireEnabled:false});
+      await drive.deleteFile(deletedDriveId);
+    }catch(error){
+      // The DB deletion has committed; do not falsely tell the customer it
+      // failed. Record the orphaned Drive object for administrative cleanup.
+      logActivity({level:'warn',category:'system',event:'gdrive.delete_failed',
+        userId,generationId,message:'Customer deleted video; Google Drive cleanup failed.',
+        details:{code:error.code||null,driveStatus:error.driveStatus||null}});
+    }
+  }
+  return true;
 }
 
 async function refundGeneration(generationId, status, message, providerCost = null) {

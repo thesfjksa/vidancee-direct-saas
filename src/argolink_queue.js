@@ -248,8 +248,11 @@ class ArgoLinkQueue extends VercelQueue {
       if (!current || current.refunded_at || !['submitting', 'submitted', 'processing'].includes(current.status)) { await conn.rollback(); return false; }
       await conn.execute('DELETE FROM generation_video_chunks WHERE generation_id=?', [job.id]);
       await conn.execute('DELETE FROM generation_video_outputs WHERE generation_id=?', [job.id]);
-      await saveVideoOutput(conn, job.id, output);
-      if (finish) await conn.execute("UPDATE generations SET status='completed',output_url='db:video',completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?", [job.id]);
+      const storedAt=await saveVideoOutput(conn, job.id, output);
+      // Keep intermediate Argo render playable via signed provider-outputs
+      // when the HD upscaling step is still running.
+      await conn.execute("UPDATE generations SET output_url=? WHERE id=?", [storedAt,job.id]);
+      if (finish) await conn.execute("UPDATE generations SET status='completed',output_url=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?", [storedAt,job.id]);
       await conn.commit();
       return true;
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
@@ -265,7 +268,8 @@ class ArgoLinkQueue extends VercelQueue {
       const [[row]] = await conn.execute('SELECT user_id,status,refunded_at,credits_cost FROM generations WHERE id=? FOR UPDATE', [job.id]);
       if (!row || row.refunded_at || !['submitting', 'submitted', 'processing'].includes(row.status)) { await conn.rollback(); return; }
       const refund = Math.min(credits, Number(row.credits_cost));
-      await conn.execute(`UPDATE generations SET status='completed',output_url='db:video',completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),
+      // The intermediate render may be in MySQL or Google Drive.
+      await conn.execute(`UPDATE generations SET status='completed',completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),
         credits_cost=credits_cost-?,error_message=? WHERE id=?`,
         [refund, 'HD enhancement could not be applied, so this video is at its original resolution.' + (refund > 0 ? ' ' + refund + ' credits were refunded.' : ''), job.id]);
       if (refund > 0) {

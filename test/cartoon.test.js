@@ -124,7 +124,7 @@ test('finished vgenv videos are copied into CMM Tools storage once', async () =>
   assert.equal(calls, 2);
   assert.ok(sql.some(([t, a]) => t.startsWith('INSERT INTO generation_video_outputs') && a[0] === 'h1' && a[2] === video.length));
   assert.equal(sql.filter(([t]) => t.startsWith('INSERT INTO generation_video_chunks')).length, 2);
-  assert.ok(sql.some(([t, a]) => t.includes("output_url='db:video'") && a[0] === 'h1'));
+  assert.ok(sql.some(([t, a]) => t.includes("output_url=?") && a[0] === 'db:video' && a[1] === 'h1'));
   // The failed one waits 10 minutes before the next try.
   await w.copyVgenvVideos(db, { fetchImpl });
   assert.equal(calls, 3);
