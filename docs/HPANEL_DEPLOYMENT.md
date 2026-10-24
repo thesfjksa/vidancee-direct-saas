@@ -323,3 +323,22 @@ The customer app lives at `https://cmmtools.site` (and `www.cmmtools.site`). It 
 - Keep `ADMIN_TOKEN` and `PROVIDER_ASSET_SECRET` unchanged, or links already handed to providers stop verifying.
 
 Customers sign in again once on the new domain (login cookies belong to a domain); the Admin token is re-entered once too. The database, credits, images and videos are shared.
+
+
+## MySQL permission errors on existing databases (October 24, 2026)
+
+If Admin or the worker reports \`CREATE command denied to user ... for table ...app_settings\`, **do not delete the database, reinitialize it, or replace saved provider credentials**. The shared Hostinger MySQL account may have ordinary SELECT/INSERT/UPDATE/DELETE rights without CREATE (DDL) privileges, and \`CREATE TABLE IF NOT EXISTS\` can still require CREATE rights even if the table already exists.
+
+The application now probes \`app_settings\` and each existing core table with read-only \`SELECT ... LIMIT 0\` first and runs CREATE DDL **only if the table really is missing**. Existing tables therefore no longer require CREATE privileges simply to read settings or start the apps. Both Hostinger apps must deploy this change: \`server.js\` and \`worker.js\` share the same database setup code.
+
+If the error persists **after both applications are updated**, use Hostinger hPanel's database management or phpMyAdmin with a suitably privileged database account to check:
+
+\`\`\`sql
+SHOW TABLES LIKE 'app_settings';
+SHOW GRANTS FOR CURRENT_USER();
+SELECT setting_key, is_secret FROM app_settings LIMIT 1;
+\`\`\`
+
+Never display or share \`setting_value\`, which may contain encrypted provider secrets. If the table really is missing, have the database owner create it (using the schema in \`src/settings.js\`) or grant the required **CREATE** permission. The application cannot safely bypass genuine MySQL permissions or rebuild missing encrypted settings from nothing. If SELECT itself is denied, restore SELECT privileges too. A missing core table or needed \`ALTER TABLE\` migration still requires an administrator's DDL privileges; do not silently ignore schema migration errors. For normal operations the application also needs access to read/write its working tables.
+
+After updating, inspect each app's runtime logs and \`/health\`, then verify Admin Providers loads the **previously saved** keys and the worker health reports enabled. No keys or credit data should be reset to work around a permissions problem.
