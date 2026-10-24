@@ -105,6 +105,10 @@ class GoogleDriveStore{
     if(!FILE_ID.test(String(fileId)))throw new Error('Invalid Google Drive file ID.');
     return this.api('/drive/v3/files/'+encodeURIComponent(fileId)+'?fields=id,size,md5Checksum,mimeType,parents,trashed,appProperties');
   }
+  async deleteFile(fileId){
+    if(!FILE_ID.test(String(fileId)))throw new Error('Invalid Google Drive file ID.');
+    return this.api('/drive/v3/files/'+encodeURIComponent(fileId),{method:'DELETE'});
+  }
   async findExisting(id,size,checksum){
     if(!GEN_ID.test(id)||!FILE_ID.test(this.folderId))throw new Error('Google Drive folder is not configured.');
     const q="'"+this.folderId+"' in parents and name = 'cmm-video-"+id+".mp4' and trashed = false";
