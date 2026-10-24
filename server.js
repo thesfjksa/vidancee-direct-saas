@@ -182,6 +182,7 @@ const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { Api888Client } = require('./src/provider/api888.js');
+const { recoverApi888Video } = require('./src/api888_recovery.js');
 const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
@@ -1745,6 +1746,27 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();const s=await getProviderSettings();
         await new FalClient({apiKey:s.falApiKey}).verifyKey();
         return sendJson(res,200,{ok:true});
+      }
+      // Admin-confirmed, idempotent recovery of already-completed provider
+      // output for a failed, refunded task. No new provider generation or debit.
+      if(req.method==='POST'&&routePath==='/admin/api888/recover-video'){
+        requireDatabase();
+        const body=await readJson(req);
+        const config=await getProviderSettings();
+        if(!config.api888ApiKey)return sendJson(res,503,{ok:false,error:'888API key is not configured in Admin.'});
+        try{
+          const result=await recoverApi888Video({db:getPool(),
+            client:new Api888Client({apiKey:config.api888ApiKey}),
+            generationId:body.generationId});
+          return sendJson(res,200,{ok:true,...result});
+        }catch(error){
+          logActivity({level:'error',category:'admin',event:'api888.video_recovery_failed',
+            provider:'api888',generationId:/^[0-9a-f-]{36}$/i.test(String(body.generationId||''))?body.generationId:null,
+            message:'888API video recovery failed',details:errorDetails(error)});
+          return sendJson(res,error.statusCode>=400&&error.statusCode<500?error.statusCode:502,
+            {ok:false,error:error.statusCode>=400&&error.statusCode<500?error.message:
+              'Could not retrieve or store the existing 888API video. Check Activity for details.'});
+        }
       }
       // Read-only, existing paid task lookup. This cannot start a new generation.
       // Response never includes private provider output URLs, tokens or prompts.
