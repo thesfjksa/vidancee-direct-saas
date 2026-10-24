@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-10-25 — Comprehensive handoff / blocked production recovery (documentation only)
+
+- Created [the authoritative 25 October implementation and recovery handoff](PROJECT_HANDOFF_2026-10-25.md), linked from the original `PROJECT_HANDOFF.md`. It records the complete post-11 October implementation, security and operational evidence, and makes clear which GitHub merges did **not** reach production.
+- **P0 database:** Hostinger MySQL `u449234337_saas` at **3,143 / 3,072 MB**. Database permissions UI displayed full grants while a manual video cleanup failed immediately at its first `UPDATE credit_transactions` with **MySQL #1142**, likely quota-triggered DML suspension. **No video rows were confirmed deleted.** Owner reported a complete local SQL export (restore test not verified). Proposed new-database selective import/restore to avoid oversized video chunks; **not executed**.
+- **P0 deployment:** Hostinger website build `089d08f` failed at **Cloning repository**; last screenshot-confirmed web deployment was `316e103`. Hostinger GitHub App showed access to All repositories, yet Hostinger clone still failed. Worker deployment revision not confirmed. GitHub remains accessible privately; remote repo itself exists. No source compilation error established.
+- **P1 Google Drive:** OAuth web client created in Google Cloud; Client Secret inadvertently revealed in screenshot, **must rotate**. Latest encrypted Admin-managed Client ID/secret UI (#37) is merged but **not deployed**; Drive unconnected, migration paused, 106 MySQL videos / ~1.07 GiB awaiting disposition in the old Admin screenshot. No provider, MySQL or Google Drive mutation was done in the documentation update.
+- Incident playbook covers 888API task completion vs local timeout/refund, raw-IP media download diagnostics, safe status queries, refund preservation and source opt-in (see detailed history below and `docs/API888.md`).
+- Prior `README.md`, `docs/PLANS.md`, some 11 Oct historical handoff descriptions and `docs/HPANEL_DEPLOYMENT.md` contained dated or stale implementation/deployment expectations; this documentation checkpoint calls out superseding facts.
+
+## 2026-10-24 — Google Drive, MySQL grant mitigation, Admin OAuth credential entry
+
+- **PR #35 / `d6e4046`:** settings/schema probe existing MySQL tables with `SELECT ... LIMIT 0` before attempting `CREATE TABLE IF NOT EXISTS`. Does **not** restore writes suspended by quota or create a missing table without MySQL grants.
+- **PR #36 / `316e103`:** Google Drive private video storage and Admin Storage connection flow; resumable chunks, checksum/size verification, protected playback, default for **new** video uploads after consent, background migration of historical `db:video` blobs to Drive with verify-before-delete/transactional MySQL cleanup; customer Drive file deletion handling. **Mock tests, not live connected Drive.**
+- **PR #37 / `089d08f`:** Admin → Storage saves Client ID and secret encrypted into shared `app_settings`, OAuth callback + standalone worker read those values, secrets masked, legacy Hostinger env keys optional fallback; OAuth client ID cannot change on an already-connected account. **Build failed at GitHub cloning in Hostinger**.
+- Both web and worker still require compatible `SETTINGS_ENCRYPTION_KEY`/encryption root; deployment must be checked separately.
+
+## 2026-10-23–24 — 888API implementation and iterations
+
+- **#20 `afe80a2`:** initial 888API, key settings, catalog, video/image workers, first USD×3.5 billing prototype; **superseded**.
+- **#21 `7216707`, #22 `58bdaa1`, #23 `0d7db52`:** empty video selector/provider diagnostics, Seedance activation and wider supported 888API families/inventory.
+- **#24 `96e95df`:** final 888API bill in yuan parity (**¥1 = 1 customer credit**); fixed per-request and duration/per-second pricing badges. No generic 3.5× multiplier for 888API.
+- **#25 `2425d34`:** safe HTTP 400 error details, MiniMax H3 reference validation.
+- **#26 `25214cf`:** oversized 888API 4K GPT image response body handling.
+- **#27 `4700bd4`:** fix numeric `seconds` API request type; send seconds as JSON string.
+- **#28 `cb4ead3`:** 60-second bounded/idempotent video status GET retry, safe network diagnostics, no ambiguous paid POST retry.
+- **#29 `b521e78`:** Admin **Check 888API** read-only task status by saved ID.
+- **#30 `00c040e`:** Admin confirmed recovery of completed/upstream yet timed-out/refunded videos; preserve original refund and ledger.
+- **#31 `b963eeb`:** authenticated `GET /v1/videos/{id}/content` fallback plus recovery stage details.
+- **#32 `d1def9a`:** relative URL/HTTPS canonicalization, SSRF checks and privacy-safe URL diagnostics.
+- **#33 `c8c26a8`:** detect persistently unsafe raw-IP/custom-port output and fail/refund rather than hang Processing.
+- **#34 `a261c2b`:** 888API explicitly **off by default** with Admin opt-in; constrained public IPv4 download support for returned video media, retaining private/local address restrictions.
+- **Observed incident:** a 5-second MiniMax H3 480p T job cost 0.325 credits, timed out/refunded locally while 888API reported **Completed 100%**. Download recovery was **not verified successful**. Owner explicitly declined further recovery and authorized disposable video-history cleanup. See full dated handoff for generation/task IDs and safety guidance.
+
+## 2026-10-20 — Additional merged studio/provider changes
+
+- **#17 `9681f3d`:** Sluice/Seedance Lite provider.
+- **#18 `2d184e3`:** Admin plan, credit and generation management.
+- **#19 `2be9694`:** automatic audio on video models that support it.
+- **#16 `96c4b84`:** Vidancee and CreatePulse retired.
+
 ## 2026-10-20 — Vidancee and CreatePulse removed
 
 - **Removed:** Vidancee and CreatePulse (Seedance 2.5 Lite and Seedance 2.0 Fast): their API clients, worker polling and routing, Admin cards, routing policy, settings, customer Sources switches, usage rows and the old Admin test routes. Both had been refusing every job (Vidancee HTTP 403, CreatePulse "minimum $10 balance"). Jobs still open on them are refunded by the worker; finished videos stay in customers' libraries.
