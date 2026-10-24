@@ -174,6 +174,7 @@ const {
   migrateLegacyProviderEnvSettings,
   getSettingValue,
   setSettingValue,
+  saveGoogleDriveOAuthCredentials,
   deleteSettingValue,
 } = require('./src/settings.js');
 const { verifyAssetSignature, verifyOutputSignature } = require('./src/provider/assets.js');
@@ -195,7 +196,7 @@ const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js'
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
-const {GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig}=require('./src/google_drive.js');
+const {GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig,validateOAuthClient,OAUTH_ID_SETTING,OAUTH_SECRET_SETTING}=require('./src/google_drive.js');
 const {videoMigrationStats}=require('./src/google_drive_migration.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
 const { attachReusedImageReferences } = require('./src/reference_reuse.js');
@@ -1038,8 +1039,11 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,400,{ok:false,error:'Invalid or expired Google Drive authorization. Restart from Admin.'});
       await setSettingValue('gdrive_oauth_state','');
       try{
-        const refreshToken=await exchangeCode(code);
-        const config=oauthConfig(),drive=new GoogleDriveStore({...config,refreshToken});
+        const config=await oauthConfig();
+        if(!pending.clientHash||pending.clientHash!==crypto.createHash('sha256').update(config.clientId).digest('hex'))
+          return sendJson(res,400,{ok:false,error:'Google OAuth client changed during authorization. Start again from Admin.'});
+        const refreshToken=await exchangeCode(code,{config});
+        const drive=new GoogleDriveStore({...config,refreshToken});
         const existingFolder=await getSettingValue('gdrive_folder_id','');
         let folderId=null;
         if(existingFolder){
@@ -1778,19 +1782,47 @@ const server=http.createServer(async (req,res)=>{
           try{await (await configuredDrive({requireEnabled:false})).metadata(config.folderId);available=true;}
           catch{available=false;}
         }
-        return sendJson(res,200,{ok:true,oauthConfigured:Boolean(process.env.GOOGLE_DRIVE_CLIENT_ID&&process.env.GOOGLE_DRIVE_CLIENT_SECRET),
+        let oauthConfigured=false;
+        let oauthSource='none';
+        const savedId=await getSettingValue(OAUTH_ID_SETTING,'');
+        const savedSecret=await getSettingValue(OAUTH_SECRET_SETTING,'');
+        if(savedId&&savedSecret)oauthSource='admin';
+        else if(process.env.GOOGLE_DRIVE_CLIENT_ID&&process.env.GOOGLE_DRIVE_CLIENT_SECRET)oauthSource='environment';
+        try{await oauthConfig();oauthConfigured=true;}catch{}
+        return sendJson(res,200,{ok:true,oauthConfigured,oauthSource,
           connected:config.connected,enabled:config.enabled,driveAvailable:available,
           migrationEnabled:await getSettingValue('gdrive_migration_enabled','false')==='true',
           folderId:config.connected?config.folderId:null,stats});
       }
+      if(req.method==='POST'&&routePath==='/admin/google-drive/credentials'){
+        requireDatabase();
+        const body=await readJson(req);
+        const clientId=String(body.clientId||'').trim();
+        const clientSecret=String(body.clientSecret||'').trim();
+        try{validateOAuthClient({clientId,clientSecret});}
+        catch(error){return sendJson(res,400,{ok:false,error:error.message});}
+        const cfg=await driveConfiguration();
+        if(cfg.connected){
+          let previousId='';
+          try{previousId=(await oauthConfig()).clientId;}catch{}
+          if(previousId&&previousId!==clientId)
+            return sendJson(res,409,{ok:false,error:'Google Drive is already connected. Changing OAuth Client ID could make existing videos inaccessible. Keep the existing Client ID; rotating its secret is supported.'});
+        }
+        await saveGoogleDriveOAuthCredentials(clientId,clientSecret);
+        logActivity({category:'admin',event:'gdrive.oauth_credentials_saved',
+          message:'Google Drive OAuth client credentials saved in encrypted app_settings (values not logged).'});
+        return sendJson(res,200,{ok:true,saved:true});
+      }
       if(req.method==='POST'&&routePath==='/admin/google-drive/connect'){
-        requireDatabase();oauthConfig();
+        requireDatabase();
+        const config=await oauthConfig();
         const state=crypto.randomBytes(32).toString('base64url');
         await setSettingValue('gdrive_oauth_state',JSON.stringify({
           hash:crypto.createHash('sha256').update(state).digest('hex'),
+          clientHash:crypto.createHash('sha256').update(config.clientId).digest('hex'),
           expiresAt:Date.now()+10*60*1000,
         }),{secret:true});
-        return sendJson(res,200,{ok:true,url:authUrl(state)});
+        return sendJson(res,200,{ok:true,url:authUrl(state,config)});
       }
       if(req.method==='POST'&&routePath==='/admin/google-drive/migration'){
         requireDatabase();
