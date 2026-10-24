@@ -411,9 +411,9 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
-// Every studio is on for a customer until the admin turns a source off for them.
+// 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,key!=='api888']));
 }
 // Voice Studio used to be opt-in, so saving any customer's Sources stored
 // "Voice off" unless it was ticked. Clear those once so Voice follows the
@@ -2379,6 +2379,7 @@ function bootstrap() {
       await recordBoot(getPool(),'web').catch(error=>console.error('Boot record failed:',error.message));
       logActivity({category:'system',event:'web.started',message:'Web app started (pid '+process.pid+')'});
       const migrated=await migrateLegacyProviderEnvSettings();
+      await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
@@ -2400,4 +2401,5 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+
 

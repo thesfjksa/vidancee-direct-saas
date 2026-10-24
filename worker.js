@@ -108,6 +108,7 @@ healthServer.listen(port,host,()=>{
   // Activity older than 30 days is removed hourly.
   pruneActivity(getPool());setInterval(()=>pruneActivity(getPool()),60*60*1000).unref();
   await migrateLegacyProviderEnvSettings();
+  await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();
   worker.start();
@@ -120,4 +121,5 @@ healthServer.listen(port,host,()=>{
   process.exitCode=1;
   setTimeout(()=>process.exit(1),250).unref();
 });
+
 
