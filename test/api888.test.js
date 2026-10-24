@@ -423,3 +423,42 @@ test('888API unknown task status no longer silently looks like pending forever',
    {status:200})});
  await assert.rejects(client.videoStatus('task_67890123'),/unrecognized video task status/);
 });
+
+test('888API falls back to authenticated content GET when completed video link has expired',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(64)]);
+ let calls=0;
+ const c=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
+   calls++;assert.equal(opts.method||'GET','GET');
+   if(url==='https://signed.example.test/video.mp4'){
+     assert.equal(opts.headers?.authorization,undefined);
+     return new Response('Link expired',{status:403});
+   }
+   if(url==='https://888api.xin/v1/videos/task_12345678/content'){
+     assert.equal(opts.headers.authorization,'Bearer sk-test');
+     return new Response(mp4,{status:200});
+   }
+   throw Error('Unexpected request '+url);
+ }});
+ const output=await c.videoContent('task_12345678','https://signed.example.test/video.mp4');
+ assert.equal(calls,2);
+ assert.equal(output.mimeType,'video/mp4');
+ assert.deepEqual(output.data,mp4);
+});
+test('888API falls back when provider URL returns HTML instead of MP4',async()=>{
+ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(32)]);
+ const c=new Api888Client({apiKey:'sk-test',fetchImpl:async url=>
+   new Response(url.includes('signed.example.test')?'<html>temporary download error</html>':mp4,{status:200})});
+ const output=await c.videoContent('task_12345678','https://signed.example.test/video.mp4');
+ assert.equal(output.data.toString('ascii',4,8),'ftyp');
+});
+test('888API reports safe per-route diagnostics when both completed-video GET routes fail',async()=>{
+ const c=new Api888Client({apiKey:'sk-test',fetchImpl:async url=>
+   new Response('fail',{status:url.includes('888api.xin')?404:403})});
+ await assert.rejects(c.videoContent('task_12345678','https://signed.example.test/video.mp4?sig=SECRET'),error=>{
+   assert.equal(error.recoveryStage,'video.download');
+   assert.equal(error.providerStatus,404);
+   assert.match(error.providerMessage,/Content endpoint:.*404/);
+   assert.equal(error.providerMessage.includes('SECRET'),false);
+   return true;
+ });
+});
