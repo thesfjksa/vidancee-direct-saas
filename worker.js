@@ -8,8 +8,10 @@ const { ensureGatewayCatalog } = require('./src/provider_models.js');
 const { setActivityService, logActivity, pruneActivity } = require('./src/activity_log.js');
 setActivityService('worker');
 const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
+const {startDriveMigrationLoop}=require('./src/google_drive_migration.js');
 
 let worker=null;
+let stopDriveMigration=null;
 let stopping=false;
 let healthServer=null;
 const port=Number(process.env.PORT||3000);
@@ -41,6 +43,7 @@ function shutdown(signal){
   console.warn('[worker] shutdown',signal);
   logActivity({category:'system',event:'worker.stopping',message:'Worker stopping ('+signal+', pid '+process.pid+', up '+Math.round(process.uptime())+' s)'});
   try{worker?.stop?.()}catch{}
+  try{stopDriveMigration?.()}catch{}
   try{healthServer?.close?.()}catch{}
   // Give in-flight image requests a short window to finish and save. Anything
   // still running is recovered (refunded) by the next worker via its heartbeat.
@@ -112,7 +115,9 @@ healthServer.listen(port,host,()=>{
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();
   worker.start();
-
+  // One background, resumable migration job at a time. Never deletes chunks
+  // until Google Drive has verified the uploaded file and its MD5 checksum.
+  stopDriveMigration=startDriveMigrationLoop({db:getPool()});
 
   logRuntime('[worker] started');
   if(process.send)process.send({type:'ready',pid:process.pid});
