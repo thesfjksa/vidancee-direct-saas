@@ -113,6 +113,9 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     throw new Error('888API video reference transport is not configured for this model.');
   if(audios.length&&!['audios','audio_urls','metadata.audios','referenceAudios'].includes(model.api888?.audioField))
     throw new Error('888API audio reference transport is not configured for this model.');
+  // sd_2.0_mini_special rejects audio unless an image or video accompanies it.
+  if(model.providerModelId==='sd_2.0_mini_special'&&audios.length&&!images.length&&!videos.length)
+    throw new Error('This 888API model needs a reference image or video with reference audio.');
   if(references.some(r=>!/^https:\/\//i.test(String(r.url||''))))
     throw new Error('888API references need HTTPS direct media URLs.');
   const timeField=model.api888?.secondsField==='seconds'?'seconds':'duration';

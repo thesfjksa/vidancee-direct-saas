@@ -34,17 +34,18 @@ gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-p
 `.trim().split(/\s+/);
 
 // Published 888API prices in CNY, checked 24 October 2026 and re-checked
-// against the owner's 25 October model-catalog screenshots. Absence does not
+// against the owner's 25 October model-catalog screenshots and /docs. Where
+// the catalog card and the docs table disagree, keep the higher price. Absence does not
 // mean zero. Do not enable unknown pricing or silently substitute another SKU.
 // [CNY, billing type, min seconds, max seconds, resolution, image refs, video refs, audio refs]
 const SPECS = {
   'seedance2.0-933-economy':[5,'job',15,15,'720p',9,3,3],
-  'pidoi-h3video-2k':[2,'job',15,15,'2k',9,3,3],
+  'pidoi-h3video-2k':[2.3,'job',15,15,'2k',9,3,3],
   'minimax-h3-480p-t':[0.065,'second',5,15,'480p',9,0,0],
   'minimax-h3-768p-t':[0.07,'second',5,15,'768p',9,0,0],
   'pidoi-omni-flash-720p':[0.8,'job',5,10,'720p',4,3,3],
   'pidoi-veo31-fast':[0.6,'job',4,8,'720p',2,0,0],
-  'seedance2.0-933':[4.5,'job',10,15,'720p',9,3,3],
+  'seedance2.0-933':[5,'job',10,15,'720p',9,3,3],
   'seedance2.0-pro-480p':[3.8,'job',15,15,'480p',9,3,3],
   'seedance2.0-933-fast':[4,'job',10,15,'720p',9,0,0],
   'seedance2.0-933-mini':[1,'job',5,12,'720p',9,0,3],
@@ -59,11 +60,11 @@ const SPECS = {
   'wan3.0-image':[0.22,'second',2,30,'720p',10,0,0],
   'wan3.0-image-prime':[0.25,'second',2,30,'720p',10,0,0],
   'seedance2.5-480p-value':[0.45,'second',4,15,'480p',0,0,0],
-  'seedance2.5-480p-plus':[0.5,'second',4,15,'480p',0,0,0],
+  'seedance2.5-480p-plus':[0.6,'second',4,15,'480p',0,0,0],
   'seedance2.5-480p-pro':[0.5,'second',4,15,'480p',0,0,0],
-  'seedance2.5-720p-plus':[0.75,'second',4,15,'720p',0,0,0],
+  'seedance2.5-720p-plus':[0.9,'second',4,15,'720p',0,0,0],
   'seedance2.5-720p-pro':[0.75,'second',4,15,'720p',0,0,0],
-  'seedance2.5-1080p-plus':[0.9,'second',4,15,'1080p',0,0,0],
+  'seedance2.5-1080p-plus':[1.25,'second',4,15,'1080p',0,0,0],
   'seedance2.5-1080p-pro':[1.25,'second',4,15,'1080p',0,0,0],
   'xin-seedance-2.0-900':[1.7,'job',4,30,'720p',9,0,0],
   'xin-seedance-2.0-933':[3,'job',4,30,'720p',9,3,3],
@@ -89,6 +90,10 @@ Object.assign(SPECS, {
  'seedance2.0-933-wool':[1.1,'job',4,15,'720p',9,0,0],
  'seedance2.5-101010-wool':[1.3,'job',4,30,'720p',10,0,0],
  'seedance2.5-301010-wool':[7,'job',4,30,'720p',30,0,0],
+ // https://888api.xin/docs (25 Oct 2026): same contract as 301010-wool, 1080P output.
+ 'seedance2.5-301010-wool-1080p':[10,'job',4,30,'1080p',30,0,0],
+ // Official discounted Mini: duration-billed, 4–15 s, *_urls reference arrays.
+ 'sd_2.0_mini_special':[0.15,'second',4,15,'720p',9,3,3],
  'seedance2.5-900':[5.7,'job',5,30,'720p',9,0,0],
  'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
  'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
@@ -179,6 +184,10 @@ const VIDEO_INPUTS={
   'seedance2.0-933-mini':{videos:0,audios:3},
   'xin-seedance-2.0-933':{videos:3,audios:3},
   'wan3.0-video-prime':{videos:10,audios:0},
+  'seedance2.5-301010-wool':{videos:10,audios:10},
+  'seedance2.5-301010-wool-1080p':{videos:10,audios:10},
+  'ss-2.0-933-720p':{videos:3,audios:3},
+  'sd_2.0_mini_special':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
 };
 const modelVideoRatios=id=>{
  if(SORA_VARIANTS.includes(id))return [id.endsWith('16x9')?'16:9':'9:16'];
@@ -187,7 +196,7 @@ const modelVideoRatios=id=>{
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
   if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
-  if(id==='seedance2.5-930-1080p'||id==='seedance2.5-301010-wool')return RATS_WIDE;
+  if(/^seedance2\.5-(930-1080p|301010-wool(-1080p)?)$/.test(id))return RATS_WIDE;
   if(id==='seedance2.5-900')return RATS_FIVE;
   return RATS;
 };
@@ -227,6 +236,8 @@ function describedModel(id,type) {
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
+      'doubao-seedance-2.0-mini','ss-2.0-933-720p','seedance2.5-301010-wool-1080p',
+      'sd_2.0_mini_special',
       // Official per-second video SKUs: all use POST /v1/videos with
       // "seconds" and optional public-URL images (except text-only Seedance).
       'seedance2.0-480p','seedance2.0-720p',
@@ -257,8 +268,8 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip'].includes(id)?'seconds':'duration',
-        imageField:id==='seedance-2.5-c1'||id==='doubao-seedance-2-0-fast'?'image_urls':
+        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration',
+        imageField:['seedance-2.5-c1','doubao-seedance-2-0-fast','sd_2.0_mini_special'].includes(id)?'image_urls':
           (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},
