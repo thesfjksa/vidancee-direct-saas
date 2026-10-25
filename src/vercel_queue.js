@@ -188,12 +188,14 @@ class VercelQueue {
     await db.execute("UPDATE generations SET status='processing',updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",[job.id]);
   }
   async complete(db,job,output) {
+    // Generated images go to cloud storage when enabled (the BLOB keeps a tag).
+    const imageData=job.media_type==='image'?await require('./object_storage.js').offloadBlob('images/'+job.id,output.data,output.mimeType):null;
     const conn=await db.getConnection();
     try {
       await conn.beginTransaction();
       const [[current]]=await conn.execute('SELECT status,refunded_at FROM generations WHERE id=? FOR UPDATE',[job.id]);
       if(!current||current.refunded_at||!['submitting','submitted','processing'].includes(current.status)){await conn.rollback();return;}
-      if(job.media_type==='image')await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?)',[job.id,output.mimeType,output.data]);
+      if(job.media_type==='image')await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?)',[job.id,output.mimeType,imageData]);
       const videoStorage=job.media_type==='image'?null:await saveVideoOutput(conn,job.id,output);
       await conn.execute("UPDATE generations SET status='completed',output_url=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?",
         [job.media_type==='image'?'db:image':videoStorage,job.id]);

@@ -157,7 +157,10 @@ async function configuredStorage({requireEnabled=true,getSetting=null,fetchImpl=
     if(requireEnabled&&!require('./db.js').dbConfigured())return null;
     getSetting=getSettingValue;
   }
-  const cfg=await storageConfiguration({getSetting});
+  let cfg;
+  // Unreadable settings send new files to MySQL rather than failing the job.
+  try{cfg=await storageConfiguration({getSetting});}
+  catch(error){if(requireEnabled)return null;throw error;}
   if(!cfg.configured||(requireEnabled&&!cfg.enabled))return null;
   return new ObjectStore({...cfg,fetchImpl});
 }
@@ -185,3 +188,46 @@ const videoKey=id=>'videos/'+id+'.mp4';
 
 module.exports={MARKER,SETTINGS,ObjectStore,validateConfig,storageConfiguration,configuredStorage,saveStorageSettings,
   redirectToObject,keyFromMarker,videoKey,encodeKey};
+
+// Reference uploads, generated images and their media live in MySQL BLOB
+// columns. Once offloaded, the cell holds only this tag plus the object key,
+// so no schema change is needed; real image, video and audio files never
+// start with a NUL byte followed by "CMMR2".
+const BLOB_TAG=Buffer.from('\0CMMR2\0');
+const isBlobRef=data=>Buffer.isBuffer(data)&&data.length<512&&data.subarray(0,BLOB_TAG.length).equals(BLOB_TAG);
+const blobRefKey=data=>isBlobRef(data)?data.subarray(BLOB_TAG.length).toString('utf8'):null;
+const blobRef=key=>Buffer.concat([BLOB_TAG,Buffer.from(key,'utf8')]);
+
+// Uploads `data` when cloud storage is enabled and returns what to write to
+// the BLOB column: the tag (offloaded) or the original bytes.
+async function offloadBlob(prefix,data,contentType,{store=undefined}={}){
+  if(store===undefined)store=await configuredStorage();
+  if(!store||!Buffer.isBuffer(data)||!data.length)return data;
+  const key=prefix.replace(/\/+$/,'')+'/'+crypto.randomUUID();
+  await store.put(key,data,contentType||'application/octet-stream');
+  return blobRef(key);
+}
+
+// Replaces tags in `rows[field]` with the stored bytes.
+async function hydrateBlobs(rows,field,{store=undefined}={}){
+  const list=Array.isArray(rows)?rows:[rows];
+  for(const row of list){
+    const key=row&&blobRefKey(row[field]);
+    if(!key)continue;
+    if(store===undefined)store=await configuredStorage({requireEnabled:false});
+    if(!store)throw storageError('Cloud storage is not configured; this file cannot be read.');
+    row[field]=Buffer.from(await (await store.get(key)).arrayBuffer());
+  }
+  return rows;
+}
+
+async function removeBlobs(datas,{store=undefined}={}){
+  const keys=datas.map(blobRefKey).filter(Boolean);
+  if(!keys.length)return 0;
+  if(store===undefined)store=await configuredStorage({requireEnabled:false});
+  if(!store)return 0;
+  for(const key of keys)await store.remove(key).catch(()=>{});
+  return keys.length;
+}
+
+Object.assign(module.exports,{BLOB_TAG,isBlobRef,blobRefKey,blobRef,offloadBlob,hydrateBlobs,removeBlobs});

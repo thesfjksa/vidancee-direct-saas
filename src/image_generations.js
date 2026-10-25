@@ -6,6 +6,7 @@ const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
 const { roundCredits, roundYuanCredits } = require('./billing.js');
 const { THUMB_WIDTH } = require('./image_thumbnails.js');
+const { configuredStorage, offloadBlob, removeBlobs } = require('./object_storage.js');
 
 function serializeImageGeneration(row) {
   return {
@@ -32,6 +33,7 @@ function serializeImageGeneration(row) {
 }
 
 async function createImageGenerationForUser(userId, input, options = {}) {
+  const offloaded = [];
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const aspectRatio = String(input.aspectRatio || input.aspect_ratio || '');
@@ -143,13 +145,17 @@ async function createImageGenerationForUser(userId, input, options = {}) {
       ],
     );
 
+    const store = images.length ? await configuredStorage() : null;
     for (let i = 0; i < images.length; i += 1) {
       const image = images[i];
+      // Cloud storage when enabled; the BLOB then keeps only a tag.
+      const data = await offloadBlob('refs/' + id, image.data, image.mimeType, { store });
+      if (data !== image.data) offloaded.push(data);
       await conn.execute(
         `INSERT INTO generation_images
          (generation_id,position_index,filename,mime_type,image_data)
          VALUES (?,?,?,?,?)`,
-        [id, i, image.filename, image.mimeType, image.data],
+        [id, i, image.filename, image.mimeType, data],
       );
     }
 
@@ -163,6 +169,7 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     await conn.commit();
   } catch (error) {
     await conn.rollback();
+    await removeBlobs(offloaded).catch(() => {});
     throw error;
   } finally {
     conn.release();
@@ -222,6 +229,7 @@ async function getUserImageGeneration(userId, id) {
 async function deleteUserImageGeneration(userId, generationId) {
   const db = getPool();
   const conn = await db.getConnection();
+  let offloadedTags = [];
   try {
     await conn.beginTransaction();
     const [rows] = await conn.execute(
@@ -244,19 +252,22 @@ async function deleteUserImageGeneration(userId, generationId) {
       'UPDATE credit_transactions SET generation_id=NULL WHERE generation_id=? AND user_id=?',
       [generationId, userId],
     );
+    const [tagRows] = await conn.execute('SELECT image_data AS data FROM generation_images WHERE generation_id=? AND LENGTH(image_data)<512 UNION ALL SELECT image_data FROM generation_image_outputs WHERE generation_id=? AND LENGTH(image_data)<512', [generationId, generationId]);
+    offloadedTags = tagRows.map(r => r.data);
     await conn.execute('DELETE FROM generation_images WHERE generation_id=?', [generationId]);
     await conn.execute(
       "DELETE FROM generations WHERE id=? AND user_id=? AND media_type='image'",
       [generationId, userId],
     );
     await conn.commit();
-    return true;
   } catch (error) {
     await conn.rollback();
     throw error;
   } finally {
     conn.release();
   }
+  await removeBlobs(offloadedTags).catch(() => {});
+  return true;
 }
 
 module.exports = {

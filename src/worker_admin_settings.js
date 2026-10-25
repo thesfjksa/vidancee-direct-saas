@@ -395,6 +395,7 @@ class GenerationWorker {
     let result;
     try {
       const [images] = await db.execute('SELECT image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',[job.id]);
+      if (images.some(image => require('./object_storage.js').isBlobRef(image.image_data))) await require('./object_storage.js').hydrateBlobs(images,'image_data');
       // No automatic upstream retry: a timeout can still have incurred a charge.
       result = await client.generateImage({model:job.model,prompt:job.prompt,aspectRatio:job.aspect_ratio,quality:job.image_quality||'medium',
         images:images.map(image=>({data:image.image_data}))});
@@ -411,6 +412,8 @@ class GenerationWorker {
       await this.refundSmartImage(job.id,'failed',message,null);
       return;
     }
+    // Cloud storage when enabled; the BLOB keeps a tag.
+    const imageData = await require('./object_storage.js').offloadBlob('images/'+job.id, result.data, result.mimeType).catch(() => result.data);
     // Retry only local persistence, never the paid API operation.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       let conn;
@@ -419,7 +422,7 @@ class GenerationWorker {
         await conn.beginTransaction();
         const [rows] = await conn.execute('SELECT status,refunded_at FROM generations WHERE id=? FOR UPDATE',[job.id]);
         if (!rows[0] || rows[0].status !== 'processing' || rows[0].refunded_at) { await conn.rollback(); return; }
-        await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type),image_data=VALUES(image_data)',[job.id,result.mimeType,result.data]);
+        await conn.execute('INSERT INTO generation_image_outputs (generation_id,mime_type,image_data) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type),image_data=VALUES(image_data)',[job.id,result.mimeType,imageData]);
         await conn.execute("UPDATE generations SET status='completed',output_url='db:image',completed_at=UTC_TIMESTAMP(),error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=?",[job.id]);
         await conn.commit();
         logActivity({ category: 'provider', event: 'job.completed', userId: job.user_id, generationId: job.id, provider: 'smartaipi', message: 'Completed', details: { bytes: result.data.length } });
@@ -517,6 +520,7 @@ class GenerationWorker {
       [job.id]
     );
     const media = Array.isArray(rows) ? rows : [];
+    await require('./object_storage.js').hydrateBlobs(media, 'media_data');
     if (!media.length) return { referenceAudioAssetIds: [], referenceVideoAssetId: null };
     let op = {};
     try { op = JSON.parse(job.provider_operation || '{}') || {}; } catch {}

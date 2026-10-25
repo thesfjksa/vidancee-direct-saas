@@ -71,6 +71,7 @@ async function fetchRemoteImage(url) {
 async function loadSource(db, row) {
   if (row.output_url === 'db:image') {
     const [[output]] = await db.execute('SELECT image_data FROM generation_image_outputs WHERE generation_id=?', [row.id]);
+    if (output) await require('./object_storage.js').hydrateBlobs(output, 'image_data');
     return output?.image_data || null;
   }
   return fetchRemoteImage(row.output_url);

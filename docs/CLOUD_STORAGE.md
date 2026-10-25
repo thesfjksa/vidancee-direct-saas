@@ -1,6 +1,6 @@
 # Cloud storage (Cloudflare R2 / S3-compatible)
 
-Primary storage for generated videos, replacing MySQL BLOBs and Google Drive. Implemented in `src/object_storage.js` (dependency-free AWS Signature V4 client) and `src/r2_migration.js`. Works with any S3-compatible bucket: Cloudflare R2, Backblaze B2, Wasabi or AWS S3.
+Primary storage for generated videos, generated images and uploaded reference files, replacing MySQL BLOBs and Google Drive. Implemented in `src/object_storage.js` (dependency-free AWS Signature V4 client) and `src/r2_migration.js`. Works with any S3-compatible bucket: Cloudflare R2, Backblaze B2, Wasabi or AWS S3.
 
 ## Setup (owner, about 10 minutes)
 
@@ -24,8 +24,15 @@ The secret is stored encrypted in `app_settings` and never returned.
 - **Deleting:** when a customer deletes a video, the bucket object is removed after the database deletion commits. A failed cleanup is logged as `r2.delete_failed`.
 - **Switching off:** "Stop using for new videos" sends new videos back to Drive or MySQL. Files already in the bucket keep playing for as long as the keys stay saved.
 
-## Not yet in cloud storage
+## Images and reference files
 
-Generated images, image thumbnails, uploaded reference images/videos/audio, voice-clone samples and connector uploads are still in MySQL; they are the next phase.
+Generated images (`generation_image_outputs`), uploaded reference images (`generation_images`) and reference images, videos and audio (`generation_media`) also go to the bucket. To avoid a schema change while the database is over quota, the existing BLOB cell keeps a short tag instead of the bytes: NUL + `CMMR2` + NUL + the object key, always under 512 bytes. Real image, video and audio files never start that way.
+
+- **Writing:** `offloadBlob(prefix, data, mime)` uploads the file and returns the tag, or returns the original bytes when cloud storage is off.
+- **Reading:** every reader calls `hydrateBlobs(rows, field)`, so providers, previews, reuse and downloads get the original bytes unchanged.
+- **Deleting:** deleting a generation removes its tagged objects after the commit. If a new generation's transaction rolls back, any objects it already uploaded are removed. Reused references are copied into new objects, so deleting one generation never breaks another.
+- **Moving old files:** after all videos have moved, the worker moves one file per tick from these tables, videos first. The cell is replaced only if its length and MD5 are unchanged. Admin → Storage shows the counts still in MySQL. Activity events are `r2.file_migrated` and `r2.migration_failed`.
+
+These stay in MySQL because they are small or short-lived: image thumbnails, voice-clone samples (cleared once sent to Vibi) and Claude connector uploads (deleted after a few days). Deleting a whole customer account doesn't yet remove that customer's bucket objects.
 
 MySQL may not shrink its files on disk after rows are deleted. Ask Hostinger, or run `OPTIMIZE TABLE generation_video_chunks` with a backup, to reclaim the space.

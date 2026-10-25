@@ -703,6 +703,7 @@ async function loadCloudStorage(){
       ' · New videos: '+(d.enabled?'Cloud storage':'Not using cloud storage')+
       ' · Videos in cloud storage: '+(d.stats?.storedVideos||0)+
       ' · Old videos still in MySQL: '+(d.stats?.pendingVideos||0)+' ('+gib+' GiB)'+
+      ' · Images and reference files still in MySQL: '+(d.stats?.pendingFiles||0)+' ('+(Number(d.stats?.pendingFileBytes||0)/1024/1024/1024).toFixed(2)+' GiB)'+
       ' · Moving old videos: '+(d.migrationEnabled?'Running':'Paused');
   }catch(error){target.textContent='Cloud storage status could not be loaded: '+error.message;}
 }

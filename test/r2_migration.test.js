@@ -46,3 +46,26 @@ test('a size or checksum mismatch keeps the MySQL copy untouched',async()=>{
   assert.equal(db.state.chunks.length,1);
   assert.equal(db.state.committed,false);
 });
+
+test('images and reference files move to cloud storage and readers get the original bytes back',async()=>{
+  const {migrateOneBlobToStorage}=require('../src/r2_migration.js');
+  const {hydrateBlobs,isBlobRef}=require('../src/object_storage.js');
+  const bytes=crypto.randomBytes(4096);
+  const rows={generation_image_outputs:[],generation_images:[{pk:7,generation_id:'g',mime_type:'image/png',data:bytes}],generation_media:[]};
+  const objects=new Map();
+  const md5=b=>crypto.createHash('md5').update(b).digest('hex');
+  const store={put:async(k,d)=>objects.set(k,Buffer.from(d)),head:async k=>({size:objects.get(k).length,etag:md5(objects.get(k))}),
+    remove:async k=>objects.delete(k),get:async k=>new Response(objects.get(k))};
+  const db={
+    query:async sql=>{const t=sql.match(/FROM (\w+)/)[1];return [[rows[t].find(r=>r.data.length>=512)]];},
+    execute:async(sql,[value,pk,len,hash])=>{const t=sql.match(/UPDATE (\w+)/)[1];const r=rows[t].find(x=>x.pk===pk&&x.data.length===len&&md5(x.data)===hash);if(r)r.data=value;return [{affectedRows:r?1:0}];},
+  };
+  const out=await migrateOneBlobToStorage({db,store,log:()=>{}});
+  assert.equal(out.migrated,true);
+  const row=rows.generation_images[0];
+  assert.ok(isBlobRef(row.data));
+  const copy={image_data:row.data};
+  await hydrateBlobs(copy,'image_data',{store});
+  assert.deepEqual(copy.image_data,bytes);
+  assert.equal((await migrateOneBlobToStorage({db,store,log:()=>{}})).reason,'finished');
+});

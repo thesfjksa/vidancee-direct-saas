@@ -23,6 +23,7 @@ class SluiceQueue extends ArgoLinkQueue {
   async filesFor(db, job, references) {
     if (!references.length) return references;
     const [rows] = await db.execute('SELECT position_index,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+    if (Array.isArray(rows)) await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
     if (!Array.isArray(rows) || rows.length !== references.length) return references;
     return references.map((r, i) => ({ ...r, data: rows[i].media_data }));
   }

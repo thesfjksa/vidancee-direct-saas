@@ -5,7 +5,7 @@
 const crypto=require('node:crypto');
 const {getPool}=require('./db.js');
 const {readStoredRange}=require('./google_drive_migration.js');
-const {configuredStorage,storageConfiguration,videoKey,MARKER}=require('./object_storage.js');
+const {configuredStorage,storageConfiguration,videoKey,MARKER,blobRef}=require('./object_storage.js');
 const {logActivity,errorDetails}=require('./activity_log.js');
 
 async function migrateOneVideoToStorage({db=getPool(),store,log=logActivity}={}){
@@ -48,10 +48,50 @@ async function migrateOneVideoToStorage({db=getPool(),store,log=logActivity}={})
   }
 }
 
+// BLOB tables whose files move to cloud storage. Offloaded cells hold a tag
+// shorter than 512 bytes (see object_storage.js), so LENGTH>=512 means "still in MySQL".
+const BLOB_TABLES=[
+  {table:'generation_image_outputs',pk:'generation_id',field:'image_data',prefix:'images'},
+  {table:'generation_images',pk:'id',field:'image_data',prefix:'refs'},
+  {table:'generation_media',pk:'id',field:'media_data',prefix:'media'},
+];
+
+async function migrateOneBlobToStorage({db=getPool(),store,log=logActivity}={}){
+  if(!store)store=await configuredStorage();
+  if(!store)return {migrated:false,reason:'not_enabled'};
+  for(const t of BLOB_TABLES){
+    const [[row]]=await db.query('SELECT '+t.pk+' AS pk,generation_id,mime_type,'+t.field+' AS data FROM '+t.table+' WHERE LENGTH('+t.field+')>=512 LIMIT 1');
+    if(!row)continue;
+    const data=Buffer.from(row.data);
+    const md5=crypto.createHash('md5').update(data).digest('hex');
+    const key=t.prefix+'/'+row.generation_id+'/'+crypto.randomUUID();
+    await store.put(key,data,row.mime_type||'application/octet-stream');
+    const meta=await store.head(key);
+    if(!meta||meta.size!==data.length||(meta.etag&&meta.etag!==md5)){
+      await store.remove(key).catch(()=>{});
+      throw new Error('Cloud storage file integrity check failed; original MySQL data retained.');
+    }
+    // Replace only if the cell still holds the same bytes.
+    const [result]=await db.execute('UPDATE '+t.table+' SET '+t.field+'=? WHERE '+t.pk+'=? AND LENGTH('+t.field+')=? AND MD5('+t.field+')=?',
+      [blobRef(key),row.pk,data.length,md5]);
+    if(!result.affectedRows){await store.remove(key).catch(()=>{});return {migrated:false,reason:'changed',table:t.table};}
+    log({category:'system',event:'r2.file_migrated',generationId:row.generation_id,
+      message:'Moved a stored file to cloud storage',details:{table:t.table,bytes:data.length}});
+    return {migrated:true,table:t.table,bytes:data.length};
+  }
+  return {migrated:false,reason:'finished'};
+}
+
 async function storageMigrationStats(db=getPool()){
   const [[pending]]=await db.query("SELECT COUNT(*) AS videoCount,COALESCE(SUM(o.byte_length),0) AS videoBytes FROM generations g JOIN generation_video_outputs o ON o.generation_id=g.id WHERE g.output_url='db:video'");
   const [[done]]=await db.query("SELECT COUNT(*) AS videoCount FROM generations WHERE output_url LIKE 'r2:%'");
-  return {pendingVideos:Number(pending.videoCount),pendingBytes:Number(pending.videoBytes),storedVideos:Number(done.videoCount)};
+  let pendingFiles=0,pendingFileBytes=0;
+  for(const t of BLOB_TABLES){
+    const [[r]]=await db.query('SELECT COUNT(*) AS n,COALESCE(SUM(LENGTH('+t.field+')),0) AS bytes FROM '+t.table+' WHERE LENGTH('+t.field+')>=512');
+    pendingFiles+=Number(r.n);pendingFileBytes+=Number(r.bytes);
+  }
+  return {pendingVideos:Number(pending.videoCount),pendingBytes:Number(pending.videoBytes),storedVideos:Number(done.videoCount),
+    pendingFiles,pendingFileBytes};
 }
 
 function startStorageMigrationLoop({db=getPool(),intervalMs=15000,log=logActivity}={}){
@@ -62,7 +102,9 @@ function startStorageMigrationLoop({db=getPool(),intervalMs=15000,log=logActivit
     try{
       const cfg=await storageConfiguration();
       if(!cfg.enabled||!cfg.migrationEnabled)return;
-      const outcome=await migrateOneVideoToStorage({db,log});
+      // Videos first (largest), then images and reference files.
+      let outcome=await migrateOneVideoToStorage({db,log});
+      if(outcome.reason==='finished')outcome=await migrateOneBlobToStorage({db,log});
       if(outcome.reason==='finished')cooldown=Date.now()+5*60000;
     }catch(error){
       cooldown=Date.now()+5*60000;
@@ -76,4 +118,4 @@ function startStorageMigrationLoop({db=getPool(),intervalMs=15000,log=logActivit
   return ()=>{stopped=true;clearInterval(timer);};
 }
 
-module.exports={migrateOneVideoToStorage,storageMigrationStats,startStorageMigrationLoop};
+module.exports={migrateOneVideoToStorage,migrateOneBlobToStorage,storageMigrationStats,startStorageMigrationLoop,BLOB_TABLES};

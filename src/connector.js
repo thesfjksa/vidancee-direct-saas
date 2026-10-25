@@ -116,6 +116,7 @@ function createConnector(deps) {
       const [[row]] = await db.execute("SELECT id,output_url FROM generations WHERE id=? AND user_id=? AND media_type='image' AND status='completed' LIMIT 1", [ref.image_job_id, user.id]);
       if (!row) throw Object.assign(new Error('No finished image ' + ref.image_job_id + ' on this account.'), { statusCode: 400 });
       const [[output]] = await db.execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?', [row.id]);
+      if (output) await require('./object_storage.js').hydrateBlobs(output, 'image_data');
       if (!output) throw Object.assign(new Error('Image ' + ref.image_job_id + ' is not stored on CMM Tools any more.'), { statusCode: 400 });
       return { filename: 'cmm-image-' + row.id.slice(0, 8), mimeType: output.mime_type, data: output.image_data };
     }
@@ -260,6 +261,7 @@ function createConnector(deps) {
     if (row.media_type === 'image') {
       if (row.output_url !== 'db:image') return deps.proxyMedia(req, res, row, 'video');
       const [[output]] = await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?', [id]);
+      if (output) await require('./object_storage.js').hydrateBlobs(output, 'image_data');
       if (!output) return sendJson(res, 404, { ok: false, error: 'This file is no longer available.' });
       const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[output.mime_type] || 'png';
       res.writeHead(200, { 'content-type': output.mime_type, 'content-length': output.image_data.length, 'cache-control': 'private, max-age=3600',
