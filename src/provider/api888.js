@@ -307,13 +307,15 @@ Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT,{allowPu
 // still works, so use the latter as a bounded fallback. Never retry a paid POST.
 Api888Client.prototype.videoContent=async function(id,url){
   if(!/^[A-Za-z0-9_-]{5,191}$/.test(String(id)))throw new Error('Invalid 888API video job.');
-  const validMp4=bytes=>Buffer.isBuffer(bytes)&&bytes.length>=12&&bytes.toString('ascii',4,8)==='ftyp';
+  // The whole file must be present: a download cut short once saved a
+  // 261 KB unplayable video (25 Oct 2026).
+  const validMp4=bytes=>require('../mp4_trim.js').isCompleteMp4(bytes);
   let directError=null;
   if(url){
     try{
       const result=await this.download(url,VIDEO_LIMIT,{allowPublicIp:true});
       if(validMp4(result))return {data:result,mimeType:'video/mp4'};
-      throw new Error('Provider URL did not return an MP4 file.');
+      throw new Error('Provider URL did not return a complete MP4 file.');
     }catch(error){directError=error;}
   }
   try{
@@ -333,7 +335,7 @@ Api888Client.prototype.videoContent=async function(id,url){
       }
       data=await readBounded(response,VIDEO_LIMIT);
     }
-    if(!validMp4(data))throw new Error('Authenticated 888API content endpoint did not return MP4 video.');
+    if(!validMp4(data))throw new Error('Authenticated 888API content endpoint did not return a complete MP4 video.');
     return {data,mimeType:'video/mp4'};
   }catch(contentError){
     const parts=[];

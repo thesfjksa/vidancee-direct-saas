@@ -50,6 +50,36 @@ class Api888Queue extends VercelQueue{
   async markProcessing(db,job){
     await db.execute("UPDATE generations SET status='processing',error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('submitted','processing') AND refunded_at IS NULL",[job.id]);
   }
+  // Recent 888API videos saved incomplete (before downloads were checked) are
+  // fetched again from 888API's finished task, a free GET, and replaced.
+  async repairIncompleteVideos(db,{days=3,limit=30,log=this.log.bind(this)}={}){
+    const settings=await this.getSettings();
+    const apiKey=this.apiKey(settings);
+    if(!apiKey)return 0;
+    const {configuredStorage,keyFromMarker}=require('./object_storage.js');
+    const {isCompleteMp4}=require('./mp4_trim.js');
+    const store=await configuredStorage({requireEnabled:false});
+    if(!store)return 0;
+    const client=this.clientFactory({apiKey});
+    const [rows]=await db.query("SELECT id,user_id,provider_operation,output_url FROM generations WHERE provider='api888' AND media_type='video' AND status='completed' AND output_url LIKE 'r2:%' AND completed_at>UTC_TIMESTAMP()-INTERVAL ? DAY ORDER BY completed_at DESC LIMIT ?",[days,limit]);
+    let repaired=0;
+    for(const row of rows){
+      const key=keyFromMarker(row.output_url);
+      try{
+        const data=Buffer.from(await (await store.get(key)).arrayBuffer());
+        if(isCompleteMp4(data))continue;
+        let op={};try{op=JSON.parse(row.provider_operation||'{}');}catch{}
+        if(!op.requestId)continue;
+        const video=await client.videoContent(op.requestId,null);
+        await store.put(key,video.data,'video/mp4');
+        repaired++;
+        log({id:row.id,user_id:row.user_id},'job.video_repaired','Replaced an incomplete saved video with the full file from 888API',{before:data.length,after:video.data.length});
+      }catch(error){
+        log({id:row.id,user_id:row.user_id},'job.video_repair_failed','Could not repair an incomplete saved video',errorDetails(error),'warn');
+      }
+    }
+    return repaired;
+  }
   async pollJob(db,client,job){
     let op={};
     try{op=JSON.parse(job.provider_operation||'{}');}catch{}

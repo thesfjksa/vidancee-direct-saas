@@ -112,6 +112,8 @@ class GenerationWorker {
     this.stopped = false;
     this.vercelQueue.start();
     this.api888Queue.start();
+    // Once per start: re-fetch recent 888API videos that were saved incomplete.
+    setTimeout(()=>Promise.resolve().then(()=>this.api888Queue.repairIncompleteVideos(getPool())).catch(()=>{}),30000).unref?.();
     this.argoLinkQueue.start();
     this.higgsfieldQueue.start();
     this.sluiceQueue.start();

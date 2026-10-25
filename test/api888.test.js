@@ -3,6 +3,12 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {api888MediaModels,VIDEO_IDS,IMAGE_IDS}=require('../src/api888_models.js');
 const {Api888Client}=require('../src/provider/api888.js');
+// Smallest complete MP4 for download tests: ftyp + moov + mdat.
+function tinyMp4(){
+  const box=(type,payload)=>{const h=Buffer.alloc(8);h.writeUInt32BE(8+payload.length);h.write(type,4,'latin1');return Buffer.concat([h,payload]);};
+  return Buffer.concat([box('ftyp',Buffer.concat([Buffer.from('isom'),Buffer.alloc(12)])),box('moov',Buffer.alloc(8)),box('mdat',Buffer.alloc(16))]);
+}
+
 test('bundled 888API media catalog imports distinct IDs, but cannot bill customers',()=>{
   const models=api888MediaModels();
   assert.ok(models.length>=80);
@@ -425,7 +431,7 @@ test('888API unknown task status no longer silently looks like pending forever',
 });
 
 test('888API falls back to authenticated content GET when completed video link has expired',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(64)]);
+ const mp4=tinyMp4();
  let calls=0;
  const c=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
    calls++;assert.equal(opts.method||'GET','GET');
@@ -445,7 +451,7 @@ test('888API falls back to authenticated content GET when completed video link h
  assert.deepEqual(output.data,mp4);
 });
 test('888API falls back when provider URL returns HTML instead of MP4',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(32)]);
+ const mp4=tinyMp4();
  const c=new Api888Client({apiKey:'sk-test',fetchImpl:async url=>
    new Response(url.includes('signed.example.test')?'<html>temporary download error</html>':mp4,{status:200})});
  const output=await c.videoContent('task_12345678','https://signed.example.test/video.mp4');
@@ -464,7 +470,7 @@ test('888API reports safe per-route diagnostics when both completed-video GET ro
 });
 
 test('888API video download resolves provider-relative completed URLs without losing auth',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ const mp4=tinyMp4();
  const {publicMediaUrl}=require('../src/provider/api888.js');
  assert.equal(publicMediaUrl('/v1/videos/task_12345678/content'),
    'https://888api.xin/v1/videos/task_12345678/content');
@@ -478,7 +484,7 @@ test('888API video download resolves provider-relative completed URLs without lo
  assert.deepEqual((await client.videoContent('task_12345678','/v1/videos/task_12345678/content')).data,mp4);
 });
 test('888API HTTP public media link is upgraded to HTTPS without leaking Bearer credentials',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(28)]);
+ const mp4=tinyMp4();
  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
    assert.equal(url,'https://media.example.test/output.mp4?sig=private');
    assert.equal(opts.headers?.authorization,undefined);
@@ -488,7 +494,7 @@ test('888API HTTP public media link is upgraded to HTTPS without leaking Bearer 
  assert.deepEqual(result.data,mp4);
 });
 test('888API authenticated content route accepts provider HTTP CDN redirect as HTTPS',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(64)]);
+ const mp4=tinyMp4();
  let calls=0;
  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
    calls++;
@@ -549,7 +555,7 @@ test('888API does not permanently fail when an expired signed URL and HTTP 503 c
 
 
 test('888API completed video accepts public IPv4 HTTP custom-port output without credentials',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ const mp4=tinyMp4();
  const url='http://8.8.8.8:19876/video.mp4?sig=private';
  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(target,opts)=>{
    assert.equal(target,url);assert.equal(opts.redirect,'manual');
@@ -561,7 +567,7 @@ test('888API completed video accepts public IPv4 HTTP custom-port output without
  await assert.rejects(client.download(url),/unsupported video download URL/);
 });
 test('888API content endpoint can redirect to public IPv4 and strips provider authorization',async()=>{
- const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(20)]);
+ const mp4=tinyMp4();
  let calls=0;
  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,opts)=>{
    calls++;
@@ -766,4 +772,15 @@ test('888API video references kept in cloud storage are sent as presigned bucket
     objectStorage.configuredStorage=original;
     for(const [k,v] of Object.entries(env))if(v===undefined)delete process.env[k];else process.env[k]=v;
   }
+});
+
+test('a truncated 888API video download is rejected so the next poll fetches it again',async()=>{
+  const {isCompleteMp4}=require('../src/mp4_trim.js');
+  const full=tinyMp4();
+  assert.equal(isCompleteMp4(full),true);
+  assert.equal(isCompleteMp4(full.subarray(0,full.length-4)),false);
+  const noIndex=Buffer.concat([full.subarray(0,24),full.subarray(40)]);
+  assert.equal(isCompleteMp4(noIndex),false);
+  const client=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response(full.subarray(0,30),{status:200})});
+  await assert.rejects(client.videoContent('task_abcdef','https://cdn.example.com/v.mp4'));
 });

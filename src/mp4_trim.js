@@ -182,4 +182,15 @@ function trimMp4(input,seconds){
   return {data:Buffer.concat([ftypBytes,serialize(moov),mdat]),seconds:newMovieDuration/movieScale,trimmed:true};
 }
 
-module.exports={trimMp4,readBoxes};
+// True when the buffer is a whole MP4: top-level boxes exactly fill it and
+// both the media data and the moov index are present.
+function isCompleteMp4(buf){
+  if(!Buffer.isBuffer(buf)||buf.length<16||buf.toString('latin1',4,8)!=='ftyp')return false;
+  let boxes;
+  try{boxes=readBoxes(buf);}catch{return false;}
+  const end=boxes.length?boxes[boxes.length-1].start+boxes[boxes.length-1].size:0;
+  const has=t=>boxes.some(b=>b.type===t);
+  return end===buf.length&&has('moov')&&(has('mdat')||has('moof'));
+}
+
+module.exports={trimMp4,readBoxes,isCompleteMp4};

@@ -15,6 +15,10 @@ async function readBounded(response,max) {
       chunks.push(Buffer.from(chunk));
     }
   } catch(error) { await response.body?.cancel?.().catch(()=>{});throw error; }
+  // A connection that closes early must not pass as a finished file.
+  const expected=Number(response.headers.get('content-length'));
+  if(expected>0&&total<expected&&!response.headers.get('content-encoding'))
+    throw Object.assign(new Error('The download ended early ('+total+' of '+expected+' bytes).'),{retryable:true});
   return Buffer.concat(chunks,total);
 }
 
