@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — Incomplete video downloads are rejected and repaired
+
+- A Wan 3.0 result (generation e3e43731) was saved at 261 KB: the download from 888API ended early, and the only check was the `ftyp` header. 888API downloads now have to be a complete MP4 (top-level boxes fill the file, with `moov` and `mdat`), and `readBounded` rejects a body shorter than its Content-Length. An incomplete download fails that poll and is fetched again on the next one.
+- Once per worker start, recent 888API videos (last 3 days) are checked in R2. Incomplete ones are fetched again from 888API's finished task (free GET) and replaced. Activity events: `job.video_repaired` / `job.video_repair_failed`.
+- Support: `GET /ops/generations/:id/media-check[?deep=1]` reports the bucket object, playback-link responses, MP4 boxes and codecs.
+
 ## 2026-10-25 — 888API reference videos actually reach the model
 
 - Owner report: Wan 3.0 (`wan30-720p`) and Seedance 2.5 G5-V2 results ignored the uploaded reference video. Three fixes:
