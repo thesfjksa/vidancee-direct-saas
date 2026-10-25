@@ -82,9 +82,13 @@ Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxByt
     // Upstream failure bodies stay small even for large image responses.
     const limit=response.ok?maxBytes:API888_JSON_LIMIT;
     const data=await readBounded(response,limit).then(b=>{try{return JSON.parse(b.toString('utf8'));}catch{return null;}});
-    if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':'888API request failed (HTTP '+response.status+').'),{
+    // Keep 888API's own (redacted) reason, e.g. no available channel for a
+    // model, so a failed generation explains itself without the Admin log.
+    const providerMessage=safeProviderError(data);
+    if(!response.ok)throw Object.assign(new Error(response.status===402?'888API balance insufficient.':response.status===401||response.status===403?'888API rejected account access.':
+      '888API request failed (HTTP '+response.status+')'+(providerMessage?': '+providerMessage.slice(0,200):'.')),{
       statusCode:502,providerStatus:response.status,retryable:isVideoStatus&&[429,502,503,504].includes(response.status),
-      providerMessage:safeProviderError(data),providerRequestId:safeProviderRequestId(data),
+      providerMessage,providerRequestId:safeProviderRequestId(data),
       requestMethod:isGet?'GET':'POST',attempts:attempt,
       code:typeof data?.error?.code==='string'?data.error.code.slice(0,50):undefined,
     });
