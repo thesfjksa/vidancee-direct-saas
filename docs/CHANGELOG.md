@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — Diagnose 888API model-count discrepancy and add read-only verification
+
+- Investigated Admin screenshot: 115 **historical stored** 888API model IDs, 64 returned in last successful account sync, 31 adapter-supported rows reported by Import, but only 13 ready video + 4 ready image models. These counts are different sets, not evidence that 115 models are callable.
+- Current sync retains historical database entries and marks upstream-missing IDs unavailable. Pricing and implemented video/image contracts are strict allowlists, so unverified imports remain Admin-only rather than risking paid API calls. 888API global switch and customer source access must separately be on.
+- Added an Admin-only **Verify live import (read-only)** action that compares current \`GET /v1/models\` to saved MySQL rows; returns missing IDs, stale models, media-type mismatches, availability-state mismatches, present adapter/price/ready counts, and clear reasons for unready entries. No catalog updates or paid generations.
+- **Verification boundary:** source + mocked tests do not establish live model import parity. The owner must deploy the change and run the new Admin audit while their connected 888API account is accessible. Existing MySQL quota and Hostinger clone problems may block deployment.
+
 ## 2026-10-25 — Comprehensive handoff / blocked production recovery (documentation only)
 
 - Created [the authoritative 25 October implementation and recovery handoff](PROJECT_HANDOFF_2026-10-25.md), linked from the original `PROJECT_HANDOFF.md`. It records the complete post-11 October implementation, security and operational evidence, and makes clear which GitHub merges did **not** reach production.

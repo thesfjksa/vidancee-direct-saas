@@ -168,7 +168,8 @@
           <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Inspect all imported 888API models</summary>
             <div id="api888ModelAudit" class="muted" style="max-height:320px;overflow-y:auto;margin-top:8px">Loading inventory…</div>
           </details>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
+           <div id="api888LiveAudit" class="muted" role="status" style="margin:10px 0;white-space:pre-wrap"></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
@@ -750,7 +751,7 @@ async function loadApi888ModelSummary(){
       const value=x.lastSeenAt?Date.parse(x.lastSeenAt):0;
       return Number.isFinite(value)&&value>latest?value:latest;
     },0);
-    m.textContent='888API: '+list.length+' imported IDs · '+live.length+' present in last successful sync · '+
+    m.textContent='888API: '+list.length+' stored IDs (includes historical) · '+live.length+' present in last successful sync · '+
       videos+' video / '+images+' image ready to offer'+
       (seenAt?' · last sync '+new Date(seenAt).toLocaleString():' · no live sync recorded');
     if(audit){
@@ -772,6 +773,44 @@ async function loadApi888ModelSummary(){
     if(audit)audit.textContent='Unable to load model inventory.';}
 }
 
+async function auditApi888Models(){
+  const panel=$('api888LiveAudit');
+  if(!panel)return;
+  panel.textContent='Comparing 888API live account models with imported database records (read-only)...';
+  try{
+    const d=await api('/admin/api888/audit',{method:'POST',body:'{}'});
+    const x=d.summary||{};
+    const lines=[
+      'Live upstream models: '+x.upstreamReturned+
+        ' · Saved inventory: '+x.storedTotal+
+        ' · Historical/stale saved IDs: '+x.previouslyImportedNotInLive,
+      'Missing from MySQL import: '+x.missingFromImport+
+        ' · Not flagged available: '+x.notMarkedAvailable+
+        ' · Wrong media classification: '+x.mediaTypeMismatches,
+      'Live models with implemented adapters: '+x.upstreamKnownAdapterCount+
+        ' · Locally priced: '+x.upstreamWithLocalCnyPrice,
+      'Ready and enabled in catalog: '+x.enabledReadyForCustomerCatalog+
+        ' ('+x.enabledReadyVideo+' video / '+x.enabledReadyImage+' image)',
+      d.providerEnabled?'888API source globally enabled. Customer source assignment is checked separately.':
+        '888API is globally OFF: ready models will remain hidden for customers.',
+      d.ok?'Import matches upstream IDs. Fewer visible models reflect unsupported adapters/pricing, model switches or customer access.':
+        'Import mismatch found. Review the saved inventory and re-sync if the database is writable.'
+    ];
+    if(d.missing?.length)lines.push('Missing from import: '+d.missing.join(', '));
+    if(d.notMarkedAvailable?.length)lines.push('Present upstream but saved as unavailable: '+d.notMarkedAvailable.join(', '));
+    if(d.mediaTypeMismatches?.length)lines.push('Type mismatches: '+
+      d.mediaTypeMismatches.map(x=>x.id+' ('+x.storedAs+' → '+x.upstreamClassifiedAs+')').join(', '));
+    if(d.stale?.length)lines.push('Historical, not returned by 888API today: '+d.stale.join(', '));
+    const unsupported=(d.details||[]).filter(x=>!x.adapterSupported);
+    if(unsupported.length)lines.push('Not yet supported for paid generation ('+unsupported.length+'): '+
+      unsupported.map(x=>x.id).join(', '));
+    panel.textContent=lines.join('\n');
+    panel.className=d.ok?'muted':'err';
+  }catch(error){
+    panel.className='err';
+    panel.textContent='Live 888API model audit failed: '+error.message;
+  }
+}
 async function checkApi888(){
   const m=$('api888ActionMsg');m.textContent='Checking catalog access...';
   try{const d=await api('/admin/api888/check',{method:'POST'});m.className='ok';m.textContent='Key accepted · '+d.accessibleModels+' accessible models.';}
