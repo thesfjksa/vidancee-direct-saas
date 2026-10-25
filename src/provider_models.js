@@ -164,7 +164,7 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','api888'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','api888','falimg'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -207,6 +207,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
       supportsAudio:options.supportsAudio===true,
     }:{}),
     ...(row.provider==='api888'?{api888:options.api888||{}}:{}),
+    ...(row.provider==='falimg'?{falImage:options.falImage||{}}:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
     ...(row.provider==='sluice'?{sluice:options.sluice||{},referenceCapabilities:options.referenceCapabilities}:{}),

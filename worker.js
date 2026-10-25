@@ -58,7 +58,8 @@ function shutdown(signal){
     Promise.resolve(worker?.argoLinkQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
     Promise.resolve(worker?.higgsfieldQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
     Promise.resolve(worker?.upscaleQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
-    Promise.resolve(worker?.sluiceQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft,sluiceLeft])=>{
+    Promise.resolve(worker?.sluiceQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
+    Promise.resolve(worker?.falImageQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft,sluiceLeft])=>{
     left=(left||0)+(argoLeft||0)+(higgsfieldLeft||0)+(upscaleLeft||0)+(sluiceLeft||0)+(worker?.smartImageTasks?.size||0);
     if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
     setTimeout(()=>process.exit(0),150).unref();
@@ -82,6 +83,7 @@ healthServer=http.createServer((req,res)=>{
       revision:6,
       gatewayPolling:worker.vercelQueue.health(),
       api888Polling:worker.api888Queue.health(),
+      falImagePolling:worker.falImageQueue.health(),
       api888ModelHealth:healthSummary(api888Health),
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),

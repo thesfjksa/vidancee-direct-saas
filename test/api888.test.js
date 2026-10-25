@@ -72,7 +72,9 @@ test('888API dynamic billing charges exact CNY rate multiplied by duration',()=>
  assert.equal(q.pricingMode,'per_second');
 });
 test('888API fractional yuan rates preserve 4 decimal credits',()=>{
- const q=quoteApi888(modelById('minimax-h3-480p-t'),{duration:5});
+ // A ¥0.065/s rate (the former 888API MiniMax price) on a per-second model.
+ const base=modelById('wan30-720p');
+ const q=quoteApi888({...base,api888:{...base.api888,sourceCny:0.065}},{duration:5});
  assert.equal(q.cost,0.325);
  assert.equal(q.sourceCny,0.325);
  assert.equal(roundYuanCredits(0.325),0.325);
@@ -148,8 +150,6 @@ test('non-Seedance video families import as runnable video models with verified 
     ['wan3.0-video-prime',0.25,2,30],
     ['wan3.0-image',0.22,2,30],
     ['wan3.0-image-prime',0.25,2,30],
-    ['minimax-h3-480p-t',0.065,5,15],
-    ['minimax-h3-768p-t',0.07,5,15],
     ['seedance2.0-480p',0.5,4,15],
     ['seedance2.0-720p',0.75,4,15],
     ['seedance2.0-stable-480p',0.4,4,15],
@@ -630,7 +630,6 @@ test('888API exposes reference video, audio and image upload controls only for v
     ['wan3.0-video',10,10,0],
     ['wan3.0-video-prime',10,10,0],
     ['wan3.0-image',10,0,0],
-    ['minimax-h3-480p-t',9,0,0],
     ['seedance2.5-900-wool',9,0,0],
   ];
   for(const [id,images,videos,audios] of refs){

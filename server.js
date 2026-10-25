@@ -138,6 +138,7 @@ const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
+const { isFalImageModel, fetchFalImageCatalog, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
@@ -460,6 +461,17 @@ async function enableHiggsfieldForCustomersOnce(){
   logActivity({category:'admin',event:'higgsfield_access.all_on',message:'Higgsfield (Wan 3.0) turned on for every customer; '+count+' had it off'});
   return count;
 }
+// Owner request (25 Oct 2026): MiniMax H3 comes from vgenv for everyone; the
+// 888API MiniMax models were removed. Customers who had vgenv off get it once.
+const VGENV_ALL_ON_SETTING='vgenv_access_all_on_at';
+async function enableVgenvForCustomersOnce(){
+  if(await getSettingValue(VGENV_ALL_ON_SETTING,''))return 0;
+  const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='vgenv' AND enabled=0");
+  await setSettingValue(VGENV_ALL_ON_SETTING,new Date().toISOString());
+  const count=Number(result?.affectedRows||0);
+  logActivity({category:'admin',event:'vgenv_access.all_on',message:'vgenv (MiniMax H3) turned on for every customer; '+count+' had it off'});
+  return count;
+}
 async function getUserProviderAccess(userId){
   const access=defaultCustomerProviderAccess();
   if(!userId||!dbConfigured())return access;
@@ -564,6 +576,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('vercel',()=>publicProviderCatalog('vercel',{creditsPerUsd:providerSettings.vercel.customerCreditsPerUsd}));
     image=addMissingImageModels(image,catalog.image);
   }
+  // fal.ai image models: same customer switch and credit rate as the fal source.
+  if(access.fal && providerSettings.fal.active){
+    const catalog=await safeCatalog(FAL_IMAGE_PROVIDER,()=>publicProviderCatalog(FAL_IMAGE_PROVIDER,{creditsPerUsd:providerSettings.fal.customerCreditsPerUsd}));
+    image=addMissingImageModels(image,catalog.image);
+  }
   if(access.argolink && providerSettings.argolink.active){
     const hd=falReady(await getProviderSettings());
     const hdOff=await argoHdOffModels();
@@ -601,6 +618,7 @@ function modelVendor(id){
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
   if(isSluiceModel(id))return 'Sluice';
+  if(isFalImageModel(id))return 'fal.ai';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
   if(id==='minimax_h3')return 'vgenv';
@@ -699,6 +717,13 @@ async function quoteModelForUser(userId,body){
     const model=await getProviderModelByPublicId('higgsfield',String(body.model),'video');
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
     const quote=await quoteHiggsfieldVideo(model,body,await getProviderSettings());
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
+  if(isFalImageModel(body.model)&&mediaType==='image'){
+    if(!access.fal||!providerSettings.fal.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId(FAL_IMAGE_PROVIDER,String(body.model),'image');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    const quote=quoteGateway(model,body,providerSettings.fal.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isGatewayModel(body.model)){
@@ -900,6 +925,19 @@ async function submitImageGeneration(user,body,req=null){
     generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'vercel',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
+      generationOptions:{...quote,model},
+    });
+  }
+
+  if(isFalImageModel(requestedModel)){
+    if(!customerAccess.fal||!providerSettings.falEnabled||!providerSettings.falApiKey)throw httpError(503,'This image model is currently unavailable.');
+    const model=await getProviderModelByPublicId(FAL_IMAGE_PROVIDER,requestedModel,'image');
+    if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
+    if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'This model creates images from text only.');
+    const quote=quoteGateway(model,body,providerSettings.falCustomerCreditsPerUsd);
+    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+      provider:FAL_IMAGE_PROVIDER,dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
       generationOptions:{...quote,model},
     });
   }
@@ -1910,6 +1948,14 @@ const server=http.createServer(async (req,res)=>{
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
 
+      if(req.method==='POST'&&routePath==='/admin/fal/images/sync'){
+        requireDatabase();
+        const models=await require('./src/fal_image_queue.js').syncFalImageModels();
+        if(!models)return sendJson(res,400,{ok:false,error:'Save a fal.ai API key first.'});
+        const ready=models.filter(m=>m.ready).length;
+        logActivity({category:'admin',event:'fal.images_synced',provider:FAL_IMAGE_PROVIDER,message:'fal.ai image models synced',details:{total:models.length,ready}});
+        return sendJson(res,200,{ok:true,total:models.length,ready});
+      }
       if(req.method==='GET'&&routePath==='/admin/storage/r2'){
         requireDatabase();
         const cfg=await storageConfiguration();
@@ -2695,6 +2741,7 @@ function bootstrap() {
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
+      await enableVgenvForCustomersOnce().catch(error=>console.error('vgenv access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));

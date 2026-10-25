@@ -1,5 +1,6 @@
 const { VercelQueue } = require('./vercel_queue.js');
 const { Api888Queue } = require('./api888_queue.js');
+const { FalImageQueue } = require('./fal_image_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { SluiceQueue } = require('./sluice_queue.js');
@@ -63,6 +64,7 @@ class GenerationWorker {
     this.imageFailover = { ...credits, move: async (db, job) => moveImageJobToArgo(db, job, await getProviderSettings()) };
     this.vercelQueue = new VercelQueue({ failover: this.imageFailover });
     this.api888Queue = new Api888Queue();
+    this.falImageQueue = new FalImageQueue();
     // Video Studio: Seedance 2.5 renders on fal.ai while ArgoLink is out of credits.
     this.argoLinkQueue = new ArgoLinkQueue({ credits });
     // Video Studio: Wan 3.0 on the Higgsfield API.
@@ -112,6 +114,13 @@ class GenerationWorker {
     this.stopped = false;
     this.vercelQueue.start();
     this.api888Queue.start();
+    this.falImageQueue.start();
+    // fal.ai image catalog and prices: shortly after start, then daily.
+    const syncFal=()=>Promise.resolve().then(()=>require('./fal_image_queue.js').syncFalImageModels())
+      .then(models=>models&&logActivity({category:'system',event:'fal.images_synced',provider:'falimg',message:'fal.ai image models synced',details:{total:models.length,ready:models.filter(m=>m.ready).length}}))
+      .catch(error=>logActivity({level:'warn',category:'system',event:'fal.images_sync_failed',provider:'falimg',message:String(error.message||error).slice(0,300)}));
+    this.falSyncTimer=setTimeout(()=>{syncFal();this.falSyncInterval=setInterval(syncFal,24*60*60*1000);this.falSyncInterval.unref?.();},60000);
+    this.falSyncTimer.unref?.();
     // Once per start: re-fetch recent 888API videos that were saved incomplete.
     setTimeout(()=>Promise.resolve().then(()=>this.api888Queue.repairIncompleteVideos(getPool())).catch(()=>{}),30000).unref?.();
     this.argoLinkQueue.start();
@@ -129,6 +138,8 @@ class GenerationWorker {
     clearTimeout(this.smartImageTimer);
     this.vercelQueue.stop();
     this.api888Queue.stop();
+    this.falImageQueue.stop();
+    clearTimeout(this.falSyncTimer);clearInterval(this.falSyncInterval);
     this.argoLinkQueue.stop();
     this.higgsfieldQueue.stop();
     this.sluiceQueue.stop();
