@@ -32,8 +32,8 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.match(landing.body, /href="\/pricing"/);
   // 888API is opt-in; other studios keep their existing defaults.
   const config = JSON.parse((await page('/api/config')).body);
-  assert.equal(config.providerAccess.api888, false);
-  assert.ok(Object.entries(config.providerAccess).filter(([key])=>key!=='api888').every(([,enabled])=>enabled));
+  assert.equal(config.providerAccess.api888, true);
+  assert.ok(Object.values(config.providerAccess).every(enabled=>enabled));
   assert.equal(config.providerAccess.vibi, true);
 });
 
