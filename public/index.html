@@ -1221,6 +1221,8 @@ function capabilitySummary(model,mediaType){
   }
   if(caps.video.supported)parts.push('video refs: '+(caps.video.max||1));
   if(caps.audio.supported)parts.push('audio refs: '+(caps.audio.max||1));
+  if(model&&String(model.id||'').startsWith('api888_')&&Array.isArray(model.aspectRatios)&&model.aspectRatios.length)
+    parts.push('aspect ratios: '+model.aspectRatios.join(', '));
 
   const required=[];
   if(caps.image.min>0||caps.image.requiredRoles.length)required.push('image');
@@ -2927,7 +2929,7 @@ function validateClientReferenceSelection(){
   if(videoCap.max>0&&videoReferenceItems.length>videoCap.max)throw new Error('This model accepts at most '+videoCap.max+' video references.');
   if(imageCap.min>0&&referenceItems.length<imageCap.min)throw new Error('This model requires at least '+imageCap.min+' image reference'+(imageCap.min===1?'':'s')+'.');
   if(videoCap.min>0&&videoReferenceItems.length<videoCap.min)throw new Error('This model requires at least '+videoCap.min+' video reference'+(videoCap.min===1?'':'s')+'.');
-  if(caps.totalMax>0&&referenceItems.length+videoReferenceItems.length>caps.totalMax)throw new Error('This model accepts at most '+caps.totalMax+' total reference files.');
+  if(caps.totalMax>0&&referenceItems.length+videoReferenceItems.length+audioReferenceItems.length>caps.totalMax)throw new Error('This model accepts at most '+caps.totalMax+' total reference files.');
 
   for(const role of imageCap.requiredRoles||[]){
     if(!imageRoles.includes(role))throw new Error('This model requires a '+roleLabel(role).toLowerCase()+'.');
