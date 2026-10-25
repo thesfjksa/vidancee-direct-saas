@@ -1790,6 +1790,31 @@ const server=http.createServer(async (req,res)=>{
         const [rows]=await db.query('SELECT '+JOB_FIELDS+' FROM generations '+(where.length?'WHERE '+where.join(' AND '):'')+' ORDER BY created_at DESC LIMIT '+n,args);
         return sendJson(res,200,{ok:true,generations:rows.map(jobSnapshot)});
       }
+      // Read-only storage check for a video: what the bucket holds and what a
+      // customer's playback link returns (first bytes only, never the file).
+      const opsMedia=routePath.match(/^\/ops\/generations\/([0-9a-f-]{36})\/media-check$/i);
+      if (opsMedia) {
+        const [[row]]=await db.execute('SELECT id,output_url FROM generations WHERE id=?',[opsMedia[1]]);
+        if(!row)return sendJson(res,404,{ok:false,error:'Generation not found.'});
+        const key=keyFromMarker(row.output_url);
+        if(!key)return sendJson(res,200,{ok:true,outputUrl:String(row.output_url||'').slice(0,40),stored:'not in cloud storage'});
+        const store=await configuredStorage({requireEnabled:false});
+        const head=await store.head(key).catch(error=>({error:error.message}));
+        const sniff=async(url,init={})=>{
+          try{
+            const r=await fetch(url,{...init,headers:{range:'bytes=0-63',...(init.headers||{})},signal:AbortSignal.timeout(20000)});
+            const bytes=Buffer.from(await r.arrayBuffer()).subarray(0,64);
+            return {status:r.status,contentType:r.headers.get('content-type'),contentRange:r.headers.get('content-range'),
+              disposition:r.headers.get('content-disposition'),acceptRanges:r.headers.get('accept-ranges'),
+              hasFtyp:bytes.includes(Buffer.from('ftyp')),firstBytes:bytes.toString('latin1').replace(/[^\x20-\x7e]/g,'.')};
+          }catch(error){return {error:error.message};}
+        };
+        const name='cmm-tools-'+row.id.slice(0,8)+'.mp4';
+        return sendJson(res,200,{ok:true,key,head,
+          stream:await sniff(store.presign(key,{contentType:'video/mp4',disposition:'inline; filename="'+name+'"'})),
+          download:await sniff(store.presign(key,{contentType:'video/mp4',disposition:'attachment; filename="'+name+'"'})),
+          plain:await sniff(store.presign(key))});
+      }
       const opsJob=routePath.match(/^\/ops\/generations\/([0-9a-f-]{36})$/i);
       if (opsJob) {
         const [[row]]=await db.execute('SELECT '+JOB_FIELDS+' FROM generations WHERE id=?',[opsJob[1]]);
