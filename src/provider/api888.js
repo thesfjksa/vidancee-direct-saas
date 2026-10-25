@@ -137,7 +137,7 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     return payload;
   }
   // Grok expects pixels in size, a string seconds and a singular image_url.
-  if(/^grok-imagine-(?:1\\.0-video|video(?:-preview|-1\\.5-preview|-1\\.5-fast)?)$/.test(id)){
+  if(/^grok-imagine-(?:1\.0-video|video(?:-preview|-1\.5-preview|-1\.5-fast)?)$/.test(id)){
     if(!['16:9','9:16'].includes(ratio))throw new Error('Unsupported Grok output ratio.');
     if(Array.isArray(model.durations)&&!model.durations.includes(duration))
       throw new Error('Unsupported Grok duration for this model.');
