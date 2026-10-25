@@ -7,7 +7,10 @@ const { GenerationWorker } = require('./src/worker_admin_settings.js');
 const { ensureGatewayCatalog } = require('./src/provider_models.js');
 const { setActivityService, logActivity, pruneActivity } = require('./src/activity_log.js');
 setActivityService('worker');
-const { migrateLegacyProviderEnvSettings } = require('./src/settings.js');
+const { migrateLegacyProviderEnvSettings, getProviderSettings } = require('./src/settings.js');
+const { REFRESH_MS: API888_HEALTH_REFRESH_MS, refreshApi888Health, healthSummary } = require('./src/api888_health.js');
+const { Api888Client } = require('./src/provider/api888.js');
+let api888Health=null;
 const {startDriveMigrationLoop}=require('./src/google_drive_migration.js');
 
 let worker=null;
@@ -77,6 +80,7 @@ healthServer=http.createServer((req,res)=>{
       revision:6,
       gatewayPolling:worker.vercelQueue.health(),
       api888Polling:worker.api888Queue.health(),
+      api888ModelHealth:healthSummary(api888Health),
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),
       sluicePolling:worker.sluiceQueue.health(),
@@ -115,6 +119,15 @@ healthServer.listen(port,host,()=>{
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();
   worker.start();
+  // Customers only see 888API models that 888API currently marks available.
+  const refreshHealth=async()=>{
+    try{
+      const settings=await getProviderSettings();
+      if(!settings.api888Enabled||!settings.api888ApiKey)return;
+      api888Health=await refreshApi888Health({client:new Api888Client({apiKey:settings.api888ApiKey})});
+    }catch(error){console.error('[worker] 888API model health refresh failed:',error.message);}
+  };
+  refreshHealth();setInterval(refreshHealth,API888_HEALTH_REFRESH_MS).unref();
   // One background, resumable migration job at a time. Never deletes chunks
   // until Google Drive has verified the uploaded file and its MD5 checksum.
   stopDriveMigration=startDriveMigrationLoop({db:getPool()});

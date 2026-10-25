@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — Customers only see 888API models marked "available"
+
+- The worker reads `health_status` from 888API's `GET /v1/models` every 10 minutes and saves a snapshot in `app_settings` (`api888_model_health`). Customer Video and Image Studio hide every 888API model that is not currently `available` (当前可用); `verifying`, `no_recent_success`, `disabled` and models the key doesn't return are hidden. Submissions to a hidden model are refused before any charge.
+- Models reappear automatically when 888API marks them available again. Admin switches, per-customer access and prices are unchanged.
+- Fails open when there is no snapshot yet or 888API sends no health fields, so the catalog can't be emptied by an upstream change. Worker `/health` shows `api888ModelHealth` counts and the snapshot time.
+- Background: `wan3.0-video-prime` and `seedance2.0-pro-480p` failed with 888API `model_not_found` ("no available channel") on 25 Oct; both were refunded.
+
 ## 2026-10-25 — 888API prices and contracts re-checked against the model catalog and /docs
 
 Compared all 39 cards in the 888API model catalog (owner screenshots, 25 Oct) and the https://888api.xin/docs model tables with `src/api888_models.js`. All 39 IDs exist in code. Prices follow 1 CNY = 1 credit; **where the catalog card and the docs disagree, the higher price is kept** so no job runs at a loss.
