@@ -33,17 +33,18 @@ gpt-image-2.5-flare gpt-image-2.5-flare-4k gpt-image-2.5-sunburst gpt-image-2.5-
 gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-preview gemini-3.1-flash-image-preview-c
 `.trim().split(/\s+/);
 
-// Published 888API prices in CNY, checked 24 October 2026. Absence does not
+// Published 888API prices in CNY, checked 24 October 2026 and re-checked
+// against the owner's 25 October model-catalog screenshots. Absence does not
 // mean zero. Do not enable unknown pricing or silently substitute another SKU.
 // [CNY, billing type, min seconds, max seconds, resolution, image refs, video refs, audio refs]
 const SPECS = {
   'seedance2.0-933-economy':[5,'job',15,15,'720p',9,3,3],
-  'pidoi-h3video-2k':[2.3,'job',15,15,'2k',9,3,3],
+  'pidoi-h3video-2k':[2,'job',15,15,'2k',9,3,3],
   'minimax-h3-480p-t':[0.065,'second',5,15,'480p',9,0,0],
   'minimax-h3-768p-t':[0.07,'second',5,15,'768p',9,0,0],
   'pidoi-omni-flash-720p':[0.8,'job',5,10,'720p',4,3,3],
   'pidoi-veo31-fast':[0.6,'job',4,8,'720p',2,0,0],
-  'seedance2.0-933':[5,'job',10,15,'720p',9,3,3],
+  'seedance2.0-933':[4.5,'job',10,15,'720p',9,3,3],
   'seedance2.0-pro-480p':[3.8,'job',15,15,'480p',9,3,3],
   'seedance2.0-933-fast':[4,'job',10,15,'720p',9,0,0],
   'seedance2.0-933-mini':[1,'job',5,12,'720p',9,0,3],
@@ -58,11 +59,11 @@ const SPECS = {
   'wan3.0-image':[0.22,'second',2,30,'720p',10,0,0],
   'wan3.0-image-prime':[0.25,'second',2,30,'720p',10,0,0],
   'seedance2.5-480p-value':[0.45,'second',4,15,'480p',0,0,0],
-  'seedance2.5-480p-plus':[0.6,'second',4,15,'480p',0,0,0],
+  'seedance2.5-480p-plus':[0.5,'second',4,15,'480p',0,0,0],
   'seedance2.5-480p-pro':[0.5,'second',4,15,'480p',0,0,0],
-  'seedance2.5-720p-plus':[0.9,'second',4,15,'720p',0,0,0],
+  'seedance2.5-720p-plus':[0.75,'second',4,15,'720p',0,0,0],
   'seedance2.5-720p-pro':[0.75,'second',4,15,'720p',0,0,0],
-  'seedance2.5-1080p-plus':[1.25,'second',4,15,'1080p',0,0,0],
+  'seedance2.5-1080p-plus':[0.9,'second',4,15,'1080p',0,0,0],
   'seedance2.5-1080p-pro':[1.25,'second',4,15,'1080p',0,0,0],
   'xin-seedance-2.0-900':[1.7,'job',4,30,'720p',9,0,0],
   'xin-seedance-2.0-933':[3,'job',4,30,'720p',9,3,3],
@@ -87,7 +88,7 @@ Object.assign(SPECS, {
  'seedance2.0-900-wool':[0.9,'job',4,15,'720p',9,0,0],
  'seedance2.0-933-wool':[1.1,'job',4,15,'720p',9,0,0],
  'seedance2.5-101010-wool':[1.3,'job',4,30,'720p',10,0,0],
- 'seedance2.5-301010-wool':[1.7,'job',4,30,'720p',30,0,0],
+ 'seedance2.5-301010-wool':[7,'job',4,30,'720p',30,0,0],
  'seedance2.5-900':[5.7,'job',5,30,'720p',9,0,0],
  'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
  'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
@@ -126,7 +127,8 @@ Object.assign(SPECS,{
  'seedance2.0-full-4img':[4,'job',4,15,'720p',4,3,1],
  'seedance2.0-fast-4img':[3.5,'job',4,15,'720p',4,3,1],
  'doubao-seedance-2-0-fast':[0.61,'second',4,15,'720p',9,3,3],
- 'jimeng-video-seedance-2.0-fast-vip':[0.484,'second',4,15,'720p',2,0,0],
+ // Catalog card (25 Oct 2026): fixed 15 s 720p, ¥4.5 per video.
+ 'jimeng-video-seedance-2.0-fast-vip':[4.5,'job',15,15,'720p',2,0,0],
 });
 for(const id of SORA_VARIANTS){
  const secs=Number(id.match(/-(\d+)s-/)[1]);
@@ -140,9 +142,9 @@ const IMAGE_CNY = {
   'gpt-image-2.5-1k':0.06,'gpt-image-2.5-4k':0.09,
   'gpt-image-2.5-flare':0.05,'gpt-image-2.5-flare-4k':0.09,
   'gpt-image-2.5-sunburst':0.05,'gpt-image-2.5-sunburst-4k':0.09,
-  'gpt-image-2':0.075,'gpt-image-2pro':0.075,
-  'gemini-3-pro-image-preview':0.075,'gemini-3-pro-image-preview-c':0.075,
-  'gemini-3.1-flash-image-preview':0.075,'gemini-3.1-flash-image-preview-c':0.075,
+  'gpt-image-2':0.05,'gpt-image-2-1k':0.04,'gpt-image-2pro':0.075,
+  'gemini-3-pro-image-preview':0.12,'gemini-3-pro-image-preview-c':0.075,
+  'gemini-3.1-flash-image-preview':0.1,'gemini-3.1-flash-image-preview-c':0.075,
   'gpt-image-2-4k':0.09,
 };
 const PUBLIC_ID = id => 'api888_' + String(id).replace(/[^a-zA-Z0-9]/g, '_');
@@ -185,7 +187,7 @@ const modelVideoRatios=id=>{
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
   if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
-  if(id==='seedance2.5-930-1080p')return RATS_WIDE;
+  if(id==='seedance2.5-930-1080p'||id==='seedance2.5-301010-wool')return RATS_WIDE;
   if(id==='seedance2.5-900')return RATS_FIVE;
   return RATS;
 };
@@ -205,6 +207,7 @@ function describedModel(id,type) {
   // as Admin-only entries, never silently mapped to an incompatible API.
   const implemented=known && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
+      'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
       'gemini-3.1-flash-image-preview','gemini-3.1-flash-image-preview-c'].includes(id)) ||
     (!isImage && (SORA_VARIANTS.includes(id)||GROK_VARIANTS.includes(id))) ||

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-25 — 888API prices re-checked against the owner's model-catalog screenshots
+
+Compared all 39 cards in the 888API model catalog (owner screenshots, 25 Oct) with `src/api888_models.js`. All 39 IDs exist in code; corrections below follow the 1 CNY = 1 credit rule.
+
+- **Undercharging (provider cost above our charge):** `seedance2.5-301010-wool` ¥1.7 → **¥7** per video (ratios now include 4:3, 3:4, 21:9); `gemini-3-pro-image-preview` ¥0.075 → **¥0.12**; `gemini-3.1-flash-image-preview` ¥0.075 → **¥0.10**; `jimeng-video-seedance-2.0-fast-vip` ¥0.484/s (4–15 s) → **¥4.5 per video, fixed 15 s**.
+- **Overcharging:** `seedance2.0-933` ¥5 → ¥4.5; `pidoi-h3video-2k` ¥2.3 → ¥2; `seedance2.5-480p-plus` ¥0.6/s → ¥0.5/s; `seedance2.5-720p-plus` ¥0.9/s → ¥0.75/s; `seedance2.5-1080p-plus` ¥1.25/s → ¥0.9/s; `gpt-image-2` ¥0.075 → ¥0.05.
+- **Newly runnable images:** `gpt-image-2.5-flare` (¥0.05) and `gpt-image-2.5-flare-4k` (¥0.09) were priced but missing from the image adapter list; `gpt-image-2-1k` added at ¥0.04. They use the same image request path as their Sunburst / GPT Image 2 siblings and still need Admin opt-in.
+- **Left unsupported (catalog shows "verifying" or missing contract details):** `doubao-seedance-2.0-mini`, `sd_2.0_mini_special`, `ss-2.0-933-720p`, `seedance2.5-301010-wool-1080p`.
+- **Not changed, needs provider docs:** the cards say `wan3.0-image`, `wan3.0-image-prime`, `wan3.0-video` and `wan3.0-video-prime` accept audio references (image models: up to 5), but the audio request field isn't documented, so audio uploads stay off. `seedance2.5-930-1080p`'s card mentions only 9 images, while code also allows 3 audios via `metadata.audios` from the docs.
+- **Saved prices are stored in MySQL rows.** After deploying, run Admin → 888API → **Import all accessible models** so the new prices replace the saved ones.
+
 ## 2026-10-25 — 888API source expansion PRs #43–#45, account audit, Seedance G5-V2 multimodal
 
 - **Merged PR [#43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43)** (`ba657667`): expanded priced 888API video adapters, corrected SS 2.5 V1 fixed source cost to ¥3.90, adjusted documented maximum durations/ratio/media references, and added regression tests (**267 passed**).

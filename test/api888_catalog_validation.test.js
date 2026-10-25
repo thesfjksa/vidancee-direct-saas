@@ -18,11 +18,11 @@ const reference=(type,n=0)=>({
 test('priced Seedance 2.5 per-second SKUs use exact published rates and string seconds',()=>{
   const expected=[
     ['seedance2.5-480p-value',0.45,'480p'],
-    ['seedance2.5-480p-plus',0.6,'480p'],
+    ['seedance2.5-480p-plus',0.5,'480p'],
     ['seedance2.5-480p-pro',0.5,'480p'],
-    ['seedance2.5-720p-plus',0.9,'720p'],
+    ['seedance2.5-720p-plus',0.75,'720p'],
     ['seedance2.5-720p-pro',0.75,'720p'],
-    ['seedance2.5-1080p-plus',1.25,'1080p'],
+    ['seedance2.5-1080p-plus',0.9,'1080p'],
     ['seedance2.5-1080p-pro',1.25,'1080p'],
   ];
   const client=new Api888Client({apiKey:'not-used'});
@@ -112,4 +112,13 @@ test('unpriced or unknown upstream IDs are never silently allowed to spend credi
  const unknown=byId('unknown-provider-888api-model');
  assert.equal(unknown.adapterSupported,false);
  assert.throws(()=>quoteApi888(unknown,{duration:5}),/(additional setup|No verified 888API price)/i);
+});
+
+test('25 Oct catalog cards: corrected fixed prices and wool ratios',()=>{
+  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',4.5,10],['pidoi-h3video-2k',2,15]]){
+    const model=byId(id);
+    assert.equal(model.api888.billing,'job',id);
+    assert.equal(quoteApi888(model,{duration,resolution:model.defaultResolution,aspectRatio:'16:9'}).cost,price,id);
+  }
+  assert.deepEqual(byId('seedance2.5-301010-wool').aspectRatios,['16:9','9:16','1:1','4:3','3:4','21:9']);
 });
