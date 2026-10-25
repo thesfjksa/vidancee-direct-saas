@@ -352,8 +352,11 @@ Api888Client.prototype.videoContent=async function(id,url){
 };
 Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   if(refs.length)throw new Error('888API image editing requires the dedicated multipart adapter; choose text-to-image.');
+  const ratio=String(params.aspectRatio||'1:1');
+  const size=require('../api888_models.js').api888ImageSize(model.providerModelId,ratio);
+  if(!size)throw new Error('Unsupported aspect ratio for this 888API image model.');
   const result=await this.json('/v1/images/generations',{model:model.providerModelId,
-    prompt:String(params.prompt||''),n:1},180000,API888_IMAGE_JSON_LIMIT);
+    prompt:String(params.prompt||''),n:1,size},180000,API888_IMAGE_JSON_LIMIT);
   const item=result.data?.[0];
   let data;
   if(item?.b64_json){if(item.b64_json.length>Math.ceil(IMAGE_LIMIT*4/3)+8)throw new Error('The generated image exceeds the supported 20 MiB limit.');data=Buffer.from(item.b64_json,'base64');}
@@ -361,7 +364,7 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   if(!data?.length)throw new Error('888API did not return an image.');
   if(data.length>IMAGE_LIMIT)throw new Error('The generated image exceeds the supported 20 MiB limit.');
   const mimeType=imageMime(data);
-  validateCanvas(data,mimeType,params.aspectRatio);
+  validateCanvas(data,mimeType,ratio);
   return {data,mimeType};
 };
 module.exports={Api888Client,ORIGIN,publicMediaUrl};

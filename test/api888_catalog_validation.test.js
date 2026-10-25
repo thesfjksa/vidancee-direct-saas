@@ -156,3 +156,33 @@ test('docs-verified models enabled 25 Oct use documented fields, limits and pric
   assert.deepEqual([body.image_urls.length,body.video_urls.length,body.audio_urls.length],[1,1,1]);
   assert.throws(()=>client.videoBody(special,{prompt:'P',duration:10},[reference('audio')]),/image or video with reference audio/);
 });
+
+test('888API labels name resolution and reference limits; image models offer three ratios with documented sizes',async()=>{
+  const {api888ImageSize,api888MediaModels:all}=require('../src/api888_models.js');
+  const label=(id,type='video')=>all({data:[{id,type}]})[0].label;
+  assert.equal(label('seedance-2.5-g5-v2'),'Seedance 2.5 G5 Realistic · 720p · 30 img + 10 video + 10 audio');
+  assert.equal(label('minimax-h3-480p-t'),'MiniMax H3 · 480p · 1–9 img');
+  assert.equal(label('seedance2.5-480p-plus'),'Seedance 2.5 Plus · 480p · Text only');
+  assert.equal(label('pidoi-h3video-2k'),'MiniMax H3 Multi-Reference · 2K · 9 img + 3 video + 3 audio');
+  assert.equal(label('gpt-image-2.5-flare-4k','image'),'GPT Image 2.5 Flare · 4K');
+  assert.equal(label('gpt-image-2','image'),'GPT Image 2 · 2K');
+  for(const id of ['gpt-image-2','gpt-image-2-1k','gpt-image-2-4k','gpt-image-2.5-flare','gemini-3-pro-image-preview']){
+    const m=all({data:[{id,type:'image'}]})[0].options;
+    assert.deepEqual(m.aspectRatios,['1:1','16:9','9:16'],id);
+    for(const r of m.aspectRatios){
+      const [w,h]=api888ImageSize(id,r).split('x').map(Number);
+      assert.ok(w%16===0&&h%16===0,id+' '+r);
+      const [rw,rh]=r.split(':').map(Number);
+      assert.ok(Math.abs((w/h)/(rw/rh)-1)<0.01,id+' '+r);
+    }
+  }
+  assert.equal(api888ImageSize('gpt-image-2-4k','16:9'),'3840x2160');
+  assert.equal(api888ImageSize('gpt-image-2','9:16'),'1152x2048');
+  assert.equal(api888ImageSize('gpt-image-2pro','16:9'),null);
+  let sent=null;
+  const client=new Api888Client({apiKey:'k',fetchImpl:async(url,init)=>{sent=JSON.parse(init.body);return new Response('{}',{status:500});}});
+  const model={providerModelId:'gpt-image-2.5-flare-4k'};
+  await assert.rejects(client.generateImage(model,{prompt:'P',aspectRatio:'9:16'}));
+  assert.equal(sent.size,'2160x3840');
+  await assert.rejects(client.generateImage(model,{prompt:'P',aspectRatio:'4:3'}),/Unsupported aspect ratio/);
+});

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — 888API model names and image aspect ratios
+
+- 888API models get customer names that state resolution and reference limits, e.g. `Seedance 2.5 G5 Realistic · 720p · 30 img + 10 video + 10 audio`, `MiniMax H3 · 480p · 1–9 img` (image required), `Seedance 2.5 Plus · 480p · Text only`, `GPT Image 2.5 Flare · 4K`. Names come from `NAMES` / `api888Label` in `src/api888_models.js`.
+- 888API image models offer 1:1, 16:9 and 9:16 (previously only 1:1, except `gpt-image-2`). Requests now send `size` from the documented gpt-image-2 table: 1K 1024x1024 / 1536x864 / 864x1536, 2K for `gpt-image-2`, 4K for `-4k` models. `gpt-image-2pro` stays 1:1. A wrong-shaped result is still rejected and refunded by `validateCanvas`.
+- Names and ratios follow the current code at read time (the existing api888 row overlay now also covers image rows and labels), so no re-import is needed.
+
 ## 2026-10-25 — Customers only see 888API models marked "available"
 
 - The worker reads `health_status` from 888API's `GET /v1/models` every 10 minutes and saves a snapshot in `app_settings` (`api888_model_health`). Customer Video and Image Studio hide every 888API model that is not currently `available` (当前可用); `verifying`, `no_recent_success`, `disabled` and models the key doesn't return are hidden. Submissions to a hidden model are refused before any charge.
