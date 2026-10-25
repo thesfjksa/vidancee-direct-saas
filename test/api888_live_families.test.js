@@ -50,14 +50,15 @@ test('five documented Grok models bill per request and send string seconds, imag
  assert.throws(()=>client.videoBody(preview,{duration:5,aspectRatio:'16:9',prompt:'Grok'},[]),
    /requires at least 1 reference image/);
 });
-test('documented OpenAI and Gemini models support paid text-to-image at exactly 0.075 CNY',()=>{
- for(const id of ['gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview',
-  'gemini-3-pro-image-preview-c','gemini-3.1-flash-image-preview',
-  'gemini-3.1-flash-image-preview-c']){
+test('documented OpenAI and Gemini models support paid text-to-image at published CNY prices',()=>{
+ for(const [id,price] of [['gpt-image-2',0.05],['gpt-image-2pro',0.075],
+  ['gemini-3-pro-image-preview',0.12],['gemini-3-pro-image-preview-c',0.075],
+  ['gemini-3.1-flash-image-preview',0.1],['gemini-3.1-flash-image-preview-c',0.075],
+  ['gpt-image-2-1k',0.04],['gpt-image-2.5-flare',0.05],['gpt-image-2.5-flare-4k',0.09]]){
   const m=model(id,'image');
   assert.equal(m.mediaType,'image');
   assert.equal(m.adapterSupported,true,id);
-  assert.equal(quoteApi888(m,{}).cost,0.075,id);
+  assert.equal(quoteApi888(m,{}).cost,price,id);
   assert.deepEqual(m.supportedOperations,['text-to-image'],id);
  }
 });
@@ -96,12 +97,14 @@ test('unknown and undocumented IDs remain unrunnable even when upstream lists th
 test('Jimeng fast-vip uses its required functionMode, numeric duration and image URLs',()=>{
  const id='jimeng-video-seedance-2.0-fast-vip',m=model(id);
  assert.equal(m.adapterSupported,true);
- assert.equal(quoteApi888(m,{duration:5}).cost,2.42);
+ assert.deepEqual(m.durations,[15]);
+ assert.equal(m.api888.billing,'job');
+ assert.equal(quoteApi888(m,{duration:15}).cost,4.5);
  assert.equal(m.referenceCapabilities.image.max,2);
- const body=client.videoBody(m,{prompt:'Scene',duration:5,aspectRatio:'16:9'},[im]);
+ const body=client.videoBody(m,{prompt:'Scene',duration:15,aspectRatio:'16:9'},[im]);
  assert.equal(body.functionMode,'first_last_frames');
- assert.equal(body.duration,5);
+ assert.equal(body.duration,15);
  assert.equal(Object.hasOwn(body,'seconds'),false);
  assert.deepEqual(body.referenceImages,[im.url]);
- assert.throws(()=>client.videoBody(m,{prompt:'Scene',duration:5},[im,im,im]),/at most 2 image/);
+ assert.throws(()=>client.videoBody(m,{prompt:'Scene',duration:15},[im,im,im]),/at most 2 image/);
 });

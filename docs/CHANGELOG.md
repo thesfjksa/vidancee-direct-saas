@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-25 — 888API prices and contracts re-checked against the model catalog and /docs
+
+Compared all 39 cards in the 888API model catalog (owner screenshots, 25 Oct) and the https://888api.xin/docs model tables with `src/api888_models.js`. All 39 IDs exist in code. Prices follow 1 CNY = 1 credit; **where the catalog card and the docs disagree, the higher price is kept** so no job runs at a loss.
+
+- **Undercharging fixed (provider cost was above our charge):** `seedance2.5-301010-wool` ¥1.7 → **¥7** per video (catalog and docs table agree; the docs' economy-tier paragraph still says ¥1.7 and is stale); `gemini-3-pro-image-preview` ¥0.075 → **¥0.12**; `gemini-3.1-flash-image-preview` ¥0.075 → **¥0.10**; `jimeng-video-seedance-2.0-fast-vip` ¥0.484/s (4–15 s) → **¥4.5 per video, fixed 15 s** (docs confirm).
+- **Lowered:** `gpt-image-2` ¥0.075 → ¥0.05 (catalog).
+- **Catalog lower than docs, left at the docs price, owner to confirm from the 888API bill:** `seedance2.0-933` (card ¥4.5, docs ¥5), `pidoi-h3video-2k` (¥2 vs ¥2.3), `seedance2.5-480p-plus` (¥0.5/s vs ¥0.6/s), `seedance2.5-720p-plus` (¥0.75/s vs ¥0.9/s), `seedance2.5-1080p-plus` (¥0.9/s vs ¥1.25/s).
+- **Newly runnable from documented contracts:** `doubao-seedance-2.0-mini` (¥1.6, 5/10/15 s, 9 images), `ss-2.0-933-720p` (¥1.5, 5–15 s, 9 images / 3 videos / 3 audios), `seedance2.5-301010-wool-1080p` (¥10, 4–30 s, 1080P), `sd_2.0_mini_special` (¥0.15/s, 4–15 s, `duration` field, `image_urls` / `video_urls` / `audio_urls`; audio needs an image or video alongside). `seedance2.5-301010-wool` now also accepts 10 videos + 10 audios and the six documented ratios. Images: `gpt-image-2.5-flare` (¥0.05), `gpt-image-2.5-flare-4k` (¥0.09), `gpt-image-2-1k` (¥0.04). All still need Admin opt-in after re-import.
+- **Checked, no change:** the catalog cards claim audio references for the four Wan 3.0 models, but the docs list images (+ videos for `wan3.0-video*`) only, so audio stays off. `jimeng-video-seedance-2.0-fast-vip` keeps the 2-image first/last-frame mode; its `omni_reference` mode (up to 12 mixed references) isn't wired up. `ss-2.5-720p-v1` is ¥5 in the docs vs ¥3.9 in code; it isn't returned by the account key, so it can't be used yet. Fix the price before it ever is. `sd_2.0_mini_special`'s 15 s total limit on reference video/audio length isn't validated locally.
+- **Saved prices live in MySQL rows.** After deploying, run Admin → 888API → **Import all accessible models** so the new prices and contracts replace the saved ones.
+
 ## 2026-10-25 — 888API source expansion PRs #43–#45, account audit, Seedance G5-V2 multimodal
 
 - **Merged PR [#43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43)** (`ba657667`): expanded priced 888API video adapters, corrected SS 2.5 V1 fixed source cost to ¥3.90, adjusted documented maximum durations/ratio/media references, and added regression tests (**267 passed**).

@@ -33,7 +33,9 @@ gpt-image-2.5-flare gpt-image-2.5-flare-4k gpt-image-2.5-sunburst gpt-image-2.5-
 gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-preview gemini-3.1-flash-image-preview-c
 `.trim().split(/\s+/);
 
-// Published 888API prices in CNY, checked 24 October 2026. Absence does not
+// Published 888API prices in CNY, checked 24 October 2026 and re-checked
+// against the owner's 25 October model-catalog screenshots and /docs. Where
+// the catalog card and the docs table disagree, keep the higher price. Absence does not
 // mean zero. Do not enable unknown pricing or silently substitute another SKU.
 // [CNY, billing type, min seconds, max seconds, resolution, image refs, video refs, audio refs]
 const SPECS = {
@@ -87,7 +89,11 @@ Object.assign(SPECS, {
  'seedance2.0-900-wool':[0.9,'job',4,15,'720p',9,0,0],
  'seedance2.0-933-wool':[1.1,'job',4,15,'720p',9,0,0],
  'seedance2.5-101010-wool':[1.3,'job',4,30,'720p',10,0,0],
- 'seedance2.5-301010-wool':[1.7,'job',4,30,'720p',30,0,0],
+ 'seedance2.5-301010-wool':[7,'job',4,30,'720p',30,0,0],
+ // https://888api.xin/docs (25 Oct 2026): same contract as 301010-wool, 1080P output.
+ 'seedance2.5-301010-wool-1080p':[10,'job',4,30,'1080p',30,0,0],
+ // Official discounted Mini: duration-billed, 4–15 s, *_urls reference arrays.
+ 'sd_2.0_mini_special':[0.15,'second',4,15,'720p',9,3,3],
  'seedance2.5-900':[5.7,'job',5,30,'720p',9,0,0],
  'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
  'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
@@ -126,7 +132,8 @@ Object.assign(SPECS,{
  'seedance2.0-full-4img':[4,'job',4,15,'720p',4,3,1],
  'seedance2.0-fast-4img':[3.5,'job',4,15,'720p',4,3,1],
  'doubao-seedance-2-0-fast':[0.61,'second',4,15,'720p',9,3,3],
- 'jimeng-video-seedance-2.0-fast-vip':[0.484,'second',4,15,'720p',2,0,0],
+ // Catalog card (25 Oct 2026): fixed 15 s 720p, ¥4.5 per video.
+ 'jimeng-video-seedance-2.0-fast-vip':[4.5,'job',15,15,'720p',2,0,0],
 });
 for(const id of SORA_VARIANTS){
  const secs=Number(id.match(/-(\d+)s-/)[1]);
@@ -140,9 +147,9 @@ const IMAGE_CNY = {
   'gpt-image-2.5-1k':0.06,'gpt-image-2.5-4k':0.09,
   'gpt-image-2.5-flare':0.05,'gpt-image-2.5-flare-4k':0.09,
   'gpt-image-2.5-sunburst':0.05,'gpt-image-2.5-sunburst-4k':0.09,
-  'gpt-image-2':0.075,'gpt-image-2pro':0.075,
-  'gemini-3-pro-image-preview':0.075,'gemini-3-pro-image-preview-c':0.075,
-  'gemini-3.1-flash-image-preview':0.075,'gemini-3.1-flash-image-preview-c':0.075,
+  'gpt-image-2':0.05,'gpt-image-2-1k':0.04,'gpt-image-2pro':0.075,
+  'gemini-3-pro-image-preview':0.12,'gemini-3-pro-image-preview-c':0.075,
+  'gemini-3.1-flash-image-preview':0.1,'gemini-3.1-flash-image-preview-c':0.075,
   'gpt-image-2-4k':0.09,
 };
 const PUBLIC_ID = id => 'api888_' + String(id).replace(/[^a-zA-Z0-9]/g, '_');
@@ -177,6 +184,10 @@ const VIDEO_INPUTS={
   'seedance2.0-933-mini':{videos:0,audios:3},
   'xin-seedance-2.0-933':{videos:3,audios:3},
   'wan3.0-video-prime':{videos:10,audios:0},
+  'seedance2.5-301010-wool':{videos:10,audios:10},
+  'seedance2.5-301010-wool-1080p':{videos:10,audios:10},
+  'ss-2.0-933-720p':{videos:3,audios:3},
+  'sd_2.0_mini_special':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
 };
 const modelVideoRatios=id=>{
  if(SORA_VARIANTS.includes(id))return [id.endsWith('16x9')?'16:9':'9:16'];
@@ -185,7 +196,7 @@ const modelVideoRatios=id=>{
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
   if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
-  if(id==='seedance2.5-930-1080p')return RATS_WIDE;
+  if(/^seedance2\.5-(930-1080p|301010-wool(-1080p)?)$/.test(id))return RATS_WIDE;
   if(id==='seedance2.5-900')return RATS_FIVE;
   return RATS;
 };
@@ -205,6 +216,7 @@ function describedModel(id,type) {
   // as Admin-only entries, never silently mapped to an incompatible API.
   const implemented=known && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
+      'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
       'gemini-3.1-flash-image-preview','gemini-3.1-flash-image-preview-c'].includes(id)) ||
     (!isImage && (SORA_VARIANTS.includes(id)||GROK_VARIANTS.includes(id))) ||
@@ -224,6 +236,8 @@ function describedModel(id,type) {
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
+      'doubao-seedance-2.0-mini','ss-2.0-933-720p','seedance2.5-301010-wool-1080p',
+      'sd_2.0_mini_special',
       // Official per-second video SKUs: all use POST /v1/videos with
       // "seconds" and optional public-URL images (except text-only Seedance).
       'seedance2.0-480p','seedance2.0-720p',
@@ -254,8 +268,8 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip'].includes(id)?'seconds':'duration',
-        imageField:id==='seedance-2.5-c1'||id==='doubao-seedance-2-0-fast'?'image_urls':
+        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration',
+        imageField:['seedance-2.5-c1','doubao-seedance-2-0-fast','sd_2.0_mini_special'].includes(id)?'image_urls':
           (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},

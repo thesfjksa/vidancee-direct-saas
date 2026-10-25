@@ -113,3 +113,46 @@ test('unpriced or unknown upstream IDs are never silently allowed to spend credi
  assert.equal(unknown.adapterSupported,false);
  assert.throws(()=>quoteApi888(unknown,{duration:5}),/(additional setup|No verified 888API price)/i);
 });
+
+test('25 Oct catalog cards: corrected fixed prices and wool ratios',()=>{
+  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',5,10],['pidoi-h3video-2k',2.3,15]]){
+    const model=byId(id);
+    assert.equal(model.api888.billing,'job',id);
+    assert.equal(quoteApi888(model,{duration,resolution:model.defaultResolution,aspectRatio:'16:9'}).cost,price,id);
+  }
+  assert.deepEqual(byId('seedance2.5-301010-wool').aspectRatios,['16:9','9:16','1:1','4:3','3:4','21:9']);
+});
+
+test('docs-verified models enabled 25 Oct use documented fields, limits and prices',()=>{
+  const client=new Api888Client({apiKey:'not-used'});
+  const mini=byId('doubao-seedance-2.0-mini');
+  assert.equal(mini.adapterSupported,true);
+  assert.deepEqual(mini.durations,[5,10,15]);
+  assert.equal(quoteApi888(mini,{duration:10,resolution:'720p',aspectRatio:'16:9'}).cost,1.6);
+  assert.equal(mini.referenceCapabilities.video.supported,false);
+  assert.equal(mini.referenceCapabilities.audio.supported,false);
+  assert.equal(client.videoBody(mini,{prompt:'P',duration:10,aspectRatio:'9:16'},[reference('image')]).duration,10);
+
+  const ss=byId('ss-2.0-933-720p');
+  assert.equal(ss.adapterSupported,true);
+  assert.equal(quoteApi888(ss,{duration:8,resolution:'720p',aspectRatio:'16:9'}).cost,1.5);
+  const ssBody=client.videoBody(ss,{prompt:'P',duration:8,aspectRatio:'1:1'},[reference('image'),reference('video'),reference('audio')]);
+  assert.deepEqual([ssBody.images.length,ssBody.videos.length,ssBody.audios.length],[1,1,1]);
+
+  for(const [id,price,res] of [['seedance2.5-301010-wool',7,'720p'],['seedance2.5-301010-wool-1080p',10,'1080p']]){
+    const m=byId(id);
+    assert.equal(m.adapterSupported,true,id);
+    assert.equal(m.defaultResolution,res,id);
+    assert.equal(quoteApi888(m,{duration:30,resolution:res,aspectRatio:'21:9'}).cost,price,id);
+    assert.deepEqual([m.referenceCapabilities.image.max,m.referenceCapabilities.video.max,m.referenceCapabilities.audio.max],[30,10,10],id);
+  }
+
+  const special=byId('sd_2.0_mini_special');
+  assert.equal(special.adapterSupported,true);
+  assert.equal(quoteApi888(special,{duration:10,resolution:'720p',aspectRatio:'16:9'}).cost,1.5);
+  const body=client.videoBody(special,{prompt:'P',duration:10,aspectRatio:'9:16'},[reference('image'),reference('video'),reference('audio')]);
+  assert.equal(body.duration,10);
+  assert.ok(!Object.hasOwn(body,'seconds'));
+  assert.deepEqual([body.image_urls.length,body.video_urls.length,body.audio_urls.length],[1,1,1]);
+  assert.throws(()=>client.videoBody(special,{prompt:'P',duration:10},[reference('audio')]),/image or video with reference audio/);
+});
