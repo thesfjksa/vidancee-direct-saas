@@ -151,6 +151,9 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     [timeField]:timeField==='seconds'?String(duration):duration,
     resolution:String(params.resolution||model.defaultResolution||'720p'),
     ratio};
+  // Jimeng fast-VIP requires functionMode, and the documented first/last
+  // frame mode accepts at most two image URLs. No multipart A/V claims here.
+  if(id==='jimeng-video-seedance-2.0-fast-vip')body.functionMode='first_last_frames';
   if(images.length)body[imageField]=images.map(r=>r.url);
   if(videos.length)body[model.api888.videoField]=videos.map(r=>r.url);
   if(audios.length){
