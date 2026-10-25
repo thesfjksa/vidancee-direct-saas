@@ -9,7 +9,7 @@ test('new 888API adapters require explicit Admin enable after live sync, existin
  const statements=[];
  const prior=[
    {provider_model_id:'sora2-4s-16x9',options_json:JSON.stringify({adapterSupported:false})},
-   {provider_model_id:'wan30-720p',options_json:JSON.stringify({adapterSupported:true})},
+   {provider_model_id:'wan30-720p',options_json:{adapterSupported:true}},
  ];
  let commits=0;
  const fakeConnection={
