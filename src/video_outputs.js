@@ -11,10 +11,17 @@ function byteRange(header,total) {
   return {start,end,partial:true};
 }
 
-// The one video-storage entry point shared by provider workers. A connected,
-// enabled Drive account becomes the default; no MySQL BLOB is written. When
-// disabled, legacy MySQL storage remains available unchanged.
+// The one video-storage entry point shared by provider workers. Cloud
+// object storage (R2) comes first, then a connected Drive account; with
+// neither enabled, legacy MySQL storage remains available unchanged.
 async function saveVideoOutput(conn,id,output) {
+  const {configuredStorage,videoKey,MARKER}=require('./object_storage.js');
+  const store=await configuredStorage();
+  if(store){
+    const key=videoKey(id);
+    await store.put(key,output.data,output.mimeType||'video/mp4');
+    return MARKER+key;
+  }
   const {configuredDrive}=require('./google_drive.js');
   const drive=await configuredDrive();
   if(drive){

@@ -51,6 +51,7 @@ Video Studio uses ArgoLink, Higgsfield (Wan 3.0) and MiniMax H3 on vgenv; Image 
 
 Start with [the updated 25 October production and development handoff](docs/PROJECT_HANDOFF_2026-10-25.md) for the latest verified source control, model-audit evidence, and safe activation instructions; [the original project handoff](docs/PROJECT_HANDOFF.md) retains older architecture and incident details.
 
+- [Cloud storage (Cloudflare R2)](docs/CLOUD_STORAGE.md)
 - [Hostinger deployment](docs/HPANEL_DEPLOYMENT.md)
 - [Admin provider settings](docs/ADMIN_PROVIDER_SETTINGS.md)
 - [SmartAIPI image integration](docs/SMARTAIPI.md)

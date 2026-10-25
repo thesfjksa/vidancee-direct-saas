@@ -268,6 +268,11 @@ function createConnector(deps) {
     }
     const [[stored]] = await getPool().execute('SELECT generation_id FROM generation_video_outputs WHERE generation_id=?', [id]);
     if (stored) return deps.serveVideoOutput(getPool(), req, res, id);
+    if (String(row.output_url || '').startsWith('r2:')) {
+      const { configuredStorage } = require('./object_storage.js');
+      const store = await configuredStorage({ requireEnabled: false });
+      if (store) return store.stream(String(row.output_url).slice(3), req, res);
+    }
     return deps.proxyMedia(req, res, row, 'video');
   }
 

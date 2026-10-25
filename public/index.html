@@ -3115,7 +3115,8 @@ function downloadGeneration(id){
   if(!g||!g.has_video||!g.video_url)return;
 
   const a=document.createElement('a');
-  a.href=g.video_url;
+  // download=1 lets cloud-stored videos arrive as a file, not a playing tab.
+  a.href=g.video_url+(g.video_url.includes('?')?'&':'?')+'download=1';
   a.download='cmm-tools-'+String(g.id).slice(0,8)+'.mp4';
   a.style.display='none';
   document.body.appendChild(a);

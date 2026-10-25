@@ -12,6 +12,29 @@
 
 
   <section id="storage" class="section">
+    <div class="card" style="margin-bottom:16px">
+      <div class="top"><div><h2>Cloud storage (Cloudflare R2)</h2><p class="muted">Primary storage for generated videos. Files stay private; customers watch and download through short-lived links after CMM Tools checks they own the video. Works with any S3-compatible bucket (Cloudflare R2, Backblaze B2, Wasabi, AWS S3).</p></div><button class="secondary" onclick="loadCloudStorage()">Refresh status</button></div>
+      <div id="r2Status" class="muted" style="margin:16px 0">Checking cloud storage...</div>
+      <div class="card" style="margin:14px 0;padding:16px">
+        <h3 style="margin-top:0">Bucket and API token</h3>
+        <p class="muted">Cloudflare dashboard → R2 → create a bucket, then <b>Manage R2 API Tokens</b> → create a token with <b>Object Read &amp; Write</b> for that bucket. The S3 endpoint is shown on the bucket's Settings page. Saving tests the bucket first; the secret is encrypted and never shown again.</p>
+        <div class="field"><label for="r2Endpoint">S3 endpoint</label><input id="r2Endpoint" type="url" autocomplete="off" spellcheck="false" placeholder="https://&lt;account-id&gt;.r2.cloudflarestorage.com"></div>
+        <div class="field"><label for="r2Bucket">Bucket name</label><input id="r2Bucket" type="text" autocomplete="off" spellcheck="false" placeholder="cmmtools-media"></div>
+        <div class="field"><label for="r2AccessKey">Access Key ID</label><input id="r2AccessKey" type="text" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="r2Secret">Secret Access Key</label><input id="r2Secret" type="password" autocomplete="new-password" spellcheck="false"></div>
+        <div class="row" style="align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn" onclick="saveCloudStorage()">Test and save</button>
+          <span id="r2SaveStatus" class="muted" role="status"></span>
+        </div>
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button class="secondary" onclick="setCloudStorage({enabled:true})">Use for new videos</button>
+        <button class="secondary" onclick="setCloudStorage({enabled:false})">Stop using for new videos</button>
+        <button class="secondary" onclick="setCloudStorage({migrationEnabled:true})">Resume moving old videos</button>
+        <button class="secondary" onclick="setCloudStorage({migrationEnabled:false})">Pause moving old videos</button>
+      </div>
+      <p id="r2Message" class="muted" role="status"></p>
+    </div>
     <div class="card">
       <div class="top"><div><h2>Google Drive video storage</h2><p class="muted">Keep generated videos private in your connected Google Drive account. Customers still watch and download videos using CMM Tools authenticated links.</p></div><button class="secondary" onclick="loadDriveStorage()">Refresh status</button></div>
       <div id="gdriveStorageStatus" class="muted" style="margin:16px 0">Checking Google Drive...</div>
@@ -373,7 +396,7 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='storage')loadDriveStorage();if(name==='provider'){loadConnectorAdmin();loadModelNames();loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
+function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='storage'){loadCloudStorage();loadDriveStorage();}if(name==='provider'){loadConnectorAdmin();loadModelNames();loadProviderUsage();loadProviderSettings();loadProviderConfig()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -668,6 +691,38 @@ async function checkApi888Task(button,generationId){
     }
   }catch(error){alert('888API task check / recovery failed: '+error.message);}
   finally{button.disabled=false;button.textContent=label;}
+}
+async function loadCloudStorage(){
+  const target=$('r2Status');target.textContent='Checking cloud storage...';
+  try{
+    const d=await api('/admin/storage/r2');
+    const gib=(Number(d.stats?.pendingBytes||0)/1024/1024/1024).toFixed(2);
+    target.textContent=!d.configured?'Not connected · New videos are stored in MySQL':
+      (d.available?'Connected and accessible':'Connected, but the bucket could not be reached')+
+      ' · Bucket: '+d.bucket+' · Key: '+d.accessKeyId+
+      ' · New videos: '+(d.enabled?'Cloud storage':'Not using cloud storage')+
+      ' · Videos in cloud storage: '+(d.stats?.storedVideos||0)+
+      ' · Old videos still in MySQL: '+(d.stats?.pendingVideos||0)+' ('+gib+' GiB)'+
+      ' · Moving old videos: '+(d.migrationEnabled?'Running':'Paused');
+  }catch(error){target.textContent='Cloud storage status could not be loaded: '+error.message;}
+}
+async function saveCloudStorage(){
+  const message=$('r2SaveStatus');
+  const body={endpoint:$('r2Endpoint').value.trim(),bucket:$('r2Bucket').value.trim(),
+    accessKeyId:$('r2AccessKey').value.trim(),secretAccessKey:$('r2Secret').value.trim()};
+  if(!body.endpoint||!body.bucket||!body.accessKeyId||!body.secretAccessKey){message.textContent='Fill in all four fields.';return;}
+  message.textContent='Testing the bucket and saving...';
+  try{
+    await api('/admin/storage/r2',{method:'POST',body:JSON.stringify(body)});
+    message.textContent='Connected. New videos now go to cloud storage, and old videos are being moved.';
+    $('r2Secret').value='';$('r2AccessKey').value='';
+    await loadCloudStorage();
+  }catch(error){message.textContent='Not saved: '+error.message;}
+}
+async function setCloudStorage(change){
+  const message=$('r2Message');
+  try{await api('/admin/storage/r2/state',{method:'POST',body:JSON.stringify(change)});message.textContent='Saved.';await loadCloudStorage();}
+  catch(error){message.textContent=error.message;}
 }
 async function loadDriveStorage(){
   const target=$('gdriveStorageStatus');target.textContent='Checking Google Drive...';
