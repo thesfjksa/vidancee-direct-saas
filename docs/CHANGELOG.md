@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — Page security policy allows the R2 bucket
+
+- Videos wouldn't play on the website after R2 became storage, and direct reference uploads silently fell back to the slow Hostinger path. The page's Content-Security-Policy allowed media and connections only from `'self'`, so the browser blocked the 302 to the presigned R2 link and the XHR PUT to the bucket. The policy now adds `https://*.r2.cloudflarestorage.com` and the configured S3 endpoint origin (refreshed every 5 minutes) to `media-src`, `connect-src` and `img-src`.
+
 ## 2026-10-25 — Incomplete video downloads are rejected and repaired
 
 - A Wan 3.0 result (generation e3e43731) was saved at 261 KB: the download from 888API ended early, and the only check was the `ftyp` header. 888API downloads now have to be a complete MP4 (top-level boxes fill the file, with `moov` and `mdat`), and `readBounded` rejects a body shorter than its Content-Length. An incomplete download fails that poll and is fetched again on the next one.
