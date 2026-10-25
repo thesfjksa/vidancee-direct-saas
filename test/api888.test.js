@@ -721,3 +721,18 @@ test('888API POST failures keep the redacted upstream reason for the customer an
   const bare=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response('oops',{status:503})});
   await assert.rejects(bare.json('/v1/videos',{}),e=>e.message==='888API request failed (HTTP 503).');
 });
+
+test('888API errors wrapped as JSON inside the message are unwrapped to the readable reason',async()=>{
+  const inner=JSON.stringify({error:{code:'model_not_found',message:'No available channel for model sd2-pro-933-480p under group default (distributor)'}});
+  const body=JSON.stringify({error:{message:JSON.stringify({error:{message:inner}})}});
+  const client=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response(body,{status:503})});
+  await assert.rejects(client.json('/v1/videos',{}),e=>
+    e.message==='888API request failed (HTTP 503): No available channel for model sd2-pro-933-480p under group default (distributor)');
+});
+
+test('a truncated nested 888API error still yields the readable reason',async()=>{
+  const body=JSON.stringify({error:{message:'{"error": {"message": "{\\"error\\":{\\"code\\":\\"model_not_found\\",\\"message\\":\\"No available channel for model sd2-pro-933-480p under group default (distributor) (request id: 2026102508'}});
+  const client=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response(body,{status:503})});
+  await assert.rejects(client.json('/v1/videos',{}),e=>
+    e.message.startsWith('888API request failed (HTTP 503): No available channel for model sd2-pro-933-480p under group default')&&!e.message.includes('{'));
+});
