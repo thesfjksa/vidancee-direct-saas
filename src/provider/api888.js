@@ -200,10 +200,23 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   }
   return body;
 };
+// Request and reply as logged for support: links keep only host and path,
+// never signatures or tokens.
+function traceShape(value,depth=0){
+  if(typeof value==='string'){
+    if(/^https?:\/\//i.test(value)){try{const u=new URL(value);return u.host+u.pathname.slice(0,60)+(u.search?'?…':'');}catch{return '[url]';}}
+    return value.length>300?value.slice(0,300)+'…':value;
+  }
+  if(Array.isArray(value))return value.slice(0,12).map(v=>traceShape(v,depth+1));
+  if(value&&typeof value==='object'&&depth<4)return Object.fromEntries(Object.entries(value).slice(0,40).map(([k,v])=>[k,traceShape(v,depth+1)]));
+  return value;
+}
 Api888Client.prototype.startVideo=async function(model,params,references=[]){
-  const data=await this.json('/v1/videos',this.videoBody(model,params,references),120000);
+  const body=this.videoBody(model,params,references);
+  const data=await this.json('/v1/videos',body,120000);
   const id=String(data.id||data.task_id||'');
   if(!/^[A-Za-z0-9_-]{5,191}$/.test(id))throw new Error('888API did not return a valid video job ID.');
+  this.lastTrace={request:traceShape(body),response:traceShape(data)};
   return id;
 };
 Api888Client.prototype.videoStatus=async function(id){
@@ -375,6 +388,6 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   validateCanvas(data,mimeType,ratio);
   return {data,mimeType};
 };
-module.exports={Api888Client,ORIGIN,publicMediaUrl,api888Mentions};
+module.exports={Api888Client,ORIGIN,publicMediaUrl,api888Mentions,traceShape};
 
 

@@ -784,3 +784,9 @@ test('a truncated 888API video download is rejected so the next poll fetches it 
   const client=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response(full.subarray(0,30),{status:200})});
   await assert.rejects(client.videoContent('task_abcdef','https://cdn.example.com/v.mp4'));
 });
+
+test('888API request traces keep host and path of links but drop signatures',()=>{
+  const {traceShape}=require('../src/provider/api888.js');
+  const out=traceShape({model:'wan30-720p',video_urls:['https://acct.r2.cloudflarestorage.com/cmmtools-media/media/x/y?X-Amz-Signature=secret']});
+  assert.deepEqual(out,{model:'wan30-720p',video_urls:['acct.r2.cloudflarestorage.com/cmmtools-media/media/x/y?…']});
+});
