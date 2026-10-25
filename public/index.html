@@ -846,8 +846,8 @@ function modelPickerTags(id,index){
   if(!m)return [];
   const tags=[];
   const add=v=>{v=String(v||'').trim();if(v&&!tags.includes(v))tags.push(v)};
-  // The 888API billing mode is explicit: fixed Yuan/request or dynamic Yuan/sec.
-  // Its customer credit rate equals the upstream Yuan cost, so show cr amounts.
+  // The 888API billing mode is explicit: fixed per request or dynamic per second,
+  // with the rate already converted to credits by the server.
   if(m.billingMode==='per_second')add('Dynamic · '+m.billingRateCredits+' cr/sec');
   else if(m.billingMode==='per_request')add('Per request · '+m.billingRateCredits+' cr');
 

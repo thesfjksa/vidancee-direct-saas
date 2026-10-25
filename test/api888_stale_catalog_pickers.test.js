@@ -62,7 +62,7 @@ test('A previously synced Seedance 2.5 V1 row exposes video/audio inputs without
     assert.equal(model.capabilities.video.supported,true);
     assert.equal(model.capabilities.audio.supported,true);
     assert.equal(model.defaultAspectRatio,'16:9');
-    assert.equal(model.billingRateCredits,5);
+    assert.equal(model.billingRateCredits,4800); // ¥5 at 960 credits per yuan
     assert.equal(calls.length,1);
     assert.equal(JSON.parse(row.options_json).referenceCapabilities.video.supported,false,'Old database must not mutate');
   }finally{restore()}

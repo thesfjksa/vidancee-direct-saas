@@ -5,7 +5,7 @@ const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
 const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
 const { DEFAULT_VERCEL_CREDITS_PER_USD } = require('./vercel_models.js');
-const { CREDITS_PER_USD } = require('./billing.js');
+const { CREDITS_PER_USD, CREDITS_PER_CNY } = require('./billing.js');
 
 const DEFAULTS = {
   vercel_api_key: '',
@@ -250,7 +250,7 @@ async function getAdminProviderSettings() {
       baseUrl: 'https://888api.xin/v1',
       apiKeyConfigured: Boolean(s.api888ApiKey), configured: Boolean(s.api888ApiKey),
       enabled: s.api888Enabled, active: Boolean(s.api888Enabled && s.api888ApiKey),
-      maxInflight: s.api888MaxInflight, creditPolicy: 'cny_parity', creditsPerCny: 1,
+      maxInflight: s.api888MaxInflight, creditPolicy: 'cny_at_cost', creditsPerCny: CREDITS_PER_CNY,
     },
     argolink: {
       baseUrl: 'https://argolink.io/v1',

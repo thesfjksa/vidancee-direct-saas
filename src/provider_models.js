@@ -392,6 +392,13 @@ function normalizedReferenceCapabilities(model) {
   };
 }
 
+// 888API's yuan rate (per second or per request) in customer credits.
+function api888RateCredits(model) {
+  const { CREDITS_PER_CNY, roundCredits } = require('./billing.js');
+  const cny = Number(model.api888?.sourceCny);
+  return cny > 0 ? roundCredits(cny * CREDITS_PER_CNY) : null;
+}
+
 function publicVideoModel(model) {
   const durations = model.durations.length ? model.durations : [0];
   const durationEntries = durations.map(seconds => ({
@@ -419,7 +426,7 @@ function publicVideoModel(model) {
     capabilities: normalizedReferenceCapabilities(model),
     ...(model.provider==='api888'?{
       billingMode:model.api888?.billing==='second'?'per_second':'per_request',
-      billingRateCredits:Number(model.api888?.sourceCny)||null,
+      billingRateCredits:api888RateCredits(model),
     }:{}),
     ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
@@ -436,7 +443,7 @@ function publicImageModel(model) {
     capabilities: normalizedReferenceCapabilities(model),
     ...(model.provider==='api888'?{
       billingMode:'per_request',
-      billingRateCredits:Number(model.api888?.sourceCny)||null,
+      billingRateCredits:api888RateCredits(model),
     }:{}),
     ...(isPricedSource(model.provider)?{qualities:model.qualities,defaultQuality:model.defaultQuality,imageSizes:model.imageSizes,defaultImageSize:model.defaultImageSize}:{}),
   };
