@@ -226,7 +226,7 @@ const OFFERED={
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
  'seedance2.0-933':'Seedance 2.0 Standard',
  'wan3.0-video-prime':'Wan 3.0 Video Prime',
- 'wan30-720p':'Wan 3.0 720p',
+ 'wan30-720p':'Wan 3.0 Standard',
 };
 let OFFER_ALL=false;
 const setApi888OfferAll=on=>{OFFER_ALL=Boolean(on);};

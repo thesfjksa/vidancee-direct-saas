@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — Wan 3.0 Standard
+
+- 888API's `wan30-720p` is now named **Wan 3.0 Standard** (was "Wan 3.0 720p").
+
 ## 2026-10-25 — 888API: Wan 3.0 720p kept too
 
 - `wan30-720p` is offered again as **Wan 3.0 720p** and switched on once. The default-on marker now lists the models it has switched on, so models added to the offer later are switched on once without touching the others.
