@@ -124,7 +124,7 @@ Object.assign(SPECS,{
  'doubao-seedance-2-0-fast':[0.61,'second',4,15,'720p',9,3,3],
 });
 for(const id of SORA_VARIANTS){
- const secs=Number(id.match(/-(\\d+)s-/)[1]);
+ const secs=Number(id.match(/-(\d+)s-/)[1]);
  SPECS[id]=[0.6,'job',secs,secs,'720p',1,0,0];
 }
 for(const id of GROK_VARIANTS){
@@ -246,9 +246,9 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'?'seconds':'duration',
+        secondsField:spec?.[1]==='second'&&id!=='doubao-seedance-2-0-fast'?'seconds':'duration',
         imageField:id==='seedance-2.5-c1'||id==='doubao-seedance-2-0-fast'?'image_urls':
-          (/^seedance2\\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
+          (/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},
       durations:isImage?[]:SORA_VARIANTS.includes(id)?[min]:
