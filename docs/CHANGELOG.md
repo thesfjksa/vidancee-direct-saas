@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — Longest video length by default
+
+- Video Studio selects a model's longest video length when the model is picked (e.g. 30 s for Seedance 2.5), and Cartoon Studio does the same when it opens. Changing only the resolution keeps the customer's chosen length when it is still offered.
+
 ## 2026-10-25 — 888API charged at cost, like every other source
 
 - Plans are unchanged: Rs 5,000 = 60,000 credits, and every model costs 24 credits per rupee of what CMM Tools pays, so half of every plan is profit. 888API was the exception: it charged ¥1 = 1 credit, i.e. a ¥1 job (about Rs 40 of cost) used Rs 0.08 of credits.
