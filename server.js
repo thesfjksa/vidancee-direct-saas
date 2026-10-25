@@ -135,7 +135,8 @@ const {
   createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
 const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
-const { H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
+const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
+const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
@@ -735,6 +736,16 @@ async function quoteArgoStudioVideo(model,body,settings){
   return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId)}));
 }
 
+// The longest reference video (total, or per clip) a video model accepts.
+async function referenceVideoLimit(id){
+  if(id==='minimax_h3')return {clipSeconds:H3_REFS.maxSeconds};
+  const provider=isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
+  if(!provider)return {};
+  const model=await getProviderModelByPublicId(provider,id,'video').catch(()=>null);
+  const caps=model?.referenceCapabilities||{};
+  return {totalSeconds:Number(caps.video?.maxTotalSeconds||caps.videoMaxTotalSeconds||model?.inputLimits?.video?.max_duration_seconds)||null};
+}
+
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
 async function submitVideoGeneration(user,body,req=null){
   // Preview hints are for /api/model-cost only; a job is priced from its files.
@@ -747,6 +758,9 @@ async function submitVideoGeneration(user,body,req=null){
   const requestedModel=String(body.model||'');
   const customerAccess=await getUserProviderAccess(user.id);
   let generation=null;
+  // Cut reference videos that are longer than the model accepts.
+  const referenceNotices=Array.isArray(body.videos)&&body.videos.length&&!body.cartoonStyle
+    ?trimReferenceVideos(body.videos,await referenceVideoLimit(requestedModel)):[];
   // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
@@ -819,6 +833,7 @@ async function submitVideoGeneration(user,body,req=null){
   }
 
   wakeForNewWork(req);
+  if(generation&&referenceNotices.length)generation.reference_notices=referenceNotices;
   return generation;
 }
 
