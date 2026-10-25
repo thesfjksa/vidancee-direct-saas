@@ -71,8 +71,9 @@ async function migrateOneBlobToStorage({db=getPool(),store,log=logActivity}={}){
       await store.remove(key).catch(()=>{});
       throw new Error('Cloud storage file integrity check failed; original MySQL data retained.');
     }
-    // Replace only if the cell still holds the same bytes.
-    const [result]=await db.execute('UPDATE '+t.table+' SET '+t.field+'=? WHERE '+t.pk+'=? AND LENGTH('+t.field+')=? AND MD5('+t.field+')=?',
+    // Replace only if the cell still holds the same bytes. BINARY avoids
+    // "illegal mix of collations" between MD5()'s result and the parameter.
+    const [result]=await db.execute('UPDATE '+t.table+' SET '+t.field+'=? WHERE '+t.pk+'=? AND LENGTH('+t.field+')=? AND BINARY MD5('+t.field+')=BINARY ?',
       [blobRef(key),row.pk,data.length,md5]);
     if(!result.affectedRows){await store.remove(key).catch(()=>{});return {migrated:false,reason:'changed',table:t.table};}
     log({category:'system',event:'r2.file_migrated',generationId:row.generation_id,
@@ -109,7 +110,7 @@ function startStorageMigrationLoop({db=getPool(),intervalMs=15000,log=logActivit
     }catch(error){
       cooldown=Date.now()+5*60000;
       log({level:'error',category:'system',event:'r2.migration_failed',
-        message:'Cloud storage video migration paused for 5 minutes; original MySQL bytes retained.',details:errorDetails(error)});
+        message:'Moving files to cloud storage paused for 5 minutes; the MySQL copy is kept.',details:errorDetails(error)});
     }finally{running=false;}
   };
   const timer=setInterval(()=>{tick().catch(()=>{});},intervalMs);
