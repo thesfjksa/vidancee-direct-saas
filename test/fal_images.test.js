@@ -73,3 +73,17 @@ test('catalog sync reads schemas without the key and falls back to the per-model
   assert.equal(seen.find(([u])=>u.includes('expand=openapi'))[1],false);
   assert.equal(seen.find(([u])=>u.includes('/models/pricing'))[1],true);
 });
+
+test('fal labels: raw names readable, variants told apart, aliases kept once', () => {
+  const { distinctLabels } = require('../src/fal_images.js');
+  const mk = (id, label, cost = 1) => ({ providerModelId: id, label, options: { adapterSupported: true, pricing: { cost } } });
+  const out = distinctLabels([mk('fal-ai/flux/dev', 'FLUX.1 [dev]'), mk('fal-ai/flux-1/dev', 'FLUX.1 [dev]'),
+    mk('fal-ai/wan/v2.7/pro/text-to-image', 'Wan'), mk('fal-ai/wan/v2.2-5b/text-to-image', 'Wan'),
+    mk('fal-ai/hunyuan-image/v3/text-to-image', 'fal-ai/hunyuan-image/v3/text-to-image')]);
+  const by = Object.fromEntries(out.map(m => [m.providerModelId, m]));
+  assert.equal(by['fal-ai/flux-1/dev'].options.adapterSupported, false);
+  assert.equal(by['fal-ai/flux/dev'].options.adapterSupported, true);
+  assert.equal(by['fal-ai/wan/v2.7/pro/text-to-image'].label, 'Wan · V2.7 Pro');
+  assert.equal(by['fal-ai/wan/v2.2-5b/text-to-image'].label, 'Wan · V2.2 5b');
+  assert.equal(by['fal-ai/hunyuan-image/v3/text-to-image'].label, 'Hunyuan Image V3');
+});

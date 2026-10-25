@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — Clearer fal.ai image model names
+
+- fal names some models only by endpoint and gives variants one name. Raw names are now made readable ("fal-ai/flux-lora/stream" → "Flux Lora Stream"), variants get the part of their endpoint that differs ("Wan · V2.7 Pro", "Seedream · Flash"), and plain aliases at the same price (`fal-ai/flux/dev` and `fal-ai/flux-1/dev`) are offered once. Applied on the next sync.
+
 ## 2026-10-25 — fal.ai image models; MiniMax only from vgenv
 
 - **fal.ai image models (`falimg`):** `src/fal_images.js` imports fal's whole text-to-image catalog: the public Platform API with `expand=openapi-3.0` for each model's request schema, plus `/v1/models/pricing` with the saved fal.ai key. Models are priced from fal's per-image or per-megapixel rate (fal megapixel = 1024², rounded up) at the fal credit rate. Each model's `image_size` presets or custom sizes, or its `aspect_ratio` enum, map to the Image Studio ratio picker. Models that need extra inputs (images, masks, LoRA names), vector output or GPU-second pricing stay off. Sync runs 60 s after the worker starts and daily, or from Admin → Provider → fal.ai → **Sync fal.ai image models**. Jobs run through `FalImageQueue` (fal queue submit, poll, download) and are stored like other images. Customers need the existing fal.ai access switch. Families another source already offers are not duplicated.
