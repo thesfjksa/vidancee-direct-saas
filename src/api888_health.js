@@ -1,8 +1,10 @@
 'use strict';
-// 888API reports each model's health in GET /v1/models (health_status:
-// available, verifying, no_recent_success or disabled). Customers only see
-// models 888API currently marks "available"; the worker refreshes the
-// snapshot and the web app reads it from app_settings.
+// 888API reports each model's health (health_status: available, verifying,
+// no_recent_success or disabled) in its public GET /api/model-health, which
+// drives the pricing-page labels, and documents the same fields for
+// GET /v1/models. Customers only see models 888API currently marks
+// "available"; the worker refreshes the snapshot and the web app reads it
+// from app_settings.
 const {getSettingValue,setSettingValue}=require('./settings.js');
 
 const SETTING_KEY='api888_model_health';
@@ -13,9 +15,10 @@ const STATUSES=new Set(['available','verifying','no_recent_success','disabled'])
 function healthSnapshot(body,now=Date.now()){
   const statuses={};
   for(const model of Array.isArray(body?.data)?body.data:[]){
-    if(typeof model?.id!=='string'||model.id.length>=192)continue;
+    const id=typeof model?.id==='string'?model.id:model?.model_name;
+    if(typeof id!=='string'||!id||id.length>=192)continue;
     const status=String(model.health_status||'');
-    if(STATUSES.has(status))statuses[model.id]=status;
+    if(STATUSES.has(status))statuses[id]=status;
   }
   return {at:new Date(now).toISOString(),statuses};
 }
@@ -46,7 +49,9 @@ async function loadApi888Health({getValue=getSettingValue,now=Date.now()}={}){
 }
 
 async function refreshApi888Health({client,setValue=setSettingValue,now=Date.now()}){
-  const snapshot=healthSnapshot(await client.models(),now);
+  let snapshot=null;
+  try{snapshot=healthSnapshot(await client.modelHealth(),now);}catch{snapshot=null;}
+  if(!snapshot||!Object.keys(snapshot.statuses).length)snapshot=healthSnapshot(await client.models(),now);
   await setValue(SETTING_KEY,JSON.stringify(snapshot));
   cached=snapshot;cachedAt=now;
   return snapshot;

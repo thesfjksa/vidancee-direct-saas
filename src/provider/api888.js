@@ -15,6 +15,18 @@ class Api888Client {
     if(!Array.isArray(body?.data)||!body.data.length)throw Object.assign(new Error('888API model catalog was empty. Existing models were preserved.'),{statusCode:502});
     return body;
   }
+  // Public endpoint behind 888API's pricing-page status labels; needs no key.
+  async modelHealth(){
+    let response;
+    try{response=await this.fetch(ORIGIN+'/api/model-health',{method:'GET',headers:{accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(25000)});}
+    catch{throw Object.assign(new Error('Could not connect to 888API model health.'),{statusCode:502});}
+    if(!response.ok){await response.body?.cancel?.().catch(()=>{});throw Object.assign(new Error('888API model health is unavailable (HTTP '+response.status+').'),{statusCode:502});}
+    let body;
+    try{const raw=await response.text();if(raw.length>5*1024*1024)throw new Error('too large');body=JSON.parse(raw);}
+    catch{throw Object.assign(new Error('888API returned invalid model health.'),{statusCode:502});}
+    if(!Array.isArray(body?.data)||!body.data.length)throw Object.assign(new Error('888API model health was empty.'),{statusCode:502});
+    return body;
+  }
 }
 
 const {readBounded,checkOutputUrl,imageMime,IMAGE_LIMIT,VIDEO_LIMIT}=require('./vercel.js');

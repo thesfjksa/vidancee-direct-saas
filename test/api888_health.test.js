@@ -31,8 +31,20 @@ test('no snapshot or no health fields upstream fails open instead of emptying th
 
 test('worker refresh saves the snapshot the web app later loads',async()=>{
   const store=new Map();
-  await refreshApi888Health({client:{models:async()=>body},setValue:async(k,v)=>store.set(k,v),now:1});
+  const down=async()=>{throw new Error('down');};
+  await refreshApi888Health({client:{modelHealth:down,models:async()=>body},setValue:async(k,v)=>store.set(k,v),now:1});
   assert.ok(store.has(SETTING_KEY));
   const loaded=await loadApi888Health({getValue:async k=>store.get(k),now:10*60*1000});
   assert.equal(loaded.statuses['wan30-720p'],'available');
+});
+
+test('public /api/model-health (model_name rows) is preferred over /v1/models',async()=>{
+  let modelsCalled=false;
+  const snap=await refreshApi888Health({client:{
+    modelHealth:async()=>({success:true,data:[{model_id:1,model_name:'wan30-720p',health_status:'available'},
+      {model_id:2,model_name:'seedance2.0-pro-480p',health_status:'verifying'}]}),
+    models:async()=>{modelsCalled=true;return {data:[]};}},setValue:async()=>{},now:2});
+  assert.equal(modelsCalled,false);
+  assert.equal(isApi888Available(snap,'wan30-720p'),true);
+  assert.equal(isApi888Available(snap,'seedance2.0-pro-480p'),false);
 });

@@ -5,6 +5,8 @@
 - The worker reads `health_status` from 888API's `GET /v1/models` every 10 minutes and saves a snapshot in `app_settings` (`api888_model_health`). Customer Video and Image Studio hide every 888API model that is not currently `available` (当前可用); `verifying`, `no_recent_success`, `disabled` and models the key doesn't return are hidden. Submissions to a hidden model are refused before any charge.
 - Models reappear automatically when 888API marks them available again. Admin switches, per-customer access and prices are unchanged.
 - Fails open when there is no snapshot yet or 888API sends no health fields, so the catalog can't be emptied by an upstream change. Worker `/health` shows `api888ModelHealth` counts and the snapshot time.
+- **Follow-up:** this key's `/v1/models` carries no `health_status`, so the first deploy hid nothing. The worker now reads 888API's public `GET /api/model-health`, the source of the pricing-page labels, and falls back to `/v1/models`. Snapshot on 25 Oct: 20 of the 39 catalog models are available; 7 are verifying and 12 have no recent success.
+- `pidoi-h3video-2k` corrected to ¥2.0: 888API's `/api/pricing` billing formula is a flat `tier("base",(2.0))`. The same data confirms per-second formulas for every "Dynamic" SKU in code, and per-second "seconds" task billing for `wan3.0-video` / `wan3.0-video-prime`.
 - Background: `wan3.0-video-prime` and `seedance2.0-pro-480p` failed with 888API `model_not_found` ("no available channel") on 25 Oct; both were refunded.
 
 ## 2026-10-25 — 888API prices and contracts re-checked against the model catalog and /docs
