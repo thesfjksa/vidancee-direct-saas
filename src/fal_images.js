@@ -117,12 +117,25 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
     const q = ids.slice(i, i + 10).map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
     try { entries.push(...((await platform('/models?' + q + '&expand=openapi-3.0', { apiKey, fetchImpl }))?.models || [])); } catch {}
   }
+  const priceErrors = [];
+  const loadPrices = async batch => {
+    const q = batch.map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
+    try { for (const p of (await platform('/models/pricing?' + q, { apiKey, fetchImpl }))?.prices || []) prices.set(p.endpoint_id, p); return true; }
+    catch (error) { priceErrors.push(error.providerStatus || error.message); return false; }
+  };
   for (let i = 0; i < ids.length; i += 50) {
-    const q = ids.slice(i, i + 50).map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
-    try { for (const p of (await platform('/models/pricing?' + q, { apiKey, fetchImpl }))?.prices || []) prices.set(p.endpoint_id, p); } catch {}
+    const batch = ids.slice(i, i + 50);
+    // One unknown endpoint can fail a whole batch: retry those one by one.
+    if (!(await loadPrices(batch)) && batch.length > 1) for (const id of batch) await loadPrices([id]);
   }
   if (!entries.length) throw Object.assign(new Error('fal.ai returned no image models.'), { statusCode: 502 });
-  return entries.map(entry => describeFalImageModel(entry, prices.get(entry.endpoint_id)));
+  const models = entries.map(entry => describeFalImageModel(entry, prices.get(entry.endpoint_id)));
+  // Why models were left off, for the sync log and Admin.
+  const reasons = {}, units = {};
+  for (const m of models) if (!m.options.adapterSupported) { const r = m.options.setupReason.replace(/\(.*\)/, '(…)'); reasons[r] = (reasons[r] || 0) + 1; }
+  for (const p of prices.values()) units[p.unit + ' ' + p.currency] = (units[p.unit + ' ' + p.currency] || 0) + 1;
+  models.diagnostics = { listed: ids.length, described: entries.length, priced: prices.size, priceErrors: [...new Set(priceErrors)].slice(0, 5), reasons, units };
+  return models;
 }
 
 // Generation: submit to fal's queue, wait for the result, download the image.

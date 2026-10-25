@@ -16,6 +16,9 @@ async function syncFalImageModels({getSettings=require('./settings.js').getProvi
   const {syncProviderModels}=require('./provider_models.js');
   const settings=await getSettings();
   if(!settings.falApiKey)return null;
-  return syncProviderModels(PROVIDER,await fetchFalImageCatalog({apiKey:settings.falApiKey}));
+  const catalog=await fetchFalImageCatalog({apiKey:settings.falApiKey});
+  const models=await syncProviderModels(PROVIDER,catalog);
+  models.diagnostics=catalog.diagnostics;
+  return models;
 }
 module.exports={FalImageQueue,syncFalImageModels};

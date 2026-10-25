@@ -737,7 +737,7 @@ async function setCloudStorage(change){
 }
 async function syncFalImages(){
   const m=$('falActionMsg');m.textContent='Reading fal.ai image models and prices (about a minute)...';
-  try{const d=await api('/admin/fal/images/sync',{method:'POST',body:'{}'});m.textContent='fal.ai image models synced: '+d.ready+' ready for customers of '+d.total+' listed.';}
+  try{const d=await api('/admin/fal/images/sync',{method:'POST',body:'{}'});m.textContent='fal.ai image models synced: '+d.ready+' ready for customers of '+d.total+' listed.'+(d.diagnostics?' Prices read: '+d.diagnostics.priced+'. Left off: '+Object.entries(d.diagnostics.reasons||{}).map(([r,n])=>n+' × '+r).join('; '):'');}
   catch(e){m.textContent='Sync failed: '+e.message;}
 }
 async function loadDriveStorage(){
