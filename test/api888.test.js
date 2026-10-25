@@ -607,3 +607,102 @@ test('888API public IPv4 download retains size and MP4 checks',async()=>{
  await assert.rejects(oversized.download('http://8.8.8.8:19876/video.mp4',67108864,{allowPublicIp:true}),
    /size limit/);
 });
+
+test('888API exposes reference video, audio and image upload controls only for verified multimodal models',()=>{
+  const refs=[
+    ['ss-2.5-720p-v1',30,10,10],
+    ['s2-2.5-480p-v2',30,0,10],
+    ['s2-2.5-720p-v3',30,10,10],
+    ['s2-2.5-720p-v4',30,10,10],
+    ['dola-seedance-2.5-301010',30,10,10],
+    ['seedance2.5-930-1080p',9,0,3],
+    ['wan30-720p',10,5,5],
+    ['wan30-1080p-fast',10,5,5],
+    ['wan3.0-video',10,10,0],
+    ['wan3.0-video-prime',10,10,0],
+    ['wan3.0-image',10,0,0],
+    ['minimax-h3-480p-t',9,0,0],
+    ['seedance2.5-900-wool',9,0,0],
+  ];
+  for(const [id,images,videos,audios] of refs){
+    const m=modelById(id);
+    assert.equal(m.adapterSupported,true,'Adapter missing for '+id);
+    const caps=m.referenceCapabilities;
+    assert.equal(caps.image.max,images,id);
+    assert.equal(caps.video.max,videos,id);
+    assert.equal(caps.audio.max,audios,id);
+    assert.equal(caps.totalMax,images+videos+audios,id);
+    assert.equal(caps.video.supported,videos>0,id);
+    assert.equal(caps.audio.supported,audios>0,id);
+    assert.equal(m.supportedOperations.includes('reference-to-video'),images+videos+audios>0,id);
+  }
+});
+test('888API generated request carries image, video and audio HTTPS URL arrays and selected ratio',()=>{
+  const m=modelById('ss-2.5-720p-v1');
+  const refs=[
+    {mimeType:'image/jpeg',url:'https://cmmtools.site/provider-media/job/0?sig=1'},
+    {mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/1?sig=2'},
+    {mimeType:'audio/mpeg',url:'https://cmmtools.site/provider-media/job/2?sig=3'},
+  ];
+  const body=new Api888Client({apiKey:'sk-test'}).videoBody(m,
+    {prompt:'Keep the action and music',duration:10,resolution:'720p',aspectRatio:'9:16'},refs);
+  assert.deepEqual(body.images,[refs[0].url]);
+  assert.deepEqual(body.videos,[refs[1].url]);
+  assert.deepEqual(body.audios,[refs[2].url]);
+  assert.equal(body.ratio,'9:16');
+  assert.equal(body.duration,10);
+  assert.equal(body.seconds,undefined);
+});
+test('888API supports audio-only references on documented s2-480p model, not undocumented video',()=>{
+  const m=modelById('s2-2.5-480p-v2');
+  const client=new Api888Client({apiKey:'sk-test'});
+  const audio={mimeType:'audio/wav',url:'https://cmmtools.site/provider-media/job/0?sig=ok'};
+  assert.deepEqual(client.videoBody(m,{duration:5,prompt:'music only'},[audio]).audios,[audio.url]);
+  assert.throws(()=>client.videoBody(m,{duration:5},[
+    {mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/1?sig=ok'},
+  ]),/at most 0 video reference/i);
+});
+test('888API 1080p Seedance uses metadata.audios, not the top-level audios field',()=>{
+  const m=modelById('seedance2.5-930-1080p');
+  const client=new Api888Client({apiKey:'sk-test'});
+  const body=client.videoBody(m,{duration:10,aspectRatio:'21:9'},[
+    {mimeType:'audio/mpeg',url:'https://cmmtools.site/provider-media/job/0?sig=1'},
+  ]);
+  assert.deepEqual(body.metadata,{audios:['https://cmmtools.site/provider-media/job/0?sig=1']});
+  assert.equal(body.audios,undefined);
+  assert.equal(body.ratio,'21:9');
+});
+test('888API wide/adaptive aspect ratios use only model-documented values',()=>{
+ const client=new Api888Client({apiKey:'sk-test'});
+ for(const [id,ratio] of [
+   ['wan3.0-video','adaptive'],['wan3.0-video-prime','21:9'],
+   ['minimax-h3-480p-t','2:3'],['seedance2.5-930-1080p','21:9'],
+   ['seedance2.5-900','4:3']]){
+   const m=modelById(id);
+   assert.ok(m.aspectRatios.includes(ratio),id);
+   const refs=m.referenceCapabilities.image.min
+     ?[{mimeType:'image/png',url:'https://cmmtools.site/provider-media/job/0?sig=ok'}]:[];
+   assert.equal(client.videoBody(m,{duration:5,aspectRatio:ratio},refs).ratio,ratio,id);
+ }
+ const wool=modelById('seedance2.5-900-wool');
+ assert.deepEqual(wool.aspectRatios,['16:9','9:16','1:1']);
+ assert.throws(()=>client.videoBody(wool,{duration:5,aspectRatio:'21:9'}),/Unsupported aspect ratio/);
+});
+test('888API rejects wrong references, unsafe input URLs and excess mixed media before paid submission',async()=>{
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>{throw Error('Paid request must not start');}});
+ const imageModel=modelById('wan3.0-image');
+ const video={mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/0?sig=1'};
+ assert.throws(()=>client.videoBody(imageModel,{duration:5},[video]),/at most 0 video reference/);
+ const m=modelById('s2-2.5-720p-v3');
+ assert.throws(()=>client.videoBody(m,{duration:10},[
+   {mimeType:'audio/mpeg',url:'http://127.0.0.1:8000/a.mp3'},
+ ]),/HTTPS/);
+ assert.throws(()=>client.videoBody(m,{duration:10},[
+   {mimeType:'application/octet-stream',url:'https://cmmtools.site/blob.bin'},
+ ]),/Unsupported.*media type/);
+ const files=Array.from({length:11},(_,index)=>({
+   mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/'+index+'?sig=1',
+ }));
+ assert.throws(()=>client.videoBody(m,{duration:10},files),/at most 10 video references/);
+ await assert.rejects(client.startVideo(imageModel,{duration:5},[video]),/at most 0 video reference/);
+});
