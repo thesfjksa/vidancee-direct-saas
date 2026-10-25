@@ -25,7 +25,7 @@ For exact live audit numbers, missing-IDs investigation, 9 remaining unimplement
 
 ### Active deployment incident: repository cloning failed
 
-- Hostinger hPanel → Deployments screenshot for `cmmtools.site`: `089d08f` §Build failed§, diagnostic: §Failed to clone the repository§ for private `thesfjksa/vidancee-direct-saas`, branch `main`. Failure happened **before** npm install and Node execution; it does **not** prove the app has a code/build error.
+- Hostinger hPanel → Deployments screenshot for `cmmtools.site`: `089d08f` **Build failed**, diagnostic: **Failed to clone the repository** for private `thesfjksa/vidancee-direct-saas`, branch `main`. Failure happened **before** npm install and Node execution; it does **not** prove the app has a code/build error.
 - GitHub's Hostinger App configuration showed **All repositories** selected, yet the Hostinger deployment could not clone. Repo remains reachable from a separate authenticated GitHub connection. Verify account-level repository integration, reconnect Hostinger's GitHub authorization if necessary, inspect the complete clone log, and involve Hostinger support if needed. **Keep the repo private.** Do not remove the working deployment to troubleshoot cloning.
 - The `316e103` web deployment was shown as **Completed / Current**. It contains Google Drive support (#36) but **not** the Admin OAuth credential entry from #37 (`089d08f`), so old Admin Storage still asked for Hostinger env variables. After clone succeeds, deploy a newer `main` to **web and worker**, verify separately with `/live` and Hostinger deployment records.
 
