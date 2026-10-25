@@ -111,5 +111,5 @@ test('documented variant-specific duration and resolution limits remain constrai
 test('unpriced or unknown upstream IDs are never silently allowed to spend credits',()=>{
  const unknown=byId('unknown-provider-888api-model');
  assert.equal(unknown.adapterSupported,false);
- assert.throws(()=>quoteApi888(unknown,{duration:5}),/additional setup/i);
+ assert.throws(()=>quoteApi888(unknown,{duration:5}),/(additional setup|No verified 888API price)/i);
 });
