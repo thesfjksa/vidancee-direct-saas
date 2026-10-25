@@ -20,16 +20,18 @@ async function disableApi888ForUsersOnce(db) {
 }
 // Owner-approved on 25 Oct 2026: these models start enabled without Admin
 // opt-in. Runs once, so a later Admin switch-off is respected.
-const DEFAULT_ON_MODELS=['seedance-2.5-g5-v2','sd_2.0_mini_special'];
+// v2 (same day): the owner kept only the four models 888API is offered for.
+const {OFFERED_API888_MODELS}=require('./api888_models.js');
+const DEFAULT_ON_MODELS=OFFERED_API888_MODELS;
 async function enableDefaultApi888ModelsOnce(db) {
   const conn=await db.getConnection();
-  const key='api888_default_on_models_v1';
+  const key='api888_default_on_models_v2';
   try {
     await conn.beginTransaction();
     await conn.execute('INSERT IGNORE INTO app_settings (setting_key,setting_value,is_secret) VALUES (?, ?, 0)',[key,'pending']);
     const [[row]]=await conn.execute('SELECT setting_value FROM app_settings WHERE setting_key=? FOR UPDATE',[key]);
     if(row.setting_value==='done'){await conn.commit();return false;}
-    await conn.execute("UPDATE provider_models SET enabled=1,updated_at=UTC_TIMESTAMP() WHERE provider='api888' AND provider_model_id IN (?,?)",DEFAULT_ON_MODELS);
+    await conn.execute("UPDATE provider_models SET enabled=1,updated_at=UTC_TIMESTAMP() WHERE provider='api888' AND provider_model_id IN ("+DEFAULT_ON_MODELS.map(()=>'?').join(',')+")",DEFAULT_ON_MODELS);
     await conn.execute('UPDATE app_settings SET setting_value=? WHERE setting_key=?',['done',key]);
     await conn.commit();
     return true;

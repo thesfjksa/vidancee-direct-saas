@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-25 — 888API: four models only, renamed
+
+- At the owner's request, 888API offers only four models; every other 888API video and image model is hidden ("Not offered on CMM Tools.") through the existing read-time catalog overlay, so no re-import is needed:
+  - `seedance-2.5-g5-v2` → **Seedance 2.5 Realism**
+  - `seedance2.5-301010-wool` → **Seedance 2.5 Standard**
+  - `seedance2.0-933` → **Seedance 2.0 Standard**
+  - `wan3.0-video-prime` → **Wan 3.0 Video Prime** (shown when 888API marks it available)
+- These four are switched on once (`api888_default_on_models_v2`); a later Admin switch-off is respected. The wider catalog stays in code behind `setApi888OfferAll(true)`, which the catalog tests use.
+
 ## 2026-10-25 — Clearer fal.ai image model names
 
 - fal names some models only by endpoint and gives variants one name. Raw names are now made readable ("fal-ai/flux-lora/stream" → "Flux Lora Stream"), variants get the part of their endpoint that differs ("Wan · V2.7 Pro", "Seedream · Flash"), and plain aliases at the same price (`fal-ai/flux/dev` and `fal-ai/flux-1/dev`) are offered once. Applied on the next sync.
