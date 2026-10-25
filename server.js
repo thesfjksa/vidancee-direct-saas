@@ -185,6 +185,7 @@ const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { Api888Client } = require('./src/provider/api888.js');
 const { recoverApi888Video } = require('./src/api888_recovery.js');
 const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
+const { auditApi888Import } = require('./src/api888_audit.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
@@ -1937,6 +1938,20 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();const s=await getProviderSettings();
         const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
         return sendJson(res,200,{ok:true,accessibleModels:catalog.data.length});
+      }
+      if(req.method==='POST'&&routePath==='/admin/api888/audit'){
+        requireDatabase();
+        const s=await getProviderSettings();
+        if(!s.api888ApiKey)return sendJson(res,409,{ok:false,error:'Save an 888API key before checking the live catalog.'});
+        // Read-only: GET account-scoped catalog + SELECT saved model inventory;
+        // do not sync, enable models or trigger any paid provider generations.
+        const live=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        const stored=await listProviderModels('api888');
+        const audit=auditApi888Import(live,stored);
+        return sendJson(res,200,{...audit,providerEnabled:s.api888Enabled===true,
+          checkedAt:new Date().toISOString(),
+          message:audit.ok?'All models in the current upstream response are present with matching types and availability flags. Generation readiness is checked separately.':
+            'Some live 888API model IDs are missing, stale-marked or misclassified in MySQL. Review the differences before syncing.'});
       }
       if(req.method==='POST'&&routePath==='/admin/api888/sync'){
         requireDatabase();const s=await getProviderSettings();
