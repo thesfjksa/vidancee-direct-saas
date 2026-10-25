@@ -86,7 +86,7 @@ Object.assign(SPECS, {
  'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
  'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
  'seedance2.5-930-1080p':[5,'job',5,30,'1080p',9,0,3],
- 'ss-2.5-720p-v1':[5,'job',5,30,'720p',30,10,10],
+ 'ss-2.5-720p-v1':[3.9,'job',5,30,'720p',30,10,10],
  'ss-2.0-933-720p':[1.5,'job',5,15,'720p',9,3,3],
  's2-2.5-480p-v2':[5,'job',5,30,'480p',30,0,10],
  's2-2.5-720p-v3':[8,'job',5,30,'720p',30,10,10],
@@ -137,10 +137,18 @@ const VIDEO_INPUTS={
   'wan30-720p':{videos:5,audios:5},
   'wan30-1080p-fast':{videos:5,audios:5},
   'wan3.0-video':{videos:10,audios:0},
+  'seedance2.0-933-economy':{videos:3,audios:3},
+  'pidoi-h3video-2k':{videos:3,audios:3},
+  'pidoi-omni-flash-720p':{videos:3,audios:3},
+  'seedance2.0-933':{videos:3,audios:3},
+  'seedance2.0-pro-480p':{videos:3,audios:3},
+  'seedance2.0-933-mini':{videos:0,audios:3},
+  'xin-seedance-2.0-933':{videos:3,audios:3},
   'wan3.0-video-prime':{videos:10,audios:0},
 };
 const modelVideoRatios=id=>{
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
+  if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
   if(id==='seedance2.5-930-1080p')return RATS_WIDE;
   if(id==='seedance2.5-900')return RATS_FIVE;
@@ -163,7 +171,16 @@ function describedModel(id,type) {
   const implemented=known && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k'].includes(id)) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
-    ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
+    [// Published, priced models using the existing generic /v1/videos contract.
+      // Live account model discovery and Admin access gates still apply.
+      'seedance2.0-933-economy','pidoi-h3video-2k','pidoi-omni-flash-720p','pidoi-veo31-fast',
+      'seedance2.0-933','seedance2.0-pro-480p','seedance2.0-933-fast','seedance2.0-933-mini',
+      'xin-seedance-2.0-900','xin-seedance-2.0-933',
+      'seedance2.0-ss','seedance2.0-ss-fast',
+      'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
+      'seedance2.5-720p-plus','seedance2.5-720p-pro',
+      'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
+      'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
@@ -182,6 +199,10 @@ function describedModel(id,type) {
   const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id);
   const inputs=VIDEO_INPUTS[id]||{};
   const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,inputs.videos||0,inputs.audios||0,requiredImage);
+  // The upstream limits some multimodal models to 12 total items, even
+  // though their individual image/video/audio maxima sum to 15.
+  if(['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-933',
+      'xin-seedance-2.0-933'].includes(id))refs.totalMax=12;
   const videoFlat=spec?.[1]==='job';
   const pricing=isImage?{image:cny||0}:{video_duration_pricing:known?[{resolution:res,cost_per_second:videoFlat?spec[0]/min:spec[0]}]:[]};
   // Flag fixed-per-request billing separately; quoteApi888 applies the same
@@ -196,9 +217,13 @@ function describedModel(id,type) {
         imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images',
         videoField:inputs.videos?'videos':null,audioField:inputs.audios?(inputs.audioField||'audios'):null},
       durations:isImage?[]:id==='seedance2.5-900'?[5,10,15,30]:
-        /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,15):
+        ['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-pro-480p'].includes(id)?[15]:
+        ['seedance2.0-933','seedance2.0-933-fast'].includes(id)?[10,15]:
+        id==='pidoi-omni-flash-720p'?[5,10]:
+        /^seedance2\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
+        /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,30):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
-      resolutions:isImage?[]:[res],aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
+      resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
       defaultAspectRatio:isImage?'1:1':'16:9',defaultDuration:min,defaultResolution:res,
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
       supportedOperations:isImage?['text-to-image','image-edit']:['text-to-video',...((refs.image.supported||refs.video.supported||refs.audio.supported)?['reference-to-video']:[])],

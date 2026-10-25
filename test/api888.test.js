@@ -80,10 +80,10 @@ test('888API model without supported adapter or price cannot be billed',()=>{
  assert.throws(()=>quoteApi888({...m,adapterSupported:false},{}),/additional setup/i);
  assert.throws(()=>quoteApi888({...m,api888:{billing:'job',sourceCny:0}},{}),/verified source price/i);
 });
-test('flat price of five yuan is five credits at every allowed duration',()=>{
+test('SS 2.5 V1 published fixed price is ¥3.9 at any supported duration',()=>{
  const m=modelById('ss-2.5-720p-v1');
- assert.equal(quoteApi888(m,{duration:5}).cost,5);
- assert.equal(quoteApi888(m,{duration:15}).cost,5);
+ assert.equal(quoteApi888(m,{duration:5}).cost,3.9);
+ assert.equal(quoteApi888(m,{duration:30}).cost,3.9);
 });
 test('888API video response accepts task IDs and preserves result URLs',async()=>{
  let count=0;
@@ -107,7 +107,7 @@ test('888API video response accepts task IDs and preserves result URLs',async()=
 test('current 888API Seedance offerings become runnable after account-scoped sync',()=>{
   const ids=['ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
     's2-2.5-720p-v4','seedance2.5-930-1080p'];
-  const expected=[5,5,8,7,5];
+  const expected=[3.9,5,8,7,5];
   const records=api888MediaModels({data:ids.map(id=>({id}))});
   assert.equal(records.length,ids.length);
   for(const [i,m] of records.entries()){
@@ -117,7 +117,7 @@ test('current 888API Seedance offerings become runnable after account-scoped syn
     assert.equal(m.options.api888.sourceCny,expected[i]);
     assert.ok(m.options.durations.includes(5));
     assert.ok(m.options.durations.includes(15));
-    assert.equal(m.options.durations.includes(30),false);
+    assert.equal(m.options.durations.includes(30),true);
     const quote=quoteApi888({...m.options,providerModelId:m.providerModelId,mediaType:'video',provider:'api888'},
       {duration:10,resolution:m.options.defaultResolution,aspectRatio:'16:9'});
     assert.equal(quote.sourceCny,expected[i]);
