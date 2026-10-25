@@ -15,7 +15,7 @@ seedance-2.5-c1 seedance2.5-480p-value seedance2.5-480p-plus seedance2.5-480p-pr
 seedance2.5-720p-plus seedance2.5-720p-pro seedance2.5-1080p-plus seedance2.5-1080p-pro
 xin-seedance-2.5-3010 xin-seedance-2.5-900 dola-seedance-2.5 seedance2.5-vip-30-10-10 seedance2.5-vip-30-0-10
 seedance2.5-900-wool seedance2.5-101010-wool seedance2.5-301010-wool dola-seedance-2.5-900 dola-seedance-2.5-301010
-seedance-2.5-G2-V seedance2.5-900 seedance2.5-301010 seedance2.5-301010-av seedance2.5-930-1080p
+seedance-2.5-G2-V seedance-2.5-g5-v2 seedance2.5-900 seedance2.5-301010 seedance2.5-301010-av seedance2.5-930-1080p
 ss-2.5-720p-v1 ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doubao-seedance-2.5
 wan30-720p wan30-1080p-fast wan3.0-video wan3.0-video-prime wan3.0-image wan3.0-image-prime
 sora2-480p minimax-h3 minimax-h3-c4 pidoi-h3video-2k minimax-h3-480p-t minimax-h3-768p-t
@@ -104,6 +104,10 @@ Object.assign(SPECS, {
  'dola-seedance-2.5':[1.7,'job',4,30,'720p',30,0,0],
  'dola-seedance-2.5-900':[1.45,'job',5,30,'720p',9,0,0],
  'dola-seedance-2.5-301010':[1.5,'job',5,30,'720p',30,10,10],
+ // 888API's October 2026 model card lists native realistic-video 720p,
+ // 5–30 seconds, ¥7 fixed, 30 images + 10 videos + 10 audio references.
+ // Field mapping follows the G2-V family and still needs a live test.
+ 'seedance-2.5-g5-v2':[7,'job',5,30,'720p',30,10,10],
  'dola-seedance-2.0-fast':[1.5,'job',4,15,'720p',9,0,0],
  'dola-seedance-2.0-900':[1.3,'job',4,15,'720p',9,0,0],
  'dola-seedance-2.0-933':[1.5,'job',4,15,'720p',9,3,3],
@@ -160,6 +164,7 @@ const VIDEO_INPUTS={
   's2-2.5-720p-v3':{videos:10,audios:10},
   's2-2.5-720p-v4':{videos:10,audios:10},
   'dola-seedance-2.5-301010':{videos:10,audios:10},
+   'seedance-2.5-g5-v2':{videos:10,audios:10},
   'seedance2.5-930-1080p':{videos:0,audios:3,audioField:'metadata.audios'},
   'wan30-720p':{videos:5,audios:5},
   'wan30-1080p-fast':{videos:5,audios:5},
@@ -216,7 +221,7 @@ function describedModel(id,type) {
       'seedance2.5-720p-plus','seedance2.5-720p-pro',
       'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
       'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
-      'dola-seedance-2.5-900','dola-seedance-2.5-301010','doubao-seedance-2.5',
+      'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
       // Official per-second video SKUs: all use POST /v1/videos with

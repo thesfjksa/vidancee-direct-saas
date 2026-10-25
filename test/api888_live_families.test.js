@@ -87,7 +87,7 @@ test('two Seedance four-image variants transport documented multimodal arrays',(
  }
 });
 test('unknown and undocumented IDs remain unrunnable even when upstream lists them',()=>{
- for(const id of ['seedance-2.5-g5-v2','sora2-unpublished','gpt-image-2-plus']){
+ for(const id of ['seedance-2.5-unknown-v3','sora2-unpublished','gpt-image-2-plus']){
   const m=model(id,id.includes('gpt-image')?'image':'video');
   assert.equal(m.adapterSupported,false,id);
  }
