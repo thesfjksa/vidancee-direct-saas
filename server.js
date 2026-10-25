@@ -1958,7 +1958,7 @@ const server=http.createServer(async (req,res)=>{
         const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
         const models=await syncProviderModels('api888',api888MediaModels(catalog));
         return sendJson(res,200,{ok:true,total:models.length,adapterSupported:models.filter(m=>m.adapterSupported).length,
-          note:'Catalog imported. Models require a valid token, USD/CNY exchange rate and an explicit provider enable switch before customer generation.'});
+          note:'Live models imported. 888API credits equal source CNY without FX conversion. Newly supported models require model-level Admin enable, and global and customer source access still apply.'});
       }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();

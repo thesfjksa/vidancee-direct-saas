@@ -21,6 +21,12 @@ wan30-720p wan30-1080p-fast wan3.0-video wan3.0-video-prime wan3.0-image wan3.0-
 sora2-480p minimax-h3 minimax-h3-c4 pidoi-h3video-2k minimax-h3-480p-t minimax-h3-768p-t
 pidoi-omni-flash-720p pidoi-veo31-fast grok-imagine-video-1.5-preview
 `.trim().split(/\s+/);
+// Documented exact variant IDs. Catalog availability remains account-scoped.
+const SORA_VARIANTS=[4,8,12].flatMap(sec=>['16x9','9x16'].flatMap(r=>
+ ['','pro-'].map(t=>'sora2-'+t+sec+'s-'+r)));
+const GROK_VARIANTS=['grok-imagine-1.0-video','grok-imagine-video',
+ 'grok-imagine-video-preview','grok-imagine-video-1.5-preview','grok-imagine-video-1.5-fast'];
+for(const id of [...SORA_VARIANTS,...GROK_VARIANTS])if(!VIDEO_IDS.includes(id))VIDEO_IDS.push(id);
 const IMAGE_IDS = String.raw`
 gpt-image-2-1k gpt-image-2 gpt-image-2-plus gpt-image-2-pro gpt-image-2pro gpt-image-2.5-1k gpt-image-2.5-4k gpt-image-2-4k
 gpt-image-2.5-flare gpt-image-2.5-flare-4k gpt-image-2.5-sunburst gpt-image-2.5-sunburst-4k
@@ -111,11 +117,29 @@ Object.assign(SPECS, {
  'seedance2.0-933-mini':[1,'job',5,12,'720p',9,0,3],
 });
 
+// Provider's documented CNY cost and fixed output specs, never infer by name.
+Object.assign(SPECS,{
+ 'seedance2.0-full-4img':[4,'job',4,15,'720p',4,3,1],
+ 'seedance2.0-fast-4img':[3.5,'job',4,15,'720p',4,3,1],
+ 'doubao-seedance-2-0-fast':[0.61,'second',4,15,'720p',9,3,3],
+ 'jimeng-video-seedance-2.0-fast-vip':[0.484,'second',4,15,'720p',2,0,0],
+});
+for(const id of SORA_VARIANTS){
+ const secs=Number(id.match(/-(\d+)s-/)[1]);
+ SPECS[id]=[0.6,'job',secs,secs,'720p',1,0,0];
+}
+for(const id of GROK_VARIANTS){
+ const preview=id==='grok-imagine-video-1.5-preview',fast=id==='grok-imagine-video-1.5-fast';
+ SPECS[id]=[0.2,'job',preview?5:fast?10:6,preview?15:10,'720p',1,0,0];
+}
 const IMAGE_CNY = {
   'gpt-image-2.5-1k':0.06,'gpt-image-2.5-4k':0.09,
   'gpt-image-2.5-flare':0.05,'gpt-image-2.5-flare-4k':0.09,
   'gpt-image-2.5-sunburst':0.05,'gpt-image-2.5-sunburst-4k':0.09,
-  'gpt-image-2':0.05,'gpt-image-2-4k':0.09,
+  'gpt-image-2':0.075,'gpt-image-2pro':0.075,
+  'gemini-3-pro-image-preview':0.075,'gemini-3-pro-image-preview-c':0.075,
+  'gemini-3.1-flash-image-preview':0.075,'gemini-3.1-flash-image-preview-c':0.075,
+  'gpt-image-2-4k':0.09,
 };
 const PUBLIC_ID = id => 'api888_' + String(id).replace(/[^a-zA-Z0-9]/g, '_');
 const isApi888Model = id => /^api888_/.test(String(id || ''));
@@ -128,6 +152,9 @@ const RATS_WIDE = [...RATS_FIVE,'21:9'];
 // 2026). Specs are prices; input contracts must be checked independently.
 // Do not infer upload support solely from a model ID containing "301010".
 const VIDEO_INPUTS={
+ 'seedance2.0-full-4img':{videos:3,audios:1,videoField:'referenceVideos',audioField:'referenceAudios'},
+ 'seedance2.0-fast-4img':{videos:3,audios:1,videoField:'referenceVideos',audioField:'referenceAudios'},
+ 'doubao-seedance-2-0-fast':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
   'ss-2.5-720p-v1':{videos:10,audios:10},
   's2-2.5-480p-v2':{videos:0,audios:10},
   's2-2.5-720p-v3':{videos:10,audios:10},
@@ -147,6 +174,9 @@ const VIDEO_INPUTS={
   'wan3.0-video-prime':{videos:10,audios:0},
 };
 const modelVideoRatios=id=>{
+ if(SORA_VARIANTS.includes(id))return [id.endsWith('16x9')?'16:9':'9:16'];
+ if(GROK_VARIANTS.includes(id))return ['16:9','9:16'];
+ if(id==='jimeng-video-seedance-2.0-fast-vip')return RATS_WIDE;
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
   if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
@@ -169,10 +199,15 @@ function describedModel(id,type) {
   // Explicitly supported request families. Unreviewed channels are imported
   // as Admin-only entries, never silently mapped to an incompatible API.
   const implemented=known && (
-    (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k'].includes(id)) ||
+    (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
+      'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
+      'gemini-3.1-flash-image-preview','gemini-3.1-flash-image-preview-c'].includes(id)) ||
+    (!isImage && (SORA_VARIANTS.includes(id)||GROK_VARIANTS.includes(id))) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
     [// Published, priced models using the existing generic /v1/videos contract.
       // Live account model discovery and Admin access gates still apply.
+      'seedance2.0-full-4img','seedance2.0-fast-4img','doubao-seedance-2-0-fast',
+      'jimeng-video-seedance-2.0-fast-vip',
       'seedance2.0-933-economy','pidoi-h3video-2k','pidoi-omni-flash-720p','pidoi-veo31-fast',
       'seedance2.0-933','seedance2.0-pro-480p','seedance2.0-933-fast','seedance2.0-933-mini',
       'xin-seedance-2.0-900','xin-seedance-2.0-933',
@@ -196,9 +231,10 @@ function describedModel(id,type) {
       'sora2-480p'].includes(id)
   );
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
-  const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id);
+  const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id)||id==='grok-imagine-video-1.5-preview';
   const inputs=VIDEO_INPUTS[id]||{};
   const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,inputs.videos||0,inputs.audios||0,requiredImage);
+  if(id==='doubao-seedance-2-0-fast'){refs.video.min=1;refs.textOnly=false;}
   // The upstream limits some multimodal models to 12 total items, even
   // though their individual image/video/audio maxima sum to 15.
   if(['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-933',
@@ -213,10 +249,15 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'?'seconds':'duration',
-        imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images',
-        videoField:inputs.videos?'videos':null,audioField:inputs.audios?(inputs.audioField||'audios'):null},
-      durations:isImage?[]:id==='seedance2.5-900'?[5,10,15,30]:
+        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip'].includes(id)?'seconds':'duration',
+        imageField:id==='seedance-2.5-c1'||id==='doubao-seedance-2-0-fast'?'image_urls':
+          (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
+        videoField:inputs.videos?(inputs.videoField||'videos'):null,
+        audioField:inputs.audios?(inputs.audioField||'audios'):null},
+      durations:isImage?[]:SORA_VARIANTS.includes(id)?[min]:
+        GROK_VARIANTS.includes(id)?(id==='grok-imagine-video-1.5-preview'?[5,6,10,15]:
+          id==='grok-imagine-video-1.5-fast'?[10]:[6,10]):
+        id==='seedance2.5-900'?[5,10,15,30]:
         ['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-pro-480p'].includes(id)?[15]:
         ['seedance2.0-933','seedance2.0-933-fast'].includes(id)?[10,15]:
         id==='pidoi-omni-flash-720p'?[5,10]:
@@ -224,9 +265,11 @@ function describedModel(id,type) {
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,30):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
       resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
-      defaultAspectRatio:isImage?'1:1':'16:9',defaultDuration:min,defaultResolution:res,
+      defaultAspectRatio:isImage?'1:1':SORA_VARIANTS.includes(id)&&id.endsWith('9x16')?'9:16':'16:9',
+      defaultDuration:min,defaultResolution:res,
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
-      supportedOperations:isImage?['text-to-image','image-edit']:['text-to-video',...((refs.image.supported||refs.video.supported||refs.audio.supported)?['reference-to-video']:[])],
+            supportedOperations:isImage?['text-to-image']:[...(refs.textOnly?['text-to-video']:[]),
+        ...((refs.image.supported||refs.video.supported||refs.audio.supported)?['reference-to-video']:[])],
       imageSizes:[],qualities:[],supportsAudio:false,inputLimits:{text:{max_chars:4096}},
     },
   };
@@ -273,4 +316,4 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,isApi888Model,api888MediaModels,quoteApi888};
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888};
