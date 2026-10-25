@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-25 — 888API source expansion PRs #43–#45, account audit, Seedance G5-V2 multimodal
+
+- **Merged PR [#43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43)** (`ba657667`): expanded priced 888API video adapters, corrected SS 2.5 V1 fixed source cost to ¥3.90, adjusted documented maximum durations/ratio/media references, and added regression tests (**267 passed**).
+- **Merged PR [#44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44)** (`adb0ddbee`): implemented 27 more currently account-visible IDs across Sora 2, Grok video, GPT/Gemini images, Seedance 2.0, Doubao and Jimeng. Added provider-family payload builders, price/format tests and an **Admin opt-in gate** disabling newly adapter-supported 888API rows on their first successful live catalog reimport (**276 passed**).
+- **Merged PR [#45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45)** (`f82b02c0`): exact-account model `seedance-2.5-g5-v2` added to `VIDEO_IDS`, price/spec tables and reference capabilities, with **¥7 / request = 7 credits**, **720p**, **5–30s**, up to **30 images + 10 videos + 10 audio references**. Mocked request tests cover all three URL arrays, limits, fixed price and paid POST no-retry. Latest GitHub [`main` CI](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) **281 passed, 0 failed**.
+- **Owner-observed read-only account audit BEFORE #44/#45 sync:** 64 live IDs vs 115 historical saved IDs (49 stale); **0 missing from MySQL**, 0 wrong availability flags and 0 wrong media type; 27 implemented, 32 priced, 27 ready+enabled (23 video/4 image), 37 unimplemented. Source globally **enabled** per Admin audit, but customer source entitlements and per-model switches remain separate.
+- **Seedance entitlement lesson:** `ss-2.5-720p-v1`, `s2-2.5-720p-v3`/`v4`, `dola-seedance-2.5-301010` and `seedance-2.5-G2-V` were not returned to the saved key. G5-V2 **was already imported** and returned by the key but had no runnable adapter until #45. 888API's model-card screenshot supplied the G5 price/capability limits; the **exact G5 video JSON transport is inferred from the documented related G2-V family**, not validated by a paid request.
+- **Still unimplemented for the user's prior 64-ID snapshot (9):** `sd_2.0_mini_special`, `minimax-h3`, `gpt-image-2.5-flare-4k`, `doubao-seedance-2.0-mini`, `gpt-image-2-1k`, `seedance2.5-301010-wool-1080p`, `gpt-image-2-plus`, `ss-2.0-933-720p`, `gpt-image-2.5-flare`. Avoid enabling them with unverified pricing/contract.
+- **Release boundary:** Code merged, CI successful; **no claimed live Hostinger web/worker deploy, MySQL quota recovery, refreshed model sync, OAuth/Drive migration, or paid 888API G5-V2 generation**. The next operator work is to verify both service revisions and write-safe MySQL, rerun read-only audit, import account models, confirm G5-V2 initially disabled with visible three media pickers, and authorize a single test before general activation.
+- Handoff/docs refreshed at [PROJECT_HANDOFF_2026-10-25.md](PROJECT_HANDOFF_2026-10-25.md), [API888.md](API888.md), [HPANEL_DEPLOYMENT.md](HPANEL_DEPLOYMENT.md), [ADMIN_PROVIDER_SETTINGS.md](ADMIN_PROVIDER_SETTINGS.md).
+
+
 
 ## 2026-10-25 — Exact SS/S2 and Dola Seedance entitlement diagnostics
 
