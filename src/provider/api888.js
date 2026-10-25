@@ -94,21 +94,48 @@ Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxByt
 };
 Api888Client.prototype.videoBody=function(model,params,references=[]){
   const images=references.filter(r=>r.mimeType?.startsWith('image/'));
-  if(references.length!==images.length)throw new Error('This 888API model currently supports image references only.');
-  const max=Number(model.referenceCapabilities?.image?.max||0);
-  if(images.length>max)throw new Error('Too many image references for this model.');
-  const min=Number(model.referenceCapabilities?.image?.min||0);
-  if(images.length<min)throw new Error('This 888API model requires at least '+min+' reference image'+(min===1?'':'s')+'.');
+  const videos=references.filter(r=>r.mimeType?.startsWith('video/'));
+  const audios=references.filter(r=>r.mimeType?.startsWith('audio/'));
+  if(references.length!==images.length+videos.length+audios.length)
+    throw new Error('Unsupported 888API reference media type.');
+  const caps=model.referenceCapabilities||{};
+  for(const [type,items] of [['image',images],['video',videos],['audio',audios]]){
+    const capability=caps[type]||{};
+    const max=Number(capability.max||0),min=Number(capability.min||0);
+    if(items.length>max||(!capability.supported&&items.length))
+      throw new Error('This 888API model accepts at most '+max+' '+type+' reference'+(max===1?'':'s')+'.');
+    if(items.length<min)
+      throw new Error('This 888API model requires at least '+min+' reference '+type+(min===1?'':'s')+'.');
+  }
+  if(Number(caps.totalMax)>0&&references.length>Number(caps.totalMax))
+    throw new Error('Too many reference files for this 888API model.');
+  if(videos.length&&!['videos','video_urls','reference_videos'].includes(model.api888?.videoField))
+    throw new Error('888API video reference transport is not configured for this model.');
+  if(audios.length&&!['audios','audio_urls','metadata.audios'].includes(model.api888?.audioField))
+    throw new Error('888API audio reference transport is not configured for this model.');
+  if(references.some(r=>!/^https:\/\//i.test(String(r.url||''))))
+    throw new Error('888API references need HTTPS direct media URLs.');
   const timeField=model.api888?.secondsField==='seconds'?'seconds':'duration';
   const duration=Number(params.duration);
   if(!Number.isInteger(duration)||duration<=0)throw new Error('Invalid 888API video length.');
-  return {model:model.providerModelId,prompt:String(params.prompt||''),
-    // 888API's Go Alias input contract requires seconds as a JSON string.
-    // Fixed-price models continue using numeric duration, as before.
+  const ratio=String(params.aspectRatio||model.defaultAspectRatio||'16:9');
+  if(Array.isArray(model.aspectRatios)&&model.aspectRatios.length&&!model.aspectRatios.includes(ratio))
+    throw new Error('Unsupported aspect ratio for this 888API model.');
+  const imageField=model.api888?.imageField||'images';
+  if(!['images','image_urls','referenceImages'].includes(imageField))
+    throw new Error('888API image reference transport is not supported.');
+  const body={model:model.providerModelId,prompt:String(params.prompt||''),
+    // 888API Go Alias seconds input requires a JSON string.
     [timeField]:timeField==='seconds'?String(duration):duration,
     resolution:String(params.resolution||model.defaultResolution||'720p'),
-    ratio:String(params.aspectRatio||'16:9'),
-    ...(images.length?{images:images.map(r=>r.url)}:{})};
+    ratio};
+  if(images.length)body[imageField]=images.map(r=>r.url);
+  if(videos.length)body[model.api888.videoField]=videos.map(r=>r.url);
+  if(audios.length){
+    if(model.api888.audioField==='metadata.audios')body.metadata={audios:audios.map(r=>r.url)};
+    else body[model.api888.audioField]=audios.map(r=>r.url);
+  }
+  return body;
 };
 Api888Client.prototype.startVideo=async function(model,params,references=[]){
   const data=await this.json('/v1/videos',this.videoBody(model,params,references),120000);
