@@ -20,9 +20,12 @@ async function disableApi888ForUsersOnce(db) {
 }
 // Owner-approved on 25 Oct 2026: these models start enabled without Admin
 // opt-in. Runs once, so a later Admin switch-off is respected.
-// v2 (same day): the owner kept only the four models 888API is offered for.
+// v2 (same day): the owner kept only the models 888API is offered for. The
+// marker lists the models already switched on, so a model added to the
+// offer later is switched on once too.
 const {OFFERED_API888_MODELS}=require('./api888_models.js');
 const DEFAULT_ON_MODELS=OFFERED_API888_MODELS;
+const V2_FIRST_MODELS=['seedance-2.5-g5-v2','seedance2.5-301010-wool','seedance2.0-933','wan3.0-video-prime'];
 async function enableDefaultApi888ModelsOnce(db) {
   const conn=await db.getConnection();
   const key='api888_default_on_models_v2';
@@ -30,9 +33,13 @@ async function enableDefaultApi888ModelsOnce(db) {
     await conn.beginTransaction();
     await conn.execute('INSERT IGNORE INTO app_settings (setting_key,setting_value,is_secret) VALUES (?, ?, 0)',[key,'pending']);
     const [[row]]=await conn.execute('SELECT setting_value FROM app_settings WHERE setting_key=? FOR UPDATE',[key]);
-    if(row.setting_value==='done'){await conn.commit();return false;}
-    await conn.execute("UPDATE provider_models SET enabled=1,updated_at=UTC_TIMESTAMP() WHERE provider='api888' AND provider_model_id IN ("+DEFAULT_ON_MODELS.map(()=>'?').join(',')+")",DEFAULT_ON_MODELS);
-    await conn.execute('UPDATE app_settings SET setting_value=? WHERE setting_key=?',['done',key]);
+    let done=[];
+    if(row.setting_value==='done')done=V2_FIRST_MODELS;
+    else try{done=JSON.parse(row.setting_value);if(!Array.isArray(done))done=[];}catch{done=[];}
+    const todo=DEFAULT_ON_MODELS.filter(id=>!done.includes(id));
+    if(!todo.length){await conn.commit();return false;}
+    await conn.execute("UPDATE provider_models SET enabled=1,updated_at=UTC_TIMESTAMP() WHERE provider='api888' AND provider_model_id IN ("+todo.map(()=>'?').join(',')+")",todo);
+    await conn.execute('UPDATE app_settings SET setting_value=? WHERE setting_key=?',[JSON.stringify([...done,...todo]),key]);
     await conn.commit();
     return true;
   } catch(error){await conn.rollback();throw error;}

@@ -51,9 +51,9 @@ test('worker requires explicit customer access before submitting an 888API queue
  const {VercelQueue}=require('../src/vercel_queue.js');
  assert.match(new Api888Queue().queuedSql(),/COALESCE\(a.enabled,0\)=1/);
 });
-test('the four offered 888API models are switched on once, and a later Admin switch-off survives restarts',async()=>{
+test('the offered 888API models are switched on once, and a later Admin switch-off survives restarts',async()=>{
  const {enableDefaultApi888ModelsOnce}=require('../src/api888_access.js');
- const state={marker:null,rows:{'seedance-2.5-g5-v2':0,'seedance2.0-933':0,'seedance2.5-301010-wool':0,'wan3.0-video-prime':0,'wan3.0-video':0}};
+ const state={marker:null,rows:{'seedance-2.5-g5-v2':0,'seedance2.0-933':0,'seedance2.5-301010-wool':0,'wan3.0-video-prime':0,'wan30-720p':0,'wan3.0-video':0}};
  const conn={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release:()=>{},
   execute:async(sql,args)=>{
    if(sql.startsWith('INSERT IGNORE')){state.marker??='pending';return [{}];}
@@ -64,8 +64,13 @@ test('the four offered 888API models are switched on once, and a later Admin swi
   }};
  const db={getConnection:async()=>conn};
  assert.equal(await enableDefaultApi888ModelsOnce(db),true);
- assert.deepEqual(state.rows,{'seedance-2.5-g5-v2':1,'seedance2.0-933':1,'seedance2.5-301010-wool':1,'wan3.0-video-prime':1,'wan3.0-video':0});
+ assert.deepEqual(state.rows,{'seedance-2.5-g5-v2':1,'seedance2.0-933':1,'seedance2.5-301010-wool':1,'wan3.0-video-prime':1,'wan30-720p':1,'wan3.0-video':0});
  state.rows['seedance2.0-933']=0;
  assert.equal(await enableDefaultApi888ModelsOnce(db),false);
  assert.equal(state.rows['seedance2.0-933'],0);
+ // Sites that already ran the first four-model step get only the model added since.
+ state.marker='done';state.rows={'seedance2.0-933':0,'wan30-720p':0};
+ assert.equal(await enableDefaultApi888ModelsOnce(db),true);
+ assert.deepEqual(state.rows,{'seedance2.0-933':0,'wan30-720p':1});
+ assert.equal(await enableDefaultApi888ModelsOnce(db),false);
 });

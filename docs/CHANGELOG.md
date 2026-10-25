@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — 888API: Wan 3.0 720p kept too
+
+- `wan30-720p` is offered again as **Wan 3.0 720p** and switched on once. The default-on marker now lists the models it has switched on, so models added to the offer later are switched on once without touching the others.
+
 ## 2026-10-25 — 888API: four models only, renamed
 
 - At the owner's request, 888API offers only four models; every other 888API video and image model is hidden ("Not offered on CMM Tools.") through the existing read-time catalog overlay, so no re-import is needed:
