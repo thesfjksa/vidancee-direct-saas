@@ -185,6 +185,7 @@ const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { Api888Client } = require('./src/provider/api888.js');
 const { recoverApi888Video } = require('./src/api888_recovery.js');
 const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
+const { loadApi888Health, isApi888Available, isApi888PublicAvailable } = require('./src/api888_health.js');
 const { auditApi888Import } = require('./src/api888_audit.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
@@ -555,8 +556,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
   }
   if(access.api888 && providerSettings.api888.active){
     const catalog=await safeCatalog('api888',()=>publicProviderCatalog('api888',{}));
-    video.push(...catalog.video);
-    image.push(...catalog.image);
+    // Hide models 888API does not currently mark "available" (当前可用).
+    const health=await loadApi888Health().catch(()=>null);
+    const live=model=>isApi888PublicAvailable(health,model.id);
+    video.push(...catalog.video.filter(live));
+    image.push(...catalog.image.filter(live));
   }
   // Higgsfield's Wan 3.0: 480p native; 720p/1080p rendered lower and upscaled by fal.
   if(access.higgsfield && providerSettings.higgsfield.active){
@@ -749,6 +753,8 @@ async function submitVideoGeneration(user,body,req=null){
     if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey)throw httpError(503,'888API video generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'888API model not ready.');
+    if(!isApi888Available(await loadApi888Health().catch(()=>null),model.providerModelId))
+      throw httpError(503,'This model is temporarily unavailable. Please choose another model.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
@@ -856,6 +862,8 @@ async function submitImageGeneration(user,body,req=null){
     if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey)throw httpError(503,'888API image generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'image');
     if(!model?.ready)throw httpError(404,'888API image model not ready.');
+    if(!isApi888Available(await loadApi888Health().catch(()=>null),model.providerModelId))
+      throw httpError(503,'This model is temporarily unavailable. Please choose another model.');
     if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);
