@@ -1,5 +1,26 @@
 # CMM Tools Hostinger Deployment
 
+## Release checkpoint: 25 October 2026, after 888API PR #45
+
+**GitHub source only:** `main` includes [PR #43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43), [PR #44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44), [PR #45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45), current application commit **`f82b02c0bd9d80672bf267f5705b294954bc1a85`**. Its [post-merge GitHub CI](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) succeeded **281/281 tests**. **Web/worker Hostinger deployment is NOT separately verified** and must not be inferred from the repo head.
+
+The original incident below documented a Hostinger clone failure at `089d08f` and over-quota MySQL (~3,143/3,072 MB); these are **last screenshot-confirmed observations, not fresh current diagnoses**. The user's report that GitHub repository commits are updated is not equivalent to a screenshot/log/health proof that both Hostinger Node apps are serving commit `f82b02c0`. Do not delete financial rows or the local SQL backup to bypass the issue.
+
+### Exact 888API post-deployment acceptance checklist
+
+1. Verify **separately** in Hostinger hPanel that the web `cmmtools.site` and worker `worker.mehroz.online` deployments use `f82b02c0` or newer. Re-check each public `/live` / `/health` response plus Hostinger logs and current database connected/read-write status. The worker's `revision` number is **not a Git commit hash**.
+2. Preserve the source database export and encryption settings. Address storage quota/grants before attempting catalog writes; even `provider_models` model sync requires `UPDATE`/`INSERT` privileges. No credential reset, ledger deletion, bulk paid-job cancellation, or unbacked destructive cleanup.
+3. Admin → Providers → 888API → **Verify live import (read-only)**: historical owner snapshot was 64 live, 115 saved, 49 historical/stale, **0** missing/wrong/stale-live imports; 27 implemented/27 enabled-and-ready before new code rollout. Owner said global source already ON. Review current account entitlement and new snapshot.
+4. Only after DB writes work: **Import all accessible models** to refresh `provider_models.options_json` for the current API-key response. Current GitHub implementation has **up to 55 of the previous 64 IDs** implemented (27 previous + 27 PR #44 + G5-V2 PR #45); **do not present this as a current ready/active total until independently audited.**
+5. For `seedance-2.5-g5-v2`, audit `720p`, duration 5–30 seconds, `¥7 = 7 credits` and image/video/audio reference maxima **30/10/10** in the admin and Video Studio model metadata. The new-model activation gate in `src/provider_models.js` sets previously unsupported models `enabled=0` on sync. Even with global 888API ON, customer needs explicit source assignment and **model-level Admin enable**.
+6. **Paid test only with explicit owner approval** and one controlled, small G5-V2 request. The implementation currently maps images/videos/audios via G2-V-family request fields; these exact **G5-V2 fields are inferred, not upstream proven**. Confirm task ID, safe media fetch, completion, credit charging/refund and provider output; no automatic retries on ambiguous paid POST.
+7. Enable models for customers only after the upstream test passes and worker/web revisions match; observe source quotas and MySQL storage for **reference BLOBs**, which Google Drive output migration does not replace.
+
+For exact live audit numbers, missing-IDs investigation, 9 remaining unimplemented model IDs, implementation files and safe recovery sequencing, read [the updated dated handoff](PROJECT_HANDOFF_2026-10-25.md) and [888API runbook](API888.md). No live deployment, database cleanup or paid upstream generation was performed while making this documentation change.
+
+---
+
+
 **25 October 2026 — incident update:** Before acting, read [the current comprehensive production recovery handoff](PROJECT_HANDOFF_2026-10-25.md). The original architectural instructions below remain useful, but **the active shared MySQL DB was over its 3,072 MB limit**, latest web deploy `089d08f` **failed during GitHub repository cloning**, and the last screenshot-confirmed active web commit was `316e103`; the worker's deployed commit was not verified. **Do not assume the latest GitHub features are live.** The owner downloaded a local DB export; no backup restore or confirmed video deletion has been carried out.
 
 ### Active deployment incident: repository cloning failed
