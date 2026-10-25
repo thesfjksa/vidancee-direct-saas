@@ -74,5 +74,5 @@ test('audit counts duplicate upstream model IDs once, does not mutate provider o
 
 test('audit refuses upstream responses with no recognized model data rather than claiming import success',()=>{
  assert.throws(()=>auditApi888Import({data:[]},[]),/no recognized media models/i);
- assert.throws(()=>auditApi888Import(null,[]),/no model list/i);
+ assert.throws(()=>auditApi888Import({data:'invalid'},[]),/no model list/i);
 });
