@@ -1168,6 +1168,10 @@ const server=http.createServer(async (req,res)=>{
     if((req.method==='GET'||req.method==='HEAD')&&providerMediaMatch){
       requireDatabase();
       const id=providerMediaMatch[1],position=Number(providerMediaMatch[2]);
+      // Reference-field probe: log which tagged copy a provider downloads.
+      if(url.searchParams.get('probe'))logActivity({category:'provider',event:'api888.reference_fetched',generationId:id,provider:'api888',
+        message:'Provider downloaded reference via field '+String(url.searchParams.get('probe')).slice(0,40),
+        details:{field:String(url.searchParams.get('probe')).slice(0,40),method:req.method,range:req.headers.range||null,userAgent:String(req.headers['user-agent']||'').slice(0,120)}});
       if(!verifyAssetSignature(id,position,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
       const [[media]]=await getPool().execute('SELECT mime_type,media_data FROM generation_media WHERE generation_id=? AND position_index=? LIMIT 1',[id,position]);
       if(media)await require('./src/object_storage.js').hydrateBlobs(media,'media_data');

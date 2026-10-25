@@ -790,3 +790,15 @@ test('888API request traces keep host and path of links but drop signatures',()=
   const out=traceShape({model:'wan30-720p',video_urls:['https://acct.r2.cloudflarestorage.com/cmmtools-media/media/x/y?X-Amz-Signature=secret']});
   assert.deepEqual(out,{model:'wan30-720p',video_urls:['acct.r2.cloudflarestorage.com/cmmtools-media/media/x/y?…']});
 });
+
+test('reference-field probe sends each candidate field with its own tagged link',()=>{
+  const client=new Api888Client({apiKey:'k'});
+  const model=api888MediaModels({data:[{id:'wan30-720p'}]})[0];
+  const m={...model.options,providerModelId:'wan30-720p',api888:{...model.options.api888,probeVideoFields:true}};
+  const body=client.videoBody(m,{prompt:'P',duration:4,aspectRatio:'16:9'},[{mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/x/0?sig=s'}]);
+  assert.equal(body.videos[0],'https://cmmtools.site/provider-media/x/0?sig=s&probe=videos');
+  assert.equal(body.video_urls[0],'https://cmmtools.site/provider-media/x/0?sig=s&probe=video_urls');
+  assert.equal(body.referenceVideos[0].endsWith('probe=referenceVideos'),true);
+  assert.equal(body.video_url.endsWith('probe=video_url'),true);
+  assert.equal(body.metadata.videos[0].endsWith('probe=metadata.videos'),true);
+});

@@ -198,6 +198,12 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     if(model.api888.audioField==='metadata.audios')body.metadata={audios:audios.map(r=>r.url)};
     else body[model.api888.audioField]=audios.map(r=>r.url);
   }
+  if(model.api888?.probeVideoFields&&videos.length){
+    const tag=(url,field)=>url+(url.includes('?')?'&':'?')+'probe='+field;
+    for(const field of ['videos','video_urls','reference_videos','referenceVideos'])body[field]=videos.map(r=>tag(r.url,field));
+    body.video_url=tag(videos[0].url,'video_url');
+    body.metadata={...(body.metadata||{}),videos:videos.map(r=>tag(r.url,'metadata.videos'))};
+  }
   return body;
 };
 // Request and reply as logged for support: links keep only host and path,
