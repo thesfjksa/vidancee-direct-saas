@@ -219,13 +219,14 @@ let GATEWAY_FORWARDS_MEDIA_REFS=process.env.API888_MEDIA_REFS==='on';
 const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 
 // Owner's choice (25 Oct 2026): only these 888API models are offered, under
-// these names. Tests of the wider catalog turn the rest on with
+// these names (Wan 3.0 720p added the same day). Tests of the wider catalog turn the rest on with
 // setApi888OfferAll(true).
 const OFFERED={
  'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
  'seedance2.0-933':'Seedance 2.0 Standard',
  'wan3.0-video-prime':'Wan 3.0 Video Prime',
+ 'wan30-720p':'Wan 3.0 720p',
 };
 let OFFER_ALL=false;
 const setApi888OfferAll=on=>{OFFER_ALL=Boolean(on);};
