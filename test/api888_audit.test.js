@@ -11,12 +11,12 @@ function row(providerModelId,{type='video',available=true,enabled=true,supported
 
 test('read-only audit distinguishes imported history from current live access',()=>{
   const live={data:[
-    {id:'minimax-h3-480p-t'},
+    {id:'wan30-720p'},
     {id:'gpt-image-2.5-1k',type:'image'},
     {id:'some-new-text-model',type:'text'},
   ]};
   const saved=[
-    row('minimax-h3-480p-t'),
+    row('wan30-720p'),
     row('gpt-image-2.5-1k',{type:'image'}),
     row('old-video-model',{available:false}),
   ];

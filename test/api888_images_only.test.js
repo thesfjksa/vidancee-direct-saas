@@ -23,3 +23,11 @@ test('888API models offer image references only while the gateway drops videos a
 test('video-reference-only 888API models are unavailable while video references are dropped',()=>{
   assert.equal(model('doubao-seedance-2-0-fast').adapterSupported,false);
 });
+
+test('888API MiniMax models are not offered: MiniMax H3 comes from vgenv',()=>{
+  for(const id of ['minimax-h3-480p-t','minimax-h3-768p-t','pidoi-h3video-2k','minimax-h3']){
+    const m=model(id);
+    assert.equal(m.adapterSupported,false,id);
+  }
+  assert.match(model('minimax-h3-480p-t').setupReason,/vgenv/);
+});

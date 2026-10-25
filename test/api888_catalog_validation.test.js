@@ -47,7 +47,7 @@ test('priced Seedance 2.5 per-second SKUs use exact published rates and string s
 });
 
 test('multimodal fixed job models enforce global reference count where published',()=>{
- const ids=['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-933','xin-seedance-2.0-933'];
+ const ids=['seedance2.0-933-economy','seedance2.0-933','xin-seedance-2.0-933'];
  const client=new Api888Client({apiKey:'not-used'});
  for(const id of ids){
    const model=byId(id);
@@ -120,7 +120,7 @@ test('unpriced or unknown upstream IDs are never silently allowed to spend credi
 });
 
 test('25 Oct catalog cards: corrected fixed prices and wool ratios',()=>{
-  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',5,10],['pidoi-h3video-2k',2,15]]){
+  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',5,10]]){
     const model=byId(id);
     assert.equal(model.api888.billing,'job',id);
     assert.equal(quoteApi888(model,{duration,resolution:model.defaultResolution,aspectRatio:'16:9'}).cost,price,id);

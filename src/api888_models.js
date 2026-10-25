@@ -279,7 +279,9 @@ function describedModel(id,type) {
   // Models that cannot run without a reference video are unusable while the
   // gateway drops video references.
   const needsVideo=['doubao-seedance-2-0-fast','doubao-seedance-2-0'].includes(id);
-  const implemented=known && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
+  // MiniMax H3 is sold from vgenv; the 888API MiniMax models are not offered.
+  const vgenvMinimax=/^(minimax-h3|pidoi-h3video)/.test(id);
+  const implemented=known && !vgenvMinimax && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
       'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
@@ -339,7 +341,7 @@ function describedModel(id,type) {
     label:api888Label(id,type,{res,images:refs.image.max,videos:refs.video.max,audios:refs.audio.max,requiredImage}),
     mediaType:type,options:{
       catalogVerified:true,adapterSupported:implemented,
-      setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
+      setupReason:implemented?'':/^(minimax-h3|pidoi-h3video)/.test(id)?'MiniMax H3 is offered from vgenv instead.':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
         secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration',
         imageField:['seedance-2.5-c1','doubao-seedance-2-0-fast','sd_2.0_mini_special'].includes(id)?'image_urls':

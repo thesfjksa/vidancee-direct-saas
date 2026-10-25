@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 — fal.ai image models; MiniMax only from vgenv
+
+- **fal.ai image models (`falimg`):** `src/fal_images.js` imports fal's whole text-to-image catalog: the public Platform API with `expand=openapi-3.0` for each model's request schema, plus `/v1/models/pricing` with the saved fal.ai key. Models are priced from fal's per-image or per-megapixel rate (fal megapixel = 1024², rounded up) at the fal credit rate. Each model's `image_size` presets or custom sizes, or its `aspect_ratio` enum, map to the Image Studio ratio picker. Models that need extra inputs (images, masks, LoRA names), vector output or GPU-second pricing stay off. Sync runs 60 s after the worker starts and daily, or from Admin → Provider → fal.ai → **Sync fal.ai image models**. Jobs run through `FalImageQueue` (fal queue submit, poll, download) and are stored like other images. Customers need the existing fal.ai access switch. Families another source already offers are not duplicated.
+- **MiniMax H3:** 888API's MiniMax models (`minimax-h3-*`, `pidoi-h3video-2k`) are no longer offered. MiniMax H3 comes from vgenv, and vgenv access is turned on once for every customer who had it off.
+
 ## 2026-10-25 — 888API models take reference images only
 
 - Following the 888API gateway tests (see API888.md), every 888API video model now offers reference **images** only. Video and audio upload controls are gone, labels show image counts only (e.g. "Seedance 2.5 G5 Realistic · 720p · 30 img"), and the server refuses video and audio files for these models. `doubao-seedance-2-0-fast` and `doubao-seedance-2-0`, which require a reference video, are unavailable. Saved catalog rows follow the code at read time, so no re-import is needed.
