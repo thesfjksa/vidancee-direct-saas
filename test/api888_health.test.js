@@ -48,3 +48,15 @@ test('public /api/model-health (model_name rows) is preferred over /v1/models',a
   assert.equal(isApi888Available(snap,'wan30-720p'),true);
   assert.equal(isApi888Available(snap,'seedance2.0-pro-480p'),false);
 });
+
+test('web load refreshes the public health list when the saved snapshot is empty or stale',async()=>{
+  const store=new Map([['api888_model_health',JSON.stringify({at:new Date(0).toISOString(),statuses:{}})]]);
+  const client={modelHealth:async()=>({data:[{model_name:'wan30-720p',health_status:'available'},{model_name:'sora2-480p',health_status:'no_recent_success'}]})};
+  const snap=await loadApi888Health({getValue:async k=>store.get(k),setValue:async(k,v)=>store.set(k,v),client,now:5e12});
+  assert.equal(isApi888Available(snap,'wan30-720p'),true);
+  assert.equal(isApi888Available(snap,'sora2-480p'),false);
+  assert.ok(JSON.parse(store.get('api888_model_health')).statuses['wan30-720p']);
+  const failing={modelHealth:async()=>{throw new Error('down');}};
+  const kept=await loadApi888Health({getValue:async()=>JSON.stringify({at:new Date(0).toISOString(),statuses:{x:'available'}}),setValue:async()=>{},client:failing,now:6e12});
+  assert.deepEqual(kept.statuses,{x:'available'});
+});
