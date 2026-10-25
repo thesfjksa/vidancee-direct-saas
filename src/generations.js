@@ -426,7 +426,7 @@ async function createGenerationForUser(userId, input, options = {}) {
       validateAssignedRoles('image', imageRoles, capabilities.image);
       validateAssignedRoles('video', videoRoles, capabilities.video);
       validateAssignedRoles('audio', audioRoles, capabilities.audio);
-      const totalRefs = orderedImages.length + freshVideos.length;
+      const totalRefs = orderedImages.length + freshVideos.length + freshAudios.length;
       if (capabilities.totalMax > 0 && totalRefs > capabilities.totalMax) {
         const error = new Error('This model accepts at most ' + capabilities.totalMax + ' total reference files.');
         error.statusCode = 400;
