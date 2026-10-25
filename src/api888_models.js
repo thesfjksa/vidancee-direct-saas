@@ -208,6 +208,59 @@ const makeCaps = (images=0,videos=0,audios=0,requiredImage=false) => ({
   audio:{supported:audios>0,max:audios,min:0,roles:audios?['audio']:[],maxBytes:15*1024*1024,formats:['mp3','wav']},
 });
 const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
+
+// Customer-facing names. The label adds resolution and reference limits, so
+// SKUs of one family are distinguishable in the model picker.
+const NAMES={
+ 'wan30-720p':'Wan 3.0','wan30-1080p-fast':'Wan 3.0 Fast',
+ 'wan3.0-video':'Wan 3.0 Video','wan3.0-video-prime':'Wan 3.0 Video Prime',
+ 'wan3.0-image':'Wan 3.0 Image-to-Video','wan3.0-image-prime':'Wan 3.0 Image-to-Video Prime',
+ 'minimax-h3-480p-t':'MiniMax H3','minimax-h3-768p-t':'MiniMax H3','pidoi-h3video-2k':'MiniMax H3 Multi-Reference',
+ 'sd_2.0_mini_special':'Seedance 2.0 Mini Special','doubao-seedance-2.0-mini':'Seedance 2.0 Mini',
+ 'seedance2.0-933':'Seedance 2.0 Full','seedance2.0-933-economy':'Seedance 2.0 Economy',
+ 'seedance2.0-933-fast':'Seedance 2.0 Fast','seedance2.0-pro-480p':'Seedance 2.0 Pro',
+ 'seedance2.0-480p':'Seedance 2.0','seedance2.0-720p':'Seedance 2.0',
+ 'seedance2.0-stable-480p':'Seedance 2.0 Stable','seedance2.0-stable-720p':'Seedance 2.0 Stable',
+ 'ss-2.0-933-720p':'Seedance 2.0 SS','jimeng-video-seedance-2.0-fast-vip':'Seedance 2.0 Fast VIP',
+ 'seedance2.5-480p-value':'Seedance 2.5 Value',
+ 'seedance2.5-480p-plus':'Seedance 2.5 Plus','seedance2.5-720p-plus':'Seedance 2.5 Plus','seedance2.5-1080p-plus':'Seedance 2.5 Plus',
+ 'seedance2.5-480p-pro':'Seedance 2.5 Pro','seedance2.5-720p-pro':'Seedance 2.5 Pro','seedance2.5-1080p-pro':'Seedance 2.5 Pro',
+ 'seedance2.5-930-1080p':'Seedance 2.5','seedance-2.5-g5-v2':'Seedance 2.5 G5 Realistic',
+ 'seedance2.5-301010-wool':'Seedance 2.5 Economy','seedance2.5-301010-wool-1080p':'Seedance 2.5 Economy',
+ 'seedance2.5-101010-wool':'Seedance 2.5 Economy','seedance2.5-900-wool':'Seedance 2.5 Economy',
+ 'sora2-480p':'Sora 2',
+ 'gpt-image-2':'GPT Image 2','gpt-image-2-1k':'GPT Image 2','gpt-image-2-4k':'GPT Image 2','gpt-image-2pro':'GPT Image 2 Pro',
+ 'gpt-image-2.5-1k':'GPT Image 2.5','gpt-image-2.5-4k':'GPT Image 2.5',
+ 'gpt-image-2.5-flare':'GPT Image 2.5 Flare','gpt-image-2.5-flare-4k':'GPT Image 2.5 Flare',
+ 'gpt-image-2.5-sunburst':'GPT Image 2.5 Sunburst','gpt-image-2.5-sunburst-4k':'GPT Image 2.5 Sunburst',
+ 'gemini-3-pro-image-preview':'Gemini 3 Pro Image','gemini-3.1-flash-image-preview':'Gemini 3.1 Flash Image',
+};
+const prettyId=id=>id.replace(/[-_]/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+
+// gpt-image-2 sizes from https://888api.xin/docs (width and height multiples
+// of 16). Other 888API image models use the same WxH size field.
+const IMAGE_SIZES={
+ '1k':{'1:1':'1024x1024','9:16':'864x1536','16:9':'1536x864'},
+ '2k':{'1:1':'2048x2048','9:16':'1152x2048','16:9':'2048x1152'},
+ '4k':{'1:1':'2880x2880','9:16':'2160x3840','16:9':'3840x2160'},
+};
+const imageTier=id=>/-4k$/.test(id)?'4k':id==='gpt-image-2'?'2k':/-1k$/.test(id)?'1k':null;
+const imageRatios=id=>/^gpt-image-2-?pro$/.test(id)?['1:1']:['1:1','16:9','9:16'];
+function api888ImageSize(id,ratio){
+  const sizes=IMAGE_SIZES[imageTier(String(id))||'1k'];
+  return imageRatios(String(id)).includes(ratio)?sizes[ratio]:null;
+}
+function api888Label(id,type,{res,images=0,videos=0,audios=0,requiredImage=false}={}){
+  const parts=[NAMES[id]||prettyId(id)];
+  if(type==='image'){const tier=imageTier(id);if(tier)parts.push(tier.toUpperCase());return parts.join(' · ');}
+  if(res)parts.push(/k$/i.test(res)?res.toUpperCase():res);
+  const refs=[];
+  if(images)refs.push((requiredImage?'1–':'')+images+' img');
+  if(videos)refs.push(videos+' video');
+  if(audios)refs.push(audios+' audio');
+  parts.push(refs.length?refs.join(' + '):'Text only');
+  return parts.join(' · ');
+}
 function describedModel(id,type) {
   const isImage=type==='image';
   const spec=SPECS[id],cny=IMAGE_CNY[id];
@@ -263,7 +316,8 @@ function describedModel(id,type) {
   // Flag fixed-per-request billing separately; quoteApi888 applies the same
   // fixed CNY cost at ANY supported duration instead of overcharging by seconds.
   return {
-    providerModelId:id,publicModelId:PUBLIC_ID(id),label:id.replace(/[-_]/g,' ').replace(/\b\w/g,m=>m.toUpperCase()),
+    providerModelId:id,publicModelId:PUBLIC_ID(id),
+    label:api888Label(id,type,{res,images:refs.image.max,videos:refs.video.max,audios:refs.audio.max,requiredImage}),
     mediaType:type,options:{
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
@@ -283,7 +337,7 @@ function describedModel(id,type) {
         /^seedance2\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,30):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
-      resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
+      resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?imageRatios(id):modelVideoRatios(id),
       defaultAspectRatio:isImage?'1:1':SORA_VARIANTS.includes(id)&&id.endsWith('9x16')?'9:16':'16:9',
       defaultDuration:min,defaultResolution:res,
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
@@ -335,4 +389,4 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888};
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label};

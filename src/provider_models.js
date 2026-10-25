@@ -224,8 +224,14 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     // Rehydrate ONLY already-supported, currently-present model rows using
     // the current audited local request contract. Never change row.enabled,
     // row.available, account access, provider price, or unsupported models.
-    if(base.adapterSupported&&row.media_type==='video'){
-      const latest=api888MediaModels({data:[{id:row.provider_model_id,type:'video'}]})[0];
+    if(base.adapterSupported&&(row.media_type==='video'||row.media_type==='image')){
+      const latest=api888MediaModels({data:[{id:row.provider_model_id,type:row.media_type}]})[0];
+      // Names and image ratios also follow the current code, not the import.
+      if(latest?.options.adapterSupported&&latest.mediaType===row.media_type){
+        base.label=latest.label;
+        base.aspectRatios=latest.options.aspectRatios;
+        base.defaultAspectRatio=latest.options.defaultAspectRatio;
+      }
       if(latest?.options.adapterSupported&&latest.mediaType==='video'){
         const latestOptions=latest.options;
         base.referenceCapabilities=latestOptions.referenceCapabilities;
