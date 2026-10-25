@@ -106,7 +106,7 @@ async function syncProviderModels(provider, discoveredModels) {
         'SELECT provider_model_id, options_json FROM provider_models WHERE provider=? FOR UPDATE',[provider]);
       for(const row of rows){
         let wasSupported=false;
-        try{wasSupported=JSON.parse(row.options_json||'{}').adapterSupported===true;}catch{}
+        try{const opts=typeof row.options_json==='string'?JSON.parse(row.options_json||'{}'):(row.options_json||{});wasSupported=opts.adapterSupported===true;}catch{}
         previousApi888.set(row.provider_model_id,wasSupported);
       }
     }
