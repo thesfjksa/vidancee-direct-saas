@@ -117,7 +117,7 @@ class GenerationWorker {
     this.falImageQueue.start();
     // fal.ai image catalog and prices: shortly after start, then daily.
     const syncFal=()=>Promise.resolve().then(()=>require('./fal_image_queue.js').syncFalImageModels())
-      .then(models=>models&&logActivity({category:'system',event:'fal.images_synced',provider:'falimg',message:'fal.ai image models synced',details:{total:models.length,ready:models.filter(m=>m.ready).length}}))
+      .then(models=>models&&logActivity({category:'system',event:'fal.images_synced',provider:'falimg',message:'fal.ai image models synced',details:{total:models.length,ready:models.filter(m=>m.ready).length,...(models.diagnostics||{})}}))
       .catch(error=>logActivity({level:'warn',category:'system',event:'fal.images_sync_failed',provider:'falimg',message:String(error.message||error).slice(0,300)}));
     this.falSyncTimer=setTimeout(()=>{syncFal();this.falSyncInterval=setInterval(syncFal,24*60*60*1000);this.falSyncInterval.unref?.();},60000);
     this.falSyncTimer.unref?.();

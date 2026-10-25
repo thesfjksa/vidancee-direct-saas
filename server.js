@@ -1953,8 +1953,8 @@ const server=http.createServer(async (req,res)=>{
         const models=await require('./src/fal_image_queue.js').syncFalImageModels();
         if(!models)return sendJson(res,400,{ok:false,error:'Save a fal.ai API key first.'});
         const ready=models.filter(m=>m.ready).length;
-        logActivity({category:'admin',event:'fal.images_synced',provider:FAL_IMAGE_PROVIDER,message:'fal.ai image models synced',details:{total:models.length,ready}});
-        return sendJson(res,200,{ok:true,total:models.length,ready});
+        logActivity({category:'admin',event:'fal.images_synced',provider:FAL_IMAGE_PROVIDER,message:'fal.ai image models synced',details:{total:models.length,ready,...(models.diagnostics||{})}});
+        return sendJson(res,200,{ok:true,total:models.length,ready,diagnostics:models.diagnostics||null});
       }
       if(req.method==='GET'&&routePath==='/admin/storage/r2'){
         requireDatabase();
