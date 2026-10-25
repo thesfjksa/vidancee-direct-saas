@@ -220,7 +220,7 @@ function describedModel(id,type) {
         ['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-pro-480p'].includes(id)?[15]:
         ['seedance2.0-933','seedance2.0-933-fast'].includes(id)?[10,15]:
         id==='pidoi-omni-flash-720p'?[5,10]:
-        /^seedance2\\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
+        /^seedance2\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,30):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
       resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
