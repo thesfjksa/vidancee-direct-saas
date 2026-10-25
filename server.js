@@ -1810,7 +1810,25 @@ const server=http.createServer(async (req,res)=>{
           }catch(error){return {error:error.message};}
         };
         const name='cmm-tools-'+row.id.slice(0,8)+'.mp4';
-        return sendJson(res,200,{ok:true,key,head,
+        // File structure and codecs (the server reads the whole object once).
+        let structure=null;
+        if(url.searchParams.get('deep')==='1'&&head?.size>0&&head.size<=64*1024*1024){
+          try{
+            const data=Buffer.from(await (await store.get(key)).arrayBuffer());
+            const {readBoxes}=require('./src/mp4_trim.js');
+            const top=readBoxes(data);
+            const moov=top.find(b=>b.type==='moov');
+            const tracks=(moov?.children||[]).filter(b=>b.type==='trak').map(trak=>{
+              const stbl=['mdia','minf','stbl'].reduce((b,t)=>b?.children?.find(c=>c.type===t),trak);
+              const stsd=stbl?.children?.find(c=>c.type==='stsd');
+              const hdlr=trak.children.find(c=>c.type==='mdia')?.children?.find(c=>c.type==='hdlr');
+              return {handler:hdlr?hdlr.data.toString('latin1',8,12):null,codec:stsd?stsd.data.toString('latin1',12,16):null};
+            });
+            structure={boxes:top.map(b=>b.type+':'+b.size),seconds:mp4Seconds(data),tracks,
+              tail:data.subarray(-48).toString('latin1').replace(/[^\x20-\x7e]/g,'.')};
+          }catch(error){structure={error:error.message};}
+        }
+        return sendJson(res,200,{ok:true,key,head,structure,
           stream:await sniff(store.presign(key,{contentType:'video/mp4',disposition:'inline; filename="'+name+'"'})),
           download:await sniff(store.presign(key,{contentType:'video/mp4',disposition:'attachment; filename="'+name+'"'})),
           plain:await sniff(store.presign(key))});
