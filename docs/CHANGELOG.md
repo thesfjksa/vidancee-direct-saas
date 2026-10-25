@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 — Reference videos and sound upload straight to R2
+
+- A 16.6 MB reference video failed with "Failed to fetch": uploads through Hostinger run at under 1 MB/s, and long requests are dropped. The browser now uploads reference videos and sound directly to the R2 bucket with 15-minute presigned PUT links (`/api/uploads/presign`, `src/direct_uploads.js`) and shows "Uploading video… 45%". The form sends only the keys. The server checks that each key is in the customer's own `uploads/<user>/` prefix, reads the file, runs the usual trimming and validation, then deletes the temporary object.
+- The bucket needs a CORS rule allowing PUT from cmmtools.site. The app adds it automatically when it can. If the token isn't allowed to, Admin → Storage shows the JSON to paste in Cloudflare. Without the rule, or without R2, uploads fall back to the old form upload.
+
 ## 2026-10-25 — Reference videos trimmed to the model's limit
 
 - A reference video longer than the selected model accepts is cut to the limit when the customer clicks Generate, instead of failing. A popup then says "Your 40 s video has been trimmed to 30 s". The cut is lossless (`src/mp4_trim.js` rewrites the MP4/MOV sample tables, with no re-encoding and no ffmpeg needed) and keeps the start of the clip. Several clips share the model's total in upload order.
