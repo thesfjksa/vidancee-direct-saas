@@ -115,7 +115,7 @@ test('unpriced or unknown upstream IDs are never silently allowed to spend credi
 });
 
 test('25 Oct catalog cards: corrected fixed prices and wool ratios',()=>{
-  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',5,10],['pidoi-h3video-2k',2.3,15]]){
+  for(const [id,price,duration] of [['seedance2.5-301010-wool',7,10],['seedance2.0-933',5,10],['pidoi-h3video-2k',2,15]]){
     const model=byId(id);
     assert.equal(model.api888.billing,'job',id);
     assert.equal(quoteApi888(model,{duration,resolution:model.defaultResolution,aspectRatio:'16:9'}).cost,price,id);

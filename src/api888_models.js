@@ -40,7 +40,7 @@ gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-p
 // [CNY, billing type, min seconds, max seconds, resolution, image refs, video refs, audio refs]
 const SPECS = {
   'seedance2.0-933-economy':[5,'job',15,15,'720p',9,3,3],
-  'pidoi-h3video-2k':[2.3,'job',15,15,'2k',9,3,3],
+  'pidoi-h3video-2k':[2,'job',15,15,'2k',9,3,3],
   'minimax-h3-480p-t':[0.065,'second',5,15,'480p',9,0,0],
   'minimax-h3-768p-t':[0.07,'second',5,15,'768p',9,0,0],
   'pidoi-omni-flash-720p':[0.8,'job',5,10,'720p',4,3,3],
