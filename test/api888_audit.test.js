@@ -76,3 +76,43 @@ test('audit refuses upstream responses with no recognized model data rather than
  assert.throws(()=>auditApi888Import({data:[]},[]),/no recognized media models/i);
  assert.throws(()=>auditApi888Import({data:'invalid'},[]),/no model list/i);
 });
+
+test('exact SS and Dola model status distinguishes provider account access from saved model eligibility',()=>{
+ const live={data:[
+   {id:'s2-2.5-720p-v3'},
+   {id:'dola-seedance-2.5-301010'},
+   {id:'seedance2.5-vip-30-10-10'},
+   {id:'s2-2.5-720p-v4'},
+ ]};
+ const stored=[
+   row('s2-2.5-720p-v3'),
+   row('dola-seedance-2.5-301010',{available:false}),
+   row('s2-2.5-720p-v4',{enabled:false}),
+ ];
+ const result=auditApi888Import(live,stored);
+ const byId=new Map(result.multimodalSeedance.map(x=>[x.id,x]));
+ assert.equal(byId.get('ss-2.5-720p-v1').state,'not_returned_by_888api');
+ assert.equal(byId.get('ss-2.5-720p-v1').upstreamReturned,false);
+ assert.equal(byId.get('s2-2.5-720p-v3').state,'ready_for_enabled_customer');
+ assert.equal(byId.get('dola-seedance-2.5-301010').state,'stale_available_flag');
+ assert.equal(byId.get('s2-2.5-720p-v4').state,'disabled_in_admin');
+ assert.equal(byId.get('seedance2.5-vip-30-10-10').state,'not_imported_into_cmmtools');
+ assert.equal(byId.get('seedance-2.5-G2-V').state,'not_returned_by_888api');
+});
+test('an upstream-listed but unimplemented Seedance stays Admin-only even when a saved record exists',()=>{
+ const live={data:[{id:'seedance2.5-vip-30-10-10'}]};
+ const stored=[row('seedance2.5-vip-30-10-10',{supported:false,ready:false})];
+ const result=auditApi888Import(live,stored);
+ const status=result.multimodalSeedance.find(x=>x.id==='seedance2.5-vip-30-10-10');
+ assert.equal(status.state,'adapter_not_implemented');
+ assert.equal(status.adapterSupported,false);
+ assert.match(status.nextAction,/Admin-only/);
+});
+test('exact Dola Seedance image-only alias is not silently substituted for 301010 three-input version',()=>{
+ const live={data:[{id:'dola-seedance-2.5'}]};
+ const stored=[row('dola-seedance-2.5',{supported:false,ready:false})];
+ const result=auditApi888Import(live,stored);
+ assert.equal(result.multimodalSeedance.find(x=>x.id==='dola-seedance-2.5-301010').state,
+   'not_returned_by_888api');
+ assert.equal(result.multimodalSeedance.find(x=>x.id==='ss-2.5-720p-v1').upstreamReturned,false);
+});
