@@ -1,5 +1,17 @@
 # Changelog
 
+## 25 October 2026 — Seedance video/audio controls still hidden after initial multimodal merge
+
+The owner reported that even after PR #40, no Seedance model in Video Studio appeared to offer an **Add Video** or **Add Audio** control.
+
+### Confirmed code defect and follow-up fix
+- The old client displayed **one combined upload picker**, not distinct audio/video upload actions. \`public/index.html\` now has **Add image**, **Add video**, **Add audio** buttons wired to existing per-type upload handlers and displayed only where \`capabilities.image/video/audio.supported\` is true; combined drag/drop remains.
+- **More importantly, persisted \`provider_models.options_json\` is a snapshot.** PR #40 added verified 888API multimodal mapping to code but only Admin → Import all accessible models refreshed the stored model options. Hostinger MySQL was reported quota-locked, so re-import could fail. \`serializeProviderModel()\` now overlays **current audited local input capabilities, media roles, supported operation IDs, aspect ratios, and upload transport field names** for already adapter-supported 888API video models at read time. This avoids any DB writes and affects both customer \`GET /api/config\` and the server/worker's per-model lookup. It preserves DB \`enabled\`, \`available\`, account source entitlement, prices and adapter readiness; it does **not** activate new/unsupported models or perform paid generation.
+- The changed code still **must be deployed** to the website and standalone worker; no source edit can correct an old live Hostinger revision. A browser hard refresh reloads the UI, but cannot fix a server still running the old commit.
+- **Not all Seedance models accept audio/video:** 888API's official docs explicitly say the low-cost \`seedance2.5-900-wool\` and related Wool variants accept reference images but **not reference videos or audios**, and 2.0 per-second stable/basic variants accept no reference materials. For actual multimedia input use the documented supported Seedance 2.5 models such as \`ss-2.5-720p-v1\` or \`s2-2.5-720p-v3\`/\`v4\`; \`s2-2.5-480p-v2\` supports audio but not video.
+- PR #40's HTTP payload, max input counts and price validations remain unchanged. Current reference videos/audio are stored as BLOB inputs in MySQL even if the finished video output is saved on Drive: do **not** encourage uploads while the old production DB is over quota. No paid production generation or live site update was done in this follow-up.
+- Source: https://888api.xin/docs.
+
 ## 2026-10-25 — 888API model-specific video, audio and aspect-ratio fixes
 
 - Investigated CMM Tools showing only image input for 888API models. Code source advertised only image capabilities and rejected video/audio URL inputs; Video Studio widgets for video/audio already existed but were hidden by catalog metadata.

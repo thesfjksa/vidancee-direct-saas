@@ -98,9 +98,9 @@
               <div id="videoReferenceNote" class="reference-capability-note">Optional · model-specific limits</div>
               <!-- One upload box: images, videos and sound each go to their own list. -->
               <input id="referenceInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addAnyReferenceFiles(this.files);this.value=''">
-              <input id="imageInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
-              <input id="videoReferenceInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
-              <input id="audioReferenceInput" class="hide" type="file" tabindex="-1" aria-hidden="true">
+              <input id="imageInput" class="hide" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addReferenceFiles(this.files);this.value=''">
+              <input id="videoReferenceInput" class="hide" type="file" accept="video/mp4" multiple onchange="addVideoReferenceFiles(this.files);this.value=''">
+              <input id="audioReferenceInput" class="hide" type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" multiple onchange="addAudioReferenceFiles(this.files);this.value=''">
               <label id="refDrop" class="ref-drop" for="referenceInput">
                 <div>
                   <div class="ref-icon">
@@ -110,6 +110,11 @@
                   <span id="videoReferenceDropHelp">Optional · drag files here</span>
                 </div>
               </label>
+              <div id="videoReferenceTypeButtons" class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+                <button type="button" id="addImageReferenceButton" class="btn secondary" onclick="$('imageInput').click()">Add image</button>
+                <button type="button" id="addVideoReferenceButton" class="btn secondary hide" onclick="$('videoReferenceInput').click()">Add video</button>
+                <button type="button" id="addAudioReferenceButton" class="btn secondary hide" onclick="$('audioReferenceInput').click()">Add audio</button>
+              </div>
               <div id="videoImageReferenceBlock"><div id="imagePreview" class="image-preview"></div></div>
               <div id="videoVideoReferenceBlock" class="hide"><div id="videoReferenceList" class="video-reference-list"></div></div>
               <div id="videoAudioReferenceBlock" class="hide"><div id="audioReferenceList" class="video-reference-list"></div></div>
@@ -1276,6 +1281,15 @@ function renderVideoReferenceControls(modelChanged=false){
   imageBlock.classList.toggle('hide',!imageCap.supported);
   videoBlock.classList.toggle('hide',!videoCap.supported);
   $('videoAudioReferenceBlock').classList.toggle('hide',!audioCap.supported);
+  // Make upload types discoverable. Previously the only visible picker was
+  // the single mixed "Add references" area and hidden file controls.
+  $('addImageReferenceButton').classList.toggle('hide',!imageCap.supported);
+  $('addVideoReferenceButton').classList.toggle('hide',!videoCap.supported);
+  $('addAudioReferenceButton').classList.toggle('hide',!audioCap.supported);
+  $('videoReferenceTypeButtons').classList.toggle('hide',!imageCap.supported&&!videoCap.supported&&!audioCap.supported);
+  $('videoReferenceInput').accept=videoCap.formats.length&&videoCap.formats.every(f=>f==='mp4')
+    ?'video/mp4': 'video/mp4,video/webm,video/quicktime';
+  $('audioReferenceInput').accept='.mp3,.wav,audio/mpeg,audio/wav';
 
   // One upload box for every kind the model takes; its title, help and the
   // file picker's accepted types follow the model.
