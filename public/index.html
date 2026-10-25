@@ -3145,12 +3145,18 @@ function postFormWithProgress(path,form,onProgress){
     xhr.open('POST',path);
     xhr.withCredentials=true;
     xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(e.loaded,e.total);};
+    // Once the files are sent the server answers within seconds; do not wait
+    // forever if it restarted meanwhile.
+    let answerTimer=null;
+    xhr.upload.onload=()=>{answerTimer=setTimeout(()=>{xhr.abort();
+      reject(new Error('The server did not answer. Check your library: if the video is not there, click Generate again.'));},90000);};
     xhr.onload=()=>{
+      clearTimeout(answerTimer);
       let d;try{d=JSON.parse(xhr.responseText);}catch{d={ok:false,error:'Invalid server response'};}
       if(xhr.status>=200&&xhr.status<300)return resolve(d);
       reject(Object.assign(new Error(d.error||('HTTP '+xhr.status)),{status:xhr.status}));
     };
-    xhr.onerror=()=>reject(new Error('The upload was interrupted. Check your connection and try again.'));
+    xhr.onerror=()=>{clearTimeout(answerTimer);reject(new Error('The upload was interrupted. Check your connection and try again.'));};
     xhr.send(form);
   });
 }
@@ -3160,7 +3166,13 @@ async function uploadReferencesDirect(entries,m){
   try{
     for(const [index,{item,kind}] of entries.entries()){
       const mimeType=item.file.type||(kind==='video'?'video/mp4':'audio/mpeg');
-      const link=await api('/api/uploads/presign',{method:'POST',body:JSON.stringify({kind,mimeType,size:item.file.size})});
+      // Time-limited with one retry: a request sent while the web app restarts
+      // can otherwise wait forever.
+      let link;
+      for(let attempt=0;;attempt++){
+        try{link=await api('/api/uploads/presign',{method:'POST',body:JSON.stringify({kind,mimeType,size:item.file.size}),signal:AbortSignal.timeout(15000)});break;}
+        catch(e){if(e.name!=='TimeoutError'||attempt>=1)throw e.name==='TimeoutError'?new Error('The server did not respond. Please try again in a moment.'):e;}
+      }
       const label=(kind==='video'?'video':'sound')+(entries.length>1?' '+(index+1)+' of '+entries.length:'');
       await new Promise((resolve,reject)=>{
         const xhr=new XMLHttpRequest();
