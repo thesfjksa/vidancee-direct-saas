@@ -2525,9 +2525,10 @@ async function prepareGenerationPrompt(kind,message){
 async function createImageGeneration(){
   const b=$('generateImageBtn'),m=$('imageGenMsg');
   if(b.disabled)return;
-  const panel=b.closest('.creator').querySelector('.creator-scroll');
-  panel.inert=true;b.setAttribute('aria-busy','true');
+  // Only the button is locked: the panel stays usable while this submits.
+  b.setAttribute('aria-busy','true');
   b.disabled=true;m.className='msg muted';m.textContent='Submitting image generation...';
+  const sentPrompt=$('imagePrompt').value,sentRefs=[...imageReferenceItems];
   try{
     if(!config.imagePricing?.length)throw new Error('Image generation models are not configured.');
     const model=currentImageModel();
@@ -2551,13 +2552,15 @@ async function createImageGeneration(){
     for(const item of imageReferenceItems)if(item.kind!=='reused')form.append('images',item.file,item.filename);
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
-    $('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
-    clearImageReferenceItems();
+    // Clear only what was sent; keep anything typed or added meanwhile.
+    if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;}
+    if(sameItems(imageReferenceItems,sentRefs))clearImageReferenceItems();
     m.className='msg ok';m.textContent='Image generation queued.';
+    b.disabled=false;b.removeAttribute('aria-busy');
     await Promise.all([loadImageGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
     m.className='msg err';m.textContent=e.message;
-  }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
+  }finally{b.disabled=false;b.removeAttribute('aria-busy')}
 }
 
 let imageReuseToken=0;
@@ -2565,7 +2568,7 @@ async function reuseImageGeneration(id){
   const g=imageGenerations.find(item=>String(item.id)===String(id));
   const b=$('generateImageBtn'),m=$('imageGenMsg');
   // Leave the form alone while a generation is being submitted.
-  if(!g||b.closest('.creator').querySelector('.creator-scroll').inert)return;
+  if(!g||b.disabled)return;
   const token=++imageReuseToken;
   // Settings come from the gallery data already in memory, so the form fills instantly.
   go('images');
@@ -2970,11 +2973,12 @@ function validateClientReferenceSelection(){
 async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
   if(b.disabled)return;
-  const panel=b.closest('.creator').querySelector('.creator-scroll');
-  panel.inert=true;b.setAttribute('aria-busy','true');
+  // Only the button is locked: the panel stays usable while this submits.
+  b.setAttribute('aria-busy','true');
   b.disabled=true;
   m.className='msg muted';
   m.textContent='Submitting generation...';
+  const sent={prompt:$('prompt').value,refs:[...referenceItems],videos:[...videoReferenceItems],audios:[...audioReferenceItems]};
   try{
     validateClientReferenceSelection();
     const prompt=await prepareGenerationPrompt('video',m);
@@ -3028,17 +3032,19 @@ async function createGeneration(){
     });
     me=d.user;syncUser();
     showReferenceNotices(d.generation?.reference_notices);
-    $('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;
-    clearReferenceItems();
-    clearVideoReferenceItems();
-    clearAudioReferenceItems();
+    // Clear only what was sent; keep anything typed or added meanwhile.
+    if($('prompt').value===sent.prompt){$('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;}
+    if(sameItems(referenceItems,sent.refs))clearReferenceItems();
+    if(sameItems(videoReferenceItems,sent.videos))clearVideoReferenceItems();
+    if(sameItems(audioReferenceItems,sent.audios))clearAudioReferenceItems();
     m.className='msg ok';
     m.textContent='Generation queued.';
+    b.disabled=false;b.removeAttribute('aria-busy');
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-  }finally{b.disabled=false;panel.inert=false;b.removeAttribute('aria-busy')}
+  }finally{b.disabled=false;b.removeAttribute('aria-busy')}
 }
 
 function aspectValue(ratio){
@@ -3087,7 +3093,7 @@ async function reuseGeneration(id){
   const g=findGeneration(id),b=$('generateBtn'),m=$('genMsg');
   if(isCartoonGeneration(g))return reuseCartoon(g);
   // Leave the form alone while a generation is being submitted.
-  if(!g||b.closest('.creator').querySelector('.creator-scroll').inert)return;
+  if(!g||b.disabled)return;
   const token=++videoReuseToken;
   // Settings come from the gallery data already in memory, so the form fills instantly.
   go('create');
@@ -3137,6 +3143,7 @@ async function reuseGeneration(id){
 // back to sending the files with the form (no cloud storage, or the browser
 // was not allowed to upload there).
 let directUploadsBroken=false;
+const sameItems=(now,sent)=>now.length===sent.length&&now.every((item,i)=>item===sent[i]);
 // Like api() for a multipart POST, but reports upload progress so a large
 // file sent through the web host never looks stuck.
 function postFormWithProgress(path,form,onProgress){
