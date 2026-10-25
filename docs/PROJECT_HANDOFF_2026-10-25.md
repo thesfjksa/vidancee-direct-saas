@@ -177,3 +177,11 @@ The owner reported that even after PR #40, no Seedance model in Video Studio app
 - PR #40's HTTP payload, max input counts and price validations remain unchanged. Current reference videos/audio are stored as BLOB inputs in MySQL even if the finished video output is saved on Drive: do **not** encourage uploads while the old production DB is over quota. No paid production generation or live site update was done in this follow-up.
 - Source: https://888api.xin/docs.
 
+
+## J. Missing SS/Dola Seedance exact-ID investigation (25 October 2026)
+
+After PRs #40–#41, the owner reports none of the supported `ss-2.5-720p-v1` / Dola 301010 models appear in customer Video Studio. The verified gating path is `GET /v1/models` **for that exact saved 888API key** → imported MySQL `provider_models` row with `available=1` and `enabled=1` → verified request adapter and price → source master switch → per-customer source permission → Video Studio. The latest code cannot automatically create provider-account entitlements. Merely seeing models advertised in https://888api.xin/docs or in historical imported model counts is insufficient.
+
+The read-only live import audit now exposes exact model-by-model states for these SS/S2/Dola and alternative three-input Seedance IDs. The owner must run the audit on the deployed app and inspect results. In particular, `dola-seedance-2.5` (image-only) is **not** the same SKU as `dola-seedance-2.5-301010` (image/video/audio). `s2-2.5-720p-v3` and `s2-2.5-720p-v4` do **not** start with `ss-`.
+
+The audit **does not force-enable or import absent upstream models**, run paid jobs, or modify database grants. The Hostinger clone/deployment and MySQL quota blockers must still be checked independently. No authenticated account-specific 888API `/v1/models` response was accessible in the GitHub-only session, so **live entitlement is not verified**.

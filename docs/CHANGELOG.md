@@ -1,5 +1,12 @@
 # Changelog
 
+
+## 2026-10-25 — Exact SS/S2 and Dola Seedance entitlement diagnostics
+
+- Owner reported none of the documented SS 2.5 or Dola 301010 three-input models appear in Video Studio. Current source confirms support for those exact IDs but does not establish the saved 888API key receives them in its account-scoped `GET /v1/models` response.
+- Extend Admin **Verify live import (read-only)** with actionable statuses for 4 primary image+video+audio SS/S2/Dola IDs and three alternate documented upstream models: not returned by provider, missing in MySQL, stale flag, disabled, incorrect media type, missing adapter/price, or ready. No paid call, DB mutation or force-enable.
+- Clarify V1 `ss-` versus V3/V4 `s2-` and image-only `dola-seedance-2.5` versus three-input `dola-seedance-2.5-301010`. The provider documentation lists model names but does not guarantee every API key can access them.
+
 ## 25 October 2026 — Seedance video/audio controls still hidden after initial multimodal merge
 
 The owner reported that even after PR #40, no Seedance model in Video Studio appeared to offer an **Add Video** or **Add Audio** control.

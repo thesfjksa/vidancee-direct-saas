@@ -801,6 +801,14 @@ async function auditApi888Models(){
     if(d.mediaTypeMismatches?.length)lines.push('Type mismatches: '+
       d.mediaTypeMismatches.map(x=>x.id+' ('+x.storedAs+' → '+x.upstreamClassifiedAs+')').join(', '));
     if(d.stale?.length)lines.push('Historical, not returned by 888API today: '+d.stale.join(', '));
+    if(Array.isArray(d.multimodalSeedance)){
+      lines.push('');lines.push('SEEDANCE IMAGE + VIDEO + AUDIO — EXACT MODEL CHECK:');
+      for(const item of d.multimodalSeedance){
+        const name=item.id+' — '+item.state.replaceAll('_',' ');
+        lines.push(name+'\n  '+item.nextAction);
+      }
+      lines.push('This check uses the saved 888API key. Provider-wide and per-customer switches still control what customers see.');
+    }
     const unsupported=(d.details||[]).filter(x=>!x.adapterSupported);
     if(unsupported.length)lines.push('Not yet supported for paid generation ('+unsupported.length+'): '+
       unsupported.map(x=>x.id).join(', '));
