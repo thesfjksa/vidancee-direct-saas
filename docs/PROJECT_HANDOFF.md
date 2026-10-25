@@ -4,7 +4,7 @@
 
 ## CURRENT — 25 October 2026: GitHub continuation, live catalog audit, and multimodal G5-V2
 
-**Use [the dated production handoff](PROJECT_HANDOFF_2026-10-25.md#25-october-2026--latest-continuation-checkpoint-post-prs-43-45) as the operational source of truth.** This file retains architectural and incident history for context.
+**Use [the dated production handoff](PROJECT_HANDOFF_2026-10-25.md) as the operational source of truth.** This file retains architectural and incident history for context.
 
 - **Source control:** PR [#43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43) (extra video adapters and corrected duration/¥3.90 SS V1 price), PR [#44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44) (27 further live-account model adapters and per-model Admin opt-in after sync), PR [#45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45) (Seedance 2.5 G5-V2) are **merged**. GitHub `main` checkpoint `f82b02c0bd9d80672bf267f5705b294954bc1a85`; post-merge [CI run](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) succeeded, **281 tests / 0 failures**.
 - **Owner-observed live Admin audit before #44/#45 rollout:** 64 account-returned 888API IDs; 115 total historical MySQL IDs, of which 49 stale/not returned; 0 missing imports, 0 unavailable-flag errors, 0 classification errors. At audit time, 27 live adapter-supported, 32 locally priced, 27 ready+enabled (23 video/4 image); 37 were missing adapter support. **Import itself worked**. Current counts are not known until the new code is deployed and catalog re-synced.
