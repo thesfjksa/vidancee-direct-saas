@@ -27,8 +27,21 @@ const {validateCanvas}=require('../image_canvas.js');
 // Keep upstream refusal details for the protected Activity log, never include
 // Bearer credentials, signed reference URLs, or raw request/response payloads.
 function safeProviderError(value) {
-  const source=value?.error?.message||value?.error?.detail||value?.message||value?.msg||
+  let source=value?.error?.message||value?.error?.detail||value?.message||value?.msg||
     (typeof value?.error==='string'?value.error:'');
+  // 888API relays upstream errors as JSON inside the message string, sometimes
+  // twice over. Unwrap to the innermost human-readable message.
+  for(let depth=0;depth<3&&typeof source==='string'&&/^\s*\{/.test(source);depth++){
+    let inner;try{inner=JSON.parse(source);}catch{inner=null;}
+    let next=inner?.error?.message||inner?.message||inner?.msg||(typeof inner?.error==='string'?inner.error:'');
+    if(!inner){
+      // Truncated relay: take the last "message" value that is plain text.
+      const found=[...source.matchAll(/\\*"message\\*"\s*:\s*\\*"([^"\\{]+)/g)].pop();
+      next=found?found[1].trim():'';
+    }
+    if(typeof next!=='string'||!next)break;
+    source=next;
+  }
   if(typeof source!=='string')return '';
   return source
     .replace(/https?:\/\/[^\s"'<>]+/gi,'[URL redacted]')
