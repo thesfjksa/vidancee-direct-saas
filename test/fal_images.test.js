@@ -87,3 +87,21 @@ test('fal labels: raw names readable, variants told apart, aliases kept once', (
   assert.equal(by['fal-ai/wan/v2.2-5b/text-to-image'].label, 'Wan · V2.2 5b');
   assert.equal(by['fal-ai/hunyuan-image/v3/text-to-image'].label, 'Hunyuan Image V3');
 });
+
+test('fal GPT image models are priced per image by quality and send the chosen quality',()=>{
+  const quality={quality:{type:'string',enum:['auto','low','medium','high']}};
+  const g2=describeFalImageModel(entry('openai/gpt-image-2',{...imageSize,...quality}),{unit_price:1,unit:'units',currency:'USD'});
+  assert.equal(g2.label,'GPT Image 2');
+  assert.equal(g2.options.adapterSupported,true);
+  assert.deepEqual(g2.options.qualities,['low','medium','high']);
+  const m2={...g2.options,providerModelId:g2.providerModelId,mediaType:'image'};
+  assert.equal(quoteGateway(m2,{aspectRatio:'1:1',quality:'high'},1000).sourceUsd,0.214); // $0.211 + prompt
+  assert.equal(quoteGateway(m2,{aspectRatio:'1:1'},1000).sourceUsd,0.214); // high by default
+  assert.equal(new FalImageClient().input(m2,{prompt:'P',aspectRatio:'1:1',quality:'low'}).quality,'low');
+  // GPT Image 1.x takes fixed WxH sizes and fal rounds its price up to the cent.
+  const g1=describeFalImageModel(entry('fal-ai/gpt-image-1-mini',{image_size:{type:'string',enum:['auto','1024x1024','1536x1024','1024x1536']},...quality}),null);
+  assert.deepEqual(g1.options.aspectRatios,['1:1','3:2','2:3']);
+  const m1={...g1.options,providerModelId:g1.providerModelId,mediaType:'image'};
+  assert.equal(quoteGateway(m1,{aspectRatio:'3:2',quality:'medium'},1000).sourceUsd,0.02);
+  assert.equal(new FalImageClient().input(m1,{prompt:'P',aspectRatio:'3:2',quality:'medium'}).image_size,'1536x1024');
+});
