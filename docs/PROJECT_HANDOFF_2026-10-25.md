@@ -1,7 +1,90 @@
 # CMM Tools — comprehensive implementation and recovery handoff
-**Checkpoint: 25 October 2026 (Asia/Karachi). Documentation only; no production operation executed by this handoff.**
+**Checkpoint: 25 October 2026 (Asia/Karachi). Historic deployment incidents plus verified GitHub continuation through PR #45; no production operation executed by this documentation update.**
 
-> **READ THIS FIRST.** This file supersedes the stale 11 October checkpoint at `docs/PROJECT_HANDOFF.md` for subsequent production/recovery work. Old documents describe earlier implementations and are historical unless cross-checked against current `main`. The last GitHub source revision verified while preparing this handoff is **`089d08fb86a818cdcaf495d3d6997967b18eb1f7`** (PR #37, merged 24 October UTC). **GitHub source being merged ≠ code actually running in Hostinger.**
+> **READ THIS FIRST.** This file supersedes the October 11 architecture checkpoint in `docs/PROJECT_HANDOFF.md`. The newly added release section below tracks `main` through **PR #45 / `f82b02c0`**; older sections retain date-specific evidence, not fresh production verification. **GitHub merge ≠ Hostinger deployment.**
+
+**Current GitHub code checkpoint: 25 October 2026, commit `f82b02c0bd9d80672bf267f5705b294954bc1a85` (merged PR #45).** This checkpoint records source-control state and user-reported Admin evidence; it is **not** proof the Hostinger web app, worker, MySQL, or external 888API paid generation is operational. Earlier screenshot-based incident observations below are retained as historical evidence and must be rechecked before acting.
+
+> **START HERE — 888API model availability and multimodal Seedance update.** The October 25 read-only Admin audit confirms the 888API *catalog import matches the 64 IDs actually returned to the configured account*. The original report of 115 inventory IDs reflected historical rows. PRs #43–#45 added further adapters, especially **`seedance-2.5-g5-v2`** with image+video+audio controls. They are merged and tested, **not confirmed deployed or successfully generated upstream**. Follow the operator runbook in this section before enabling paid use.
+
+## 25 October 2026 — Latest continuation checkpoint (post PRs #43–#45)
+
+### GitHub changes completed and verified
+
+| PR | Merge commit | Shipped source changes | Validation |
+| --- | --- | --- | --- |
+| [#39](https://github.com/thesfjksa/vidancee-direct-saas/pull/39)–[#42](https://github.com/thesfjksa/vidancee-direct-saas/pull/42) | See Git history | Read-only live account audit; verified A/V reference UI/transport; stale MySQL capability overlay; exact-ID entitlement diagnostics | Source/test work only |
+| [#43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43) | `ba6576675cd5ab4b325e94f3c7a96b712f34272a` | Expanded existing priced video adapters; corrected 888API SS V1 price to ¥3.90, durations to 30s where documented, per-model ratio/reference options; added regressions | 267 passing tests |
+| [#44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44) | `adb0ddbeefb289c7be19916180e8885c2828229c` | 27 newly mapped live-model IDs (Sora 2, Grok, GPT/Gemini image, Seedance 2.0 variants, Doubao and Jimeng); **Admin model-level opt-in** for newly supported entries when live catalog sync is performed | 276 passing tests |
+| [#45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45) | `f82b02c0bd9d80672bf267f5705b294954bc1a85` | Register exact **`seedance-2.5-g5-v2`** as supported multimodal video SKU; quote ¥7 fixed; three media-reference picker capabilities; mocked request, limits and non-retry tests | **281/281 passing tests**, PR CI and subsequent `main` push workflow [#40170975215](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) successful |
+
+**Source of truth:** `main` code at the checkpoint above. Repo is `thesfjksa/vidancee-direct-saas`. These merges do not indicate Hostinger deployment, automatic data sync, API account entitlement changes, successful media delivery, paid API confirmation, or a database repair.
+
+### Owner-provided live account audit — BEFORE deploying/syncing #44/#45
+
+Admin → Providers → 888API → **Verify live import (read-only)** reported:
+
+| Metric | Observed |
+| --- | ---: |
+| Models returned by authorized `GET https://888api.xin/v1/models` | **64** |
+| Historical saved `provider_models` IDs | **115** |
+| Historical IDs not currently returned | **49** |
+| Missing from MySQL import | **0** |
+| Incorrect `available` flags | **0** |
+| Incorrect media classifications | **0** |
+| Live models with locally implemented adapters at that time | **27** |
+| Live models with locally verified prices at that time | **32** |
+| Ready + enabled catalog models at that time | **27 (23 video / 4 image)** |
+| Live models without a runnable adapter at that time | **37** |
+
+**Interpretation:** Import is correct; the gap is unimplemented/unpriced models and source/model/customer switches. The user reported **888API globally enabled in Admin** at the time of the audit; **the source-code default for new/unauthorized accounts remains Admin opt-in** and each customer still requires an assignment. Do **not** describe the current saved global state as disabled. Counts above are a historical read-only snapshot, not automatically updated by GitHub merges. After both apps deploy, verify DB writes, **Import all accessible models** again, and rerun the audit. If the upstream set remains identical and sync succeeds, the 27 + 27 + 1 supported-model code changes imply **up to 55/64** implemented adapters, but actual ready/enabled counts may be lower (new models are deliberately disabled until Admin approval). **Do not claim 55 is already live.**
+
+Historically advertised/imported but **not returned by this saved 888API key** (49 IDs; do not force-enable): `gpt-image-2-pro`, `gpt-image-2.5-1k`, `dola-seedance-2.0-900`, `dola-seedance-2.0-933`, `dola-seedance-2.0-fast`, `dola-seedance-2.5`, `dola-seedance-2.5-301010`, `dola-seedance-2.5-900`, `doubao-seedance-2-0`, `doubao-seedance-2.5`, `jimeng-video-seedance-2.0-fast`, `jimeng-video-seedance-2.0-mini`, `jimeng-video-seedance-2.0-vip`, `minimax-h3-768p-t`, `minimax-h3-c4`, `pidoi-omni-flash-720p`, `pidoi-veo31-fast`, `s2-2.5-480p-v2`, `s2-2.5-720p-v3`, `s2-2.5-720p-v4`, `seedance-2.5-c1`, `seedance-2.5-G2-V`, `seedance-doubao12-503`, `seedance-doubao12-803`, `seedance-doubao12-813`, `seedance2.0-480p`, `seedance2.0-900-wool`, `seedance2.0-933-mini`, `seedance2.0-933-wool`, `seedance2.0-full-9img`, `seedance2.0-ss`, `seedance2.0-ss-fast`, `seedance2.0-ycy-10s`, `seedance2.0-ycy-15s`, `seedance2.0-ycy-5s`, `seedance2.5-101010-wool`, `seedance2.5-1080p-pro`, `seedance2.5-301010`, `seedance2.5-301010-av`, `seedance2.5-480p-value`, `seedance2.5-900`, `seedance2.5-900-wool`, `seedance2.5-vip-30-0-10`, `seedance2.5-vip-30-10-10`, `ss-2.5-720p-v1`, `xin-seedance-2.0-900`, `xin-seedance-2.0-933`, `xin-seedance-2.5-3010`, `xin-seedance-2.5-900`.
+
+### G5-V2: solution to the image + video + audio reference request
+
+The owner supplied a screenshot of 888API's model pricing/catalog card and a read-only Admin exact-ID audit:
+
+- Exact ID **`seedance-2.5-g5-v2`** is returned by the saved account key, but before PR #45 its saved row said **“adapter not implemented.”** It **was imported**, not missing from MySQL. The supplied generic `POST /v1/chat/completions` example (quantum-entanglement text prompt) **does not document video generation** and is not proof of the G5-V2 media request.
+- 888API card text: **Seedance 2.5 native realistic video**, **720p**, **5–30 seconds**, **up to 30 reference images + 10 videos + 10 audios**, **¥7 per generated video/request**. The same screenshot displayed `seedance2.5-930-1080p` (¥5) and `seedance2.5-301010-wool` (¥7); **do not infer that those other SKUs accept the same three reference types** from their names alone.
+- PR #45 adds `seedance-2.5-g5-v2` to `VIDEO_IDS`, `SPECS` and `VIDEO_INPUTS` in `src/api888_models.js`, with correct CNY fixed-per-job billing **7 CMM credits**, image/video/audio capabilities **30/10/10**, a 5–30 second range, and a 720p video profile.
+- `Api888Client.videoBody` in `src/provider/api888.js` currently uses the existing Seedance **G2-V-compatible *assumed*** video route `POST /v1/videos` and fields `model`, `prompt`, numeric `duration`, `resolution`, `ratio`, and arrays `images`/`videos`/`audios` containing signed, reachable HTTPS media URLs. **Exact G5-V2 transport fields have NOT been confirmed with a live generation or G5-specific provider schema.** If 888API uses different fields, adjust model-specific mapping and tests first; do not use paid requests as arbitrary trial/error.
+- `test/api888_seedance_g5_v2.test.js` asserts fixed quote, 5–30s, all 3 upload selectors/limits, mocked outbound request and no automatic retries after interrupted paid creation. CI confirms source behavior, **not external success**.
+- Other multimodal Seedance IDs including `ss-2.5-720p-v1`, `s2-2.5-720p-v3` / `v4`, `dola-seedance-2.5-301010`, and `seedance-2.5-G2-V` were **not returned by the saved key at audit time**. These cannot be activated by a CMMTools import/alias. Their advertised existence elsewhere is not account entitlement.
+- Distinguish **reference audios** uploaded as inputs from **generated output audio**; this integration exposes references and does not promise audio output or lip-sync features beyond the verified upstream contract.
+
+### Still unsupported after PRs #44–#45 (account-visible IDs, 9 at snapshot)
+
+`sd_2.0_mini_special`, `minimax-h3`, `gpt-image-2.5-flare-4k`, `doubao-seedance-2.0-mini`, `gpt-image-2-1k`, `seedance2.5-301010-wool-1080p`, `gpt-image-2-plus`, `ss-2.0-933-720p`, `gpt-image-2.5-flare`.
+
+Keep these **Admin-only / adapterSupported=false** until the *exact model ID's* provider price, request endpoint/fields, limits and upstream account entitlement are verified. No fabricated aliases, invented video/audio controls, or guessed chargeable prices. Supported implementation is not the same as actually exposed in Studio.
+
+### Operational release/runbook — NOT confirmed executed
+
+1. **Check infrastructure first:** Take a fresh evidence-based status of Hostinger web `cmmtools.site` and worker `worker.mehroz.online` deploy revisions (compare to `f82b02c0` or newer), `/live`, `/health`, web/worker activity logs; do not assume GitHub merge has deployed either app. Recheck historical Hostinger clone failure and 3,143/3,072 MB MySQL quota/write restrictions. Preserve the user's local SQL backup untouched.
+2. Once DB permissions/capacity and both deployments are healthy, in **Admin → Providers → 888API**, run **Verify live import (read-only)**, then **Import all accessible models** (the import **writes** `provider_models`). Only the 888API key-scoped 64 (or current returned set) may become marked available.
+3. Existing `enabled`/`available` switches and customer source grants are preserved; on sync, newly supported 888API models that were previously unsupported are **automatically set `enabled=0`**, requiring explicit **model-level Admin enable**. This matters because the owner has already globally enabled 888API. Do **not** turn on all newly added models for paying customers by default.
+4. Verify the saved G5-V2 row is available, priced at ¥7/7 credits, duration 5–30, 720p and displays **Add image / Add video / Add audio** picker controls. Confirm the correct **test customer's** 888API source access. Read-only audit may report it “disabled in Admin” until approved.
+5. With explicit owner authorization for one charged request, test the **exact G5-V2** API fields and job lifecycle using minimal allowed prompt/media payload, valid publicly retrievable HTTPS references, task-id receipt, GET poll, completed MP4 download, wallet reservation, success/refund accounting, and generation activity logs. Do not automatically retry an ambiguous paid POST. **Mocked tests do not count as this step.** Before G5-V2 is fully verified, leave it disabled for general customers.
+6. When generation and billing succeed, enable selected verified SKUs individually and phase in other customer access as desired. If DB writes are denied, fix the quota/privilege issue without dropping financial or secret/settings tables. Reference image/video/audio files still consume MySQL storage; Google Drive output-storage work does not change this.
+7. **Security:** Never paste saved API keys, bearer headers, OAuth secrets, signed media URLs, DB records or activity-log secrets into issues/docs. Rotate the previously exposed Google OAuth client secret. Preserve the existing Admin encryption root and credit ledger. No live paid generation, production DB cleanup, restore, Drive migration or Hostinger deployment has been confirmed by this handoff.
+
+### Relevant file map for continuation
+
+| Focus | Current path |
+| --- | --- |
+| 888API catalog IDs, price/limits, capabilities, Yuan-to-credit quote | `src/api888_models.js` |
+| 888API request body, safe media retrieval, polling and paid POST non-retry | `src/provider/api888.js` |
+| Persisted `provider_models` sync, newly supported model disabled-on-sync guard, overlay | `src/provider_models.js` |
+| Admin read-only check and writable import endpoints | `src/api888_audit.js`; `server.js` |
+| Web/worker queued generation + media and billing | `src/api888_queue.js`; `worker.js`; `src/billing.js` |
+| Admin source permissions and default-off onboarding | `src/api888_access.js`; `src/settings.js` |
+| G5-specific mocked tests | `test/api888_seedance_g5_v2.test.js` |
+| Expanded catalog/activation regression tests | `test/api888_live_families.test.js`; `test/api888_new_adapter_activation.test.js`; `test/api888_catalog_validation.test.js` |
+| Release and operational documentation | `docs/API888.md`; `docs/HPANEL_DEPLOYMENT.md`; `docs/ADMIN_PROVIDER_SETTINGS.md` |
+
+---
+
 
 ## A. Current, verified operational condition — urgent
 
