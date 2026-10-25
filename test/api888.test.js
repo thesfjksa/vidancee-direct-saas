@@ -736,3 +736,34 @@ test('a truncated nested 888API error still yields the readable reason',async()=
   await assert.rejects(client.json('/v1/videos',{}),e=>
     e.message.startsWith('888API request failed (HTTP 503): No available channel for model sd2-pro-933-480p under group default')&&!e.message.includes('{'));
 });
+
+test('Studio @Video1/@Image1/@Audio1 mentions become 888API @视频1/@图1/@音频1',()=>{
+  const {api888Mentions}=require('../src/provider/api888.js');
+  assert.equal(api888Mentions('Restyle @Video1 using @Image2 and @audio1, keep @Video 2'),'Restyle @视频1 using @图2 and @音频1, keep @视频2');
+  assert.equal(api888Mentions('email me@example.com'),'email me@example.com');
+});
+
+test('888API video references kept in cloud storage are sent as presigned bucket links',async()=>{
+  const {Api888Queue}=require('../src/api888_queue.js');
+  const {blobRef}=require('../src/object_storage.js');
+  const queue=new Api888Queue({});
+  const id='0b0e0c0a-1111-2222-3333-444455556666';
+  const db={execute:async sql=>{
+    if(sql.includes('FROM generation_images'))return [[]];
+    if(sql.includes('LENGTH(media_data)<512'))return [[{position_index:1,media_data:blobRef('media/'+id+'/abc')}]];
+    return [[{position_index:0,media_kind:'image',media_role:'image',mime_type:'image/png'},{position_index:1,media_kind:'video',media_role:'video',mime_type:'video/mp4'}]];
+  }};
+  const env={APP_URL:process.env.APP_URL,PROVIDER_ASSET_SECRET:process.env.PROVIDER_ASSET_SECRET};
+  process.env.APP_URL='https://cmmtools.site';process.env.PROVIDER_ASSET_SECRET='test-secret';
+  const objectStorage=require('../src/object_storage.js');
+  const original=objectStorage.configuredStorage;
+  objectStorage.configuredStorage=async()=>({presign:key=>'https://bucket.example/'+key+'?sig'});
+  try{
+    const refs=await queue.references(db,{id,media_type:'video'});
+    assert.match(refs[0].url,/\/provider-media\//);
+    assert.equal(refs[1].url,'https://bucket.example/media/'+id+'/abc?sig');
+  }finally{
+    objectStorage.configuredStorage=original;
+    for(const [k,v] of Object.entries(env))if(v===undefined)delete process.env[k];else process.env[k]=v;
+  }
+});

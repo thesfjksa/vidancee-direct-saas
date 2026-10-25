@@ -121,6 +121,12 @@ Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxByt
     return data;
   }
 };
+// The Studio's @Image1 / @Video1 / @Audio1 mentions become 888API's
+// @图1 / @视频1 / @音频1, which follow the order of each reference array.
+function api888Mentions(prompt){
+  return String(prompt||'').replace(/@(image|video|audio|sound)\s?(\d+)/gi,(_,kind,n)=>
+    '@'+({image:'图',video:'视频',audio:'音频',sound:'音频'})[kind.toLowerCase()]+n);
+}
 Api888Client.prototype.videoBody=function(model,params,references=[]){
   const images=references.filter(r=>r.mimeType?.startsWith('image/'));
   const videos=references.filter(r=>r.mimeType?.startsWith('video/'));
@@ -178,7 +184,7 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     if(images.length)payload.image_url=images[0].url;
     return payload;
   }
-  const body={model:model.providerModelId,prompt:String(params.prompt||''),
+  const body={model:model.providerModelId,prompt:api888Mentions(params.prompt),
     // 888API Go Alias seconds input requires a JSON string.
     [timeField]:timeField==='seconds'?String(duration):duration,
     resolution:String(params.resolution||model.defaultResolution||'720p'),
@@ -367,6 +373,6 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   validateCanvas(data,mimeType,ratio);
   return {data,mimeType};
 };
-module.exports={Api888Client,ORIGIN,publicMediaUrl};
+module.exports={Api888Client,ORIGIN,publicMediaUrl,api888Mentions};
 
 

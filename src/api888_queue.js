@@ -7,6 +7,24 @@ class Api888Queue extends VercelQueue{
   apiKey(s){return s.api888ApiKey||'';}
   sourceEnabled(s){return Boolean(s.api888Enabled);}
   maxInflight(s){return s.api888MaxInflight||2;}
+  // Reference files kept in cloud storage are handed to 888API as 24-hour
+  // presigned links: downloading large videos through the web host was too
+  // slow, and 888API then rendered without the reference.
+  async references(db,job){
+    const refs=await super.references(db,job);
+    if(job.media_type==='image'||!refs.length)return refs;
+    const {blobRefKey,configuredStorage}=require('./object_storage.js');
+    const [rows]=await db.execute('SELECT position_index,media_data FROM generation_media WHERE generation_id=? AND LENGTH(media_data)<512 ORDER BY position_index',[job.id]);
+    const keys=new Map(rows.map(r=>[Number(r.position_index),blobRefKey(r.media_data)]).filter(([,k])=>k));
+    if(!keys.size)return refs;
+    const store=await configuredStorage({requireEnabled:false});
+    if(!store)return refs;
+    return refs.map(ref=>{
+      const position=Number(String(ref.url).match(/\/provider-media\/[0-9a-f-]{36}\/(\d+)/i)?.[1]);
+      const key=keys.get(position);
+      return key?{...ref,url:store.presign(key,{expires:86400,contentType:ref.mimeType})}:ref;
+    });
+  }
   async submit(db,job,client){
     const options=savedOptions(job),model=await this.getModel('api888',job.model,job.media_type);
     if(!model?.ready)throw new Error('888API model cannot currently accept generation.');

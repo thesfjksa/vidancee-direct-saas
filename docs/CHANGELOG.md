@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — 888API reference videos actually reach the model
+
+- Owner report: Wan 3.0 (`wan30-720p`) and Seedance 2.5 G5-V2 results ignored the uploaded reference video. Three fixes:
+  1. **Field names.** Per 888API's general rule, models whose docs don't name a field take `video_urls` / `audio_urls`. Wan 3.0 (all four), Seedance 2.0 Full/Economy/Pro/Mini, MiniMax H3 2K and Omni Flash were sending `videos` / `audios`, which 888API silently ignores. Documented `videos` / `audios` models (G-series, SS/S2 2.5, 301010 wool, SS 2.0 933, Xin 933) are unchanged.
+  2. **Reachable links.** Reference files stored in R2 are now given to 888API as 24-hour presigned bucket links instead of signed links that make 888API download through Hostinger, where large videos could time out.
+  3. **Mentions.** `@Image1` / `@Video1` / `@Audio1` in the prompt are sent as 888API's `@图1` / `@视频1` / `@音频1`.
+
 ## 2026-10-25 — Reference videos and sound upload straight to R2
 
 - A 16.6 MB reference video failed with "Failed to fetch": uploads through Hostinger run at under 1 MB/s, and long requests are dropped. The browser now uploads reference videos and sound directly to the R2 bucket with 15-minute presigned PUT links (`/api/uploads/presign`, `src/direct_uploads.js`) and shows "Uploading video… 45%". The form sends only the keys. The server checks that each key is in the customer's own `uploads/<user>/` prefix, reads the file, runs the usual trimming and validation, then deletes the temporary object.
