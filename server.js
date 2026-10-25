@@ -255,13 +255,27 @@ function sendJson(res, status, body) {
   });
   res.end(data);
 }
+// Videos play from, and reference files upload to, the cloud storage bucket
+// through short-lived links, so the page must allow its origin for media and
+// connections. Without it the browser blocked playback and direct uploads.
+let storageCspOrigin='';
+function refreshStorageCspOrigin(){
+  storageConfiguration().then(cfg=>{
+    try{storageCspOrigin=cfg.configured?new URL(cfg.endpoint).origin:'';}catch{storageCspOrigin='';}
+  }).catch(()=>{});
+}
+function pageCsp(){
+  const storage=['https://*.r2.cloudflarestorage.com',storageCspOrigin].filter(Boolean).join(' ');
+  return "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob: "+storage+
+    "; media-src 'self' blob: https://*.aliyuncs.com "+storage+"; connect-src 'self' "+storage;
+}
 function sendHtml(res, status, body) {
   res.writeHead(status, {
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'same-origin',
-    'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https://*.aliyuncs.com; connect-src 'self'",
+    'content-security-policy': pageCsp(),
   });
   res.end(body);
 }
@@ -2675,6 +2689,7 @@ function bootstrap() {
       const migrated=await migrateLegacyProviderEnvSettings();
       await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
       await require('./src/api888_access.js').enableDefaultApi888ModelsOnce(getPool()).catch(error=>console.error('888API default-on models failed:',error.message));
+      refreshStorageCspOrigin();setInterval(refreshStorageCspOrigin,5*60*1000).unref();
       // Buckets connected before direct uploads existed get their CORS rule now.
       if(await getSettingValue('r2_cors_ok','').catch(()=>'')!=='true')enableBrowserUploads().catch(()=>{});
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
