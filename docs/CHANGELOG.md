@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — Reference videos trimmed to the model's limit
+
+- A reference video longer than the selected model accepts is cut to the limit when the customer clicks Generate, instead of failing. A popup then says "Your 40 s video has been trimmed to 30 s". The cut is lossless (`src/mp4_trim.js` rewrites the MP4/MOV sample tables, with no re-encoding and no ffmpeg needed) and keeps the start of the clip. Several clips share the model's total in upload order.
+- Limits: 888API Seedance 2.0 models 15 s total (888API docs), Seedance 2.5 and Wan 30 s total; ArgoLink and gateway models from their catalog `max_duration_seconds`; Higgsfield Wan 3.0 30 s total; MiniMax H3 15 s per clip. Prices are computed from the trimmed length.
+- Fragmented MP4 files can't be trimmed and still go through each model's existing length checks.
+
 ## 2026-10-25 — Images and reference uploads in cloud storage
 
 - Generated images, reference images and reference videos and audio now go to the R2 bucket too. No schema change: the BLOB cell keeps a short tag (`offloadBlob` / `hydrateBlobs` in `src/object_storage.js`), and every reader restores the original bytes. Deletions and rolled-back creations remove their objects. The worker moves old rows over after videos, checking length and MD5. See [CLOUD_STORAGE.md](CLOUD_STORAGE.md).

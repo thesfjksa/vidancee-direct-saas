@@ -307,6 +307,9 @@ function describedModel(id,type) {
   const inputs=VIDEO_INPUTS[id]||{};
   const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,inputs.videos||0,inputs.audios||0,requiredImage);
   if(id==='doubao-seedance-2-0-fast'){refs.video.min=1;refs.textOnly=false;}
+  // Total reference-video length: 15 s for Seedance 2.0 (888API docs), 30 s
+  // for Seedance 2.5 and Wan (owner-confirmed). Longer uploads are trimmed.
+  if(refs.video.max)refs.video.maxTotalSeconds=/2\.5|g5|^wan/i.test(id)?30:15;
   // The upstream limits some multimodal models to 12 total items, even
   // though their individual image/video/audio maxima sum to 15.
   if(['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-933',
