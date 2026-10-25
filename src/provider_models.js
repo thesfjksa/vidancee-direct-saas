@@ -194,6 +194,28 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
   }
   if(row.provider==='vercel')applyModelFixups(base);
   if(row.provider==='api888'){
+    // The catalog table is a historical/account-scoped snapshot. Shipping a new
+    // verified 888API input mapping must not require the administrator to write
+    // to MySQL just to expose audio/video upload controls. In particular,
+    // Hostinger can suspend writes when its database crosses the disk quota.
+    // Rehydrate ONLY already-supported, currently-present model rows using
+    // the current audited local request contract. Never change row.enabled,
+    // row.available, account access, provider price, or unsupported models.
+    if(base.adapterSupported&&row.media_type==='video'){
+      const latest=api888MediaModels({data:[{id:row.provider_model_id,type:'video'}]})[0];
+      if(latest?.options.adapterSupported&&latest.mediaType==='video'){
+        const latestOptions=latest.options;
+        base.referenceCapabilities=latestOptions.referenceCapabilities;
+        base.mediaRoles=latestOptions.mediaRoles;
+        base.aspectRatios=latestOptions.aspectRatios;
+        base.defaultAspectRatio=latestOptions.defaultAspectRatio;
+        base.supportedOperations=latestOptions.supportedOperations;
+        base.api888={...base.api888,
+          imageField:latestOptions.api888.imageField,
+          videoField:latestOptions.api888.videoField,
+          audioField:latestOptions.api888.audioField};
+      }
+    }
     base.ready=Boolean(base.adapterSupported&&base.api888.sourceCny>0);
     if(!base.ready&&!base.setupReason)base.setupReason='888API model requires a verified contract and price.';
     return base;
