@@ -228,6 +228,11 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     // row.available, account access, provider price, or unsupported models.
     if(base.adapterSupported&&(row.media_type==='video'||row.media_type==='image')){
       const latest=api888MediaModels({data:[{id:row.provider_model_id,type:row.media_type}]})[0];
+      // A model the current code no longer supports stops being offered.
+      if(latest&&latest.options.adapterSupported===false){
+        base.adapterSupported=false;
+        base.setupReason=latest.options.setupReason||'This 888API model is temporarily unavailable.';
+      }
       // Names and image ratios also follow the current code, not the import.
       if(latest?.options.adapterSupported&&latest.mediaType===row.media_type){
         base.label=latest.label;
