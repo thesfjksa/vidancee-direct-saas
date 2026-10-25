@@ -121,6 +121,31 @@ const PUBLIC_ID = id => 'api888_' + String(id).replace(/[^a-zA-Z0-9]/g, '_');
 const isApi888Model = id => /^api888_/.test(String(id || ''));
 const ALL_IDS = new Set([...VIDEO_IDS,...IMAGE_IDS]);
 const RATS = ['16:9','9:16','1:1'];
+const RATS_FIVE = [...RATS,'4:3','3:4'];
+const RATS_WIDE = [...RATS_FIVE,'21:9'];
+
+// Confirmed input arrays and limits from https://888api.xin/docs (25 Oct
+// 2026). Specs are prices; input contracts must be checked independently.
+// Do not infer upload support solely from a model ID containing "301010".
+const VIDEO_INPUTS={
+  'ss-2.5-720p-v1':{videos:10,audios:10},
+  's2-2.5-480p-v2':{videos:0,audios:10},
+  's2-2.5-720p-v3':{videos:10,audios:10},
+  's2-2.5-720p-v4':{videos:10,audios:10},
+  'dola-seedance-2.5-301010':{videos:10,audios:10},
+  'seedance2.5-930-1080p':{videos:0,audios:3,audioField:'metadata.audios'},
+  'wan30-720p':{videos:5,audios:5},
+  'wan30-1080p-fast':{videos:5,audios:5},
+  'wan3.0-video':{videos:10,audios:0},
+  'wan3.0-video-prime':{videos:10,audios:0},
+};
+const modelVideoRatios=id=>{
+  if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
+  if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
+  if(id==='seedance2.5-930-1080p')return RATS_WIDE;
+  if(id==='seedance2.5-900')return RATS_FIVE;
+  return RATS;
+};
 const makeCaps = (images=0,videos=0,audios=0,requiredImage=false) => ({
   textOnly: !requiredImage, totalMax: images+videos+audios,
   image:{supported:images>0,max:images,min:requiredImage?1:0,
@@ -139,7 +164,7 @@ function describedModel(id,type) {
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k'].includes(id)) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
     ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
-      'dola-seedance-2.5-900','doubao-seedance-2.5',
+      'dola-seedance-2.5-900','dola-seedance-2.5-301010','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
       // Official per-second video SKUs: all use POST /v1/videos with
@@ -155,7 +180,8 @@ function describedModel(id,type) {
   );
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
   const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id);
-  const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,0,0,requiredImage);
+  const inputs=VIDEO_INPUTS[id]||{};
+  const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,inputs.videos||0,inputs.audios||0,requiredImage);
   const videoFlat=spec?.[1]==='job';
   const pricing=isImage?{image:cny||0}:{video_duration_pricing:known?[{resolution:res,cost_per_second:videoFlat?spec[0]/min:spec[0]}]:[]};
   // Flag fixed-per-request billing separately; quoteApi888 applies the same
@@ -167,14 +193,15 @@ function describedModel(id,type) {
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
         secondsField:spec?.[1]==='second'?'seconds':'duration',
-        imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images'},
+        imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images',
+        videoField:inputs.videos?'videos':null,audioField:inputs.audios?(inputs.audioField||'audios'):null},
       durations:isImage?[]:id==='seedance2.5-900'?[5,10,15,30]:
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,15):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
-      resolutions:isImage?[]:[res],aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):RATS,
+      resolutions:isImage?[]:[res],aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
       defaultAspectRatio:isImage?'1:1':'16:9',defaultDuration:min,defaultResolution:res,
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
-      supportedOperations:isImage?['text-to-image','image-edit']:['text-to-video',...(refs.image.supported?['reference-to-video']:[])],
+      supportedOperations:isImage?['text-to-image','image-edit']:['text-to-video',...((refs.image.supported||refs.video.supported||refs.audio.supported)?['reference-to-video']:[])],
       imageSizes:[],qualities:[],supportsAudio:false,inputLimits:{text:{max_chars:4096}},
     },
   };
