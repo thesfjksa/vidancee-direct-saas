@@ -127,10 +127,11 @@ class ArgoLinkQueue extends VercelQueue {
     if (!references.length) return [];
     try {
       const [rows] = await db.execute('SELECT position_index,media_kind,mime_type,LENGTH(media_data) AS bytes,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+      await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
       return rows.map((r, i) => {
         let size = null;
         if (r.media_kind === 'image') { try { size = dimensions(r.media_data, r.mime_type); } catch {} }
-        return { role: references[i]?.role, kind: r.media_kind, mimeType: r.mime_type, bytes: Number(r.bytes),
+        return { role: references[i]?.role, kind: r.media_kind, mimeType: r.mime_type, bytes: r.media_data?.length ?? Number(r.bytes),
           ...(size ? { width: size.width, height: size.height, ratio: Math.round(size.width / size.height * 1000) / 1000 } : {}) };
       });
     } catch { return references.map(r => ({ role: r.role, mimeType: r.mimeType })); }
@@ -144,6 +145,7 @@ class ArgoLinkQueue extends VercelQueue {
     if (!references.length || !/^seedance-/.test(model.providerModelId || '') || typeof client.uploadMedia !== 'function') return references;
     try {
       const [rows] = await db.execute('SELECT position_index,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+      await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
       if (rows.length !== references.length) throw new Error('The reference files could not be read.');
       const uploaded = [];
       for (const [i, ref] of references.entries()) uploaded.push({ ...ref, url: await client.uploadMedia(model, { data: rows[i].media_data, mimeType: rows[i].mime_type }) });

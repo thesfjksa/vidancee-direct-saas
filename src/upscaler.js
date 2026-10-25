@@ -120,7 +120,8 @@ async function createUpscaleJob(userId, { resolution, source }, settings) {
     if (source?.video) {
       await conn.execute(
         `INSERT INTO generation_media (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data) VALUES (?,0,'video','video',?,?,?)`,
-        [id, String(source.video.filename || 'video.mp4').slice(0, 255), source.video.mimeType, source.video.data]);
+        [id, String(source.video.filename || 'video.mp4').slice(0, 255), source.video.mimeType,
+          await require('./object_storage.js').offloadBlob('media/' + id, source.video.data, source.video.mimeType)]);
     }
     await conn.execute('UPDATE users SET credits = credits - ? WHERE id = ?', [quote.cost, userId]);
     await conn.execute("INSERT INTO credit_transactions (user_id, generation_id, amount, type, note) VALUES (?, ?, ?, 'generation_debit', ?)",

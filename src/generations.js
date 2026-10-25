@@ -6,6 +6,7 @@ const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
 const { roundCredits, roundYuanCredits } = require('./billing.js');
+const { configuredStorage, offloadBlob, hydrateBlobs, removeBlobs } = require('./object_storage.js');
 
 function serializeGeneration(row) {
   return {
@@ -206,6 +207,7 @@ function validateAssignedRoles(kind, assignedRoles, capability) {
 }
 
 async function createGenerationForUser(userId, input, options = {}) {
+  const offloaded = [];
   const prompt = String(input.prompt || '').trim();
   const model = String(input.model || '');
   const duration = Number(input.duration);
@@ -350,6 +352,8 @@ async function createGenerationForUser(userId, input, options = {}) {
          WHERE generation_id = ? AND id IN (${placeholders})`,
         [reuseGenerationId, ...reuseImageIds],
       );
+      // Reused files are copied, so deleting either generation is independent.
+      await hydrateBlobs(imageRows, 'image_data');
 
       const byId = new Map(imageRows.map(row => [Number(row.id), row]));
       reusedImages = reuseImageIds.map(imageId => byId.get(imageId)).filter(Boolean);
@@ -451,6 +455,14 @@ async function createGenerationForUser(userId, input, options = {}) {
       ],
     );
 
+    // Uploaded files go to cloud storage when enabled; the BLOB keeps a tag.
+    let storePromise = null;
+    const keep = async (prefix, data, mimeType) => {
+      storePromise ??= configuredStorage();
+      const value = await offloadBlob(prefix, data, mimeType, { store: await storePromise });
+      if (value !== data) offloaded.push(value);
+      return value;
+    };
     let position = 0;
     for (const entry of orderedImages) {
       const image = entry.image;
@@ -460,7 +472,7 @@ async function createGenerationForUser(userId, input, options = {}) {
         `INSERT INTO generation_images
          (generation_id, position_index, filename, mime_type, image_data)
          VALUES (?, ?, ?, ?, ?)`,
-        [id, position, image.filename, mimeType, imageData],
+        [id, position, image.filename, mimeType, await keep('refs/' + id, imageData, mimeType)],
       );
       position += 1;
     }
@@ -475,7 +487,7 @@ async function createGenerationForUser(userId, input, options = {}) {
           `INSERT INTO generation_media
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
-          [id, mediaPosition, 'image', String(entry.role || ''), image.filename, mimeType, imageData],
+          [id, mediaPosition, 'image', String(entry.role || ''), image.filename, mimeType, await keep('media/' + id, imageData, mimeType)],
         );
         mediaPosition += 1;
       }
@@ -485,7 +497,7 @@ async function createGenerationForUser(userId, input, options = {}) {
           `INSERT INTO generation_media
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
-          [id, mediaPosition, 'video', String(videoRoles[i] || ''), video.filename, video.mimeType, video.data],
+          [id, mediaPosition, 'video', String(videoRoles[i] || ''), video.filename, video.mimeType, await keep('media/' + id, video.data, video.mimeType)],
         );
         mediaPosition += 1;
       }
@@ -495,7 +507,7 @@ async function createGenerationForUser(userId, input, options = {}) {
           `INSERT INTO generation_media
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
-          [id, mediaPosition, 'audio', String(audioRoles[i] || ''), audio.filename, audio.mimeType, audio.data],
+          [id, mediaPosition, 'audio', String(audioRoles[i] || ''), audio.filename, audio.mimeType, await keep('media/' + id, audio.data, audio.mimeType)],
         );
         mediaPosition += 1;
       }
@@ -511,7 +523,7 @@ async function createGenerationForUser(userId, input, options = {}) {
           `INSERT INTO generation_media
            (generation_id,position_index,media_kind,media_role,filename,mime_type,media_data)
            VALUES (?,?,?,?,?,?,?)`,
-          [id, orderedImages.length + i, kind, role, file.filename, file.mimeType, file.data],
+          [id, orderedImages.length + i, kind, role, file.filename, file.mimeType, await keep('media/' + id, file.data, file.mimeType)],
         );
       }
     }
@@ -526,6 +538,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     await conn.commit();
   } catch (error) {
     await conn.rollback();
+    await removeBlobs(offloaded).catch(() => {});
     throw error;
   } finally {
     conn.release();
@@ -588,13 +601,14 @@ async function getUserGenerationReferenceImage(userId, generationId, imageId) {
      LIMIT 1`,
     [generationId, imageId, userId],
   );
+  await hydrateBlobs(rows, 'image_data');
   return rows[0] || null;
 }
 
 async function deleteUserGeneration(userId, generationId) {
   const db = getPool();
   const conn = await db.getConnection();
-  let deletedDriveId=null,deletedObjectKey=null;
+  let deletedDriveId=null,deletedObjectKey=null,offloadedTags=[];
 
   try {
     await conn.beginTransaction();
@@ -625,6 +639,13 @@ async function deleteUserGeneration(userId, generationId) {
       'UPDATE credit_transactions SET generation_id = NULL WHERE generation_id = ? AND user_id = ?',
       [generationId, userId],
     );
+    // Cloud-stored reference files are removed after the commit below.
+    const [tagRows] = await conn.execute(
+      `SELECT image_data AS data FROM generation_images WHERE generation_id = ? AND LENGTH(image_data) < 512
+       UNION ALL SELECT media_data FROM generation_media WHERE generation_id = ? AND LENGTH(media_data) < 512`,
+      [generationId, generationId],
+    );
+    offloadedTags = tagRows.map(r => r.data);
     await conn.execute(
       'DELETE FROM generation_images WHERE generation_id = ?',
       [generationId],
@@ -654,6 +675,7 @@ async function deleteUserGeneration(userId, generationId) {
   } finally {
     conn.release();
   }
+  await removeBlobs(offloadedTags).catch(()=>{});
   if(deletedObjectKey){
     try{
       const {configuredStorage}=require('./object_storage.js');

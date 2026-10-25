@@ -24,7 +24,7 @@ class HiggsfieldQueue extends ArgoLinkQueue {
   async stageReferences(db, job, client, references) {
     if (!references.length || typeof client.upload !== 'function') return references;
     let rows = [];
-    try { [rows] = await db.execute('SELECT position_index,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]); }
+    try { [rows] = await db.execute('SELECT position_index,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]); await require('./object_storage.js').hydrateBlobs(rows, 'media_data'); }
     catch { return references; }
     if (!Array.isArray(rows) || rows.length !== references.length) return references;
     const out = [];

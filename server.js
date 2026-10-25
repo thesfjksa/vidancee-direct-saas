@@ -1097,6 +1097,7 @@ const server=http.createServer(async (req,res)=>{
         'SELECT filename,mime_type,image_data FROM generation_images WHERE generation_id=? AND position_index=? LIMIT 1',
         [generationId,position]
       );
+      await require('./src/object_storage.js').hydrateBlobs(rows,'image_data');
       const image=rows[0];
       if (!image) return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
       res.statusCode=200;
@@ -1138,6 +1139,7 @@ const server=http.createServer(async (req,res)=>{
       const id=providerMediaMatch[1],position=Number(providerMediaMatch[2]);
       if(!verifyAssetSignature(id,position,String(url.searchParams.get('sig')||'')))return sendJson(res,403,{ok:false,error:'Invalid provider asset signature.'});
       const [[media]]=await getPool().execute('SELECT mime_type,media_data FROM generation_media WHERE generation_id=? AND position_index=? LIMIT 1',[id,position]);
+      if(media)await require('./src/object_storage.js').hydrateBlobs(media,'media_data');
       if(!media)return sendJson(res,404,{ok:false,error:'Provider asset not found.'});
       res.writeHead(200,{'content-type':media.mime_type,'content-length':media.media_data.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});
       return res.end(req.method==='HEAD'?undefined:media.media_data);
@@ -1610,6 +1612,7 @@ const server=http.createServer(async (req,res)=>{
       }
       if (row.output_url==='db:image') {
         const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+        await require('./src/object_storage.js').hydrateBlobs(outputs,'image_data');
         const output=outputs[0];
         if(!output)return sendJson(res,404,{ok:false,error:'Generated image is unavailable.'});
         const extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[output.mime_type]||'png';
@@ -1769,6 +1772,7 @@ const server=http.createServer(async (req,res)=>{
           if(thumb){res.writeHead(200,{'content-type':thumb.mimeType,'content-length':thumb.data.length,'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});return res.end(thumb.data);}}
         if(row.output_url==='db:image'){
           const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+          await require('./src/object_storage.js').hydrateBlobs(outputs,'image_data');
           if(!outputs[0])return sendJson(res,404,{ok:false,error:'Generated image is unavailable.'});
           res.writeHead(200,{'content-type':outputs[0].mime_type,'content-length':outputs[0].image_data.length,'cache-control':'private, max-age=3600','x-content-type-options':'nosniff'});
           return res.end(outputs[0].image_data);

@@ -28,6 +28,7 @@ async function attachReusedImageReferences(db,userId,body){
        FROM generation_images gi JOIN generations g ON g.id=gi.generation_id
        WHERE gi.generation_id=? AND g.user_id=? AND gi.id IN (${reusedIds.map(()=>'?').join(',')})`,
       [generationId,userId,...reusedIds]);
+    await require('./object_storage.js').hydrateBlobs(rows,'image_data');
     stored=new Map(rows.map(row=>[Number(row.id),row]));
     if(stored.size!==reusedIds.length)throw invalid('One or more reused reference images are no longer available. Upload them again.');
   }

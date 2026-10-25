@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — Images and reference uploads in cloud storage
+
+- Generated images, reference images and reference videos and audio now go to the R2 bucket too. No schema change: the BLOB cell keeps a short tag (`offloadBlob` / `hydrateBlobs` in `src/object_storage.js`), and every reader restores the original bytes. Deletions and rolled-back creations remove their objects. The worker moves old rows over after videos, checking length and MD5. See [CLOUD_STORAGE.md](CLOUD_STORAGE.md).
+
 ## 2026-10-25 — Cloudflare R2 (S3-compatible) video storage
 
 - New primary video storage: `src/object_storage.js` (SigV4 client, checked against the AWS reference signatures) and Admin → Storage → **Cloud storage**. Saving the settings tests the bucket. New videos go to `r2:videos/<id>.mp4`, and the worker moves old `db:video` rows over after checking size and MD5. Playback redirects to 1-hour private links, and downloads use `download=1`. See [CLOUD_STORAGE.md](CLOUD_STORAGE.md).
