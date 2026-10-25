@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — 888API model-specific video, audio and aspect-ratio fixes
+
+- Investigated CMM Tools showing only image input for 888API models. Code source advertised only image capabilities and rejected video/audio URL inputs; Video Studio widgets for video/audio already existed but were hidden by catalog metadata.
+- Documented models now publish supported upload types/counts; request adapter maps video and audio to the provider's verified field names, including a specific \`metadata.audios\` path. Invalid MIME types, unsupported media, excessive files, unsupported ratios and unsafe reference URL schemes are rejected **before** a paid submission.
+- Publish documented aspect-ratio lists (including 21:9/4:3/3:4 and model-specific Wan adaptive and H3 3:2/2:3 options) rather than only the generic three-ratio set. Customer UI shows these in its existing selector and model capability summary.
+- Persisted model capabilities in MySQL must be refreshed using Admin → 888API → Import all accessible models **after deploying both apps**; a full/locked database may prevent the sync. Source/tests alone are not proof of live reference generation success, and new reference uploads still store data in MySQL.
+
 ## 2026-10-25 — Diagnose 888API model-count discrepancy and add read-only verification
 
 - Investigated Admin screenshot: 115 **historical stored** 888API model IDs, 64 returned in last successful account sync, 31 adapter-supported rows reported by Import, but only 13 ready video + 4 ready image models. These counts are different sets, not evidence that 115 models are callable.
