@@ -801,4 +801,5 @@ test('reference-field probe sends each candidate field with its own tagged link'
   assert.equal(body.referenceVideos[0].endsWith('probe=referenceVideos'),true);
   assert.equal(body.video_url.endsWith('probe=video_url'),true);
   assert.equal(body.metadata.videos[0].endsWith('probe=metadata.videos'),true);
+  assert.equal(body.images[0].endsWith('probe=images-video'),true);
 });
