@@ -405,6 +405,7 @@ function api888MediaModels(live=null) {
 // selected duration. Do not apply USD/CNY FX, the prior x3.5 multiplier or
 // general provider credit conversion to this source.
 function quoteApi888(model,input={}) {
+  const {cnyToCredits}=require('./billing.js');
   const {selection}=require('./vercel_models.js');
   const selected=selection(model,input);
   if(model.adapterSupported===false)
@@ -416,12 +417,12 @@ function quoteApi888(model,input={}) {
   const duration=billing==='second'?Number(selected.duration):1;
   if(!Number.isFinite(duration)||duration<=0)
     throw Object.assign(new Error('Invalid 888API billed duration.'),{statusCode:400});
-  // Wallets, generation charges, and transaction rows use 4 decimal places.
-  // This also preserves e.g. 0.065 CNY/s * 5s = 0.325 credits exactly.
+  // The yuan cost (4 decimals, e.g. 0.065 CNY/s * 5 s = 0.325) is kept for
+  // the record; the customer pays it at cost in credits (billing.js).
   const sourceCny=Math.round((rate*duration+Number.EPSILON)*10000)/10000;
-  if(!Number.isFinite(sourceCny)||sourceCny<=0||sourceCny>999999999)
+  if(!Number.isFinite(sourceCny)||sourceCny<=0||sourceCny>999999)
     throw Object.assign(new Error('888API yuan price exceeds supported precision or range.'),{statusCode:400});
-  return {...selected,cost:sourceCny,sourceCny,isEstimate:false,
+  return {...selected,cost:cnyToCredits(sourceCny),sourceCny,isEstimate:false,
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 

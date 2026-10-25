@@ -833,8 +833,8 @@ async function loadApi888ModelSummary(){
           !x.ready?'Not supported / unpriced':'Ready';
         const reason=!x.ready&&x.setupReason?' · '+x.setupReason:'';
         const price=x.api888?.billing==='second'
-          ?' · Dynamic ('+x.api888.sourceCny+' credits/sec)'
-          :x.api888?.sourceCny>0?' · Per request ('+x.api888.sourceCny+' credits)':'';
+          ?' · Dynamic (¥'+x.api888.sourceCny+'/sec = '+Math.round(x.api888.sourceCny*960*100)/100+' credits/sec)'
+          :x.api888?.sourceCny>0?' · Per request (¥'+x.api888.sourceCny+' = '+Math.ceil(x.api888.sourceCny*960-1e-9)+' credits)':'';
         return '<div style="padding:5px 0;border-bottom:1px solid var(--border,#ddd)"><strong>'+
           esc(x.providerModelId||x.publicModelId)+'</strong> · '+esc(x.mediaType||'unknown')+
           ' · '+esc(state+price+reason)+'</div>';

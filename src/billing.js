@@ -13,6 +13,12 @@ const PKR_PER_USD = 280;
 const CREDITS_PER_RS = 60000 / 2500; // 24, exact
 const CREDIT_COST_RS = 1 / CREDITS_PER_RS;
 const CREDITS_PER_USD = PKR_PER_USD * CREDITS_PER_RS;
+// 888API bills in Chinese yuan (¥1 of balance costs ¥1). Taken at ¥7 per USD,
+// slightly above the market rate, so a yuan is never under-charged: ¥1 =
+// Rs 40 = 960 credits. Quotes round up to whole credits.
+const CNY_PER_USD = 7;
+const CREDITS_PER_CNY = CREDITS_PER_USD / CNY_PER_USD;
+const cnyToCredits = cny => Math.ceil(Number(cny) * CREDITS_PER_CNY - 1e-9);
 const rsToCredits = rs => Number(rs) * CREDITS_PER_RS;
 const usdToCredits = usd => Number(usd) * CREDITS_PER_USD;
 
@@ -25,7 +31,7 @@ function roundCredits(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-// CNY parity for 888API only. Its per-second prices may contain 3 decimals.
+// Kept for 888API charges saved before yuan were converted (4 decimals).
 function roundYuanCredits(value) {
   return Math.round((Number(value) + Number.EPSILON) * 10000) / 10000;
 }
@@ -36,4 +42,4 @@ function sourceToCustomerCredits(sourceCredits) {
   return roundCredits(source * creditMultiplier());
 }
 
-module.exports = { positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, rsToCredits, usdToCredits };
+module.exports = { positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };

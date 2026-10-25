@@ -36,7 +36,7 @@ test('Seedance 2.5 G5-V2 is a cataloged video model with exact CNY per-job price
  assert.deepEqual(m.aspectRatios,['16:9','9:16','1:1']);
  for(const duration of [5,8,15,30]){
    const q=quoteApi888(m,{duration,aspectRatio:'16:9',resolution:'720p'});
-   assert.equal(q.cost,7);
+   assert.equal(q.sourceCny,7);
    assert.equal(q.sourceCny,7);
    assert.equal(q.pricingMode,'per_request');
  }

@@ -953,7 +953,7 @@ async function submitImageGeneration(user,body,req=null){
     const quote=quoteApi888(model,body);
     generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'api888',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
+      costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',
       generationOptions:{...quote,model}});
   }
   if(isArgoModel(requestedModel)){

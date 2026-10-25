@@ -26,7 +26,7 @@ test('all twelve published fixed-price Sora variants are priced and locked to th
   const ratio=id.endsWith('16x9')?'16:9':'9:16';
   assert.deepEqual(m.durations,[seconds],id);
   assert.deepEqual(m.aspectRatios,[ratio],id);
-  assert.equal(quoteApi888(m,{duration:seconds,aspectRatio:ratio}).cost,0.6,id);
+  assert.equal(quoteApi888(m,{duration:seconds,aspectRatio:ratio}).sourceCny,0.6,id);
   const body=client.videoBody(m,{prompt:'Cinema',duration:seconds,aspectRatio:ratio,resolution:'720p'});
   assert.deepEqual(body,{model:id,prompt:'Cinema'},id);
   assert.throws(()=>client.videoBody(m,{prompt:'X',duration:seconds+1,aspectRatio:ratio}),/fixed by the model ID/i,id);
@@ -43,7 +43,7 @@ test('five documented Grok models bill per request and send string seconds, imag
  for(const id of GROK_VARIANTS){
   const m=model(id);
   assert.equal(m.adapterSupported,true,id);
-  assert.equal(quoteApi888(m,{duration:m.defaultDuration}).cost,0.2,id);
+  assert.equal(quoteApi888(m,{duration:m.defaultDuration}).sourceCny,0.2,id);
   const refs=id==='grok-imagine-video-1.5-preview'?[im]:[];
   const b=client.videoBody(m,{duration:m.defaultDuration,aspectRatio:'9:16',prompt:'Grok'},refs);
   assert.deepEqual(b,{model:id,prompt:'Grok',seconds:String(m.defaultDuration),size:'720x1280',
@@ -63,14 +63,14 @@ test('documented OpenAI and Gemini models support paid text-to-image at publishe
   const m=model(id,'image');
   assert.equal(m.mediaType,'image');
   assert.equal(m.adapterSupported,true,id);
-  assert.equal(quoteApi888(m,{}).cost,price,id);
+  assert.equal(quoteApi888(m,{}).sourceCny,price,id);
   assert.deepEqual(m.supportedOperations,['text-to-image'],id);
  }
 });
 test('Doubao video-reference model requires video_urls and retains per-second CNY cost',()=>{
  const m=model('doubao-seedance-2-0-fast');
  assert.equal(m.adapterSupported,true);
- assert.equal(quoteApi888(m,{duration:8}).cost,4.88);
+ assert.equal(quoteApi888(m,{duration:8}).sourceCny,4.88);
  assert.throws(()=>client.videoBody(m,{duration:8,prompt:'Reference'},[]),
    /requires at least 1 reference video/);
  const body=client.videoBody(m,{duration:8,prompt:'Reference'},[im,vi,au]);
@@ -84,7 +84,7 @@ test('two Seedance four-image variants transport documented multimodal arrays',(
  for(const [id,price] of [['seedance2.0-full-4img',4],['seedance2.0-fast-4img',3.5]]){
    const m=model(id);
    assert.equal(m.adapterSupported,true,id);
-   assert.equal(quoteApi888(m,{duration:8}).cost,price,id);
+   assert.equal(quoteApi888(m,{duration:8}).sourceCny,price,id);
    const body=client.videoBody(m,{duration:8,prompt:'Reference scene'},[im,vi,au]);
    assert.deepEqual(body.referenceImages,[im.url],id);
    assert.deepEqual(body.referenceVideos,[vi.url],id);
@@ -104,7 +104,7 @@ test('Jimeng fast-vip uses its required functionMode, numeric duration and image
  assert.equal(m.adapterSupported,true);
  assert.deepEqual(m.durations,[15]);
  assert.equal(m.api888.billing,'job');
- assert.equal(quoteApi888(m,{duration:15}).cost,4.5);
+ assert.equal(quoteApi888(m,{duration:15}).sourceCny,4.5);
  assert.equal(m.referenceCapabilities.image.max,2);
  const body=client.videoBody(m,{prompt:'Scene',duration:15,aspectRatio:'16:9'},[im]);
  assert.equal(body.functionMode,'first_last_frames');

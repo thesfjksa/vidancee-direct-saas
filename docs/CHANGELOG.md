@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — 888API charged at cost, like every other source
+
+- Plans are unchanged: Rs 5,000 = 60,000 credits, and every model costs 24 credits per rupee of what CMM Tools pays, so half of every plan is profit. 888API was the exception: it charged ¥1 = 1 credit, i.e. a ¥1 job (about Rs 40 of cost) used Rs 0.08 of credits.
+- 888API yuan now convert at ¥7 per USD (slightly above market, so never under-charged): **¥1 = Rs 40 = 960 credits**, rounded up to whole credits per job. E.g. a ¥7 job = 6,720 credits (Rs 560 to the customer, Rs 280 cost). The yuan cost is still recorded with each generation; charges made before this change keep their amounts and refund unchanged.
+- Studio badges ("Per request · N cr", "Dynamic · N cr/sec") and Admin show the converted credits; Admin also shows the yuan price. 888API image jobs now record their yuan cost (they recorded an empty USD cost before).
+
 ## 2026-10-25 — Wan 3.0 Standard
 
 - 888API's `wan30-720p` is now named **Wan 3.0 Standard** (was "Wan 3.0 720p").
