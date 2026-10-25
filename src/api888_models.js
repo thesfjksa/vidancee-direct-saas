@@ -137,6 +137,13 @@ const VIDEO_INPUTS={
   'wan30-720p':{videos:5,audios:5},
   'wan30-1080p-fast':{videos:5,audios:5},
   'wan3.0-video':{videos:10,audios:0},
+  'seedance2.0-933-economy':{videos:3,audios:3},
+  'pidoi-h3video-2k':{videos:3,audios:3},
+  'pidoi-omni-flash-720p':{videos:3,audios:3},
+  'seedance2.0-933':{videos:3,audios:3},
+  'seedance2.0-pro-480p':{videos:3,audios:3},
+  'seedance2.0-933-mini':{videos:0,audios:3},
+  'xin-seedance-2.0-933':{videos:3,audios:3},
   'wan3.0-video-prime':{videos:10,audios:0},
 };
 const modelVideoRatios=id=>{
@@ -163,7 +170,16 @@ function describedModel(id,type) {
   const implemented=known && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k'].includes(id)) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
-    ['seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
+    [// Published, priced models using the existing generic /v1/videos contract.
+      // Live account model discovery and Admin access gates still apply.
+      'seedance2.0-933-economy','pidoi-h3video-2k','pidoi-omni-flash-720p','pidoi-veo31-fast',
+      'seedance2.0-933','seedance2.0-pro-480p','seedance2.0-933-fast','seedance2.0-933-mini',
+      'xin-seedance-2.0-900','xin-seedance-2.0-933',
+      'seedance2.0-ss','seedance2.0-ss-fast',
+      'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
+      'seedance2.5-720p-plus','seedance2.5-720p-pro',
+      'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
+      'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','doubao-seedance-2.5',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
@@ -196,6 +212,10 @@ function describedModel(id,type) {
         imageField:id==='seedance-2.5-c1'?'image_urls':/^seedance2\.0-ss/.test(id)?'referenceImages':'images',
         videoField:inputs.videos?'videos':null,audioField:inputs.audios?(inputs.audioField||'audios'):null},
       durations:isImage?[]:id==='seedance2.5-900'?[5,10,15,30]:
+        ['seedance2.0-933-economy','pidoi-h3video-2k','seedance2.0-pro-480p'].includes(id)?[15]:
+        ['seedance2.0-933','seedance2.0-933-fast'].includes(id)?[10,15]:
+        id==='pidoi-omni-flash-720p'?[5,10]:
+        /^seedance2\\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,15):
         id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
       resolutions:isImage?[]:[res],aspectRatios:isImage?(id==='gpt-image-2'?['1:1','16:9','9:16']:['1:1']):modelVideoRatios(id),
