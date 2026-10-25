@@ -1,4 +1,6 @@
 'use strict';
+// These tests cover the whole 888API catalog, not just the models offered.
+require('../src/api888_models.js').setApi888OfferAll(true);
 // Regression fixtures checked against 888API's published video-contract tables,
 // https://888api.xin/docs and https://888api.xin/about (25 October 2026).
 // These tests use no provider token and never submit a paid generation.

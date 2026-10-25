@@ -218,6 +218,18 @@ const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 let GATEWAY_FORWARDS_MEDIA_REFS=process.env.API888_MEDIA_REFS==='on';
 const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 
+// Owner's choice (25 Oct 2026): only these 888API models are offered, under
+// these names. Tests of the wider catalog turn the rest on with
+// setApi888OfferAll(true).
+const OFFERED={
+ 'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
+ 'seedance2.5-301010-wool':'Seedance 2.5 Standard',
+ 'seedance2.0-933':'Seedance 2.0 Standard',
+ 'wan3.0-video-prime':'Wan 3.0 Video Prime',
+};
+let OFFER_ALL=false;
+const setApi888OfferAll=on=>{OFFER_ALL=Boolean(on);};
+
 // Customer-facing names. The label adds resolution and reference limits, so
 // SKUs of one family are distinguishable in the model picker.
 const NAMES={
@@ -260,6 +272,7 @@ function api888ImageSize(id,ratio){
   return imageRatios(String(id)).includes(ratio)?sizes[ratio]:null;
 }
 function api888Label(id,type,{res,images=0,videos=0,audios=0,requiredImage=false}={}){
+  if(OFFERED[id]&&!OFFER_ALL)return OFFERED[id];
   const parts=[NAMES[id]||prettyId(id)];
   if(type==='image'){const tier=imageTier(id);if(tier)parts.push(tier.toUpperCase());return parts.join(' · ');}
   if(res)parts.push(/k$/i.test(res)?res.toUpperCase():res);
@@ -281,7 +294,8 @@ function describedModel(id,type) {
   const needsVideo=['doubao-seedance-2-0-fast','doubao-seedance-2-0'].includes(id);
   // MiniMax H3 is sold from vgenv; the 888API MiniMax models are not offered.
   const vgenvMinimax=/^(minimax-h3|pidoi-h3video)/.test(id);
-  const implemented=known && !vgenvMinimax && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
+  const offered=OFFER_ALL||Object.hasOwn(OFFERED,id);
+  const implemented=known && offered && !vgenvMinimax && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
       'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
@@ -341,7 +355,7 @@ function describedModel(id,type) {
     label:api888Label(id,type,{res,images:refs.image.max,videos:refs.video.max,audios:refs.audio.max,requiredImage}),
     mediaType:type,options:{
       catalogVerified:true,adapterSupported:implemented,
-      setupReason:implemented?'':/^(minimax-h3|pidoi-h3video)/.test(id)?'MiniMax H3 is offered from vgenv instead.':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
+      setupReason:implemented?'':vgenvMinimax?'MiniMax H3 is offered from vgenv instead.':!offered?'Not offered on CMM Tools.':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
         secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration',
         imageField:['seedance-2.5-c1','doubao-seedance-2-0-fast','sd_2.0_mini_special'].includes(id)?'image_urls':
@@ -410,4 +424,4 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs};
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};

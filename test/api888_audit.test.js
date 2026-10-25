@@ -1,4 +1,6 @@
 'use strict';
+// These tests cover the whole 888API catalog, not just the models offered.
+require('../src/api888_models.js').setApi888OfferAll(true);
 
 const test=require('node:test');
 const assert=require('node:assert/strict');
