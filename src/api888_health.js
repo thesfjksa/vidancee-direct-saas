@@ -10,6 +10,7 @@ const {getSettingValue,setSettingValue}=require('./settings.js');
 const SETTING_KEY='api888_model_health';
 const REFRESH_MS=10*60*1000;
 const CACHE_MS=30*1000;
+const STALE_MS=20*60*1000;
 const STATUSES=new Set(['available','verifying','no_recent_success','disabled']);
 
 function healthSnapshot(body,now=Date.now()){
@@ -40,13 +41,23 @@ function isApi888PublicAvailable(snapshot,publicModelId){
 }
 
 let cached=null,cachedAt=0;
-async function loadApi888Health({getValue=getSettingValue,now=Date.now()}={}){
+// The web app refreshes the public health list itself when the worker's saved
+// snapshot is empty or stale, so hiding never waits on a worker redeploy.
+async function loadApi888Health({getValue=getSettingValue,setValue=setSettingValue,client=null,now=Date.now()}={}){
   if(cached&&now-cachedAt<CACHE_MS)return cached;
   let snapshot=null;
   try{snapshot=JSON.parse(await getValue(SETTING_KEY,'')||'null');}catch{snapshot=null;}
+  const stale=!snapshot?.statuses||!Object.keys(snapshot.statuses).length||!(now-Date.parse(snapshot.at)<STALE_MS);
+  if(stale){
+    try{
+      const fresh=healthSnapshot(await (client||defaultClient()).modelHealth(),now);
+      if(Object.keys(fresh.statuses).length){snapshot=fresh;await setValue(SETTING_KEY,JSON.stringify(fresh)).catch(()=>{});}
+    }catch{}
+  }
   cached=snapshot;cachedAt=now;
   return snapshot;
 }
+function defaultClient(){const {Api888Client}=require('./provider/api888.js');return new Api888Client();}
 
 async function refreshApi888Health({client,setValue=setSettingValue,now=Date.now()}){
   let snapshot=null;
