@@ -42,6 +42,7 @@ class Api888Queue extends VercelQueue{
       audioReferenceCount:refs.filter(r=>r.mimeType?.startsWith('audio/')).length,
     });
     const id=await client.startVideo(model,options,refs);
+    if(client.lastTrace)this.log(job,'api888.request','888API accepted the video request',client.lastTrace);
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify({requestId:id}),id.slice(0,191),job.id]);
   }
