@@ -101,6 +101,37 @@ function describeFalImageModel(entry, price = null) {
   };
 }
 
+// "fal-ai/flux-lora/stream" -> "Flux Lora Stream" (vendor and "text-to-image" dropped).
+const endpointTokens = endpoint => String(endpoint).split('/').slice(1).filter(s => s !== 'text-to-image').join('/').split(/[\/_-]+/).filter(Boolean);
+const titleWords = tokens => tokens.map(t => t[0].toUpperCase() + t.slice(1)).join(' ');
+
+// fal names some models only by endpoint, and gives variants one name
+// ("Wan" x3). Raw names are made readable; variants get the part of their
+// endpoint that differs; plain aliases (flux/dev and flux-1/dev at one
+// price) are kept once.
+function distinctLabels(models) {
+  for (const m of models) if (m.label.includes('/') || !m.label.trim()) m.label = titleWords(endpointTokens(m.providerModelId)) || m.providerModelId;
+  const groups = new Map();
+  for (const m of models) if (m.options.adapterSupported) groups.set(m.label, [...(groups.get(m.label) || []), m]);
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => a.providerModelId.length - b.providerModelId.length);
+    const kept = [];
+    for (const m of group) {
+      const tokens = new Set(endpointTokens(m.providerModelId)), price = JSON.stringify(m.options.pricing);
+      const alias = kept.find(k => { const other = new Set(endpointTokens(k.providerModelId));
+        const diff = [...tokens].filter(t => !other.has(t)).concat([...other].filter(t => !tokens.has(t)));
+        return JSON.stringify(k.options.pricing) === price && diff.every(t => /^\d$/.test(t)); });
+      if (alias) Object.assign(m.options, { adapterSupported: false, setupReason: 'Same model as ' + alias.providerModelId + '.' });
+      else kept.push(m);
+    }
+    if (kept.length < 2) continue;
+    const common = kept.map(m => new Set(endpointTokens(m.providerModelId))).reduce((a, b) => new Set([...a].filter(t => b.has(t))));
+    for (const m of kept) { const extra = titleWords(endpointTokens(m.providerModelId).filter(t => !common.has(t))); if (extra) m.label += ' · ' + extra; }
+  }
+  return models;
+}
+
 // Every text-to-image model fal lists, with its schema and price.
 async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
   if (!apiKey) throw Object.assign(new Error('Save a fal.ai API key in Admin first.'), { statusCode: 400 });
@@ -143,7 +174,7 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
     if (!(await loadPrices(batch)) && batch.length > 1) for (const id of batch) await loadPrices([id]);
   }
   if (!entries.length) throw Object.assign(new Error('fal.ai returned no image models.'), { statusCode: 502 });
-  const models = entries.map(entry => describeFalImageModel(entry, prices.get(entry.endpoint_id)));
+  const models = distinctLabels(entries.map(entry => describeFalImageModel(entry, prices.get(entry.endpoint_id))));
   // Why models were left off, for the sync log and Admin.
   const reasons = {}, units = {};
   for (const m of models) if (!m.options.adapterSupported) { const r = m.options.setupReason.replace(/\(.*\)/, '(…)'); reasons[r] = (reasons[r] || 0) + 1; }
@@ -194,4 +225,4 @@ class FalImageClient {
   }
 }
 
-module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, fetchFalImageCatalog, FalImageClient, inputSchema };
+module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema };
