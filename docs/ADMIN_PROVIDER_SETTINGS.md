@@ -1,6 +1,24 @@
 # CMM Tools Admin provider settings
 
-Updated 11 October 2026.
+Updated through the 25 October 2026 PR #45 source-control checkpoint. Earlier sections retain October 11 integration history.
+
+## 25 October 2026 — 888API account model audit and new-model activation
+
+For full status, see the [comprehensive October 25 handoff](PROJECT_HANDOFF_2026-10-25.md) and [888API model contract guide](API888.md). The current GitHub `main` source checkpoint after PRs #43–#45 was `f82b02c0` (281 post-merge passing tests); this does **not** verify Hostinger web or worker have deployed those changes.
+
+**Owner-observed Admin → Providers → 888API → Verify live import (read-only)** showed **64** live upstream IDs, **115** historical MySQL IDs, **49** stale, **0** missing imports, **0** incorrect `available` flags, **0** wrong types, **27** supported adapters, **32** locally priced, and **27** ready-and-enabled (23 video / 4 image) before the last model expansion. **888API global source was ON** in that audit; each customer still needs its separate source assignment.
+
+- **Read-only audit:** `POST /admin/api888/audit` fetches authenticated upstream `GET /v1/models` and reads `provider_models`; no paid creation or DB mutation. “Historical / not returned” means the current account is not listing that exact ID; the old MySQL row is not an entitlement. Auditing alone never fixes unsupported adapters.
+- **Writable refresh:** **Import all accessible models** (`POST /admin/api888/sync`) persists the current authorized IDs and model metadata. Requires a healthy, writable database. A full/permission-denied Hostinger database will block this step. GitHub merge does not refresh saved options automatically for newly enabled models.
+- **Three reference types:** `seedance-2.5-g5-v2` was returned by the current API key, but originally “adapter not implemented.” Its 888API model card confirms **720p**, **5–30 seconds**, **¥7 per request**, and **30 image + 10 video + 10 audio references**. PR #45 implements a CMMTools adapter with corresponding price, references and upload controls. **Exact G5-V2 POST field names follow a related G2-V model and still need a controlled live test**; do not assert upstream generation succeeds just because UI selectors appear.
+- **Critical Admin gate:** PR #44 changed sync to mark previously unsupported/new 888API SKUs **`enabled=0` when they first gain adapter support**. This protects paying users despite the owner's globally enabled source. After import, enable the **specific G5-V2 model** and **specific test customer's source** for a controlled approved paid request, not the whole provider inventory.
+- **Pricing:** For 888API only, **1 CNY of verified source cost = 1 CMMTools credit**, with no USD conversion; G5-V2 should show **7 credits per request**. The new code may implement up to **55 of the same 64** audited IDs, but the actual ready-and-enabled count stays lower until explicitly enabled and must be checked after deployment/sync.
+- **Still blocked unless independently documented:** G5-V2 provider-specific request schema, production generation/download, deployed web+worker SHA, and older Hostinger MySQL quota and clone issues. Never paste API keys, OAuth secrets, signed reference URLs or raw credit records into support chat or documentation.
+
+**Operator order:** Verify both Hostinger services and database writes → audit → import → review model metadata/price and disabled state → grant limited test account → obtain explicit permission for a paid G5-V2 test → check task/MP4/wallet/refund → optionally enable broader customer use.
+
+---
+
 
 Provider credentials are managed from the private Admin dashboard rather than from the customer-facing app.
 
