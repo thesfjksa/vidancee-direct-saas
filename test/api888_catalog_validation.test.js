@@ -57,7 +57,9 @@ test('multimodal fixed job models enforce global reference count where published
      /Too many reference files/,id);
    const body=client.videoBody(model,{prompt:'Scene',duration:model.defaultDuration},refs.slice(0,12));
    assert.equal(body.images.length,9,id);
-   assert.equal(body.videos.length,3,id);
+   // Documented videos field only for Xin 933; the others use video_urls.
+   assert.equal((body.videos||body.video_urls).length,3,id);
+   assert.equal(Boolean(body.video_urls),id!=='xin-seedance-2.0-933',id);
  }
 });
 

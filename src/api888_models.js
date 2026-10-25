@@ -162,6 +162,11 @@ const RATS_WIDE = [...RATS_FIVE,'21:9'];
 // Confirmed input arrays and limits from https://888api.xin/docs (25 Oct
 // 2026). Specs are prices; input contracts must be checked independently.
 // Do not infer upload support solely from a model ID containing "301010".
+// Field names: 888API's docs list images / videos / audios only for the
+// models noted there (Seedance 2.5 G-series, SS/S2 2.5, 301010 wool, SS 2.0
+// 933, Xin 933). Every other model takes the general video_urls /
+// audio_urls fields ("参考素材怎么传"); an unknown field is silently ignored,
+// which made Wan 3.0 render without its reference video (25 Oct 2026).
 const VIDEO_INPUTS={
  'seedance2.0-full-4img':{videos:3,audios:1,videoField:'referenceVideos',audioField:'referenceAudios'},
  'seedance2.0-fast-4img':{videos:3,audios:1,videoField:'referenceVideos',audioField:'referenceAudios'},
@@ -173,17 +178,17 @@ const VIDEO_INPUTS={
   'dola-seedance-2.5-301010':{videos:10,audios:10},
    'seedance-2.5-g5-v2':{videos:10,audios:10},
   'seedance2.5-930-1080p':{videos:0,audios:3,audioField:'metadata.audios'},
-  'wan30-720p':{videos:5,audios:5},
-  'wan30-1080p-fast':{videos:5,audios:5},
-  'wan3.0-video':{videos:10,audios:0},
-  'seedance2.0-933-economy':{videos:3,audios:3},
-  'pidoi-h3video-2k':{videos:3,audios:3},
-  'pidoi-omni-flash-720p':{videos:3,audios:3},
-  'seedance2.0-933':{videos:3,audios:3},
-  'seedance2.0-pro-480p':{videos:3,audios:3},
-  'seedance2.0-933-mini':{videos:0,audios:3},
+  'wan30-720p':{videos:5,audios:5,videoField:'video_urls',audioField:'audio_urls'},
+  'wan30-1080p-fast':{videos:5,audios:5,videoField:'video_urls',audioField:'audio_urls'},
+  'wan3.0-video':{videos:10,audios:0,videoField:'video_urls',audioField:'audio_urls'},
+  'seedance2.0-933-economy':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
+  'pidoi-h3video-2k':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
+  'pidoi-omni-flash-720p':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
+  'seedance2.0-933':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
+  'seedance2.0-pro-480p':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
+  'seedance2.0-933-mini':{videos:0,audios:3,videoField:'video_urls',audioField:'audio_urls'},
   'xin-seedance-2.0-933':{videos:3,audios:3},
-  'wan3.0-video-prime':{videos:10,audios:0},
+  'wan3.0-video-prime':{videos:10,audios:0,videoField:'video_urls',audioField:'audio_urls'},
   'seedance2.5-301010-wool':{videos:10,audios:10},
   'seedance2.5-301010-wool-1080p':{videos:10,audios:10},
   'ss-2.0-933-720p':{videos:3,audios:3},
