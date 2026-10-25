@@ -203,6 +203,9 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
     for(const field of ['videos','video_urls','reference_videos','referenceVideos'])body[field]=videos.map(r=>tag(r.url,field));
     body.video_url=tag(videos[0].url,'video_url');
     body.metadata={...(body.metadata||{}),videos:videos.map(r=>tag(r.url,'metadata.videos'))};
+    // Second round: does the gateway forward images, and would it pass a
+    // video placed in the images list?
+    body[imageField]=[...images.map(r=>tag(r.url,'images')),...videos.map(r=>tag(r.url,'images-video'))];
   }
   return body;
 };
