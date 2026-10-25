@@ -198,6 +198,7 @@ const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js'
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
+const { configuredStorage, keyFromMarker, redirectToObject, storageConfiguration, saveStorageSettings, SETTINGS: STORAGE_SETTINGS } = require('./src/object_storage.js');
 const {GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig,validateOAuthClient,OAUTH_ID_SETTING,OAUTH_SECRET_SETTING}=require('./src/google_drive.js');
 const {videoMigrationStats}=require('./src/google_drive_migration.js');
 const { getImageThumbnail } = require('./src/image_thumbnails.js');
@@ -1120,6 +1121,10 @@ const server=http.createServer(async (req,res)=>{
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
+      if(keyFromMarker(row.output_url)){
+        try{return await (await configuredStorage({requireEnabled:false})).stream(keyFromMarker(row.output_url),req,res);}
+        catch(error){if(res.headersSent){res.destroy();return;}throw error;}
+      }
       if(driveIdFromMarker(row.output_url)){
         try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
@@ -1698,6 +1703,12 @@ const server=http.createServer(async (req,res)=>{
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
+      if(type==='video'&&keyFromMarker(row.output_url)){
+        const store=await configuredStorage({requireEnabled:false});
+        if(!store)return sendJson(res,503,{ok:false,error:'Video storage is not configured.'});
+        return redirectToObject(store,keyFromMarker(row.output_url),res,{contentType:'video/mp4',
+          filename:'cmm-tools-'+String(row.id).slice(0,8)+'.mp4',download:url.searchParams.get('download')==='1'});
+      }
       if(type==='video'&&driveIdFromMarker(row.output_url)){
         try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
@@ -1768,6 +1779,12 @@ const server=http.createServer(async (req,res)=>{
         try{return await serveVideoOutput(getPool(),req,res,row.id);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
       }
+      if(type==='video'&&keyFromMarker(row.output_url)){
+        const store=await configuredStorage({requireEnabled:false});
+        if(!store)return sendJson(res,503,{ok:false,error:'Video storage is not configured.'});
+        return redirectToObject(store,keyFromMarker(row.output_url),res,{contentType:'video/mp4',
+          filename:'cmm-tools-'+String(row.id).slice(0,8)+'.mp4',download:url.searchParams.get('download')==='1'});
+      }
       if(type==='video'&&driveIdFromMarker(row.output_url)){
         try{return await (await configuredDrive({requireEnabled:false})).streamVideo(driveIdFromMarker(row.output_url),req,res);}
         catch(error){if(res.headersSent){res.destroy();return;}throw error;}
@@ -1783,6 +1800,40 @@ const server=http.createServer(async (req,res)=>{
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
 
+      if(req.method==='GET'&&routePath==='/admin/storage/r2'){
+        requireDatabase();
+        const cfg=await storageConfiguration();
+        const {storageMigrationStats}=require('./src/r2_migration.js');
+        let available=null;
+        if(cfg.configured){
+          try{await (await configuredStorage({requireEnabled:false})).check();available=true;}catch{available=false;}
+        }
+        return sendJson(res,200,{ok:true,configured:cfg.configured,enabled:cfg.enabled,migrationEnabled:cfg.migrationEnabled,
+          available,endpoint:cfg.endpoint||null,bucket:cfg.bucket||null,
+          accessKeyId:cfg.accessKeyId?cfg.accessKeyId.slice(0,4)+'…'+cfg.accessKeyId.slice(-4):null,
+          stats:await storageMigrationStats(getPool())});
+      }
+      if(req.method==='POST'&&routePath==='/admin/storage/r2'){
+        requireDatabase();
+        const body=await readJson(req);
+        try{await saveStorageSettings({endpoint:body.endpoint,bucket:body.bucket,accessKeyId:String(body.accessKeyId||'').trim(),secretAccessKey:String(body.secretAccessKey||'').trim()});}
+        catch(error){return sendJson(res,400,{ok:false,error:error.message});}
+        logActivity({category:'admin',event:'r2.settings_saved',message:'Cloud storage connected and verified; new files now go to the bucket (keys not logged).'});
+        return sendJson(res,200,{ok:true,saved:true});
+      }
+      if(req.method==='POST'&&routePath==='/admin/storage/r2/state'){
+        requireDatabase();
+        const body=await readJson(req);
+        const cfg=await storageConfiguration();
+        if(!cfg.configured)return sendJson(res,409,{ok:false,error:'Save the cloud storage details first.'});
+        for(const [field,setting] of [['enabled',STORAGE_SETTINGS.enabled],['migrationEnabled',STORAGE_SETTINGS.migration]]){
+          if(body[field]===undefined)continue;
+          if(typeof body[field]!=='boolean')return sendJson(res,400,{ok:false,error:field+' must be true or false.'});
+          await setSettingValue(setting,body[field]?'true':'false');
+        }
+        logActivity({category:'admin',event:'r2.state_changed',message:'Cloud storage settings changed',details:{enabled:body.enabled,migrationEnabled:body.migrationEnabled}});
+        return sendJson(res,200,{ok:true});
+      }
       if(req.method==='GET'&&routePath==='/admin/google-drive/status'){
         requireDatabase();
         const config=await driveConfiguration(),stats=await videoMigrationStats(getPool());

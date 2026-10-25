@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 — Cloudflare R2 (S3-compatible) video storage
+
+- New primary video storage: `src/object_storage.js` (SigV4 client, checked against the AWS reference signatures) and Admin → Storage → **Cloud storage**. Saving the settings tests the bucket. New videos go to `r2:videos/<id>.mp4`, and the worker moves old `db:video` rows over after checking size and MD5. Playback redirects to 1-hour private links, and downloads use `download=1`. See [CLOUD_STORAGE.md](CLOUD_STORAGE.md).
+- Google Drive remains as a fallback but is no longer needed. Images, thumbnails, reference uploads and voice samples move in the next phase.
+
 ## 2026-10-25 — G5-V2 and Mini Special on by default
 
 - Owner request: `seedance-2.5-g5-v2` and `sd_2.0_mini_special` start enabled without Admin opt-in. `enableDefaultApi888ModelsOnce` (web and worker startup) switches the existing rows on once, guarded by the `api888_default_on_models_v1` marker, so a later Admin switch-off is kept. Catalog re-imports no longer apply the opt-in gate to these two (`DEFAULT_ON_MODELS`). Global 888API switch, customer access and the availability filter still apply.

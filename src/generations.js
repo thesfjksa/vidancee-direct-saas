@@ -594,7 +594,7 @@ async function getUserGenerationReferenceImage(userId, generationId, imageId) {
 async function deleteUserGeneration(userId, generationId) {
   const db = getPool();
   const conn = await db.getConnection();
-  let deletedDriveId=null;
+  let deletedDriveId=null,deletedObjectKey=null;
 
   try {
     await conn.beginTransaction();
@@ -647,11 +647,22 @@ async function deleteUserGeneration(userId, generationId) {
 
     await conn.commit();
     deletedDriveId=String(row.output_url||'').startsWith('gdrive:')?String(row.output_url).slice(7):null;
+    deletedObjectKey=String(row.output_url||'').startsWith('r2:')?String(row.output_url).slice(3):null;
   } catch (error) {
     await conn.rollback();
     throw error;
   } finally {
     conn.release();
+  }
+  if(deletedObjectKey){
+    try{
+      const {configuredStorage}=require('./object_storage.js');
+      await (await configuredStorage({requireEnabled:false})).remove(deletedObjectKey);
+    }catch(error){
+      logActivity({level:'warn',category:'system',event:'r2.delete_failed',
+        userId,generationId,message:'Customer deleted video; cloud storage cleanup failed.',
+        details:{storageStatus:error.storageStatus||null}});
+    }
   }
   if(deletedDriveId){
     try{

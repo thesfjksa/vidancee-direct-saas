@@ -39,6 +39,13 @@ function publicUpscalerConfig(enabled) {
 // of the stored file when the duration was not recorded.
 async function sourceSeconds(conn, row) {
   if (Number(row.duration) > 0) return Number(row.duration);
+  if (String(row.output_url || '').startsWith('r2:')) {
+    const { configuredStorage } = require('./object_storage.js');
+    const store = await configuredStorage({ requireEnabled: false });
+    if (!store) return null;
+    const head = await store.get(String(row.output_url).slice(3), { range: 'bytes=0-2097151' });
+    return mp4Seconds(Buffer.from(await head.arrayBuffer()));
+  }
   if (row.output_url !== 'db:video') return null;
   const [chunks] = await conn.execute('SELECT video_data FROM generation_video_chunks WHERE generation_id=? AND chunk_index<2 ORDER BY chunk_index', [row.id]);
   return mp4Seconds(Buffer.concat(chunks.map(c => c.video_data)));

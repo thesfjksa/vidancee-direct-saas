@@ -12,9 +12,10 @@ const { REFRESH_MS: API888_HEALTH_REFRESH_MS, refreshApi888Health, healthSummary
 const { Api888Client } = require('./src/provider/api888.js');
 let api888Health=null;
 const {startDriveMigrationLoop}=require('./src/google_drive_migration.js');
+const {startStorageMigrationLoop}=require('./src/r2_migration.js');
 
 let worker=null;
-let stopDriveMigration=null;
+let stopDriveMigration=null,stopStorageMigration=null;
 let stopping=false;
 let healthServer=null;
 const port=Number(process.env.PORT||3000);
@@ -47,6 +48,7 @@ function shutdown(signal){
   logActivity({category:'system',event:'worker.stopping',message:'Worker stopping ('+signal+', pid '+process.pid+', up '+Math.round(process.uptime())+' s)'});
   try{worker?.stop?.()}catch{}
   try{stopDriveMigration?.()}catch{}
+  try{stopStorageMigration?.()}catch{}
   try{healthServer?.close?.()}catch{}
   // Give in-flight image requests a short window to finish and save. Anything
   // still running is recovered (refunded) by the next worker via its heartbeat.
@@ -132,6 +134,8 @@ healthServer.listen(port,host,()=>{
   // One background, resumable migration job at a time. Never deletes chunks
   // until Google Drive has verified the uploaded file and its MD5 checksum.
   stopDriveMigration=startDriveMigrationLoop({db:getPool()});
+  // Old MySQL videos move to cloud storage (R2) once it is enabled in Admin.
+  stopStorageMigration=startStorageMigrationLoop({db:getPool()});
 
   logRuntime('[worker] started');
   if(process.send)process.send({type:'ready',pid:process.pid});
