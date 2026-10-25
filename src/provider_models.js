@@ -97,6 +97,19 @@ async function syncProviderModels(provider, discoveredModels) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    // Previously unsupported 888API models are not silently activated for
+    // paying users when a new code deployment adds their request adapters.
+    // Keep existing runnable models' explicit Admin enable state untouched.
+    const previousApi888 = new Map();
+    if(provider==='api888'){
+      const [rows]=await conn.execute(
+        'SELECT provider_model_id, options_json FROM provider_models WHERE provider=? FOR UPDATE',[provider]);
+      for(const row of rows){
+        let wasSupported=false;
+        try{wasSupported=JSON.parse(row.options_json||'{}').adapterSupported===true;}catch{}
+        previousApi888.set(row.provider_model_id,wasSupported);
+      }
+    }
     await conn.execute('UPDATE provider_models SET available=0 WHERE provider=?', [provider]);
 
     for (const model of normalized) {
@@ -124,6 +137,16 @@ async function syncProviderModels(provider, discoveredModels) {
           model.optionsJson,
         ],
       );
+      if(provider==='api888'){
+        let isSupported=false;
+        try{isSupported=JSON.parse(model.optionsJson).adapterSupported===true;}catch{}
+        if(isSupported&&previousApi888.get(model.providerModelId)!==true){
+          // The new or newly supported SKU needs explicit model-level Admin opt-in.
+          await conn.execute(
+            'UPDATE provider_models SET enabled=0 WHERE provider=? AND provider_model_id=?',
+            [provider,model.providerModelId]);
+        }
+      }
     }
 
     await conn.commit();
