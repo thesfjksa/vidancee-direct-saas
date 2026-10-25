@@ -3007,10 +3007,21 @@ async function createGeneration(){
         :{kind:'fresh',index:freshIndexByKey.get(item.key),role:item.role}
     )));
 
-    for(const item of videoReferenceItems)form.append('videos',item.file,item.filename);
+    // Videos and sound go straight to cloud storage when possible: large files
+    // sent through the web host can time out ("Failed to fetch").
+    const direct=await uploadReferencesDirect([
+      ...videoReferenceItems.map(item=>({item,kind:'video'})),
+      ...audioReferenceItems.map(item=>({item,kind:'audio'}))],m);
+    if(direct){
+      form.append('videoUploads',JSON.stringify(direct.filter(d=>d.kind==='video').map(d=>d.upload)));
+      form.append('audioUploads',JSON.stringify(direct.filter(d=>d.kind==='audio').map(d=>d.upload)));
+    }else{
+      for(const item of videoReferenceItems)form.append('videos',item.file,item.filename);
+      for(const item of audioReferenceItems)form.append('audios',item.file,item.filename);
+    }
     form.append('videoRoles',JSON.stringify(videoReferenceItems.map(item=>item.role)));
-    for(const item of audioReferenceItems)form.append('audios',item.file,item.filename);
     form.append('audioRoles',JSON.stringify(audioReferenceItems.map(item=>item.role)));
+    m.textContent='Submitting generation...';
 
     const d=await api('/api/generations',{method:'POST',body:form});
     me=d.user;syncUser();
@@ -3116,6 +3127,39 @@ async function reuseGeneration(id){
     m.textContent=e.name==='TimeoutError'?'Reference images took too long to restore. Upload them again or click Reuse prompt to retry.':e.message;
   }finally{
     if(token===videoReuseToken){b.removeAttribute('aria-busy');b.disabled=false;}
+  }
+}
+
+// Uploads reference files to cloud storage with presigned links, showing
+// progress. Returns [{kind,upload:{key,filename,mimeType}}], or null to fall
+// back to sending the files with the form (no cloud storage, or the browser
+// was not allowed to upload there).
+let directUploadsBroken=false;
+async function uploadReferencesDirect(entries,m){
+  if(!entries.length||directUploadsBroken)return null;
+  const out=[];
+  try{
+    for(const [index,{item,kind}] of entries.entries()){
+      const mimeType=item.file.type||(kind==='video'?'video/mp4':'audio/mpeg');
+      const link=await api('/api/uploads/presign',{method:'POST',body:JSON.stringify({kind,mimeType,size:item.file.size})});
+      const label=(kind==='video'?'video':'sound')+(entries.length>1?' '+(index+1)+' of '+entries.length:'');
+      await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();
+        xhr.open('PUT',link.url);
+        xhr.setRequestHeader('content-type',mimeType);
+        xhr.upload.onprogress=e=>{if(e.lengthComputable)m.textContent='Uploading '+label+'... '+Math.round(e.loaded/e.total*100)+'%';};
+        xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error('Upload failed (HTTP '+xhr.status+').'));
+        xhr.onerror=()=>reject(Object.assign(new Error('Direct upload blocked'),{blocked:true}));
+        m.textContent='Uploading '+label+'... 0%';
+        xhr.send(item.file);
+      });
+      out.push({kind,upload:{key:link.key,filename:item.filename,mimeType}});
+    }
+    return out;
+  }catch(e){
+    // 409: cloud storage is off. A blocked request: the bucket has no CORS rule.
+    if(e.status===409||e.blocked){directUploadsBroken=true;return null;}
+    throw e;
   }
 }
 

@@ -34,6 +34,11 @@
         <button class="secondary" onclick="setCloudStorage({migrationEnabled:false})">Pause moving old videos</button>
       </div>
       <p id="r2Message" class="muted" role="status"></p>
+      <div id="r2CorsHint" class="card hide" style="margin-top:12px;padding:16px">
+        <h3 style="margin-top:0">Turn on direct browser uploads</h3>
+        <p class="muted">Customers' reference videos upload straight to the bucket, so large files don't time out on the web host. The API token could not add the bucket's CORS rule itself. In Cloudflare open the bucket → <b>Settings</b> → <b>CORS Policy</b> → <b>Add CORS policy</b>, paste this, save, then click <b>Test and save</b> here again (or just leave it: uploads still work, through the web host).</p>
+        <pre id="r2CorsJson" style="white-space:pre-wrap;background:#f6f8fa;border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px"></pre>
+      </div>
     </div>
     <div class="card">
       <div class="top"><div><h2>Google Drive video storage</h2><p class="muted">Keep generated videos private in your connected Google Drive account. Customers still watch and download videos using CMM Tools authenticated links.</p></div><button class="secondary" onclick="loadDriveStorage()">Refresh status</button></div>
@@ -704,7 +709,10 @@ async function loadCloudStorage(){
       ' · Videos in cloud storage: '+(d.stats?.storedVideos||0)+
       ' · Old videos still in MySQL: '+(d.stats?.pendingVideos||0)+' ('+gib+' GiB)'+
       ' · Images and reference files still in MySQL: '+(d.stats?.pendingFiles||0)+' ('+(Number(d.stats?.pendingFileBytes||0)/1024/1024/1024).toFixed(2)+' GiB)'+
-      ' · Moving old videos: '+(d.migrationEnabled?'Running':'Paused');
+      ' · Moving old videos: '+(d.migrationEnabled?'Running':'Paused')+
+      ' · Direct browser uploads: '+(d.browserUploads?'On':'Needs the CORS rule below');
+    $('r2CorsHint').classList.toggle('hide',!d.configured||d.browserUploads);
+    $('r2CorsJson').textContent=JSON.stringify([{AllowedOrigins:[d.appOrigin||'https://cmmtools.site'],AllowedMethods:['PUT'],AllowedHeaders:['*'],ExposeHeaders:['ETag'],MaxAgeSeconds:3600}],null,2);
   }catch(error){target.textContent='Cloud storage status could not be loaded: '+error.message;}
 }
 async function saveCloudStorage(){

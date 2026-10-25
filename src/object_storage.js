@@ -39,7 +39,7 @@ class ObjectStore{
     const url=new URL(endpoint);
     Object.assign(this,{origin:url.origin,host:url.host,bucket,accessKeyId,secretAccessKey,region,fetch:fetchImpl,now});
   }
-  path(key){return '/'+rfc3986(this.bucket)+'/'+encodeKey(key);}
+  path(key){return '/'+rfc3986(this.bucket)+(key?'/'+encodeKey(key):'');}
   scope(date){return date+'/'+this.region+'/s3/aws4_request';}
   signature(date,stringToSign){
     const kDate=hmac('AWS4'+this.secretAccessKey,date),kRegion=hmac(kDate,this.region);
@@ -73,13 +73,13 @@ class ObjectStore{
     }catch(error){throw storageError('Could not connect to cloud storage.',null,{code:error.name});}
     return response;
   }
-  presign(key,{expires=PRESIGN_SECONDS,contentType=null,disposition=null}={}){
+  presign(key,{expires=PRESIGN_SECONDS,contentType=null,disposition=null,method='GET'}={}){
     const {amzDate,date}=this.stamp(),path=this.path(key);
     const query={'X-Amz-Algorithm':'AWS4-HMAC-SHA256','X-Amz-Credential':this.accessKeyId+'/'+this.scope(date),
       'X-Amz-Date':amzDate,'X-Amz-Expires':String(expires),'X-Amz-SignedHeaders':'host'};
     if(contentType)query['response-content-type']=contentType;
     if(disposition)query['response-content-disposition']=disposition;
-    const c=this.canonical('GET',path,query,{host:this.host},'UNSIGNED-PAYLOAD');
+    const c=this.canonical(method,path,query,{host:this.host},'UNSIGNED-PAYLOAD');
     const sts=['AWS4-HMAC-SHA256',amzDate,this.scope(date),sha256(c.request)].join('\n');
     return this.origin+path+'?'+c.query+'&X-Amz-Signature='+this.signature(date,sts);
   }
@@ -114,6 +114,19 @@ class ObjectStore{
     const response=await this.request('DELETE',key);
     await response.body?.cancel?.().catch(()=>{});
     if(!response.ok&&response.status!==404)throw storageError('Cloud storage delete failed (HTTP '+response.status+').',response.status);
+  }
+  // Lets browsers on `origins` PUT files straight to the bucket with
+  // presigned links (reference uploads skip the web host).
+  async allowBrowserUploads(origins){
+    const xml='<?xml version="1.0" encoding="UTF-8"?><CORSConfiguration><CORSRule>'+
+      origins.map(o=>'<AllowedOrigin>'+o+'</AllowedOrigin>').join('')+
+      '<AllowedMethod>PUT</AllowedMethod><AllowedHeader>*</AllowedHeader><ExposeHeader>ETag</ExposeHeader><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule></CORSConfiguration>';
+    const body=Buffer.from(xml);
+    const response=await this.request('PUT','',{body,query:{cors:''},headers:{'content-type':'application/xml',
+      'content-md5':crypto.createHash('md5').update(body).digest('base64')}});
+    await response.body?.cancel?.().catch(()=>{});
+    if(!response.ok)throw storageError('The bucket did not accept the browser-upload (CORS) rule (HTTP '+response.status+').',response.status);
+    return true;
   }
   // Writes, reads and deletes a tiny private object to prove the token works.
   async check(){

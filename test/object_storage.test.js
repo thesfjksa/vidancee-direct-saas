@@ -82,3 +82,25 @@ test('settings are validated, tested against the bucket, and the secret is saved
   assert.equal(keyFromMarker('r2:videos/x.mp4'),'videos/x.mp4');
   assert.equal(keyFromMarker('db:video'),null);
 });
+
+test('direct uploads: presigned PUT inside the user prefix, then collected into the form and removed',async()=>{
+  const {presignUpload,collectDirectUploads,removeDirectUploads}=require('../src/direct_uploads.js');
+  const {objects,fetchImpl}=memoryBucket();
+  const store=new ObjectStore({endpoint:'https://acct.r2.cloudflarestorage.com',bucket:'cmmtools-media',
+    accessKeyId:'0123456789abcdef0123',secretAccessKey:'s'.repeat(40),fetchImpl});
+  const link=await presignUpload(7,{kind:'video',mimeType:'video/mp4',size:1000},{store});
+  assert.match(link.key,/^uploads\/7\/[0-9a-f-]{36}$/);
+  assert.match(link.url,/X-Amz-Signature=/);
+  await assert.rejects(presignUpload(7,{kind:'video',mimeType:'video/mp4',size:30*1024*1024},{store}),/25 MB/);
+  await assert.rejects(presignUpload(7,{kind:'video',mimeType:'image/png',size:10},{store}),/MP4/);
+  await store.put(link.key,Buffer.from('clip-bytes'),'video/mp4');
+  const body={videoUploads:JSON.stringify([{key:link.key,filename:'a.mp4',mimeType:'video/mp4'}])};
+  const keys=await collectDirectUploads(body,7,{store});
+  assert.deepEqual(keys,[link.key]);
+  assert.equal(body.videos[0].data.toString(),'clip-bytes');
+  assert.equal(body.videoUploads,undefined);
+  // Another customer's key is refused.
+  await assert.rejects(collectDirectUploads({videoUploads:JSON.stringify([{key:link.key,mimeType:'video/mp4'}])},8,{store}),/Invalid uploaded file/);
+  await removeDirectUploads(keys,{store});
+  assert.equal(objects.size,0);
+});

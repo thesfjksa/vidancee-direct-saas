@@ -137,6 +137,7 @@ const {
 const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos } = require('./src/reference_trim.js');
+const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
 const {
@@ -734,6 +735,21 @@ async function syncHiggsfieldPrices(){
 }
 async function quoteArgoStudioVideo(model,body,settings){
   return applyWanCap(model.publicModelId,quoteArgoVideo(model,body,settings,{hd:!(await argoHdOffModels()).has(model.publicModelId)}));
+}
+
+// Adds the bucket's CORS rule so customers' browsers can upload references
+// directly. Returns true on success; false (and a log entry) when the R2 token
+// may not change bucket settings, in which case the owner adds the rule.
+async function enableBrowserUploads(){
+  const store=await configuredStorage({requireEnabled:false}).catch(()=>null);
+  if(!store)return false;
+  const origins=[...new Set([appUrl()||PRIMARY_URL,PRIMARY_URL])];
+  try{await store.allowBrowserUploads(origins);await setSettingValue('r2_cors_ok','true');return true;}
+  catch(error){
+    await setSettingValue('r2_cors_ok','false').catch(()=>{});
+    logActivity({level:'warn',category:'system',event:'r2.cors_failed',message:'Add the CORS rule to the bucket in Cloudflare to enable direct browser uploads.',details:{storageStatus:error.storageStatus||null}});
+    return false;
+  }
 }
 
 // The longest reference video (total, or per clip) a video model accepts.
@@ -1647,13 +1663,25 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{ok:true,generations});
     }
 
+    // A presigned link for the browser to upload a reference video or sound
+    // straight to cloud storage (409 when unavailable: the page then sends
+    // the file with the form instead).
+    if (req.method==='POST' && routePath==='/api/uploads/presign') {
+      requireDatabase();
+      const user=await requireUser(req);
+      return sendJson(res,200,{ok:true,...await presignUpload(user.id,await readJson(req))});
+    }
+
     if (req.method==='POST' && routePath==='/api/generations') {
       requireDatabase();
       const user=await requireUser(req);
       const body=await readGenerationRequest(req);
-      const generation=await submitVideoGeneration(user,body,req);
-      const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
-      return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
+      const uploadedKeys=await collectDirectUploads(body,user.id);
+      try{
+        const generation=await submitVideoGeneration(user,body,req);
+        const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
+        return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
+      }finally{removeDirectUploads(uploadedKeys).catch(()=>{});}
     }
 
     if (req.method==='POST' && routePath==='/api/upscales/quote') {
@@ -1830,6 +1858,7 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,configured:cfg.configured,enabled:cfg.enabled,migrationEnabled:cfg.migrationEnabled,
           available,endpoint:cfg.endpoint||null,bucket:cfg.bucket||null,
           accessKeyId:cfg.accessKeyId?cfg.accessKeyId.slice(0,4)+'…'+cfg.accessKeyId.slice(-4):null,
+          browserUploads:await getSettingValue('r2_cors_ok','')==='true',appOrigin:appUrl()||PRIMARY_URL,
           stats:await storageMigrationStats(getPool())});
       }
       if(req.method==='POST'&&routePath==='/admin/storage/r2'){
@@ -1838,7 +1867,8 @@ const server=http.createServer(async (req,res)=>{
         try{await saveStorageSettings({endpoint:body.endpoint,bucket:body.bucket,accessKeyId:String(body.accessKeyId||'').trim(),secretAccessKey:String(body.secretAccessKey||'').trim()});}
         catch(error){return sendJson(res,400,{ok:false,error:error.message});}
         logActivity({category:'admin',event:'r2.settings_saved',message:'Cloud storage connected and verified; new files now go to the bucket (keys not logged).'});
-        return sendJson(res,200,{ok:true,saved:true});
+        const cors=await enableBrowserUploads();
+        return sendJson(res,200,{ok:true,saved:true,browserUploads:cors});
       }
       if(req.method==='POST'&&routePath==='/admin/storage/r2/state'){
         requireDatabase();
@@ -2596,6 +2626,8 @@ function bootstrap() {
       const migrated=await migrateLegacyProviderEnvSettings();
       await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
       await require('./src/api888_access.js').enableDefaultApi888ModelsOnce(getPool()).catch(error=>console.error('888API default-on models failed:',error.message));
+      // Buckets connected before direct uploads existed get their CORS rule now.
+      if(await getSettingValue('r2_cors_ok','').catch(()=>'')!=='true')enableBrowserUploads().catch(()=>{});
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
