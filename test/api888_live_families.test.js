@@ -92,3 +92,16 @@ test('unknown and undocumented IDs remain unrunnable even when upstream lists th
   assert.equal(m.adapterSupported,false,id);
  }
 });
+
+test('Jimeng fast-vip uses its required functionMode, numeric duration and image URLs',()=>{
+ const id='jimeng-video-seedance-2.0-fast-vip',m=model(id);
+ assert.equal(m.adapterSupported,true);
+ assert.equal(quoteApi888(m,{duration:5}).cost,2.42);
+ assert.equal(m.referenceCapabilities.image.max,2);
+ const body=client.videoBody(m,{prompt:'Scene',duration:5,aspectRatio:'16:9'},[im]);
+ assert.equal(body.functionMode,'first_last_frames');
+ assert.equal(body.duration,5);
+ assert.equal(Object.hasOwn(body,'seconds'),false);
+ assert.deepEqual(body.referenceImages,[im.url]);
+ assert.throws(()=>client.videoBody(m,{prompt:'Scene',duration:5},[im,im,im]),/at most 2 image/);
+});
