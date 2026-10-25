@@ -1677,6 +1677,8 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       const body=await readGenerationRequest(req);
       const uploadedKeys=await collectDirectUploads(body,user.id);
+      // A direct upload proves the bucket's CORS rule works (added by hand).
+      if(uploadedKeys.length)getSettingValue('r2_cors_ok','').then(v=>v==='true'||setSettingValue('r2_cors_ok','true')).catch(()=>{});
       try{
         const generation=await submitVideoGeneration(user,body,req);
         const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
