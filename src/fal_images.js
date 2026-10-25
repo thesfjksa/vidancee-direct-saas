@@ -81,7 +81,7 @@ function describeFalImageModel(entry, price = null) {
   const unit = String(price?.unit || '').toLowerCase(), rate = Number(price?.unit_price);
   const tiers = [];
   if (!(rate > 0) || String(price?.currency || 'USD').toUpperCase() !== 'USD') { if (!setupReason) setupReason = 'No published USD price for this fal.ai model.'; }
-  else if (/^images?$/.test(unit)) for (const ratio of aspectRatios) tiers.push({ size: sizes[ratio], cost: rate });
+  else if (/^(images?|generations?)$/.test(unit)) for (const ratio of aspectRatios) tiers.push({ size: sizes[ratio], cost: rate });
   else if (/megapixel/.test(unit)) for (const ratio of aspectRatios) {
     const [w, h] = sizes[ratio].split('x').map(Number);
     tiers.push({ size: sizes[ratio], cost: Math.round(rate * Math.max(1, Math.ceil(w * h / (1024 * 1024) - 1e-9)) * 1e6) / 1e6 });
@@ -113,9 +113,23 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
     cursor = r.next_cursor;
   }
   const entries = [], prices = new Map();
+  // Schemas: the expanded listing is requested without the key (with the key
+  // fal answered without the OpenAPI document, so every model looked like it
+  // had no prompt). Missing documents fall back to fal's per-model file.
   for (let i = 0; i < ids.length; i += 10) {
     const q = ids.slice(i, i + 10).map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
-    try { entries.push(...((await platform('/models?' + q + '&expand=openapi-3.0', { apiKey, fetchImpl }))?.models || [])); } catch {}
+    try { entries.push(...((await platform('/models?' + q + '&expand=openapi-3.0', { fetchImpl }))?.models || [])); } catch {}
+  }
+  const byId = new Map(entries.map(e => [e.endpoint_id, e]));
+  for (const id of ids) {
+    const entry = byId.get(id);
+    if (entry?.openapi?.paths) continue;
+    try {
+      const r = await fetchImpl('https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(30000) });
+      if (!r.ok) continue;
+      const openapi = await r.json();
+      if (entry) entry.openapi = openapi; else { const e = { endpoint_id: id, metadata: {}, openapi }; entries.push(e); byId.set(id, e); }
+    } catch {}
   }
   const priceErrors = [];
   const loadPrices = async batch => {

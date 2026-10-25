@@ -55,3 +55,21 @@ test('generation submits to the fal queue, polls, and downloads the image',async
   assert.equal(calls[0][0],'POST');
   assert.equal(polls,2);
 });
+
+test('catalog sync reads schemas without the key and falls back to the per-model OpenAPI file',async()=>{
+  const {fetchFalImageCatalog}=require('../src/fal_images.js');
+  const schema=entry('fal-ai/flux/dev',imageSize).openapi;
+  const seen=[];
+  const fetchImpl=async(url,init={})=>{
+    const u=String(url);seen.push([u,Boolean(init.headers?.authorization)]);
+    if(u.includes('/models?category='))return Response.json({models:[{endpoint_id:'fal-ai/flux/dev',metadata:{status:'active'}}],has_more:false});
+    if(u.includes('expand=openapi'))return Response.json({models:[{endpoint_id:'fal-ai/flux/dev',metadata:{display_name:'FLUX.1 [dev]'}}]});
+    if(u.startsWith('https://fal.ai/api/openapi/'))return Response.json(schema);
+    if(u.includes('/models/pricing'))return Response.json({prices:[{endpoint_id:'fal-ai/flux/dev',unit_price:0.025,unit:'megapixels',currency:'USD'}]});
+    return new Response('',{status:404});
+  };
+  const models=await fetchFalImageCatalog({apiKey:'k',fetchImpl});
+  assert.equal(models[0].options.adapterSupported,true);
+  assert.equal(seen.find(([u])=>u.includes('expand=openapi'))[1],false);
+  assert.equal(seen.find(([u])=>u.includes('/models/pricing'))[1],true);
+});
