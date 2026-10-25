@@ -109,9 +109,9 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   }
   if(Number(caps.totalMax)>0&&references.length>Number(caps.totalMax))
     throw new Error('Too many reference files for this 888API model.');
-  if(videos.length&&!['videos','video_urls','reference_videos'].includes(model.api888?.videoField))
+  if(videos.length&&!['videos','video_urls','reference_videos','referenceVideos'].includes(model.api888?.videoField))
     throw new Error('888API video reference transport is not configured for this model.');
-  if(audios.length&&!['audios','audio_urls','metadata.audios'].includes(model.api888?.audioField))
+  if(audios.length&&!['audios','audio_urls','metadata.audios','referenceAudios'].includes(model.api888?.audioField))
     throw new Error('888API audio reference transport is not configured for this model.');
   if(references.some(r=>!/^https:\/\//i.test(String(r.url||''))))
     throw new Error('888API references need HTTPS direct media URLs.');
@@ -124,6 +124,28 @@ Api888Client.prototype.videoBody=function(model,params,references=[]){
   const imageField=model.api888?.imageField||'images';
   if(!['images','image_urls','referenceImages'].includes(imageField))
     throw new Error('888API image reference transport is not supported.');
+  const id=String(model.providerModelId||'');
+  // Sora 2 fixed-SKU task endpoint: never send generic time, size, ratio, or
+  // resolution keys. Image-to-video uses nested input_reference, not images[].
+  if(/^sora2-(?:pro-)?(?:4|8|12)s-(?:16x9|9x16)$/.test(id)){
+    const match=id.match(/-(4|8|12)s-(16x9|9x16)$/);
+    const fixedSeconds=Number(match[1]),fixedRatio=match[2]==='16x9'?'16:9':'9:16';
+    if(duration!==fixedSeconds||ratio!==fixedRatio)
+      throw new Error('Sora 2 duration and ratio are fixed by the model ID.');
+    const payload={model:id,prompt:String(params.prompt||'')};
+    if(images.length)payload.input_reference={type:'input_image',image_url:{url:images[0].url}};
+    return payload;
+  }
+  // Grok expects pixels in size, a string seconds and a singular image_url.
+  if(/^grok-imagine-(?:1\\.0-video|video(?:-preview|-1\\.5-preview|-1\\.5-fast)?)$/.test(id)){
+    if(!['16:9','9:16'].includes(ratio))throw new Error('Unsupported Grok output ratio.');
+    if(Array.isArray(model.durations)&&!model.durations.includes(duration))
+      throw new Error('Unsupported Grok duration for this model.');
+    const payload={model:id,prompt:String(params.prompt||''),seconds:String(duration),
+      size:ratio==='16:9'?'1280x720':'720x1280'};
+    if(images.length)payload.image_url=images[0].url;
+    return payload;
+  }
   const body={model:model.providerModelId,prompt:String(params.prompt||''),
     // 888API Go Alias seconds input requires a JSON string.
     [timeField]:timeField==='seconds'?String(duration):duration,
