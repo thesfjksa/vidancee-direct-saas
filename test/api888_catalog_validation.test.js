@@ -4,6 +4,9 @@
 // These tests use no provider token and never submit a paid generation.
 const test=require('node:test');
 const assert=require('node:assert/strict');
+// These tests cover the video/audio transport kept for when 888API's
+// gateway forwards media references again.
+require('../src/api888_models.js').setApi888MediaRefs(true);
 const {api888MediaModels,quoteApi888}=require('../src/api888_models.js');
 const {Api888Client}=require('../src/provider/api888.js');
 const byId=(id)=>{

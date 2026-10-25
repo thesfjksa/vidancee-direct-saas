@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 — 888API models take reference images only
+
+- Following the 888API gateway tests (see API888.md), every 888API video model now offers reference **images** only. Video and audio upload controls are gone, labels show image counts only (e.g. "Seedance 2.5 G5 Realistic · 720p · 30 img"), and the server refuses video and audio files for these models. `doubao-seedance-2-0-fast` and `doubao-seedance-2-0`, which require a reference video, are unavailable. Saved catalog rows follow the code at read time, so no re-import is needed.
+- The multimodal transport is kept behind `setApi888MediaRefs` / `API888_MEDIA_REFS=on` for when 888API forwards media references; its tests still run with it on.
+
 ## 2026-10-25 — Page security policy allows the R2 bucket
 
 - Videos wouldn't play on the website after R2 became storage, and direct reference uploads silently fell back to the slow Hostinger path. The page's Content-Security-Policy allowed media and connections only from `'self'`, so the browser blocked the 302 to the presigned R2 link and the XHR PUT to the bucket. The policy now adds `https://*.r2.cloudflarestorage.com` and the configured S3 endpoint origin (refreshed every 5 minutes) to `media-src`, `connect-src` and `img-src`.

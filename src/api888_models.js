@@ -213,6 +213,10 @@ const makeCaps = (images=0,videos=0,audios=0,requiredImage=false) => ({
   audio:{supported:audios>0,max:audios,min:0,roles:audios?['audio']:[],maxBytes:15*1024*1024,formats:['mp3','wav']},
 });
 const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
+// Off while 888API's gateway drops reference videos/audio. Tests of the
+// multimodal transport turn it on with setApi888MediaRefs(true).
+let GATEWAY_FORWARDS_MEDIA_REFS=process.env.API888_MEDIA_REFS==='on';
+const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 
 // Customer-facing names. The label adds resolution and reference limits, so
 // SKUs of one family are distinguishable in the model picker.
@@ -272,7 +276,10 @@ function describedModel(id,type) {
   const known=isImage?Number(cny)>0:Boolean(spec&&Number(spec[0])>0);
   // Explicitly supported request families. Unreviewed channels are imported
   // as Admin-only entries, never silently mapped to an incompatible API.
-  const implemented=known && (
+  // Models that cannot run without a reference video are unusable while the
+  // gateway drops video references.
+  const needsVideo=['doubao-seedance-2-0-fast','doubao-seedance-2-0'].includes(id);
+  const implemented=known && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
     (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
       'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
@@ -310,8 +317,12 @@ function describedModel(id,type) {
   const min=spec?.[2]||5,max=spec?.[3]||15,res=spec?.[4]||'720p';
   const requiredImage=/^minimax-h3-(480p|768p)-t$/.test(id)||/^wan3\.0-image(?:-prime)?$/.test(id)||id==='grok-imagine-video-1.5-preview';
   const inputs=VIDEO_INPUTS[id]||{};
-  const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,inputs.videos||0,inputs.audios||0,requiredImage);
-  if(id==='doubao-seedance-2-0-fast'){refs.video.min=1;refs.textOnly=false;}
+  // 888API's gateway forwards only `images` on POST /v1/videos: tagged-link
+  // tests on 25 Oct 2026 showed reference videos and audio are never fetched
+  // (docs/API888.md). Offer image references only until 888API changes that.
+  const refs=isImage?makeCaps(0):makeCaps(spec?.[5]||0,
+    GATEWAY_FORWARDS_MEDIA_REFS?inputs.videos||0:0,GATEWAY_FORWARDS_MEDIA_REFS?inputs.audios||0:0,requiredImage);
+  if(id==='doubao-seedance-2-0-fast'&&GATEWAY_FORWARDS_MEDIA_REFS){refs.video.min=1;refs.textOnly=false;}
   // Total reference-video length: 15 s for Seedance 2.0 (888API docs), 30 s
   // for Seedance 2.5 and Wan (owner-confirmed). Longer uploads are trimmed.
   if(refs.video.max)refs.video.maxTotalSeconds=/2\.5|g5|^wan/i.test(id)?30:15;
@@ -397,4 +408,4 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label};
+module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs};

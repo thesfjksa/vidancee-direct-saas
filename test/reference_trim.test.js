@@ -1,6 +1,9 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+// These tests cover the video/audio transport kept for when 888API's
+// gateway forwards media references again.
+require('../src/api888_models.js').setApi888MediaRefs(true);
 const fs=require('node:fs');
 const path=require('node:path');
 const {trimMp4,readBoxes}=require('../src/mp4_trim.js');
