@@ -14,6 +14,24 @@ const PRESETS = { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrai
 // Inputs that need a file or account-specific value: not a plain text-to-image model.
 const EXTRA_INPUTS = /image|mask|control|finetune|model_name|lora_path|reference/i;
 
+// fal bills OpenAI's GPT image models by tokens, which its pricing API does
+// not express per image. Prices per image by quality, from each model's fal
+// page (25 Oct 2026): the dearest size is used for every aspect ratio, plus
+// prompt tokens, rounded up as fal rounds (1.x to the cent).
+const GPT_QUALITIES = ['low', 'medium', 'high'];
+const gpt2 = (label, low, medium, high) => ({ label, prices: { low, medium, high }, prompt: 0.003 });
+const gpt1 = (label, low, medium, high) => ({ label, prices: { low, medium, high }, prompt: 0.002, cent: true,
+  values: { '1:1': '1024x1024', '3:2': '1536x1024', '2:3': '1024x1536' } });
+const GPT_IMAGE = {
+  'openai/gpt-image-2': gpt2('GPT Image 2', 0.006, 0.053, 0.211),
+  'openai/gpt-image-2.5/flare/text-to-image': gpt2('GPT Image 2.5 Flare', 0.00588, 0.01317, 0.05268),
+  'openai/gpt-image-2.5/sunburst/text-to-image': gpt2('GPT Image 2.5 Sunburst', 0.00588, 0.01317, 0.05268),
+  'fal-ai/gpt-image-1.5': gpt1('GPT Image 1.5', 0.013, 0.051, 0.200),
+  'fal-ai/gpt-image-1/text-to-image': gpt1('GPT Image 1', 0.016, 0.063, 0.25),
+  'fal-ai/gpt-image-1-mini': gpt1('GPT Image 1 Mini', 0.006, 0.015, 0.052),
+};
+const gptCost = (g, quality) => g.cent ? Math.ceil((g.prices[quality] + g.prompt) * 100 - 1e-9) / 100 : Math.round((g.prices[quality] + g.prompt) * 1e5) / 1e5;
+
 const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 90);
 const publicId = endpoint => 'fal_' + slug(endpoint);
 const isFalImageModel = id => /^fal_/.test(String(id || ''));
@@ -62,6 +80,9 @@ function describeFalImageModel(entry, price = null) {
     const allowed = enumOf(props.aspect_ratio);
     for (const ratio of RATIOS) if (allowed.includes(ratio)) fal.values[ratio] = ratio;
   }
+  // GPT 1.x takes a fixed list of WxH sizes rather than presets.
+  const gpt = GPT_IMAGE[endpoint];
+  if (gpt?.values && props.image_size) fal.values = { ...gpt.values };
   const extra = required.filter(r => r !== 'prompt');
   if (!props.prompt) setupReason = 'This fal.ai model has no text prompt.';
   else if (extra.length || Object.keys(props).some(k => required.includes(k) && EXTRA_INPUTS.test(k))) setupReason = 'This fal.ai model needs extra inputs (' + extra.join(', ') + ').';
@@ -80,7 +101,8 @@ function describeFalImageModel(entry, price = null) {
   // output area in fal's megapixels (1024 x 1024 px), rounded up.
   const unit = String(price?.unit || '').toLowerCase(), rate = Number(price?.unit_price);
   const tiers = [];
-  if (!(rate > 0) || String(price?.currency || 'USD').toUpperCase() !== 'USD') { if (!setupReason) setupReason = 'No published USD price for this fal.ai model.'; }
+  if (gpt) { for (const quality of GPT_QUALITIES) tiers.push({ quality, cost: gptCost(gpt, quality) }); }
+  else if (!(rate > 0) || String(price?.currency || 'USD').toUpperCase() !== 'USD') { if (!setupReason) setupReason = 'No published USD price for this fal.ai model.'; }
   else if (/^(images?|generations?)$/.test(unit)) for (const ratio of aspectRatios) tiers.push({ size: sizes[ratio], cost: rate });
   else if (/megapixel/.test(unit)) for (const ratio of aspectRatios) {
     const [w, h] = sizes[ratio].split('x').map(Number);
@@ -88,13 +110,14 @@ function describeFalImageModel(entry, price = null) {
   } else if (!setupReason) setupReason = 'fal.ai bills this model per ' + unit + ', which is not supported.';
   const promptMax = Number(props.prompt?.maxLength) || 4000;
   return {
-    providerModelId: endpoint, publicModelId: publicId(endpoint), label: name.replace(/\s+(Text to Image|Text-to-Image|API)$/i, '').slice(0, 120), mediaType: 'image',
+    providerModelId: endpoint, publicModelId: publicId(endpoint), label: gpt ? gpt.label : name.replace(/\s+(Text to Image|Text-to-Image|API)$/i, '').slice(0, 120), mediaType: 'image',
     options: {
       catalogVerified: true, adapterSupported: !setupReason, setupReason, gatewayType: 'image',
       pricing: tiers.length ? { image_dimension_quality_pricing: tiers } : {},
       aspectRatios, defaultAspectRatio: aspectRatios.includes('1:1') ? '1:1' : aspectRatios[0] || null,
-      falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images) },
-      supportedOperations: ['text-to-image'], qualities: [], imageSizes: [],
+      falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images), hasQuality: Boolean(gpt && props.quality) },
+      supportedOperations: ['text-to-image'], imageSizes: [],
+      qualities: gpt && props.quality ? GPT_QUALITIES : [], defaultQuality: gpt && props.quality ? 'high' : undefined,
       referenceCapabilities: { textOnly: true, totalMax: 0, image: { supported: false, max: 0, min: 0, roles: [] }, video: { supported: false, max: 0 }, audio: { supported: false, max: 0 } },
       inputLimits: { text: { max_chars: Math.min(promptMax, 8000) } },
     },
@@ -199,6 +222,7 @@ class FalImageClient {
       else input.image_size = value;
     } else input.aspect_ratio = value;
     if (fal.hasNumImages) input.num_images = 1;
+    if (fal.hasQuality && options.quality) input.quality = String(options.quality);
     return input;
   }
   async generateImage(model, options) {
