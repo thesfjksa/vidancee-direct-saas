@@ -692,7 +692,8 @@ test('888API rejects wrong references, unsafe input URLs and excess mixed media 
  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async()=>{throw Error('Paid request must not start');}});
  const imageModel=modelById('wan3.0-image');
  const video={mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/0?sig=1'};
- assert.throws(()=>client.videoBody(imageModel,{duration:5},[video]),/at most 0 video reference/);
+ const image={mimeType:'image/png',url:'https://cmmtools.site/provider-media/job/1?sig=2'};
+ assert.throws(()=>client.videoBody(imageModel,{duration:5},[image,video]),/at most 0 video reference/);
  const m=modelById('s2-2.5-720p-v3');
  assert.throws(()=>client.videoBody(m,{duration:10},[
    {mimeType:'audio/mpeg',url:'http://127.0.0.1:8000/a.mp3'},
@@ -704,5 +705,5 @@ test('888API rejects wrong references, unsafe input URLs and excess mixed media 
    mimeType:'video/mp4',url:'https://cmmtools.site/provider-media/job/'+index+'?sig=1',
  }));
  assert.throws(()=>client.videoBody(m,{duration:10},files),/at most 10 video references/);
- await assert.rejects(client.startVideo(imageModel,{duration:5},[video]),/at most 0 video reference/);
+ await assert.rejects(client.startVideo(imageModel,{duration:5},[image,video]),/at most 0 video reference/);
 });
