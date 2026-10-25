@@ -20,6 +20,8 @@ class Api888Queue extends VercelQueue{
       model:model.providerModelId,duration:options.duration,resolution:options.resolution,
       billedTimeField:model.api888?.secondsField==='seconds'?'seconds':'duration',
       imageReferenceCount:refs.filter(r=>r.mimeType?.startsWith('image/')).length,
+      videoReferenceCount:refs.filter(r=>r.mimeType?.startsWith('video/')).length,
+      audioReferenceCount:refs.filter(r=>r.mimeType?.startsWith('audio/')).length,
     });
     const id=await client.startVideo(model,options,refs);
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
