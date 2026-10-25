@@ -111,12 +111,14 @@ test('Unreviewed or adapter-unsupported rows are not made billable by a code-sid
 
 test('Video Studio displays distinct media upload picker actions wired to upload handlers',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
- for(const [button,handler] of [
-   ['addImageReferenceButton','addReferenceFiles'],
-   ['addVideoReferenceButton','addVideoReferenceFiles'],
-   ['addAudioReferenceButton','addAudioReferenceFiles'],
+ for(const [button,input,handler] of [
+   ['addImageReferenceButton','imageInput','addReferenceFiles'],
+   ['addVideoReferenceButton','videoReferenceInput','addVideoReferenceFiles'],
+   ['addAudioReferenceButton','audioReferenceInput','addAudioReferenceFiles'],
  ]){
-   assert.match(html,new RegExp('id="'+button+'"[^>]+onclick="[^"]*'+handler));
+   assert.ok(html.includes('id="'+button+'"'),'Missing visible picker button: '+button);
+   assert.ok(html.includes("'"+input+"').click()"),'Picker button must open its file chooser: '+button);
+   assert.match(html,new RegExp('id="'+input+'"[^>]+onchange="[^"]*'+handler));
  }
  assert.match(html,/addVideoReferenceButton'\)\.classList\.toggle\('hide',!videoCap\.supported\)/);
  assert.match(html,/addAudioReferenceButton'\)\.classList\.toggle\('hide',!audioCap\.supported\)/);
