@@ -42,7 +42,7 @@ test('only the owner-chosen 888API models are offered, under their new names', (
     const models = m.api888MediaModels({ data: [...ids.map(id => ({ id, type: 'video' })), { id: 'gpt-image-2', type: 'image' }] });
     const offered = Object.fromEntries(models.filter(x => x.options.adapterSupported).map(x => [x.providerModelId, x.label]));
     assert.deepEqual(offered, { 'seedance-2.5-g5-v2': 'Seedance 2.5 Realism', 'seedance2.5-301010-wool': 'Seedance 2.5 Standard',
-      'seedance2.0-933': 'Seedance 2.0 Standard', 'wan3.0-video-prime': 'Wan 3.0 Video Prime', 'wan30-720p': 'Wan 3.0 720p' });
+      'seedance2.0-933': 'Seedance 2.0 Standard', 'wan3.0-video-prime': 'Wan 3.0 Video Prime', 'wan30-720p': 'Wan 3.0 Standard' });
     assert.equal(models.find(x => x.providerModelId === 'gpt-image-2').options.setupReason, 'Not offered on CMM Tools.');
   } finally { m.setApi888OfferAll(true); }
 });
