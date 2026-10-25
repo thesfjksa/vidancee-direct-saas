@@ -707,3 +707,17 @@ test('888API rejects wrong references, unsafe input URLs and excess mixed media 
  assert.throws(()=>client.videoBody(m,{duration:10},files),/at most 10 video references/);
  await assert.rejects(client.startVideo(imageModel,{duration:5},[image,video]),/at most 0 video reference/);
 });
+
+test('888API POST failures keep the redacted upstream reason for the customer and Admin',async()=>{
+  const body=JSON.stringify({error:{message:'No available channel for model wan3.0-video-prime under group default sk-abcdef123456 https://x.example/a'}});
+  const client=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response(body,{status:503,headers:{'content-type':'application/json'}})});
+  await assert.rejects(client.json('/v1/videos',{model:'wan3.0-video-prime'}),error=>{
+    assert.match(error.message,/^888API request failed \(HTTP 503\): No available channel for model wan3\.0-video-prime/);
+    assert.doesNotMatch(error.message,/sk-abcdef|x\.example/);
+    assert.equal(error.providerStatus,503);
+    assert.equal(error.retryable,false);
+    return true;
+  });
+  const bare=new Api888Client({apiKey:'k',fetchImpl:async()=>new Response('oops',{status:503})});
+  await assert.rejects(bare.json('/v1/videos',{}),e=>e.message==='888API request failed (HTTP 503).');
+});
