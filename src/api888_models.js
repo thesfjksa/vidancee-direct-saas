@@ -122,6 +122,7 @@ Object.assign(SPECS,{
  'seedance2.0-full-4img':[4,'job',4,15,'720p',4,3,1],
  'seedance2.0-fast-4img':[3.5,'job',4,15,'720p',4,3,1],
  'doubao-seedance-2-0-fast':[0.61,'second',4,15,'720p',9,3,3],
+ 'jimeng-video-seedance-2.0-fast-vip':[0.484,'second',4,15,'720p',2,0,0],
 });
 for(const id of SORA_VARIANTS){
  const secs=Number(id.match(/-(\d+)s-/)[1]);
@@ -175,6 +176,7 @@ const VIDEO_INPUTS={
 const modelVideoRatios=id=>{
  if(SORA_VARIANTS.includes(id))return [id.endsWith('16x9')?'16:9':'9:16'];
  if(GROK_VARIANTS.includes(id))return ['16:9','9:16'];
+ if(id==='jimeng-video-seedance-2.0-fast-vip')return RATS_WIDE;
   if(/^wan3\.0-/.test(id))return ['adaptive',...RATS_WIDE];
   if(/^seedance2\.0-ss(?:-fast)?$/.test(id))return [...RATS,'2:3','3:2'];
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
@@ -205,6 +207,7 @@ function describedModel(id,type) {
     [// Published, priced models using the existing generic /v1/videos contract.
       // Live account model discovery and Admin access gates still apply.
       'seedance2.0-full-4img','seedance2.0-fast-4img','doubao-seedance-2-0-fast',
+      'jimeng-video-seedance-2.0-fast-vip',
       'seedance2.0-933-economy','pidoi-h3video-2k','pidoi-omni-flash-720p','pidoi-veo31-fast',
       'seedance2.0-933','seedance2.0-pro-480p','seedance2.0-933-fast','seedance2.0-933-mini',
       'xin-seedance-2.0-900','xin-seedance-2.0-933',
@@ -246,9 +249,9 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'&&id!=='doubao-seedance-2-0-fast'?'seconds':'duration',
+        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip'].includes(id)?'seconds':'duration',
         imageField:id==='seedance-2.5-c1'||id==='doubao-seedance-2-0-fast'?'image_urls':
-          (/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
+          (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},
       durations:isImage?[]:SORA_VARIANTS.includes(id)?[min]:
