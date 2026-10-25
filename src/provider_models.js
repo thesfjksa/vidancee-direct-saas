@@ -1,6 +1,7 @@
 const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
 const { api888MediaModels } = require('./api888_models.js');
+const { DEFAULT_ON_MODELS } = require('./api888_access.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { sluiceMediaModels } = require('./sluice_models.js');
 const { modelFamily } = require('./model_families.js');
@@ -140,7 +141,8 @@ async function syncProviderModels(provider, discoveredModels) {
       if(provider==='api888'){
         let isSupported=false;
         try{isSupported=JSON.parse(model.optionsJson).adapterSupported===true;}catch{}
-        if(isSupported&&previousApi888.get(model.providerModelId)!==true){
+        // Owner-approved default-on models skip the Admin opt-in gate.
+        if(isSupported&&previousApi888.get(model.providerModelId)!==true&&!DEFAULT_ON_MODELS.includes(model.providerModelId)){
           // The new or newly supported SKU needs explicit model-level Admin opt-in.
           await conn.execute(
             'UPDATE provider_models SET enabled=0 WHERE provider=? AND provider_model_id=?',

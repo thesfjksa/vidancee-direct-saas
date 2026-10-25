@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — G5-V2 and Mini Special on by default
+
+- Owner request: `seedance-2.5-g5-v2` and `sd_2.0_mini_special` start enabled without Admin opt-in. `enableDefaultApi888ModelsOnce` (web and worker startup) switches the existing rows on once, guarded by the `api888_default_on_models_v1` marker, so a later Admin switch-off is kept. Catalog re-imports no longer apply the opt-in gate to these two (`DEFAULT_ON_MODELS`). Global 888API switch, customer access and the availability filter still apply.
+
 ## 2026-10-25 — 888API model names and image aspect ratios
 
 - 888API models get customer names that state resolution and reference limits, e.g. `Seedance 2.5 G5 Realistic · 720p · 30 img + 10 video + 10 audio`, `MiniMax H3 · 480p · 1–9 img` (image required), `Seedance 2.5 Plus · 480p · Text only`, `GPT Image 2.5 Flare · 4K`. Names come from `NAMES` / `api888Label` in `src/api888_models.js`.

@@ -2525,6 +2525,7 @@ function bootstrap() {
       logActivity({category:'system',event:'web.started',message:'Web app started (pid '+process.pid+')'});
       const migrated=await migrateLegacyProviderEnvSettings();
       await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
+      await require('./src/api888_access.js').enableDefaultApi888ModelsOnce(getPool()).catch(error=>console.error('888API default-on models failed:',error.message));
       if (migrated) console.log('Legacy provider settings migrated into Admin-managed storage.');
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));

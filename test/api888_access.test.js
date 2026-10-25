@@ -51,3 +51,21 @@ test('worker requires explicit customer access before submitting an 888API queue
  const {VercelQueue}=require('../src/vercel_queue.js');
  assert.match(new Api888Queue().queuedSql(),/COALESCE\(a.enabled,0\)=1/);
 });
+test('G5-V2 and Mini Special are switched on once, and a later Admin switch-off survives restarts',async()=>{
+ const {enableDefaultApi888ModelsOnce}=require('../src/api888_access.js');
+ const state={marker:null,rows:{'seedance-2.5-g5-v2':0,'sd_2.0_mini_special':0,'wan3.0-video':0}};
+ const conn={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release:()=>{},
+  execute:async(sql,args)=>{
+   if(sql.startsWith('INSERT IGNORE')){state.marker??='pending';return [{}];}
+   if(sql.startsWith('SELECT'))return [[{setting_value:state.marker}]];
+   if(sql.startsWith('UPDATE provider_models')){for(const id of args)if(id in state.rows)state.rows[id]=1;return [{}];}
+   if(sql.startsWith('UPDATE app_settings')){state.marker=args[0];return [{}];}
+   throw Error('Unexpected SQL');
+  }};
+ const db={getConnection:async()=>conn};
+ assert.equal(await enableDefaultApi888ModelsOnce(db),true);
+ assert.deepEqual(state.rows,{'seedance-2.5-g5-v2':1,'sd_2.0_mini_special':1,'wan3.0-video':0});
+ state.rows['sd_2.0_mini_special']=0;
+ assert.equal(await enableDefaultApi888ModelsOnce(db),false);
+ assert.equal(state.rows['sd_2.0_mini_special'],0);
+});
