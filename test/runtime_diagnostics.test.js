@@ -105,10 +105,10 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   const saved = await post('/admin/users/1/providers', { providers: { vercel: false } }, true);
   assert.equal(saved.status, 200);
   assert.equal(saved.data.provider_access.vercel, false);
-  assert.equal(saved.data.provider_access.api888, false);
-  const optedIn=await post('/admin/users/1/providers',{providers:{api888:true}},true);
-  assert.equal(optedIn.status,200);
-  assert.equal(optedIn.data.provider_access.api888,true);
+  assert.equal(saved.data.provider_access.api888, true);
+  const optedOut=await post('/admin/users/1/providers',{providers:{api888:false}},true);
+  assert.equal(optedOut.status,200);
+  assert.equal(optedOut.data.provider_access.api888,false);
   assert.equal((await post('/admin/users/1/providers',{providers:{api888:true}})).status,401);
   assert.equal(saved.data.provider_access.vibi, true);
   assert.equal(saved.data.provider_access.argolink, true);

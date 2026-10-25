@@ -435,8 +435,9 @@ function adminAuthorized(req) {
 }
 const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
+// Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,key!=='api888']));
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
 }
 // Voice Studio used to be opt-in, so saving any customer's Sources stored
 // "Voice off" unless it was ticked. Clear those once so Voice follows the
@@ -470,6 +471,18 @@ async function enableVgenvForCustomersOnce(){
   await setSettingValue(VGENV_ALL_ON_SETTING,new Date().toISOString());
   const count=Number(result?.affectedRows||0);
   logActivity({category:'admin',event:'vgenv_access.all_on',message:'vgenv (MiniMax H3) turned on for every customer; '+count+' had it off'});
+  return count;
+}
+// Owner request (25 Oct 2026): 888API is on for every customer. It used to be
+// opt-in, so switches left off are cleared once; the admin can turn it off
+// again per customer.
+const API888_ALL_ON_SETTING='api888_access_all_on_at';
+async function enableApi888ForCustomersOnce(){
+  if(await getSettingValue(API888_ALL_ON_SETTING,''))return 0;
+  const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='api888' AND enabled=0");
+  await setSettingValue(API888_ALL_ON_SETTING,new Date().toISOString());
+  const count=Number(result?.affectedRows||0);
+  logActivity({category:'admin',event:'api888_access.all_on',message:'888API turned on for every customer; '+count+' had it off'});
   return count;
 }
 async function getUserProviderAccess(userId){
@@ -2742,6 +2755,7 @@ function bootstrap() {
       await enableVoiceForCustomersOnce().catch(error=>console.error('Voice access default failed:',error.message));
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
       await enableVgenvForCustomersOnce().catch(error=>console.error('vgenv access for all failed:',error.message));
+      await enableApi888ForCustomersOnce().catch(error=>console.error('888API access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));

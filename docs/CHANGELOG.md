@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — 888API on for every customer
+
+- 888API is no longer opt-in per customer: it is on by default like every other source, and switches left off under the old default are cleared once (`api888_access_all_on_at`). The worker runs 888API jobs for every customer whose 888API access is not switched off. The admin can still turn it off for a customer under Sources. The 888API source itself must stay enabled in Admin → Providers (it is).
+
 ## 2026-10-25 — Longest video length by default
 
 - Video Studio selects a model's longest video length when the model is picked (e.g. 30 s for Seedance 2.5), and Cartoon Studio does the same when it opens. Changing only the resolution keeps the customer's chosen length when it is still offered.

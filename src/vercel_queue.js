@@ -78,7 +78,7 @@ class VercelQueue {
         JOIN users u ON u.id=g.user_id AND u.status='active'
         JOIN provider_models m ON m.public_model_id=g.model AND m.provider='${provider}' AND m.media_type=g.media_type AND m.enabled=1 AND m.available=1
         LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='${provider}'
-        WHERE g.provider='${provider}' AND g.status='queued' AND COALESCE(a.enabled,${provider==='api888'?0:1})=1
+        WHERE g.provider='${provider}' AND g.status='queued' AND COALESCE(a.enabled,1)=1
         ORDER BY g.queue_priority DESC,g.created_at ASC LIMIT 20`;
   }
   async claim(db,maxInflight,client) {
