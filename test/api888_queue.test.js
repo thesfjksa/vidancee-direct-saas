@@ -55,6 +55,8 @@ test('failed 888API video keeps the provider reason in Activity and the refund m
  assert.equal(refunds[0].message,'888API could not complete the video: Content moderation rejected the input image. Credits were refunded.');
  assert.equal(events[0].event,'job.provider_failed');assert.equal(events[0].level,'error');
  assert.equal(events[0].details.reason,'Content moderation rejected the input image');
+ // Customers get this through sendJson's hideVendorsInBody: no provider name, even in the reason.
+ assert.doesNotMatch(require('../src/vendor_names.js').hideVendors(refunds[0].message.replace('Content','888API content')),/888/);
 
  refunds.length=0;events.length=0;
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'888API reported generation failure.'})},job);
