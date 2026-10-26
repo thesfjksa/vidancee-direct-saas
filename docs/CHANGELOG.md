@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26 — 888API on for every customer, again
+
+- Customers whose 888API access was switched off after the 25 October pass get it back once (`api888_access_all_on_v2_at`). The admin can still turn it off for a customer under Sources, and that choice now survives restarts.
+
 ## 2026-10-25 — GPT image models from fal.ai
 
 - fal bills OpenAI's GPT image models by tokens, so the importer left them off ("bills per units"). `src/fal_images.js` now prices six of them per image from their fal pages, with a Low / Medium / High quality picker (High by default): GPT Image 2, GPT Image 2.5 Flare, GPT Image 2.5 Sunburst, GPT Image 1.5, GPT Image 1 and GPT Image 1 Mini. Each quality is charged at the model's dearest size plus prompt tokens, so no ratio is under-charged. GPT Image 1.x offers its fixed sizes (1:1, 3:2, 2:3). They appear after the next fal.ai sync (worker start, daily, or Admin → **Sync fal.ai image models**).

@@ -434,7 +434,6 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
-// 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
   return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
@@ -476,7 +475,9 @@ async function enableVgenvForCustomersOnce(){
 // Owner request (25 Oct 2026): 888API is on for every customer. It used to be
 // opt-in, so switches left off are cleared once; the admin can turn it off
 // again per customer.
-const API888_ALL_ON_SETTING='api888_access_all_on_at';
+// v2 (26 Oct 2026): the owner asked again for 888API on for all customers, so
+// switches turned off since the first pass are cleared once more.
+const API888_ALL_ON_SETTING='api888_access_all_on_v2_at';
 async function enableApi888ForCustomersOnce(){
   if(await getSettingValue(API888_ALL_ON_SETTING,''))return 0;
   const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='api888' AND enabled=0");
