@@ -1,5 +1,7 @@
 'use strict';
 
+const { API888_PROMPT_CHARS } = require('./prompt_limits.js');
+
 // 888API's account-scoped GET /v1/models is the source of truth for availability.
 // This snapshot contains documented media IDs, including unpriced models which
 // stay visible to Admin but are NEVER offered for paid generation.
@@ -379,7 +381,7 @@ function describedModel(id,type) {
       referenceCapabilities:refs,mediaRoles:[...refs.image.roles,...refs.video.roles,...refs.audio.roles],
             supportedOperations:isImage?['text-to-image']:[...(refs.textOnly?['text-to-video']:[]),
         ...((refs.image.supported||refs.video.supported||refs.audio.supported)?['reference-to-video']:[])],
-      imageSizes:[],qualities:[],supportsAudio:false,inputLimits:{text:{max_chars:4096}},
+      imageSizes:[],qualities:[],supportsAudio:false,inputLimits:{text:{max_chars:API888_PROMPT_CHARS}},
     },
   };
 }
