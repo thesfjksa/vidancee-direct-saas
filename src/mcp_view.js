@@ -58,7 +58,7 @@ function theme(ctx) {
 function el(tag, props) { return Object.assign(document.createElement(tag), props || {}); }
 // argo_seedance_2_5 -> Seedance 2.5, studio_gw_recraft_recraft_v4 -> Recraft V4 (as the website names them).
 function modelName(id) {
-  return String(id || "").replace(/^studio_gw_[a-z0-9]+_|^argo_/, "").replace(/_studio$/, "").replace(/(\\d)_(?=\\d)/g, "$1.")
+  return String(id || "").replace(/^studio_gw_[a-z0-9]+_|^argo_|^api888_/, "").replace(/_studio$/, "").replace(/(\\d)_(?=\\d)/g, "$1.")
     .split("_").filter(Boolean).map(w => w === "gpt" ? "GPT" : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 function minutes(since) {

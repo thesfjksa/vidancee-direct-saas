@@ -15,3 +15,22 @@ test('customers never see vendor names; prompts are left alone', () => {
     assert.equal(vendor.test(fs.readFileSync(file, 'utf8').replace(/require\([^)]*\)/g, '')), false, file);
   }
 });
+
+test('customers never see the 888API source name', () => {
+  assert.equal(hideVendors('888API could not complete the video. Credits were refunded.'), 'The generation service could not complete the video. Credits were refunded.');
+  assert.equal(hideVendors('Video finished at 888API, but the provider supplied unsafe download links.'), 'Video finished at the generation service, but the provider supplied unsafe download links.');
+  assert.equal(hideVendors('888API request failed (HTTP 500): upstream error'), 'Request failed (HTTP 500): upstream error');
+  assert.equal(hideVendors('This 888API model accepts at most 4 image references.'), 'This model accepts at most 4 image references.');
+  assert.equal(hideVendors('Could not reach 888api.xin'), 'Could not reach the generation service');
+  assert.equal(hideVendors('Model api888_seedance-2.5-g5-v2 is busy'), 'Model seedance-2.5-g5-v2 is busy');
+  assert.equal(hideVendors('Set API888_API_KEY first'), 'Set service setting first');
+  for (const text of ['888 API down', 'API 888 down', '888api down']) assert.doesNotMatch(hideVendors(text), /888/);
+  const { hideApi888Name } = require('../src/vendor_names.js');
+  assert.equal(hideApi888Name('Seedance 2.5 (888API)'), 'Seedance 2.5');
+  assert.equal(hideApi888Name('888API · Wan 3.0'), 'Wan 3.0');
+  assert.equal(hideApi888Name('Gemini 3 Pro Image'), 'Gemini 3 Pro Image');
+  // No customer page, plan text or Claude text carries the name.
+  for (const file of ['public/index.html', 'public/landing.html', 'src/plans.js', 'src/mcp_server.js', 'src/mcp_view.js', 'src/mcp_pages.js']) {
+    assert.doesNotMatch(fs.readFileSync(file, 'utf8').replace(/require\([^)]*\)/g, ''), /888\s*api|api\s*888(?!_)/i, file);
+  }
+});

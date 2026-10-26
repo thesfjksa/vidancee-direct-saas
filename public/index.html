@@ -846,7 +846,7 @@ function modelPickerTags(id,index){
   if(!m)return [];
   const tags=[];
   const add=v=>{v=String(v||'').trim();if(v&&!tags.includes(v))tags.push(v)};
-  // The 888API billing mode is explicit: fixed per request or dynamic per second,
+  // Some models bill explicitly: fixed per request or dynamic per second,
   // with the rate already converted to credits by the server.
   if(m.billingMode==='per_second')add('Dynamic · '+m.billingRateCredits+' cr/sec');
   else if(m.billingMode==='per_request')add('Per request · '+m.billingRateCredits+' cr');
@@ -2697,7 +2697,7 @@ function imageModelLabel(id){
   if(known)return known;
   // A model no longer offered to this account still gets a readable name, e.g.
   // gpt_image_2_5_flare_studio -> GPT Image 2.5 Flare.
-  return String(id||'').replace(/^studio_gw_[a-z]+_|^argo_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
+  return String(id||'').replace(/^studio_gw_[a-z]+_|^argo_|^api888_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
     .split('_').filter(Boolean).map(w=>w==='gpt'?'GPT':w.charAt(0).toUpperCase()+w.slice(1)).join(' ')||String(id||'');
 }
 
