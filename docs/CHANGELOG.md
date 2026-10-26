@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26 — Per-customer boosted pricing (60k shown, 42k of usage)
+
+- Admin → Users has a **60k → 42k** button per customer. When on, that customer is shown and charged every price × 60,000 / 42,000 (≈ +43%), so 60,000 credits buy what 42,000 credits buy at the normal rate. It does not add credits. Stored as `users.price_rate` (1 = normal); applied to the studio catalog, live quotes, the Claude connector and every charge (video, image, voice, voice clone, upscale). Refunds return the amount charged. See the 26 October section of `docs/PROJECT_HANDOFF_2026-10-25.md`.
+
 ## 2026-10-26 — Longer prompts on 888API models
 
 - Every 888API model refused prompts over 4,096 characters ("The prompt exceeds this model’s text limit."), e.g. long Seedance 2.5 Realism prompts with several @Image references. 888API states no limit, and 4,096 had no source. The limit is now 20,000 characters, what Seedance 2.5 accepts on Sluice (`API888_PROMPT_CHARS` in `src/prompt_limits.js`). Rows synced earlier still hold 4,096 and get 20,000 without a re-sync. If 888API turns out to cap prompts lower, the job fails at 888API and is refunded as usual.

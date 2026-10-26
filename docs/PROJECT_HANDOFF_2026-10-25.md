@@ -1,11 +1,26 @@
 # CMM Tools — comprehensive implementation and recovery handoff
-**Checkpoint: 25 October 2026 (Asia/Karachi). Historic deployment incidents plus verified GitHub continuation through PR #45; no production operation executed by this documentation update.**
+**Checkpoint: 25 October 2026 (Asia/Karachi), with a 26 October 2026 addendum for PR #95 (per-customer boosted pricing). Historic deployment incidents plus verified GitHub continuation through PR #45; no production operation executed by this documentation update.**
 
 > **READ THIS FIRST.** This file supersedes the October 11 architecture checkpoint in `docs/PROJECT_HANDOFF.md`. The newly added release section below tracks `main` through **PR #45 / `f82b02c0`**; older sections retain date-specific evidence, not fresh production verification. **GitHub merge ≠ Hostinger deployment.**
 
 **Current GitHub code checkpoint: 25 October 2026, commit `f82b02c0bd9d80672bf267f5705b294954bc1a85` (merged PR #45).** This checkpoint records source-control state and user-reported Admin evidence; it is **not** proof the Hostinger web app, worker, MySQL, or external 888API paid generation is operational. Earlier screenshot-based incident observations below are retained as historical evidence and must be rechecked before acting.
 
 > **START HERE — 888API model availability and multimodal Seedance update.** The October 25 read-only Admin audit confirms the 888API *catalog import matches the 64 IDs actually returned to the configured account*. The original report of 115 inventory IDs reflected historical rows. PRs #43–#45 added further adapters, especially **`seedance-2.5-g5-v2`** with image+video+audio controls. They are merged and tested, **not confirmed deployed or successfully generated upstream**. Follow the operator runbook in this section before enabling paid use.
+
+## 26 October 2026 — Per-customer boosted pricing (PR #95)
+
+[PR #95](https://github.com/thesfjksa/vidancee-direct-saas/pull/95), merge commit `e155b07acbc16c168da631cd0d6611ba2555f6b0`. **Merged to `main`; not confirmed deployed on Hostinger.** The owner reported the button absent on the live Admin console before the merge; after the merge the web app and worker must be redeployed from `main`, then the Admin console hard-refreshed.
+
+- **What it does:** Admin → Users → each row has a **60k → 42k** button (shows **60k → 42k on** when active; press again to turn off). For that customer every price is shown **and** charged × 60,000 / 42,000 (≈ +43%), so a 60,000-credit balance buys what 42,000 credits buy at the normal rate (Rs 1,750 of source cost instead of Rs 2,500). Example: a 42-credit video costs that customer 60 credits.
+- **It does not add credits.** Grant the plan's credits as usual (Manage → plan with credits, or credit edit).
+- **Storage:** `users.price_rate DECIMAL(10,6) NOT NULL DEFAULT 1` (1 = normal), added by `src/db.js` on startup. Constant `BOOSTED_PRICE_RATE` and helpers `priceRate`, `applyPriceRate`, `scalePrices` in `src/billing.js`.
+- **Admin API:** `POST /admin/users/:id/price-rate` with `{"boosted": true|false}`; `GET /admin/users` returns `price_rate`. Each change is written to the activity log (`user.price_rate_changed`). The rate is not included in the customer's own `/api/me` payload.
+- **Prices shown at the customer's rate:** `/api/config` catalog (video, image, cartoon), `/api/model-cost`, `/api/voice-cost`, `/api/upscales/quote`, and the Claude connector's catalog and `estimate_cost`.
+- **Charges at the customer's rate:** applied inside the locked user transaction in `createGenerationForUser` (`src/generations.js`), `createImageGenerationForUser` (`src/image_generations.js`), `createVoiceGenerationForUser` (`src/voice_generations.js`), `createUpscaleJob` (`src/upscaler.js`) and voice cloning (`server.js`). The scaled amount is saved as `credits_cost`, so failure refunds return exactly what was charged.
+- **Unchanged:** customers who are not switched on, public `/pricing` and `/compare` pages, and jobs already submitted before the switch changed.
+- **Note:** boosted customers see higher per-model prices than the public pricing page lists.
+- **Validation:** new test in `test/admin_users.test.js` (rate, rounding, catalog scaling without mutating shared price objects); full suite **327/327 passing** before merge. No production DB, deployment or paid generation was run.
+- **Verify after deploy:** turn the button on for one test customer, confirm a studio price rises by ×1.4286 and a generation debits the same amount in the credit ledger, then turn it off.
 
 ## 25 October 2026 — Latest continuation checkpoint (post PRs #43–#45)
 
