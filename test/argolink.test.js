@@ -418,4 +418,6 @@ test('prompt limits: a provider\'s stated limit, otherwise the app maximum', () 
   // 888API states no limit; 4,096 was the app's old value for every 888API model.
   assert.equal(promptLimit({ provider: 'api888', inputLimits: { text: { max_chars: 4096 } } }), 20000);
   assert.equal(promptLimit({ provider: 'api888', inputLimits: { text: { max_chars: 20000 } } }), 20000);
+  assert.equal(promptLimit({ provider: 'api888', providerModelId: 'seedance2.5-301010-wool', inputLimits: { text: { max_chars: 20000 } } }), 8000);
+  assert.equal(promptLimit({ provider: 'api888', providerModelId: 'seedance2.5-301010-wool-1080p', inputLimits: { text: { max_chars: 4096 } } }), 8000);
 });
