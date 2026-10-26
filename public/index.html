@@ -122,7 +122,8 @@
 
             <div class="block">
               <label class="block-title" for="prompt">Prompt</label>
-              <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood. Type @ to mention a reference file."></textarea>
+              <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood. Type @ to mention a reference file." aria-describedby="promptCount"></textarea>
+              <div id="promptCount" class="prompt-count" aria-live="polite"></div>
               <label class="prompt-enhancer" for="videoPromptEnhancer">
                 <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
                 <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="videoEnhancerNote">Adds detail before generation</small></span>
@@ -207,7 +208,8 @@
 
             <div class="block">
               <label class="block-title" for="imagePrompt">Prompt</label>
-              <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details. Type @ to mention a reference image."></textarea>
+              <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details. Type @ to mention a reference image." aria-describedby="imagePromptCount"></textarea>
+              <div id="imagePromptCount" class="prompt-count" aria-live="polite"></div>
               <label class="prompt-enhancer" for="imagePromptEnhancer">
                 <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
                 <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="imageEnhancerNote">Adds detail before generation</small></span>
@@ -705,6 +707,8 @@ function enterApp(){
   renderPromptEnhancer();
   setupReferenceDrop();
   setupPromptMentions();
+  for(const id of ['prompt','imagePrompt'])$(id)?.addEventListener('input',updatePromptCounts);
+  updatePromptCounts();
   setupVideoReferenceDrop();
   setupImageGenerationDrop();
   go('create');
@@ -1253,6 +1257,20 @@ function refreshModelCapabilitySummaries(){
   const image=currentImageModel();
   if($('videoModelCapabilitySummary'))$('videoModelCapabilitySummary').innerHTML=video?capabilitySummary(video,'video'):'';
   if($('imageModelCapabilitySummary'))$('imageModelCapabilitySummary').innerHTML=image?capabilitySummary(image,'image'):'';
+  updatePromptCounts();
+}
+
+// Characters typed against the selected model's prompt limit, under each prompt box.
+// Models without a stated limit get the app's 50,000 (src/prompt_limits.js).
+function updatePromptCount(boxId,countId,model){
+  const box=$(boxId),count=$(countId);if(!box||!count)return;
+  const max=Number(model?.promptMaxChars)||50000,used=box.value.length;
+  count.textContent=used.toLocaleString('en-US')+' / '+max.toLocaleString('en-US')+' characters allowed for this model';
+  count.classList.toggle('over',used>max);
+}
+function updatePromptCounts(){
+  updatePromptCount('prompt','promptCount',currentVideoModel());
+  updatePromptCount('imagePrompt','imagePromptCount',currentImageModel());
 }
 
 // A model's warning (e.g. the Lite models) shows in red under its picker.
@@ -2554,7 +2572,7 @@ async function createImageGeneration(){
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
     // Clear only what was sent; keep anything typed or added meanwhile.
-    if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;}
+    if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;updatePromptCounts();}
     if(sameItems(imageReferenceItems,sentRefs))clearImageReferenceItems();
     m.className='msg ok';m.textContent='Image generation queued.';
     b.disabled=false;b.removeAttribute('aria-busy');
@@ -2575,7 +2593,7 @@ async function reuseImageGeneration(id){
   go('images');
   const notes=[];
   clearImageReferenceItems();
-  $('imagePrompt').value=g.prompt||'';
+  $('imagePrompt').value=g.prompt||'';updatePromptCounts();
   enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
   if([...$('imageModel').options].some(o=>o.value===g.model))$('imageModel').value=g.model;
   else notes.push('The original model is unavailable; choose an available model.');
@@ -3034,7 +3052,7 @@ async function createGeneration(){
     me=d.user;syncUser();
     showReferenceNotices(d.generation?.reference_notices);
     // Clear only what was sent; keep anything typed or added meanwhile.
-    if($('prompt').value===sent.prompt){$('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;}
+    if($('prompt').value===sent.prompt){$('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;updatePromptCounts();}
     if(sameItems(referenceItems,sent.refs))clearReferenceItems();
     if(sameItems(videoReferenceItems,sent.videos))clearVideoReferenceItems();
     if(sameItems(audioReferenceItems,sent.audios))clearAudioReferenceItems();
@@ -3059,7 +3077,7 @@ function findGeneration(id){
 
 let videoReuseToken=0;
 function applyVideoReuseSettings(g){
-  $('prompt').value=g.prompt||'';
+  $('prompt').value=g.prompt||'';updatePromptCounts();
   if([...$('model').options].some(o=>o.value===g.model)){
     $('model').value=g.model;
     renderDurations(true);

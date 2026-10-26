@@ -5,7 +5,7 @@ const { DEFAULT_ON_MODELS } = require('./api888_access.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { sluiceMediaModels } = require('./sluice_models.js');
 const { modelFamily } = require('./model_families.js');
-const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups } = require('./vercel_models.js');
+const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups, promptLimit } = require('./vercel_models.js');
 
 function safeJson(value, fallback = {}) {
   if (!value) return fallback;
@@ -423,6 +423,7 @@ function publicVideoModel(model) {
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
     defaultDuration: model.defaultDuration || null,
+    promptMaxChars: promptLimit(model),
     capabilities: normalizedReferenceCapabilities(model),
     ...(model.provider==='api888'?{
       billingMode:model.api888?.billing==='second'?'per_second':'per_request',
@@ -440,6 +441,7 @@ function publicImageModel(model) {
     dynamicCost: true,
     aspectRatios: model.aspectRatios,
     defaultAspectRatio: model.defaultAspectRatio || null,
+    promptMaxChars: promptLimit(model),
     capabilities: normalizedReferenceCapabilities(model),
     ...(model.provider==='api888'?{
       billingMode:'per_request',
