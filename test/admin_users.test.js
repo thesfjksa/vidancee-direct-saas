@@ -66,3 +66,25 @@ test('admin media links are signed and expire', () => {
   assert.deepEqual(Object.keys(adminMediaLinks('secret', { id, media_type: 'image', output_url: 'db:image' })), ['image_url', 'thumb_url']);
   assert.deepEqual(adminMediaLinks('secret', { id, media_type: 'video', output_url: null }), {});
 });
+
+test('boosted pricing scales prices and charges by 60000/42000', () => {
+  const { BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices } = require('../src/billing.js');
+  assert.equal(priceRate({ price_rate: '1.000000' }), 1);
+  assert.equal(priceRate({}), 1);
+  assert.equal(applyPriceRate(42, 1), 42);
+  assert.equal(applyPriceRate(42, BOOSTED_PRICE_RATE), 60);
+  assert.equal(applyPriceRate(42000, BOOSTED_PRICE_RATE), 60000);
+  const shared = { '1:1': 7 };
+  const catalog = [{ id: 'm', label: 'Model 7', cost: 7, costByAspectRatio: shared, costByQuality: { high: shared },
+    costEstimates: ['1:1||'], dynamicCost: false, durations: [{ seconds: 5, cost: 14 }], billingRateCredits: 2.1 }];
+  const scaled = scalePrices(catalog, BOOSTED_PRICE_RATE);
+  assert.equal(scaled[0].cost, 10);
+  assert.equal(scaled[0].costByAspectRatio['1:1'], 10);
+  assert.equal(scaled[0].costByQuality.high['1:1'], 10, 'a shared price object is scaled once');
+  assert.equal(scaled[0].durations[0].cost, 20);
+  assert.equal(scaled[0].billingRateCredits, 3);
+  assert.equal(scaled[0].durations[0].seconds, 5, 'non-price numbers are untouched');
+  assert.deepEqual(scaled[0].costEstimates, ['1:1||']);
+  assert.equal(catalog[0].cost, 7, 'the original catalog is not changed');
+  assert.equal(scalePrices(catalog, 1), catalog);
+});

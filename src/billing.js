@@ -42,4 +42,29 @@ function sourceToCustomerCredits(sourceCredits) {
   return roundCredits(source * creditMultiplier());
 }
 
-module.exports = { positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };
+// Boosted pricing, turned on per customer by the admin: every price is shown
+// and charged x 60000/42000, so a 60,000-credit plan buys what 42,000 credits
+// buy at the normal rate. 1 is the normal rate.
+const BOOSTED_PRICE_RATE = 60000 / 42000;
+function priceRate(user) {
+  const rate = Number(user?.price_rate);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+function applyPriceRate(cost, rate) {
+  const value = Number(cost), r = Number(rate);
+  if (!Number.isFinite(value) || !Number.isFinite(r) || r <= 0 || r === 1) return cost;
+  return roundCredits(value * r);
+}
+// Copies a model catalog with every credit price scaled by rate; the original
+// is left as is (some entries share one price object between two keys).
+const PRICE_KEYS = new Set(['cost', 'costByQuality', 'costByAspectRatio', 'costTable', 'billingRateCredits', 'referenceSurcharge', 'resolutionCosts', 'listCost']);
+function scalePrices(value, rate, inPrice = false) {
+  if (!Number.isFinite(Number(rate)) || Number(rate) <= 0 || Number(rate) === 1) return value;
+  if (Array.isArray(value)) return value.map(v => scalePrices(v, rate, inPrice));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scalePrices(v, rate, inPrice || PRICE_KEYS.has(k))]));
+  }
+  return inPrice && typeof value === 'number' ? applyPriceRate(value, rate) : value;
+}
+
+module.exports = { BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices, positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };

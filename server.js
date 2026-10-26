@@ -140,7 +140,7 @@ const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, fetchFalImageCatalog, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier, roundCredits, sourceToCustomerCredits } = require('./src/billing.js');
+const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
 const {
   publicPlans,
   getPlanStatus,
@@ -698,6 +698,18 @@ async function priceComparison(){
 const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
 
 // Live price of an ArgoLink or AI Gateway model ({cost,isEstimate}).
+// A customer's price multiplier (1 unless the admin turned on boosted pricing).
+async function userPriceRate(userId){
+  if(!userId)return 1;
+  const [rows]=await getPool().execute('SELECT price_rate FROM users WHERE id=? LIMIT 1',[userId]);
+  return priceRate(rows[0]);
+}
+// The price a signed-in customer is shown, at their own rate.
+async function customerQuote(userId,body){
+  const [quote,rate]=await Promise.all([quoteModelForUser(userId,body),userPriceRate(userId)]);
+  return {...quote,cost:applyPriceRate(quote.cost,rate)};
+}
+
 async function quoteModelForUser(userId,body){
   const access=await getUserProviderAccess(userId);
   const mediaType=body.mediaType==='image'?'image':'video';
@@ -1085,8 +1097,8 @@ const connector=createConnector({
   getPool, sendJson, sendHtml, readJson, publicOrigin, requireDatabase, requireUser, adminAuthorized,
   userFromRequest:authModule.userFromRequest, sessionTokenHash:authModule.sessionTokenHash,
   logActivity, getSettingValue, setSettingValue, proxyMedia, serveVideoOutput,
-  catalog:async userId=>customerMediaCatalog(await getUserProviderAccess(userId)),
-  quote:quoteModelForUser,
+  catalog:async userId=>scalePrices(await customerMediaCatalog(await getUserProviderAccess(userId)),await userPriceRate(userId)),
+  quote:customerQuote,
   submitVideo:(user,body)=>submitVideoGeneration(user,body),
   submitImage:(user,body)=>submitImageGeneration(user,body),
   submitUpscale:(user,input)=>submitUpscale(user,input),
@@ -1337,6 +1349,11 @@ const server=http.createServer(async (req,res)=>{
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});
           videoPricing=media.video;
           imagePricing=media.image;
+          // Customers on boosted pricing see every price at their rate.
+          const rate=await userPriceRate(currentUser?.id);
+          videoPricing=scalePrices(videoPricing,rate);
+          imagePricing=scalePrices(imagePricing,rate);
+          cartoonPricing=scalePrices(cartoonPricing,rate);
           upscalerConfig=media.upscaler;
 
           if (customerProviderAccess.vibi && providerSettings.vibi.active) {
@@ -1411,7 +1428,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/model-cost') {
       requireDatabase();
       const costUser=await requireUser(req);
-      return sendJson(res,200,{ok:true,...await quoteModelForUser(costUser.id,await readJson(req))});
+      return sendJson(res,200,{ok:true,...await customerQuote(costUser.id,await readJson(req))});
     }
 
     if (req.method==='POST' && routePath==='/api/auth/register') {
@@ -1570,7 +1587,7 @@ const server=http.createServer(async (req,res)=>{
       const text=String(body.text||'').trim();
       if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
       const sourceEstimate=Math.max(1,text.length);
-      return sendJson(res,200,{ok:true,cost:Number(sourceToCustomerCredits(sourceEstimate)),estimated:true});
+      return sendJson(res,200,{ok:true,cost:Number(applyPriceRate(sourceToCustomerCredits(sourceEstimate),await userPriceRate(user.id))),estimated:true});
     }
 
     if (req.method==='GET' && routePath==='/api/voice-generations') {
@@ -1643,12 +1660,13 @@ const server=http.createServer(async (req,res)=>{
       const body=await readVoiceCloneRequest(req);
       const name=String(body.voice_name||'').trim();
       if(!name)return sendJson(res,400,{ok:false,error:'Voice name is required.'});
-      const cloneCost=Number(settings.vibiCloneCustomerCost||0);
+      let cloneCost=Number(settings.vibiCloneCustomerCost||0);
       const db=getPool();
       const conn=await db.getConnection();
       try{
         await conn.beginTransaction();
-        const [users]=await conn.execute('SELECT credits FROM users WHERE id=? FOR UPDATE',[user.id]);
+        const [users]=await conn.execute('SELECT credits,price_rate FROM users WHERE id=? FOR UPDATE',[user.id]);
+        if(users[0])cloneCost=applyPriceRate(cloneCost,priceRate(users[0]));
         if(!users[0]||Number(users[0].credits)<cloneCost){const e=new Error('Not enough credits.');e.statusCode=402;throw e}
         if(cloneCost>0)await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cloneCost,user.id]);
         const [result]=await conn.execute(
@@ -1764,7 +1782,7 @@ const server=http.createServer(async (req,res)=>{
       const access=await getUserProviderAccess(user.id);
       if (!access.fal || !settings.falEnabled || !settings.falApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
       const quote=await quoteForCustomer(user.id,await readJson(req),settings);
-      return sendJson(res,200,{ok:true,cost:quote.cost});
+      return sendJson(res,200,{ok:true,cost:applyPriceRate(quote.cost,await userPriceRate(user.id))});
     }
 
     if (req.method==='POST' && routePath==='/api/upscales') {
@@ -2459,7 +2477,7 @@ const server=http.createServer(async (req,res)=>{
         if (status==='active'||status==='disabled') { clauses.push('status=?'); params.push(status); }
         const where=clauses.length?' WHERE '+clauses.join(' AND '):'';
         const [rows]=await db.query(
-          'SELECT id,email,credits,plan_code,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
+          'SELECT id,email,credits,plan_code,price_rate,role,status,created_at,updated_at FROM users'+where+' ORDER BY created_at DESC LIMIT 200',
           params,
         );
         const accessRows=await db.query(
@@ -2475,6 +2493,7 @@ const server=http.createServer(async (req,res)=>{
         }
         return sendJson(res,200,{ok:true,users:rows.map(row=>({
           ...userPayload(row),
+          price_rate:priceRate(row),
           provider_access:accessByUser.get(Number(row.id))||defaultCustomerProviderAccess(),
         }))});
       }
@@ -2506,6 +2525,19 @@ const server=http.createServer(async (req,res)=>{
         const result=await setUserPlan(getPool(),Number(userPlanMatch[1]),body.plan,{grantCredits:body.grantCredits===true,note:body.note});
         logActivity({category:'admin',event:'user.plan_changed',userId:Number(userPlanMatch[1]),message:'Plan '+(result.previousPlan||'none')+' → '+(result.user.plan_code||'none')+(result.creditsGranted?' with '+result.creditsGranted+' credits':'')});
         return sendJson(res,200,{ok:true,user:userPayload(result.user),creditsGranted:result.creditsGranted});
+      }
+
+      // Boosted pricing: the customer is shown and charged every price x
+      // 60000/42000, so a 60,000-credit balance buys 42,000 credits of usage.
+      const userPriceRateMatch=routePath.match(/^\/admin\/users\/(\d+)\/price-rate$/);
+      if (req.method==='POST' && userPriceRateMatch) {
+        requireDatabase();
+        const body=await readJson(req);
+        const userId=Number(userPriceRateMatch[1]),rate=body.boosted===true?BOOSTED_PRICE_RATE:1;
+        const [result]=await getPool().execute('UPDATE users SET price_rate=?,updated_at=UTC_TIMESTAMP() WHERE id=?',[rate,userId]);
+        if(!result.affectedRows)return sendJson(res,404,{ok:false,error:'User not found.'});
+        logActivity({category:'admin',event:'user.price_rate_changed',userId,message:rate===1?'Boosted pricing off':'Boosted pricing on (x'+rate.toFixed(4)+')'});
+        return sendJson(res,200,{ok:true,price_rate:rate});
       }
 
       const userProviderMatch=routePath.match(/^\/admin\/users\/(\d+)\/providers$/);

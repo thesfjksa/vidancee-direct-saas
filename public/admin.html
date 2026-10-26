@@ -442,7 +442,17 @@ function userRow(u){
     '<td id="ucred'+u.id+'">'+creditCell(u)+'</td>'+
     '<td>'+sources+'</td>'+
     '<td><span class="st '+(u.status==='active'?'completed':'failed')+'">'+esc(u.status)+'</span></td>'+
-    '<td><div class="row-actions"><button class="btn" onclick="openUserDrawer('+u.id+')">Manage</button><button class="secondary" onclick="openUserDrawer('+u.id+',\'gens\')">Generations</button><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button><button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
+    '<td><div class="row-actions"><button class="btn" onclick="openUserDrawer('+u.id+')">Manage</button><button class="secondary" onclick="openUserDrawer('+u.id+',\'gens\')">Generations</button><button class="secondary" onclick="openProviderAccess('+u.id+')">Sources</button>'+boostButton(u)+'<button class="secondary" onclick="toggleUser('+u.id+',\''+(u.status==='active'?'disabled':'active')+'\')">'+(u.status==='active'?'Disable':'Enable')+'</button></div></td></tr>';
+}
+// Boosted pricing: prices shown and charged x 60000/42000, so 60,000 credits buy 42,000 of usage.
+const isBoosted=u=>Number(u.price_rate||1)>1;
+function boostButton(u){return '<button class="'+(isBoosted(u)?'btn':'secondary')+'" title="'+(isBoosted(u)?'On: prices x 60,000/42,000 for this customer. Press to turn off.':'Show and charge prices x 60,000/42,000, so 60,000 credits buy 42,000 of usage.')+'" onclick="toggleBoost('+u.id+')">'+(isBoosted(u)?'60k → 42k on':'60k → 42k')+'</button>'}
+async function toggleBoost(id){
+  const u=adminUsersById.get(id);if(!u)return;const on=!isBoosted(u);
+  if(!confirm(on?'Turn on boosted pricing for '+u.email+'?\n\nEvery model price is shown and charged x 60,000/42,000 (about +43%), so a 60,000-credit balance buys what 42,000 credits buy at the normal rate.':'Turn off boosted pricing for '+u.email+'? Prices go back to normal.'))return;
+  try{const d=await api('/admin/users/'+id+'/price-rate',{method:'POST',body:JSON.stringify({boosted:on})});u.price_rate=d.price_rate;
+    const row=$('urow'+id);if(row)row.outerHTML=userRow(u);toast('Boosted pricing '+(on?'on':'off')+' · '+u.email)}
+  catch(e){alert(e.message)}
 }
 function creditCell(u){return '<div class="credit-cell"><strong>'+num(u.credits)+'</strong><button class="icon-btn" title="Change credits" aria-label="Change credits" onclick="editCreditsInline('+u.id+')">✎ Edit</button></div>'}
 function editCreditsInline(id){

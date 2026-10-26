@@ -4,7 +4,7 @@ const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getImageCost, validateImageAspectRatio } = require('./image_pricing.js');
-const { roundCredits, roundYuanCredits } = require('./billing.js');
+const { roundCredits, roundYuanCredits, applyPriceRate, priceRate } = require('./billing.js');
 const { THUMB_WIDTH } = require('./image_thumbnails.js');
 const { configuredStorage, offloadBlob, removeBlobs } = require('./object_storage.js');
 
@@ -86,7 +86,7 @@ async function createImageGenerationForUser(userId, input, options = {}) {
   }
   const dynamicCost = Number(options.costOverride);
   const hasDynamicCost = Number.isFinite(dynamicCost) && dynamicCost >= 0;
-  const cost = hasDynamicCost ? (options.provider==='api888'?roundYuanCredits(dynamicCost):roundCredits(dynamicCost)) : getImageCost(model);
+  let cost = hasDynamicCost ? (options.provider==='api888'?roundYuanCredits(dynamicCost):roundCredits(dynamicCost)) : getImageCost(model);
   const imageQuality = options.imageQuality || null;
   if (imageQuality !== null && !['low','medium','high'].includes(imageQuality)) {
     throw Object.assign(new Error('Unsupported image quality.'), { statusCode: 400 });
@@ -104,7 +104,7 @@ async function createImageGenerationForUser(userId, input, options = {}) {
     await conn.beginTransaction();
 
     const [users] = await conn.execute(
-      'SELECT id, credits, status, plan_code FROM users WHERE id=? FOR UPDATE',
+      'SELECT id, credits, status, plan_code, price_rate FROM users WHERE id=? FOR UPDATE',
       [userId],
     );
     const user = users[0];
@@ -113,6 +113,7 @@ async function createImageGenerationForUser(userId, input, options = {}) {
       error.statusCode = 403;
       throw error;
     }
+    cost = applyPriceRate(cost, priceRate(user));
     if (Number(user.credits) < cost) {
       const error = new Error('Not enough credits.');
       error.statusCode = 402;
