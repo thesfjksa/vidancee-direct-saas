@@ -2,6 +2,7 @@ const { getPool } = require('./db.js');
 const { argoMediaModels } = require('./argolink_models.js');
 const { api888MediaModels } = require('./api888_models.js');
 const { DEFAULT_ON_MODELS } = require('./api888_access.js');
+const { hideApi888Name } = require('./vendor_names.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { sluiceMediaModels } = require('./sluice_models.js');
 const { modelFamily } = require('./model_families.js');
@@ -415,7 +416,7 @@ function publicVideoModel(model) {
 
   return {
     id: model.publicModelId,
-    label: model.label,
+    label: hideApi888Name(model.label),
     dynamicCost: true,
     defaultResolution: model.defaultResolution || (resolutions[0]?.id || null),
     resolutions,
@@ -436,7 +437,7 @@ function publicVideoModel(model) {
 function publicImageModel(model) {
   return {
     id: model.publicModelId,
-    label: model.label,
+    label: hideApi888Name(model.label),
     cost: null,
     dynamicCost: true,
     aspectRatios: model.aspectRatios,
