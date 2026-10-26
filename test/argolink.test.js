@@ -415,4 +415,7 @@ test('prompt limits: a provider\'s stated limit, otherwise the app maximum', () 
   assert.equal(promptLimit({ provider: 'argolink', inputLimits: { text: { max_chars: 7000 } } }), 7000);
   assert.equal(promptLimit({ provider: 'argolink', inputLimits: { text: { max_chars: 20000 } } }), 20000);
   assert.equal(promptLimit({}), 50000);
+  // 888API states no limit; 4,096 was the app's old value for every 888API model.
+  assert.equal(promptLimit({ provider: 'api888', inputLimits: { text: { max_chars: 4096 } } }), 20000);
+  assert.equal(promptLimit({ provider: 'api888', inputLimits: { text: { max_chars: 20000 } } }), 20000);
 });

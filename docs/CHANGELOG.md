@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26 — Longer prompts on 888API models
+
+- Every 888API model refused prompts over 4,096 characters ("The prompt exceeds this model’s text limit."), e.g. long Seedance 2.5 Realism prompts with several @Image references. 888API states no limit, and 4,096 had no source. The limit is now 20,000 characters, what Seedance 2.5 accepts on Sluice (`API888_PROMPT_CHARS` in `src/prompt_limits.js`). Rows synced earlier still hold 4,096 and get 20,000 without a re-sync. If 888API turns out to cap prompts lower, the job fails at 888API and is refunded as usual.
+
 ## 2026-10-25 — GPT image models from fal.ai
 
 - fal bills OpenAI's GPT image models by tokens, so the importer left them off ("bills per units"). `src/fal_images.js` now prices six of them per image from their fal pages, with a Low / Medium / High quality picker (High by default): GPT Image 2, GPT Image 2.5 Flare, GPT Image 2.5 Sunburst, GPT Image 1.5, GPT Image 1 and GPT Image 1 Mini. Each quality is charged at the model's dearest size plus prompt tokens, so no ratio is under-charged. GPT Image 1.x offers its fixed sizes (1:1, 3:2, 2:3). They appear after the next fal.ai sync (worker start, daily, or Admin → **Sync fal.ai image models**).
