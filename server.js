@@ -192,6 +192,7 @@ const { loadApi888Health, isApi888Available, isApi888PublicAvailable } = require
 const { auditApi888Import } = require('./src/api888_audit.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
+const { perSecondPrices } = require('./src/per_second_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
@@ -661,7 +662,7 @@ let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
   const catalog=await customerMediaCatalog(defaultCustomerProviderAccess());
-  const video=[],image=[];
+  const video=[],image=[],perSecond=[];
   for(const m of catalog.video){
     // Not listed on the Pricing page; the studios still offer it.
     if(PRICING_PAGE_HIDDEN.includes(m.id))continue;
@@ -673,13 +674,14 @@ async function priceExamples(){
       try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:m.supportsAudio===true})).cost;}catch{}
     }
     if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
+    if(/^Seedance 2\.5\b/.test(m.label))perSecond.push(...await perSecondPrices(m,body=>quoteModelForUser(null,body)));
   }
   for(const m of catalog.image){
     let credits=Number(m.cost)||null;
     if(!credits&&m.costTable){const values=Object.values(m.costTable).map(Number).filter(n=>n>0);credits=values.length?Math.min(...values):null;}
     if(credits>0)image.push({name:m.label,credits});
   }
-  const data={video,image,upscaler:catalog.upscaler?.enabled||false};
+  const data={video,image,perSecond,upscaler:catalog.upscaler?.enabled||false};
   priceExamplesCache={at:Date.now(),data};
   return data;
 }

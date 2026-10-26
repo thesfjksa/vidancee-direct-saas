@@ -372,6 +372,7 @@ footer a:hover{color:var(--navy)}
 .price-table th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;background:#f8fafc}
 .price-table td.num,.price-table th.num{text-align:right;font-variant-numeric:tabular-nums}
 .price-table td b{font-weight:700}
+.price-table td small{color:var(--muted);font-size:12.5px;font-weight:500}
 .price-table .warn{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;color:#b42318;background:#fdf0ee;border:1px solid #f5c2bd;border-radius:999px;padding:2px 8px;vertical-align:middle}
 .tables{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;align-items:start}
 .table-note{margin:14px 2px 0;color:var(--muted);font-size:13.5px;text-align:center}
@@ -452,6 +453,8 @@ footer a:hover{color:var(--navy)}
       <div class="price-table"><h3>Image</h3><p class="sub">Per image, from</p>
         <table><thead><tr><th>Model</th><th class="num">Credits</th><th class="num">Per Creator plan</th></tr></thead><tbody id="imageRows"><tr><td colspan="3">Loading prices…</td></tr></tbody></table></div>
     </div>
+    <div class="price-table" id="perSecondTable" style="margin-top:20px" hidden><h3>Seedance 2.5 · price per second</h3><p class="sub">What each second of video costs you in credits</p>
+      <table><thead><tr><th>Model</th><th>Clip</th><th class="num">Credits per clip</th><th class="num">Credits per second</th></tr></thead><tbody id="perSecondRows"></tbody></table></div>
     <p class="table-note">"Per Creator plan" is how many you could make with the 60,000 credits in a Creator plan.</p>
     <p class="table-note"><a href="/compare" style="color:var(--navy);text-decoration:underline;font-weight:600">See how these prices compare with Pika, Runway, Luma, Freepik and others →</a></p>
   </div>
@@ -556,6 +559,18 @@ fetch('/api/price-examples',{headers:{accept:'application/json'}}).then(r=>r.ok?
   const n=v=>Number(v).toLocaleString('en-US'),plan=60000;
   const video=(d&&d.video)||[],image=(d&&d.image)||[];
   document.getElementById('videoRows').innerHTML=video.length?video.sort((a,b)=>a.credits-b.credits).map(m=>'<tr><td><b>'+esc(m.name)+'</b>'+(m.warning?'<span class="warn" title="'+esc(m.warning)+'">May fail</span>':'')+'</td><td>'+esc(m.seconds?m.seconds+' s':'')+(m.resolution?' · '+esc(m.resolution):'')+'</td><td class="num">'+n(m.credits)+'</td><td class="num">'+n(Math.floor(plan/m.credits))+'</td></tr>').join(''):'<tr><td colspan="4">Sign in to see video prices.</td></tr>';
+  // Seedance 2.5 per second. A fixed-price model costs the same for any length,
+  // so a longer clip is cheaper per second.
+  const per=(d&&d.perSecond)||[],num=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:1});
+  if(per.length){
+    document.getElementById('perSecondRows').innerHTML=per.sort((a,b)=>a.perSecondFrom-b.perSecondFrom).map(m=>{
+      const range=m.minSeconds===m.maxSeconds?m.minSeconds+' s':m.minSeconds+'–'+m.maxSeconds+' s';
+      const clip=m.minCredits===m.maxCredits?n(m.minCredits)+(m.fixedPrice?'<br><small>any length</small>':''):n(m.minCredits)+'–'+n(m.maxCredits);
+      const sec=m.perSecondFrom===m.perSecondTo?'<b>'+num(m.perSecondFrom)+'</b>':'<b>'+num(m.perSecondFrom)+'</b><br><small>at '+m.maxSeconds+' s · '+num(m.perSecondTo)+' at '+m.minSeconds+' s</small>';
+      return '<tr><td><b>'+esc(m.name)+'</b></td><td>'+esc(range)+(m.resolution?' · '+esc(m.resolution):'')+'</td><td class="num">'+clip+'</td><td class="num">'+sec+'</td></tr>';
+    }).join('');
+    document.getElementById('perSecondTable').hidden=false;
+  }
   document.getElementById('imageRows').innerHTML=image.length?image.sort((a,b)=>a.credits-b.credits).map(m=>'<tr><td><b>'+esc(m.name)+'</b></td><td class="num">'+n(m.credits)+'</td><td class="num">'+n(Math.floor(plan/m.credits))+'</td></tr>').join(''):'<tr><td colspan="3">Sign in to see image prices.</td></tr>';
 }).catch(()=>{});
 
