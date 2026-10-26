@@ -45,3 +45,19 @@ test('pending 888API video stays processing and no refund occurs',async()=>{
  await queue.pollJob({}, {videoStatus:async()=>({status:'pending'})},job);
  assert.equal(marked,1);assert.equal(refunds,0);
 });
+
+test('failed 888API video keeps the provider reason in Activity and the refund message',async()=>{
+ const refunds=[],events=[];
+ const queue=new Api888Queue({refund:async(id,status,message)=>{refunds.push({id,status,message});}});
+ queue.log=(_job,event,message,details,level)=>events.push({event,message,details,level});
+ await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'Content moderation rejected the input image',providerStatus:'failure',progress:40})},job);
+ assert.equal(refunds.length,1);
+ assert.equal(refunds[0].message,'888API could not complete the video: Content moderation rejected the input image. Credits were refunded.');
+ assert.equal(events[0].event,'job.provider_failed');assert.equal(events[0].level,'error');
+ assert.equal(events[0].details.reason,'Content moderation rejected the input image');
+
+ refunds.length=0;events.length=0;
+ await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'888API reported generation failure.'})},job);
+ assert.equal(refunds[0].message,'888API could not complete the video. Credits were refunded.');
+ assert.equal(events[0].details.reason,null);
+});

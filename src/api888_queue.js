@@ -87,7 +87,13 @@ class Api888Queue extends VercelQueue{
     if(!op.requestId)throw new Error('888API operation ID missing.');
     const result=await client.videoStatus(op.requestId);
     if(result.status==='pending')return this.markProcessing(db,job);
-    if(result.status==='failed')return this.refund(job.id,'failed','888API could not complete the video. Credits were refunded.',null);
+    if(result.status==='failed'){
+      // Keep 888API's own reason: in Activity for the admin, and for the customer.
+      const reason=result.error&&result.error!=='888API reported generation failure.'?String(result.error).trim().slice(0,300):'';
+      this.log(job,'job.provider_failed','888API reported the video as failed'+(reason?': '+reason:''),
+        {providerJobId:op.requestId,providerStatus:result.providerStatus,progress:result.progress,reason:reason||null},'error');
+      return this.refund(job.id,'failed','888API could not complete the video'+(reason?': '+reason.replace(/[.!。]?$/,'.'):'.')+' Credits were refunded.',null);
+    }
     let video;
     try{video=await client.videoContent(op.requestId,result.url);}
     catch(error){
