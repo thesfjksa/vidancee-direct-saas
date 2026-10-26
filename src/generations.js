@@ -5,7 +5,7 @@ const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
 const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
-const { roundCredits, roundYuanCredits } = require('./billing.js');
+const { roundCredits, roundYuanCredits, applyPriceRate, priceRate } = require('./billing.js');
 const { configuredStorage, offloadBlob, hydrateBlobs, removeBlobs } = require('./object_storage.js');
 
 function serializeGeneration(row) {
@@ -288,7 +288,7 @@ async function createGenerationForUser(userId, input, options = {}) {
   const resolution = options.dynamicModel
     ? (requestedResolution || String(options.defaultResolution || '').trim() || null)
     : normalizeResolution(model, requestedResolution);
-  const cost = hasDynamicCost
+  let cost = hasDynamicCost
     ? (options.provider==='api888'?roundYuanCredits(dynamicCost):roundCredits(dynamicCost))
     : getCost(model, duration, resolution);
   const provider = String(options.provider || 'vgenv').slice(0, 40);
@@ -303,7 +303,7 @@ async function createGenerationForUser(userId, input, options = {}) {
     await conn.beginTransaction();
 
     const [users] = await conn.execute(
-      "SELECT id, credits, status, plan_code FROM users WHERE id = ? FOR UPDATE",
+      "SELECT id, credits, status, plan_code, price_rate FROM users WHERE id = ? FOR UPDATE",
       [userId],
     );
     const user = users[0];
@@ -312,6 +312,7 @@ async function createGenerationForUser(userId, input, options = {}) {
       error.statusCode = 403;
       throw error;
     }
+    cost = applyPriceRate(cost, priceRate(user));
     if (Number(user.credits) < cost) {
       const error = new Error('Not enough credits.');
       error.statusCode = 402;

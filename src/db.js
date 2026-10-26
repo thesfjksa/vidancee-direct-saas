@@ -423,6 +423,12 @@ async function initDb() {
     await db.query("ALTER TABLE users ADD COLUMN plan_code VARCHAR(20) NULL AFTER credits");
   }
 
+  // Per-customer price multiplier (1 = normal); see billing.js BOOSTED_PRICE_RATE.
+  const [userPriceRateColumn] = await db.query("SHOW COLUMNS FROM users LIKE 'price_rate'");
+  if (!userPriceRateColumn.length) {
+    await db.query("ALTER TABLE users ADD COLUMN price_rate DECIMAL(10,6) NOT NULL DEFAULT 1.000000 AFTER plan_code");
+  }
+
   await ensureGenerationColumn('provider', "provider VARCHAR(40) NOT NULL DEFAULT 'vidancee' AFTER user_id");
   await ensureGenerationColumn('media_type', "media_type VARCHAR(20) NOT NULL DEFAULT 'video' AFTER provider");
   const providerJobColumn = await ensureGenerationColumn('provider_job_id', "provider_job_id VARCHAR(191) NULL AFTER media_type");

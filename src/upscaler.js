@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
+const { applyPriceRate, priceRate } = require('./billing.js');
 const { mp4Seconds } = require('./vercel_models.js');
 const { planUpscale, upscaleCredits, dimensionsFor, mp4Dimensions } = require('./enhance.js');
 
@@ -87,7 +88,7 @@ async function createUpscaleJob(userId, { resolution, source }, settings) {
   const id = crypto.randomUUID();
   try {
     await conn.beginTransaction();
-    const [[user]] = await conn.execute('SELECT id,credits,status,plan_code FROM users WHERE id=? FOR UPDATE', [userId]);
+    const [[user]] = await conn.execute('SELECT id,credits,status,plan_code,price_rate FROM users WHERE id=? FOR UPDATE', [userId]);
     if (!user || user.status !== 'active') fail('User account is unavailable.', 403);
     const plan = getPlanProfile(user.plan_code);
     const [[active]] = await conn.execute("SELECT COUNT(*) AS total FROM generations WHERE user_id=? AND status IN ('queued','submitting','submitted','processing')", [userId]);
@@ -108,6 +109,7 @@ async function createUpscaleJob(userId, { resolution, source }, settings) {
     } else fail('Choose a video to upscale.');
 
     const quote = upscaleQuote(video, resolution, settings.falCustomerCreditsPerUsd);
+    quote.cost = applyPriceRate(quote.cost, priceRate(user));
     if (Number(user.credits) < quote.cost) fail('Not enough credits.', 402);
     options = { ...options, targetResolution: quote.resolution, sourceSeconds: Math.round(video.seconds * 100) / 100, upscale: quote.plan };
 

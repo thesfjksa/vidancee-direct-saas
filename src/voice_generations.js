@@ -4,7 +4,7 @@ const { hideVendors } = require('./vendor_names.js');
 const crypto=require('node:crypto');
 const {getPool}=require('./db.js');
 const {getPlanProfile}=require('./plans.js');
-const {roundCredits}=require('./billing.js');
+const {roundCredits,applyPriceRate,priceRate}=require('./billing.js');
 
 function serializeVoiceGeneration(row){
   return {
@@ -35,7 +35,7 @@ async function createVoiceGenerationForUser(userId,input,options={}){
     const error=new Error('Text is too long.');error.statusCode=400;throw error;
   }
 
-  const cost=roundCredits(Number(options.costOverride));
+  let cost=roundCredits(Number(options.costOverride));
   if(!Number.isFinite(cost)||cost<0){
     const error=new Error('Voice generation cost is unavailable.');error.statusCode=502;throw error;
   }
@@ -53,13 +53,14 @@ async function createVoiceGenerationForUser(userId,input,options={}){
   try{
     await conn.beginTransaction();
     const [users]=await conn.execute(
-      'SELECT id,credits,status,plan_code FROM users WHERE id=? FOR UPDATE',
+      'SELECT id,credits,status,plan_code,price_rate FROM users WHERE id=? FOR UPDATE',
       [userId]
     );
     const user=users[0];
     if(!user||user.status!=='active'){
       const error=new Error('User account is unavailable.');error.statusCode=403;throw error;
     }
+    cost=applyPriceRate(cost,priceRate(user));
     if(Number(user.credits)<cost){
       const error=new Error('Not enough credits.');error.statusCode=402;throw error;
     }
