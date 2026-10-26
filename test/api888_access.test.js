@@ -74,3 +74,17 @@ test('the offered 888API models are switched on once, and a later Admin switch-o
  assert.deepEqual(state.rows,{'seedance2.0-933':0,'wan30-720p':1});
  assert.equal(await enableDefaultApi888ModelsOnce(db),false);
 });
+test('888API is switched on for every customer once, including switches turned off after the first pass',async()=>{
+ const src=fs.readFileSync(require.resolve('../server.js'),'utf8');
+ const fn=src.slice(src.indexOf('async function enableApi888ForCustomersOnce'),src.indexOf('async function getUserProviderAccess'));
+ const key=src.match(/const API888_ALL_ON_SETTING='([^']+)'/)[1];
+ assert.notEqual(key,'api888_access_all_on_at');
+ const store=new Map([['api888_access_all_on_at','2026-10-25T20:10:00Z']]),sql=[],logs=[];
+ const run=new Function('getSettingValue','setSettingValue','getPool','logActivity','API888_ALL_ON_SETTING',fn+'; return enableApi888ForCustomersOnce();');
+ const deps=[async k=>store.get(k)||'',async(k,v)=>store.set(k,v),()=>({execute:async q=>{sql.push(q);return [{affectedRows:2}];}}),e=>logs.push(e),key];
+ assert.equal(await run(...deps),2);
+ assert.match(sql[0],/DELETE FROM user_provider_access WHERE provider='api888' AND enabled=0/);
+ assert.equal(await run(...deps),0);
+ assert.equal(sql.length,1);
+ assert.match(logs[0].message,/2 had it off/);
+});
