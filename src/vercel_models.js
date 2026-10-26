@@ -1,6 +1,6 @@
 'use strict';
 
-const { MAX_PROMPT_CHARS, API888_PROMPT_CHARS } = require('./prompt_limits.js');
+const { MAX_PROMPT_CHARS, API888_PROMPT_CHARS, api888PromptLimit } = require('./prompt_limits.js');
 
 const { SMART_IMAGE_SIZES } = require('./smartaipi_images.js');
 const DEFAULT_VERCEL_CREDITS_PER_USD = 160 / 0.0265;
@@ -142,10 +142,11 @@ function modelReady(model) {
 // A model's prompt limit: the provider's own where it states one, otherwise
 // the most the app accepts. 8,000 (ArgoLink) and 5,000 (Yotta, since removed) were the app's
 // old defaults for models without a stated limit, still saved on older rows.
-// 888API rows synced before the change still hold its old 4,096.
+// 888API rows synced before the change still hold its old 4,096, and rows
+// synced before the 8,000 cap on some models still hold 20,000.
 function promptLimit(model) {
   const stated=Number(model.inputLimits?.text?.max_chars)||0;
-  if (model.provider==='api888'&&stated===4096) return API888_PROMPT_CHARS;
+  if (model.provider==='api888'&&(stated===4096||stated===API888_PROMPT_CHARS)) return api888PromptLimit(model.providerModelId);
   const oldDefault=model.provider==='argolink'&&stated===8000;
   return stated>0&&!oldDefault?Math.min(stated,MAX_PROMPT_CHARS):MAX_PROMPT_CHARS;
 }
