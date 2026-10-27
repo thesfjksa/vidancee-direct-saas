@@ -723,7 +723,8 @@ async function refundGeneration(generationId, status, message, providerCost = nu
        SET status = ?, error_message = ?, provider_cost = COALESCE(?, provider_cost),
            completed_at = COALESCE(completed_at, UTC_TIMESTAMP()), updated_at = UTC_TIMESTAMP()
        WHERE id = ?`,
-      [status, message || null, providerCost, generationId],
+      // Stored without provider names: every page that shows it is then safe.
+      [status, hideVendors(message) || null, providerCost, generationId],
     );
 
     if (!row.refunded_at) {
@@ -732,7 +733,7 @@ async function refundGeneration(generationId, status, message, providerCost = nu
       await conn.execute(
         `INSERT INTO credit_transactions (user_id, generation_id, amount, type, note)
          VALUES (?, ?, ?, 'generation_refund', ?)`,
-        [row.user_id, row.id, amount, message || 'Generation refunded'],
+        [row.user_id, row.id, amount, hideVendors(message) || 'Generation refunded'],
       );
       await conn.execute(
         'UPDATE generations SET refunded_at = UTC_TIMESTAMP() WHERE id = ?',

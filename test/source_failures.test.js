@@ -25,7 +25,8 @@ test('a job a source fails after accepting it is refunded with the source\'s rea
   w.vgenv = { getVideo: async () => ({ status: 'cancelled', error: null, price: null }) };
   await w.syncVgenv(db);
   assert.deepEqual(refunds, [
-    'Generation failed: vgenv: prompt rejected by moderation. Credits were refunded.',
+    // Saved without the vendor's name, so every page that shows it is safe.
+    'Generation failed: the generation service: prompt rejected by moderation. Credits were refunded.',
     'Generation failed: Reference image could not be read. Credits were refunded.',
     'Generation failed during processing. Credits were refunded.',
   ]);
