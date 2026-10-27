@@ -3,7 +3,7 @@
 // Cartoon Studio: video in a chosen cartoon style, made with Seedance Lite on
 // Sluice or MiniMax H3 on vgenv. The customer's own prompt is
 // stored on the job; the style direction is added only when it is submitted.
-const CARTOON_MODELS = ['minimax_h3'];
+const { H3_MODEL_IDS: CARTOON_MODELS } = require('./pricing.js');
 // Seedance Lite on Sluice (ids sl_…) is in Cartoon Studio too.
 const isCartoonModel = id => CARTOON_MODELS.includes(String(id || '')) || String(id || '').startsWith('sl_');
 

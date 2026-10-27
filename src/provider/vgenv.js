@@ -5,6 +5,9 @@ function normalizeBaseUrl(value) {
 }
 
 function extractPrice(value) {
+  // /v3 (and newer /v1) answers give {price: {currency, amount_micros}}.
+  const micros = Number(value?.price?.amount_micros);
+  if (value?.price?.amount_micros != null && Number.isFinite(micros) && micros >= 0) return micros / 1e6;
   const candidates = [
     value?.price,
     value?.price?.amount,
@@ -89,7 +92,10 @@ class VgenvClient {
     throw lastError || new Error('vgenv video API endpoint was not found.');
   }
 
+  // model is vgenv's base model: 'base' (MiniMax H3, sent the way it always
+  // was, on /v1), 'cinematic' or 'origin' (only on /v3, which names them).
   async generateVideo({
+    model = 'base',
     prompt,
     duration,
     resolution = '768p',
@@ -99,8 +105,9 @@ class VgenvClient {
     referenceVideoAssetId = null,
     idempotencyKey = null,
   }) {
+    const v3 = model === 'cinematic' || model === 'origin';
     const body = {
-      model: 'minimax/h3',
+      model: v3 ? model : 'minimax/h3',
       tier: 'fast',
       prompt,
       duration: Number(duration),
@@ -117,19 +124,24 @@ class VgenvClient {
     if (referenceAudioAssetIds.length) body.reference_audios = referenceAudioAssetIds.slice(0, 2).map(asset_id => ({ asset_id }));
     if (referenceVideoAssetId) body.reference_video = { asset_id: referenceVideoAssetId };
 
-    const payload = await this.videoRequest('/videos', {
+    // /v3 enhances the prompt unless told not to; /v1 sends it as written.
+    if (v3) body.prompt_optimization = { mode: 'raw' };
+
+    const options = {
       method: 'POST',
       headers: {
         'Idempotency-Key': String(idempotencyKey || ('mehroz-' + crypto.randomUUID())),
       },
       body: JSON.stringify(body),
-    });
+    };
+    const payload = v3 ? await this.request('/v3/videos', options) : await this.videoRequest('/videos', options);
 
     if (!payload?.id) throw new Error('vgenv returned no video ID.');
     return {
       id: String(payload.id),
       status: String(payload.status || 'queued').toLowerCase(),
       price: extractPrice(payload),
+      currency: payload?.price?.currency || null,
       raw: payload,
     };
   }
@@ -156,8 +168,15 @@ class VgenvClient {
     return id;
   }
 
-  async getVideo(videoId) {
-    const payload = await this.videoRequest('/videos/' + encodeURIComponent(videoId));
+  // Cinematic and Origin videos were made on /v3 and are read there first.
+  async getVideo(videoId, { v3 = false } = {}) {
+    const path = '/videos/' + encodeURIComponent(videoId);
+    let payload = null;
+    if (v3) {
+      try { payload = await this.request('/v3' + path); }
+      catch (error) { if (Number(error.statusCode) !== 404) throw error; }
+    }
+    if (!payload) payload = await this.videoRequest(path);
     return {
       id: String(payload.id || videoId),
       status: String(payload.status || 'queued').toLowerCase(),

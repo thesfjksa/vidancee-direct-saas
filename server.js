@@ -134,7 +134,7 @@ const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
   createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
-const { publicPricing, getCost, ASPECT_RATIOS } = require('./src/pricing.js');
+const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = require('./src/pricing.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
@@ -532,11 +532,12 @@ async function argoHdOffModels(){
 }
 
 // MiniMax H3 on vgenv in Video Studio, beside ArgoLink's and Higgsfield's
-// models. Its prices are fixed per duration and resolution. (Seedance Lite on
+// models: Base, Cinematic and Origin. Their prices are fixed per duration and
+// resolution. (Seedance Lite on
 // Vidancee/CreatePulse was removed on 20 October 2026.)
-const DIRECT_VIDEO_MODELS=['minimax_h3'];
+const DIRECT_VIDEO_MODELS=H3_MODEL_IDS;
 function directVideoSourceActive(id,access,providerSettings){
-  return id==='minimax_h3'&&Boolean(access.vgenv&&providerSettings.vgenv.active);
+  return isH3Model(id)&&Boolean(access.vgenv&&providerSettings.vgenv.active);
 }
 function directVideoModels(access,providerSettings){
   return publicPricing().filter(m=>DIRECT_VIDEO_MODELS.includes(m.id)&&m.durations.length&&directVideoSourceActive(m.id,access,providerSettings)).map(m=>({
@@ -545,8 +546,8 @@ function directVideoModels(access,providerSettings){
     defaultDuration:m.durations[0].seconds,
     aspectRatios:ASPECT_RATIOS,defaultAspectRatio:'9:16',
     capabilities:{image:{supported:true,max:6,min:0,roles:['image_references'],requiredRoles:[]},
-      video:m.id==='minimax_h3'?H3_VIDEO_CAPABILITY:{supported:false,max:0},
-      audio:m.id==='minimax_h3'?H3_AUDIO_CAPABILITY:{supported:false,max:0}},
+      video:isH3Model(m.id)?H3_VIDEO_CAPABILITY:{supported:false,max:0},
+      audio:isH3Model(m.id)?H3_AUDIO_CAPABILITY:{supported:false,max:0}},
   }));
 }
 
@@ -635,7 +636,7 @@ function modelVendor(id){
   if(isFalImageModel(id))return 'fal.ai';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
-  if(id==='minimax_h3')return 'vgenv';
+  if(isH3Model(id))return 'vgenv';
   return '';
 }
 
@@ -820,7 +821,7 @@ async function enableBrowserUploads(){
 
 // The longest reference video (total, or per clip) a video model accepts.
 async function referenceVideoLimit(id){
-  if(id==='minimax_h3')return {clipSeconds:H3_REFS.maxSeconds};
+  if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
   const provider=isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
   const model=await getProviderModelByPublicId(provider,id,'video').catch(()=>null);
@@ -902,7 +903,7 @@ async function submitVideoGeneration(user,body,req=null){
   if (!generation && !cartoonOptions && !DIRECT_VIDEO_MODELS.includes(requestedModel)) throw httpError(400,'This video model is not available. Choose a model from the list.');
 
   if (!generation) {
-    if (requestedModel==='minimax_h3') {
+    if (isH3Model(requestedModel)) {
       if (!customerAccess.vgenv || !providerSettings.vgenvEnabled || !providerSettings.vgenvApiKey) {
         throw httpError(503,'This model is currently unavailable.');
       }
@@ -1343,7 +1344,7 @@ const server=http.createServer(async (req,res)=>{
           const names=await modelDisplayNames().catch(()=>({}));
           cartoonPricing=applyModelNames('cartoon',[
             ...(customerProviderAccess.sluice&&providerSettings.sluice.active?await sluiceCartoonPricing(providerSettings):[]),
-            ...publicPricing().filter(model=>model.id==='minimax_h3'&&h3Active)],names);
+            ...publicPricing().filter(model=>isH3Model(model.id)&&h3Active)],names);
           cartoonEnabled=cartoonPricing.length>0;
 
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});

@@ -7,6 +7,7 @@ const { SluiceQueue } = require('./sluice_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
+const { isH3Model, h3VgenvModel } = require('./pricing.js');
 const { SmartAipiClient } = require('./provider/smartaipi.js');
 const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
@@ -243,7 +244,7 @@ class GenerationWorker {
 
     for (const row of rows) {
       try {
-        const video = await this.vgenv.getVideo(row.provider_job_id);
+        const video = await this.vgenv.getVideo(row.provider_job_id, { v3: h3VgenvModel(row.model) !== 'base' });
         if (video.status === 'succeeded') {
           if (!video.outputUrl) throw new Error('vgenv succeeded without an output URL.');
           await db.execute(
@@ -476,9 +477,9 @@ class GenerationWorker {
     if (dbConfigured()) recordProviderStatus(getPool(), { outOfCredits: this.outOfCreditsUntil }).catch(() => {});
   }
 
-  // Video jobs this queue runs: MiniMax H3 on vgenv (Vidancee and CreatePulse were removed).
+  // Video jobs this queue runs: MiniMax H3 Base, Cinematic and Origin on vgenv (Vidancee and CreatePulse were removed).
   chooseProvider(job, vgenvSlots, access = {}) {
-    if (job.model !== 'minimax_h3') return null;
+    if (!isH3Model(job.model)) return null;
     return access.vgenv !== false && this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
   }
 
@@ -508,6 +509,8 @@ class GenerationWorker {
     }
 
     const result = await this.vgenv.generateVideo({
+      // The base model the customer chose; the price was charged for it.
+      model: h3VgenvModel(job.model),
       prompt: providerPrompt(job),
       duration: Number(job.duration),
       // The customer's choice (480p or 768p); the price was charged for it.
@@ -520,8 +523,8 @@ class GenerationWorker {
     });
 
     await db.execute(
-      "UPDATE generations SET provider='vgenv', status='submitted', provider_job_id=?, provider_cost=?, provider_cost_unit='usd', submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
-      [result.id, result.price, job.id]
+      "UPDATE generations SET provider='vgenv', status='submitted', provider_job_id=?, provider_cost=?, provider_cost_unit=?, submitted_at=UTC_TIMESTAMP(), updated_at=UTC_TIMESTAMP() WHERE id=?",
+      [result.id, result.price, result.currency === 'CNY' ? 'cny' : 'usd', job.id]
     );
   }
 

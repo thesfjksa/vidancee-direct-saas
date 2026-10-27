@@ -5,9 +5,19 @@ const { usdToCredits } = require('./billing.js');
 // to whole credits. The profit is in the plan price, not here.
 const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
 
-// vgenv MiniMax H3, Fast tier (vgenv.com/developers): $0.0015/s at 480p,
-// $0.003/s at 768p.
-const H3_PER_SECOND = { '480p': usdToCredits(0.0015), '768p': usdToCredits(0.003) };
+// vgenv MiniMax H3, Fast tier (vgenv.com/pricing, 27 October 2026). vgenv
+// sells three base models: Base and Cinematic cost $0.0015/s at 480p and
+// $0.003/s at 768p, Origin $0.0023/s and $0.0046/s. minimax_h3 is Base (it
+// was the only one before), so its id and price are unchanged.
+const H3_MODELS = {
+  minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
+  minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
+  minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+};
+const H3_MODEL_IDS = Object.keys(H3_MODELS);
+const isH3Model = id => Object.hasOwn(H3_MODELS, String(id || ''));
+// The model name vgenv takes for one of our ids ('base' for unknown ids).
+const h3VgenvModel = id => (isH3Model(id) ? H3_MODELS[id].vgenvModel : 'base');
 
 function h3Durations(rate) {
   const durations = {};
@@ -17,19 +27,17 @@ function h3Durations(rate) {
   return durations;
 }
 
-function h3ResolutionCosts() {
-  return { '480p': h3Durations(H3_PER_SECOND['480p']), '768p': h3Durations(H3_PER_SECOND['768p']) };
+function h3ResolutionCosts(usdPerSecond) {
+  return { '480p': h3Durations(usdToCredits(usdPerSecond['480p'])), '768p': h3Durations(usdToCredits(usdPerSecond['768p'])) };
 }
 
 function pricingMap() {
-  return {
-    'minimax_h3': {
-      label: 'MiniMax H3',
-      defaultResolution: '768p',
-      resolutions: ['480p', '768p'],
-      resolutionCosts: h3ResolutionCosts(),
-    },
-  };
+  return Object.fromEntries(Object.entries(H3_MODELS).map(([id, model]) => [id, {
+    label: model.label,
+    defaultResolution: '768p',
+    resolutions: ['480p', '768p'],
+    resolutionCosts: h3ResolutionCosts(model.usdPerSecond),
+  }]));
 }
 
 const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:3'];
@@ -125,4 +133,7 @@ module.exports = {
   validateAspectRatio,
   normalizeResolution,
   ASPECT_RATIOS,
+  H3_MODEL_IDS,
+  isH3Model,
+  h3VgenvModel,
 };

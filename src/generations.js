@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
 const { getPlanProfile } = require('./plans.js');
-const { getCost, validateAspectRatio, normalizeResolution } = require('./pricing.js');
+const { getCost, validateAspectRatio, normalizeResolution, isH3Model } = require('./pricing.js');
 const { roundCredits, roundYuanCredits, applyPriceRate, priceRate } = require('./billing.js');
 const { configuredStorage, offloadBlob, hydrateBlobs, removeBlobs } = require('./object_storage.js');
 
@@ -366,7 +366,7 @@ async function createGenerationForUser(userId, input, options = {}) {
       }
     }
 
-    if (model === 'minimax_h3') {
+    if (isH3Model(model)) {
       const oversizedReused = reusedImages.find(image => Buffer.isBuffer(image.image_data) && image.image_data.length > 5 * 1024 * 1024);
       const oversizedFresh = freshImages.find(image => Buffer.isBuffer(image.data) && image.data.length > 5 * 1024 * 1024);
       if (oversizedReused || oversizedFresh) {
