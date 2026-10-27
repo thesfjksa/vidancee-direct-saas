@@ -46,13 +46,13 @@ test('pending 888API video stays processing and no refund occurs',async()=>{
  assert.equal(marked,1);assert.equal(refunds,0);
 });
 
-test('failed 888API video keeps the provider reason in Activity and the refund message',async()=>{
+test('failed 888API video keeps the provider reason in Activity and gives customers a plain message',async()=>{
  const refunds=[],events=[];
  const queue=new Api888Queue({refund:async(id,status,message)=>{refunds.push({id,status,message});}});
  queue.log=(_job,event,message,details,level)=>events.push({event,message,details,level});
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'Content moderation rejected the input image',providerStatus:'failure',progress:40})},job);
  assert.equal(refunds.length,1);
- assert.equal(refunds[0].message,'888API could not complete the video: Content moderation rejected the input image. Credits were refunded.');
+ assert.equal(refunds[0].message,'The video could not be completed: Content moderation rejected the input image. Credits were refunded.');
  assert.equal(events[0].event,'job.provider_failed');assert.equal(events[0].level,'error');
  assert.equal(events[0].details.reason,'Content moderation rejected the input image');
  // Customers get this through sendJson's hideVendorsInBody: no provider name, even in the reason.
@@ -60,6 +60,16 @@ test('failed 888API video keeps the provider reason in Activity and the refund m
 
  refunds.length=0;events.length=0;
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'888API reported generation failure.'})},job);
- assert.equal(refunds[0].message,'888API could not complete the video. Credits were refunded.');
+ assert.equal(refunds[0].message,'The video could not be completed. Credits were refunded.');
  assert.equal(events[0].details.reason,null);
+
+ // 888API's Chinese safety message (27 Oct 2026, Wan 3.0 text-to-video).
+ refunds.length=0;events.length=0;
+ await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'输入图片触发安全策略，请更换图片后重试'})},job);
+ assert.equal(refunds[0].message,'The safety filter blocked this video. Please change your prompt or images and try again. Credits were refunded.');
+ assert.equal(events[0].details.reason,'输入图片触发安全策略，请更换图片后重试');
+
+ refunds.length=0;
+ await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'未知错误'})},job);
+ assert.equal(refunds[0].message,'The video could not be completed. Credits were refunded.');
 });

@@ -2,6 +2,7 @@
 const {VercelQueue,savedOptions}=require('./vercel_queue.js');
 const {Api888Client}=require('./provider/api888.js');
 const {errorDetails}=require('./activity_log.js');
+const {failureMessage}=require('./provider_errors.js');
 class Api888Queue extends VercelQueue{
   constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;}
   apiKey(s){return s.api888ApiKey||'';}
@@ -88,11 +89,12 @@ class Api888Queue extends VercelQueue{
     const result=await client.videoStatus(op.requestId);
     if(result.status==='pending')return this.markProcessing(db,job);
     if(result.status==='failed'){
-      // Keep 888API's own reason: in Activity for the admin, and for the customer.
+      // 888API's own reason goes to Activity; the customer gets it in plain
+      // English (its Chinese safety messages are translated).
       const reason=result.error&&result.error!=='888API reported generation failure.'?String(result.error).trim().slice(0,300):'';
       this.log(job,'job.provider_failed','888API reported the video as failed'+(reason?': '+reason:''),
         {providerJobId:op.requestId,providerStatus:result.providerStatus,progress:result.progress,reason:reason||null},'error');
-      return this.refund(job.id,'failed','888API could not complete the video'+(reason?': '+reason.replace(/[.!。]?$/,'.'):'.')+' Credits were refunded.',null);
+      return this.refund(job.id,'failed',failureMessage('video',reason),null);
     }
     let video;
     try{video=await client.videoContent(op.requestId,result.url);}
@@ -102,7 +104,7 @@ class Api888Queue extends VercelQueue{
           '888API completed video was not accessible via safe downloads; generation refunded.',
           errorDetails(error),'error');
         return this.refund(job.id,'failed',
-          'Video finished at 888API, but the provider supplied unsafe download links. Credits were refunded.',
+          'The video finished, but it could not be downloaded safely. Credits were refunded.',
           null);
       }
       throw error;
