@@ -17,6 +17,7 @@ All plans use one customer balance, with source-specific generation pricing:
 - Fixed-price video models (MiniMax H3 on vgenv) are calculated in `src/pricing.js` at cost: 24 credits per rupee of source cost (USD at Rs 280), rounded up.
 - SmartAIPI uses `ceil(estimated source USD * customer credits per USD)`, default `160 / 0.0265`. It does not add the shared multiplier.
 - Vibi TTS reserves an estimate and reconciles to the reported source credits times the shared multiplier. Voice cloning has an Admin-configurable customer cost.
+- **Boosted pricing (per customer, Admin → Users → 60k → 42k):** every price for that customer is shown and charged × 60,000 / 42,000 (`users.price_rate`), so a 60,000-credit plan buys 42,000 credits of usage. Off by default.
 
 The plan price does not multiply generation costs again. Source assignments and model availability remain separate from plan concurrency. See [SMARTAIPI.md](SMARTAIPI.md) and [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md).
 
