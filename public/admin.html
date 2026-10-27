@@ -382,6 +382,20 @@
   </div>
 </div>
 </div>
+<div id="genDetailModal" class="modal-backdrop hide" style="z-index:600" onclick="if(event.target===this)closeGenDetail()">
+  <div class="modal-card" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <div><h2>Generation details</h2><div id="gdMeta" class="muted"></div></div>
+      <button class="secondary modal-close" onclick="closeGenDetail()" aria-label="Close">×</button>
+    </div>
+    <div id="gdError" class="err hide" style="white-space:pre-wrap;margin-bottom:14px"></div>
+    <div class="top" style="align-items:center"><h3 style="margin:0">Prompt <span id="gdPromptCount" class="muted" style="font-weight:400;font-size:13px"></span></h3><button class="secondary" style="font-size:12px;padding:5px 10px" onclick="copyGenPrompt()">Copy prompt</button></div>
+    <div id="gdPrompt" class="gd-prompt"></div>
+    <h3>Uploaded inputs</h3>
+    <div id="gdInputs" class="gd-inputs"></div>
+    <details style="margin-top:14px"><summary class="muted">Settings</summary><pre id="gdOptions" style="white-space:pre-wrap"></pre></details>
+  </div>
+</div>
 <script>
 const $=id=>document.getElementById(id);let token=sessionStorage.getItem('mehroz_admin_token')||'';let adminUsersById=new Map();let providerAccessUserId=null;
 async function api(path,options={}){
@@ -580,6 +594,7 @@ function genMedia(g){
   return '<span>'+label+'</span>';
 }
 function genCard(g){
+  genById.set(g.id,g);
   const opts=g.generation_options||{},tag=opts.studio==='cartoon'?'Cartoon':opts.studio==='upscale'?'Upscale':(g.media_type||'video');
   const detail=[g.model,g.media_type==='video'||!g.media_type?(g.duration?g.duration+'s':''):'',g.resolution,g.aspect_ratio].filter(Boolean).join(' · ');
   return '<div class="gen-card"><div class="gen-media">'+genMedia(g)+'</div><div class="gen-body">'+
@@ -587,8 +602,32 @@ function genCard(g){
     '<div class="muted">'+esc(tag)+' · '+esc(detail)+'</div>'+
     (g.error_message?'<div class="gen-error" title="'+esc(g.error_message)+'">'+esc(g.error_message)+'</div>':'')+
     '<div class="gen-prompt" title="'+esc(g.prompt)+'">'+esc(g.prompt||'—')+'</div>'+
+    '<button class="secondary gen-more" onclick="openGenDetail(\''+esc(g.id)+'\')">Full prompt and inputs</button>'+
     '<div class="muted" style="font-size:12px">'+fmt(g.created_at)+' · <code>'+esc(String(g.id).slice(0,8))+'</code>'+(g.provider?' · '+esc(g.provider):'')+'</div></div></div>';
 }
+// Full prompt, error and the files the customer uploaded, for one generation.
+const genById=new Map();let gdCurrent=null;
+async function openGenDetail(id){
+  const g=genById.get(id);if(!g)return;gdCurrent=g;
+  const detail=[g.media_type||'video',g.model,g.media_type==='video'||!g.media_type?(g.duration?g.duration+'s':''):'',g.resolution,g.aspect_ratio].filter(Boolean).join(' · ');
+  $('gdMeta').textContent=[g.user_email,detail,fmt(g.created_at),String(g.id)].filter(Boolean).join(' · ');
+  $('gdError').textContent=g.error_message||'';$('gdError').classList.toggle('hide',!g.error_message);
+  $('gdPrompt').textContent=g.prompt||'(no prompt)';
+  $('gdPromptCount').textContent='· '+num((g.prompt||'').length)+' characters';
+  $('gdOptions').textContent=JSON.stringify({mode:g.mode,status:g.status,provider:g.provider,provider_job_id:g.provider_job_id,credits:g.credits_cost,...(g.generation_options||{})},null,2);
+  $('gdInputs').innerHTML='<div class="muted">Loading...</div>';
+  $('genDetailModal').classList.remove('hide');
+  try{const d=await api('/admin/generations/'+encodeURIComponent(id)+'/inputs');if(gdCurrent!==g)return;
+    $('gdInputs').innerHTML=d.inputs.length?d.inputs.map(f=>{
+      const media=f.kind==='video'?'<video controls preload="metadata" playsinline src="'+esc(f.url)+'"></video>':
+        f.kind==='audio'?'<audio controls preload="none" src="'+esc(f.url)+'"></audio>':
+        '<a href="'+esc(f.url)+'" target="_blank" rel="noopener"><img loading="lazy" src="'+esc(f.url)+'" alt="'+esc(f.filename)+'"></a>';
+      return '<figure>'+media+'<figcaption class="muted">'+esc((f.role||f.kind).replace(/_/g,' '))+' · <a href="'+esc(f.url)+'" target="_blank" rel="noopener">'+esc(f.filename||'file')+'</a></figcaption></figure>';
+    }).join(''):'<div class="muted">No files were uploaded (text only).</div>';}
+  catch(e){if(gdCurrent===g)$('gdInputs').innerHTML='<div class="err">'+esc(e.message)+'</div>'}
+}
+function closeGenDetail(){$('genDetailModal').classList.add('hide');gdCurrent=null;$('gdInputs').innerHTML=''}
+function copyGenPrompt(){if(!gdCurrent)return;navigator.clipboard.writeText(gdCurrent.prompt||'').then(()=>toast('Prompt copied'),()=>toast('Could not copy'))}
 async function udLoadGens(more=false){
   if(!more){udGenOffset=0;$('udGenGrid').innerHTML='<div class="muted">Loading...</div>'}
   const p=new URLSearchParams({user_id:udUser.id,limit:'24',offset:String(udGenOffset)});
@@ -678,7 +717,8 @@ async function decidePlanRequest(id,action){
 async function loadGenerations(){try{const p=new URLSearchParams({q:$('genSearch').value.trim(),status:$('genStatus').value,media_type:$('genType').value});const d=await api('/admin/generations?'+p);
   const thumb=g=>g.thumb_url||g.poster_url?'<img class="thumb-mini" loading="lazy" src="'+esc(g.thumb_url||g.poster_url)+'" alt="">':'';
   const prev=g=>{const link=g.image_url||g.video_url||g.audio_url;return link?'<a href="'+esc(link)+'" target="_blank" rel="noopener" title="Open">'+(thumb(g)||'Open')+'</a>':'—'};
-  $('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+prev(g)+'</td><td><a href="#" onclick="openUserDrawer('+g.user_id+',\'gens\');return false">'+esc(g.user_email)+'</a></td><td>'+esc(g.media_type||'video')+'</td><td><span class="st '+esc(g.status)+'">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+(g.resolution?esc(g.resolution):'—')+'</td><td>'+g.credits_cost+'</td><td>'+esc(g.provider_job_id||'—')+(g.provider==='api888'&&g.media_type==='video'&&g.provider_job_id?' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="checkApi888Task(this,&#39;'+esc(g.id)+'&#39;)">Check 888API</button>':'')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+'</td></tr>').join(''):'<tr><td colspan="12" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="12" class="err">'+esc(e.message)+'</td></tr>'}}
+  d.generations.forEach(g=>genById.set(g.id,g));
+  $('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+prev(g)+'</td><td><a href="#" onclick="openUserDrawer('+g.user_id+',\'gens\');return false">'+esc(g.user_email)+'</a></td><td>'+esc(g.media_type||'video')+'</td><td><span class="st '+esc(g.status)+'">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+(g.resolution?esc(g.resolution):'—')+'</td><td>'+g.credits_cost+'</td><td>'+esc(g.provider_job_id||'—')+(g.provider==='api888'&&g.media_type==='video'&&g.provider_job_id?' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="checkApi888Task(this,&#39;'+esc(g.id)+'&#39;)">Check 888API</button>':'')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="openGenDetail(&#39;'+esc(g.id)+'&#39;)">Details</button></td></tr>').join(''):'<tr><td colspan="12" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="12" class="err">'+esc(e.message)+'</td></tr>'}}
 async function checkApi888Task(button,generationId){
   if(button.disabled)return;
   button.disabled=true;

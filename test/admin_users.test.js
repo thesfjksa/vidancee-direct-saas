@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { setUserPlan, changeUserCredits, adminMediaUrl, verifyAdminMedia, adminMediaLinks, adminPlanOptions } = require('../src/admin_users.js');
+const { setUserPlan, changeUserCredits, adminMediaUrl, verifyAdminMedia, adminMediaLinks, adminPlanOptions, adminGenerationInputs, INPUT_TYPE } = require('../src/admin_users.js');
 
 // A tiny in-memory stand-in for the users and credit_transactions tables.
 function fakeDb(user) {
@@ -87,4 +87,22 @@ test('boosted pricing scales prices and charges by 60000/42000', () => {
   assert.deepEqual(scaled[0].costEstimates, ['1:1||']);
   assert.equal(catalog[0].cost, 7, 'the original catalog is not changed');
   assert.equal(scalePrices(catalog, 1), catalog);
+});
+
+test('generation inputs list uploaded images with roles, then clips and sounds, as signed links', async () => {
+  const id = '11111111-2222-3333-4444-555555555555', now = 1_700_000_000_000;
+  const db = { async execute(sql) {
+    if (/FROM generation_images/.test(sql)) return [[{ id: 5, position_index: 0, filename: 'face.png', mime_type: 'image/png' }]];
+    return [[
+      { id: 8, position_index: 0, media_kind: 'image', media_role: 'start_image', filename: 'face.png', mime_type: 'image/png' },
+      { id: 9, position_index: 1, media_kind: 'video', media_role: 'reference_video', filename: 'move.mp4', mime_type: 'video/mp4' },
+    ]];
+  } };
+  const inputs = await adminGenerationInputs(db, 'secret', id, now);
+  assert.deepEqual(inputs.map(f => [f.kind, f.role, f.filename]), [['image', 'start_image', 'face.png'], ['video', 'reference_video', 'move.mp4']]);
+  const link = new URL(inputs[1].url, 'http://x');
+  assert.equal(link.searchParams.get('type'), 'media-9');
+  assert.equal(verifyAdminMedia('secret', id, 'media-9', link.searchParams.get('exp'), link.searchParams.get('sig'), now), true);
+  assert.equal(verifyAdminMedia('secret', id, 'media-8', link.searchParams.get('exp'), link.searchParams.get('sig'), now), false);
+  assert.ok(INPUT_TYPE.test('ref-5') && !INPUT_TYPE.test('ref-5x'));
 });

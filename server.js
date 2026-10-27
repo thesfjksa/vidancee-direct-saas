@@ -150,7 +150,7 @@ const {
   SUPPORT_WHATSAPP,
   whatsappUrl,
 } = require('./src/plans.js');
-const { adminPlanOptions, setUserPlan, changeUserCredits, verifyAdminMedia, adminMediaLinks, USER_FIELDS } = require('./src/admin_users.js');
+const { adminPlanOptions, setUserPlan, changeUserCredits, verifyAdminMedia, adminMediaLinks, adminGenerationInputs, INPUT_TYPE, USER_FIELDS } = require('./src/admin_users.js');
 const {
   createGenerationForUser, listUserGenerations, getUserGeneration,
   listUserGenerationReferenceImages, getUserGenerationReferenceImage,
@@ -1939,6 +1939,20 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && adminMediaMatch) {
       requireDatabase();
       const id=adminMediaMatch[1],type=String(url.searchParams.get('type')||'');
+      const input=INPUT_TYPE.exec(type);
+      if(input){
+        if(!verifyAdminMedia(adminToken,id,type,url.searchParams.get('exp'),url.searchParams.get('sig')))
+          return sendJson(res,403,{ok:false,error:'This link has expired. Refresh the admin page.'});
+        const [table,column]=input[1]==='ref'?['generation_images','image_data']:['generation_media','media_data'];
+        const [files]=await getPool().execute('SELECT mime_type,'+column+' AS data FROM '+table+' WHERE generation_id=? AND id=? LIMIT 1',[id,input[2]]);
+        if(!files[0])return sendJson(res,404,{ok:false,error:'File not found.'});
+        await require('./src/object_storage.js').hydrateBlobs(files,'data');
+        // Only media types play inline; anything else downloads, so it never runs on the admin origin.
+        const media=/^(image|video|audio)\/[\w.+-]+$/i.test(files[0].mime_type)&&!/svg/i.test(files[0].mime_type);
+        res.writeHead(200,{'content-type':media?files[0].mime_type:'application/octet-stream','content-length':files[0].data.length,
+          'cache-control':'private, max-age=3600','x-content-type-options':'nosniff',...(media?{}:{'content-disposition':'attachment'})});
+        return res.end(files[0].data);
+      }
       if(!['video','poster','image','thumbnail','audio'].includes(type)||!verifyAdminMedia(adminToken,id,type,url.searchParams.get('exp'),url.searchParams.get('sig')))
         return sendJson(res,403,{ok:false,error:'This link has expired. Refresh the admin page.'});
       const [rows]=await getPool().execute('SELECT * FROM generations WHERE id=? LIMIT 1',[id]);
@@ -2640,6 +2654,12 @@ const server=http.createServer(async (req,res)=>{
           params,
         );
         return sendJson(res,200,{ok:true,transactions:rows});
+      }
+
+      const inputsMatch=routePath.match(/^\/admin\/generations\/([0-9a-f-]{36})\/inputs$/i);
+      if (req.method==='GET' && inputsMatch) {
+        requireDatabase();
+        return sendJson(res,200,{ok:true,inputs:await adminGenerationInputs(getPool(),adminToken,inputsMatch[1])});
       }
 
       if (req.method==='GET' && routePath==='/admin/generations') {

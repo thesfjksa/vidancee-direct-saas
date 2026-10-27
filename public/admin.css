@@ -134,6 +134,13 @@ pre { overflow: auto; max-height: 430px; padding: 18px; background: var(--panel-
 .gen-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
 .gen-top { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
 .gen-prompt { color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gen-more { align-self: flex-start; font-size: 12px; padding: 5px 10px; }
+.gd-prompt { white-space: pre-wrap; word-break: break-word; background: var(--panel-3); border-radius: 10px; padding: 12px 14px; margin: 8px 0 16px; max-height: 45vh; overflow: auto; font-size: 14px; line-height: 1.5; }
+.gd-inputs { display: grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap: 10px; }
+.gd-inputs figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.gd-inputs img, .gd-inputs video { width: 100%; aspect-ratio: 1; object-fit: contain; background: #0f1d2b; border-radius: 8px; display: block; }
+.gd-inputs audio { width: 100%; }
+.gd-inputs figcaption { font-size: 12px; word-break: break-all; }
 .gen-error { color: var(--danger); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .st { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--panel-3); color: var(--text-2); }
 .st.completed { background: var(--ok-bg); color: var(--ok); }
