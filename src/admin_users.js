@@ -92,4 +92,21 @@ function adminMediaLinks(secret, row) {
   return links;
 }
 
-module.exports = { adminPlanOptions, setUserPlan, changeUserCredits, adminMediaUrl, verifyAdminMedia, adminMediaLinks, USER_FIELDS };
+// The files a customer uploaded with one generation, with signed links.
+// Every reference image is in generation_images; clips and sounds are only in
+// generation_media (which also repeats the images, with their role, for some models).
+const INPUT_TYPE = /^(ref|media)-(\d+)$/;
+async function adminGenerationInputs(db, secret, generationId, now = Date.now()) {
+  const [images] = await db.execute(
+    'SELECT id,position_index,filename,mime_type FROM generation_images WHERE generation_id=? ORDER BY position_index,id', [generationId]);
+  const [media] = await db.execute(
+    'SELECT id,position_index,media_kind,media_role,filename,mime_type FROM generation_media WHERE generation_id=? ORDER BY position_index,id', [generationId]);
+  const imageRoles = new Map(media.filter(m => m.media_kind === 'image').map(m => [Number(m.position_index), m.media_role]));
+  const item = (type, kind, row, role) => ({ kind, role: role || '', filename: row.filename, mime_type: row.mime_type,
+    url: adminMediaUrl(secret, generationId, type + '-' + row.id, now) });
+  const inputs = images.map(r => item('ref', 'image', r, imageRoles.get(Number(r.position_index))));
+  for (const m of media) if (m.media_kind !== 'image' || !images.length) inputs.push(item('media', m.media_kind, m, m.media_role));
+  return inputs;
+}
+
+module.exports = { adminPlanOptions, setUserPlan, changeUserCredits, adminMediaUrl, verifyAdminMedia, adminMediaLinks, adminGenerationInputs, INPUT_TYPE, USER_FIELDS };
