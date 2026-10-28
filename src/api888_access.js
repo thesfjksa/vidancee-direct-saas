@@ -45,4 +45,16 @@ async function enableDefaultApi888ModelsOnce(db) {
   } catch(error){await conn.rollback();throw error;}
   finally {conn.release();}
 }
-module.exports={disableApi888ForUsersOnce,enableDefaultApi888ModelsOnce,DEFAULT_ON_MODELS};
+// Owner's request (28 Oct 2026): Seedance 2.5 Full HD was not finishing at
+// 888API, so its open jobs are cancelled and refunded once.
+const FULL_HD_PUBLIC_ID='api888_seedance2_5_930_1080p';
+async function cancelFullHdJobsOnce(db,refund=require('./generations.js').refundGeneration){
+  const {getSettingValue,setSettingValue}=require('./settings.js');
+  const key='api888_full_hd_cancelled_v1';
+  if(await getSettingValue(key,''))return 0;
+  await setSettingValue(key,new Date().toISOString());
+  const [rows]=await db.execute("SELECT id FROM generations WHERE model=? AND refunded_at IS NULL AND status IN ('queued','submitting','submitted','processing')",[FULL_HD_PUBLIC_ID]);
+  for(const row of rows)await refund(row.id,'failed','Cancelled: model under maintenance. Credits were refunded.',null);
+  return rows.length;
+}
+module.exports={disableApi888ForUsersOnce,enableDefaultApi888ModelsOnce,cancelFullHdJobsOnce,DEFAULT_ON_MODELS};
