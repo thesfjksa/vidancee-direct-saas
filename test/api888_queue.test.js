@@ -73,3 +73,17 @@ test('failed 888API video keeps the provider reason in Activity and gives custom
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'未知错误'})},job);
  assert.equal(refunds[0].message,'Model under maintenance. Please choose another model. Credits were refunded.');
 });
+
+test('a finished 888API video whose download fails is retried for 24 hours, not refunded at 3',async()=>{
+ const updates=[];
+ const queue=new Api888Queue({refund:async()=>assert.fail('no refund')});
+ const db={execute:async(sql,params)=>{updates.push(params);return [{}];}};
+ const failing={videoStatus:async()=>({status:'completed',url:'https://cdn.example/v.mp4'}),
+  videoContent:async()=>{throw new Error('888API completed video could not be downloaded using either available GET route.');}};
+ const pending={...job,provider_operation:JSON.stringify({requestId:'task_abc123'})};
+ await assert.rejects(queue.pollJob(db,failing,pending),/could not be downloaded/);
+ const saved=JSON.parse(updates[0][0]);
+ assert.equal(saved.requestId,'task_abc123');assert.ok(saved.outputReadyAt);
+ assert.equal(queue.timeoutFor(pending),3*60*60*1000);
+ assert.equal(queue.timeoutFor({provider_operation:updates[0][0]}),24*60*60*1000);
+});

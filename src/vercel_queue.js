@@ -139,6 +139,10 @@ class VercelQueue {
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify(result.operation),jobId?String(jobId).slice(0,191):null,job.id]);
   }
+  // How long a submitted video may take before it is refunded.
+  timeoutFor() {
+    return this.videoTimeoutMs;
+  }
   async pollVideos(db,client) {
     const [jobs]=await db.query(`SELECT * FROM generations WHERE provider='${this.provider}' AND media_type='video'
       AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY updated_at ASC LIMIT 12`);
@@ -146,7 +150,7 @@ class VercelQueue {
       if(this.tasks.has(job.id))continue;
       const stamp=job.submitted_at||job.created_at;
       const age=Date.now()-(stamp instanceof Date?stamp.getTime():Date.parse(String(stamp).replace(' ','T')+'Z'));
-      if(age>this.videoTimeoutMs){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
+      if(age>this.timeoutFor(job)){await this.refund(job.id,'failed','Video generation timed out. Credits were refunded.',null);continue;}
       this.tasks.add(job.id);
       Promise.resolve().then(()=>this.exclusive(db,job,fresh=>this.pollJob(db,client,fresh))).catch(async error=>{
         // Logged once per distinct message, not on every 5-second poll.
