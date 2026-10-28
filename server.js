@@ -852,7 +852,7 @@ async function submitVideoGeneration(user,body,req=null){
     const model=await getProviderModelByPublicId('api888',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'888API model not ready.');
     if(!isApi888Available(await loadApi888Health().catch(()=>null),model.providerModelId))
-      throw httpError(503,'This model is temporarily unavailable. Please choose another model.');
+      throw httpError(503,'Model under maintenance. Please choose another model.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
@@ -975,7 +975,7 @@ async function submitImageGeneration(user,body,req=null){
     const model=await getProviderModelByPublicId('api888',requestedModel,'image');
     if(!model?.ready)throw httpError(404,'888API image model not ready.');
     if(!isApi888Available(await loadApi888Health().catch(()=>null),model.providerModelId))
-      throw httpError(503,'This model is temporarily unavailable. Please choose another model.');
+      throw httpError(503,'Model under maintenance. Please choose another model.');
     if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);

@@ -223,9 +223,38 @@ const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 // Owner's choice (25 Oct 2026): only these 888API models are offered, under
 // these names (Wan 3.0 720p added the same day). Tests of the wider catalog turn the rest on with
 // setApi888OfferAll(true).
+// 28 Oct 2026: every priced Seedance 2.5 SKU is offered too, each under its
+// own customer name (never the raw 888API id). Which ones customers see at a
+// given moment follows 888API's live model list and health status.
 const OFFERED={
  'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
+ 'seedance2.5-301010-wool-1080p':'Seedance 2.5 Standard HD',
+ 'seedance2.5-101010-wool':'Seedance 2.5 Lite',
+ 'seedance2.5-900-wool':'Seedance 2.5 Economy',
+ 'seedance2.5-900':'Seedance 2.5 Classic',
+ 'seedance2.5-301010':'Seedance 2.5 Multi-Reference',
+ 'seedance2.5-301010-av':'Seedance 2.5 Beta',
+ 'seedance2.5-930-1080p':'Seedance 2.5 Full HD',
+ 'doubao-seedance-2.5':'Seedance 2.5 Original',
+ 'dola-seedance-2.5':'Seedance 2.5 Flex',
+ 'dola-seedance-2.5-900':'Seedance 2.5 Flex Lite',
+ 'dola-seedance-2.5-301010':'Seedance 2.5 Flex Pro',
+ 'xin-seedance-2.5-3010':'Seedance 2.5 Swift',
+ 'xin-seedance-2.5-900':'Seedance 2.5 Swift Lite',
+ 'seedance2.5-vip-30-10-10':'Seedance 2.5 VIP',
+ 'seedance2.5-vip-30-0-10':'Seedance 2.5 VIP Long',
+ 'ss-2.5-720p-v1':'Seedance 2.5 Studio',
+ 's2-2.5-480p-v2':'Seedance 2.5 Draft',
+ 's2-2.5-720p-v3':'Seedance 2.5 Cinema',
+ 's2-2.5-720p-v4':'Seedance 2.5 Director',
+ 'seedance2.5-480p-value':'Seedance 2.5 Value 480p',
+ 'seedance2.5-480p-plus':'Seedance 2.5 Plus 480p',
+ 'seedance2.5-480p-pro':'Seedance 2.5 Pro 480p',
+ 'seedance2.5-720p-plus':'Seedance 2.5 Plus 720p',
+ 'seedance2.5-720p-pro':'Seedance 2.5 Pro 720p',
+ 'seedance2.5-1080p-plus':'Seedance 2.5 Plus 1080p',
+ 'seedance2.5-1080p-pro':'Seedance 2.5 Pro 1080p',
  'seedance2.0-933':'Seedance 2.0 Standard',
  'wan3.0-video-prime':'Wan 3.0 Video Prime',
  'wan30-720p':'Wan 3.0 Standard',
@@ -318,6 +347,8 @@ function describedModel(id,type) {
       'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
       'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
+      'dola-seedance-2.5','xin-seedance-2.5-3010','xin-seedance-2.5-900',
+      'seedance2.5-vip-30-10-10','seedance2.5-vip-30-0-10',
       'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
       'doubao-seedance-2.0-mini','ss-2.0-933-720p','seedance2.5-301010-wool-1080p',

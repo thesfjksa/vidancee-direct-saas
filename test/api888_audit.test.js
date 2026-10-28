@@ -102,10 +102,11 @@ test('exact SS and Dola model status distinguishes provider account access from 
  assert.equal(byId.get('seedance-2.5-G2-V').state,'not_returned_by_888api');
 });
 test('an upstream-listed but unimplemented Seedance stays Admin-only even when a saved record exists',()=>{
- const live={data:[{id:'seedance2.5-vip-30-10-10'}]};
- const stored=[row('seedance2.5-vip-30-10-10',{supported:false,ready:false})];
+ // No verified price for G2-V, so it is never offered.
+ const live={data:[{id:'seedance-2.5-G2-V'}]};
+ const stored=[row('seedance-2.5-G2-V',{supported:false,ready:false})];
  const result=auditApi888Import(live,stored);
- const status=result.multimodalSeedance.find(x=>x.id==='seedance2.5-vip-30-10-10');
+ const status=result.multimodalSeedance.find(x=>x.id==='seedance-2.5-G2-V');
  assert.equal(status.state,'adapter_not_implemented');
  assert.equal(status.adapterSupported,false);
  assert.match(status.nextAction,/Admin-only/);

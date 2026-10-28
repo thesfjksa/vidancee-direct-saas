@@ -1,13 +1,17 @@
 'use strict';
 
+const { customerError } = require('./provider_errors.js');
+
 // Customers never see which companies run CMM Tools' models. Provider error
 // messages are passed through this before they reach a customer or Claude;
 // the activity log and Admin keep the real names.
 const VENDORS = /\b(?:888[\s-]*API(?:\.xin)?|API[\s-]*888|Vercel\s+AI\s+Gateway|AI\s+Gateway|Vercel|ArgoLink|Argo\s*Link|Vidancee|CreatePulse|Create\s*Pulse|vgenv|SmartAIPI|Smart\s*AIPI|fal\.ai|fal|Vibi|Gemini|ByteDance|Alibaba\s+Cloud|aliyuncs?|Yotta\s*Labs|Yotta|Higgsfield|Sluice|getsluice(?:\.com)?)\b/gi;
 
+// Raw source errors (Chinese text, "Request failed (HTTP 400)") are replaced
+// with the maintenance notice first (provider_errors.js customerError).
 function hideVendors(text) {
   if (typeof text !== 'string' || !text) return text;
-  return text
+  return customerError(text)
     .replace(/\b(?:CREATEPULSE|VIDANCEE|VGENV|ARGOLINK|SMARTAIPI|VERCEL|FAL|VIBI|GEMINI|YOTTA|HIGGSFIELD|SLUICE)_[A-Z_]+\b/g, 'service setting')
     .replace(/\bAPI888_[A-Z_]+\b/g, 'service setting')
     .replace(/\bapi888_(?=[a-z0-9])/gi, '')

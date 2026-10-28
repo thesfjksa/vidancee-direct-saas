@@ -2,7 +2,8 @@
 const {VercelQueue,savedOptions}=require('./vercel_queue.js');
 const {Api888Client}=require('./provider/api888.js');
 const {errorDetails}=require('./activity_log.js');
-const {failureMessage}=require('./provider_errors.js');
+const {failureMessage,modelUnavailable}=require('./provider_errors.js');
+const {markApi888ModelDown}=require('./api888_health.js');
 class Api888Queue extends VercelQueue{
   constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;}
   apiKey(s){return s.api888ApiKey||'';}
@@ -26,9 +27,26 @@ class Api888Queue extends VercelQueue{
       return key?{...ref,url:store.presign(key,{expires:86400,contentType:ref.mimeType})}:ref;
     });
   }
+  // Customers never read 888API's own wording (e.g. "Request failed (HTTP
+  // 400) 请改用其他模型"); Activity keeps it (job.submit_failed).
+  submitFailureMessage(error,job){
+    return failureMessage(job.media_type==='image'?'image':'video',error.providerMessage||error.message);
+  }
+  // "Please use another model" and similar answers hide the model from
+  // customers for a while, instead of letting the next customer fail too.
+  async noteModelDown(job,providerModelId,reason){
+    if(!providerModelId||!modelUnavailable(reason))return;
+    await markApi888ModelDown(providerModelId).catch(()=>{});
+    this.log(job,'api888.model_down','888API says this model is unavailable; hidden from customers for 30 minutes',
+      {model:providerModelId,reason:String(reason).slice(0,300)},'warn');
+  }
   async submit(db,job,client){
     const options=savedOptions(job),model=await this.getModel('api888',job.model,job.media_type);
     if(!model?.ready)throw new Error('888API model cannot currently accept generation.');
+    try{return await this.send(db,job,client,model,options);}
+    catch(error){await this.noteModelDown(job,model.providerModelId,error.providerMessage||error.message);throw error;}
+  }
+  async send(db,job,client,model,options){
     const refs=await this.references(db,job);
     if(job.media_type==='image'){
       const result=await client.generateImage(model,options,refs);
@@ -94,6 +112,8 @@ class Api888Queue extends VercelQueue{
       const reason=result.error&&result.error!=='888API reported generation failure.'?String(result.error).trim().slice(0,300):'';
       this.log(job,'job.provider_failed','888API reported the video as failed'+(reason?': '+reason:''),
         {providerJobId:op.requestId,providerStatus:result.providerStatus,progress:result.progress,reason:reason||null},'error');
+      let providerModelId='';try{providerModelId=savedOptions(job).model.providerModelId;}catch{}
+      await this.noteModelDown(job,providerModelId,reason);
       return this.refund(job.id,'failed',failureMessage('video',reason),null);
     }
     let video;
