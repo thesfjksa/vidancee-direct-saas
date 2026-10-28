@@ -5,7 +5,14 @@ const {errorDetails}=require('./activity_log.js');
 const {failureMessage,modelUnavailable}=require('./provider_errors.js');
 const {markApi888ModelDown}=require('./api888_health.js');
 class Api888Queue extends VercelQueue{
-  constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;}
+  constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;this.readyTimeoutMs=24*60*60*1000;}
+  // 888API charges for a video once it is finished. When only our download of
+  // it fails (their file server timing out, 28 Oct 2026), keep retrying for a
+  // day instead of refunding the customer at 3 hours and paying for nothing.
+  timeoutFor(job){
+    let op={};try{op=JSON.parse(job.provider_operation||'{}');}catch{}
+    return op.outputReadyAt?this.readyTimeoutMs:this.videoTimeoutMs;
+  }
   apiKey(s){return s.api888ApiKey||'';}
   sourceEnabled(s){return Boolean(s.api888Enabled);}
   maxInflight(s){return s.api888MaxInflight||6;}
@@ -126,6 +133,11 @@ class Api888Queue extends VercelQueue{
         return this.refund(job.id,'failed',
           'The video finished, but it could not be downloaded safely. Credits were refunded.',
           null);
+      }
+      // Remember that 888API finished it, so the longer timeout applies.
+      if(!op.outputReadyAt){
+        op.outputReadyAt=new Date().toISOString();
+        try{await db.execute("UPDATE generations SET provider_operation=? WHERE id=? AND refunded_at IS NULL",[JSON.stringify(op),job.id]);}catch{}
       }
       throw error;
     }

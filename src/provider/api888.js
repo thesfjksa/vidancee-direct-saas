@@ -301,12 +301,15 @@ function publicMediaUrl(raw,base=ORIGIN,allowPublicIp=false){
   }catch(error){throw classify(error,target);}
 }
 
+// A finished 30 s video can take minutes to stream from 888API to a busy
+// worker; 3 minutes cut downloads off mid-file (28 Oct 2026).
+const DOWNLOAD_TIMEOUT_MS=10*60*1000;
 Api888Client.prototype.download=async function(url,maxBytes=VIDEO_LIMIT,{allowPublicIp=false}={}){
   // 888API also returns same-origin relative /v1/videos/..../content URLs.
   let current=publicMediaUrl(url,ORIGIN,allowPublicIp);
   for(let i=0;i<5;i++){
     const authenticated=new URL(current).origin===ORIGIN && new URL(current).pathname.startsWith('/v1/videos/');
-    const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(180000),
+    const r=await this.fetch(current,{redirect:'manual',signal:AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
       headers:authenticated?{authorization:'Bearer '+this.apiKey}:{}});
     const next=r.headers.get('location');
     if(r.status>=300&&r.status<400&&next){await r.body?.cancel?.().catch(()=>{});current=publicMediaUrl(next,current,allowPublicIp);continue;}
@@ -334,7 +337,7 @@ Api888Client.prototype.videoContent=async function(id,url){
   try{
     const path='/v1/videos/'+encodeURIComponent(id)+'/content';
     const response=await this.fetch(ORIGIN+path,{headers:{authorization:'Bearer '+this.apiKey},
-      redirect:'manual',signal:AbortSignal.timeout(180000)});
+      redirect:'manual',signal:AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)});
     let data;
     if(response.status>=300&&response.status<400&&response.headers.get('location')){
       const location=response.headers.get('location');
