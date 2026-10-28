@@ -42,3 +42,14 @@ test('Seedance 2.0 wool models are offered: 4–10 s, 720p, up to 9 images',()=>
   assert.equal(m.options.referenceCapabilities.image.max,9);
  }
 });
+
+test('models 888API listed as currently available on 28 Oct 2026 are offered',()=>{
+ const ids=['seedance2.5-930-1080p','sd2.5-G3-特惠-1','seedance2.0-900-wool','seedance2.0-933-economy','seedance2.0-stable-480p',
+  'seedance2.5-301010-wool-1080p','wan30-720p','seedance2.0-933-wool','wan30-1080p-fast','seedance2.5-301010-wool',
+  'ss-2.5-720p-v3','seedance2.0-933','sd_2.0_mini_special','MC-WAN3-Prime-1080P-30S'];
+ for(const m of api888MediaModels({data:ids.map(id=>({id}))})){
+  assert.equal(m.options.adapterSupported,true,m.providerModelId);
+  assert.ok(m.options.api888.sourceCny>0,m.providerModelId);
+  assert.doesNotMatch(m.label,/[㐀-鿿]|_|MC-/,m.label);
+ }
+});
