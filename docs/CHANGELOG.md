@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-28 — Omni Flash from CreatePulse in Video Studio
+
+- New Video Studio model **Omni Flash** (`cp_omni_flash`, CreatePulse `veo-omni-flash`): 4, 6, 8 or 10 s, 9:16 or 16:9, 720p, with a start frame, end frame and reference images (4 images at most). CreatePulse's price is flat per clip length, and its API costs twice the website price: $0.05 / $0.072 / $0.086 / $0.1072. It is sold at cost like every model (plus the 5% increase). Prices live in `src/createpulse_models.js` and are written to `provider_models` on every start.
+- Admin → Provider has a new **CreatePulse (Omni Flash)** card for the API key (`cp_…`), on/off switch, max inflight (3, or 10 for VIP accounts) and **Check key**. `CREATEPULSE_API_KEY` in the environment is imported once if no key is saved. CreatePulse refuses every API job while the account holds less than $10. Admin → Users → Sources has a CreatePulse switch.
+- Jobs run in `src/createpulse_queue.js` (the ArgoLink queue's claim, recovery and refunds). References are sent as the app's signed links. A failed job is refunded by CreatePulse and by us; customers read "Model under maintenance" (or the safety/busy sentence) instead of CreatePulse's text, which stays in Activity.
+- CreatePulse is no longer in the retired-sources cleanup (it was removed on 20 October for the $10 minimum), so its new jobs are not refunded by that pass.
+
 ## 2026-10-26 — Longer prompts on 888API models
 
 - Every 888API model refused prompts over 4,096 characters ("The prompt exceeds this model’s text limit."), e.g. long Seedance 2.5 Realism prompts with several @Image references. 888API states no limit, and 4,096 had no source. The limit is now 20,000 characters, what Seedance 2.5 accepts on Sluice (`API888_PROMPT_CHARS` in `src/prompt_limits.js`). Rows synced earlier still hold 4,096 and get 20,000 without a re-sync. If 888API turns out to cap prompts lower, the job fails at 888API and is refunded as usual.
