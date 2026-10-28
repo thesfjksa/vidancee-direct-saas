@@ -227,6 +227,18 @@
           <div id="sluiceActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
+          <div class="source-head"><h3>Video Studio · CreatePulse (Omni Flash)</h3><label class="source-switch"><input id="createPulseEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="createPulseEnabledText" class="source-state"></div>
+          <div class="muted">Endpoint · https://createpulse.online</div>
+          <label class="muted" for="createPulseApiKey">CreatePulse API key (cp_…, from the API tab of its dashboard)</label><input id="createPulseApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearCreatePulseApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div id="createPulseSecretStatus" class="muted" style="margin-top:8px"></div>
+          <label class="muted" for="createPulseInflight" style="display:block;margin-top:12px">Max inflight generations (CreatePulse allows 3, or 10 for VIP accounts)</label><input id="createPulseInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
+          <div class="muted" style="margin:10px 0">Omni Flash 4 / 6 / 8 / 10 s (9:16, 16:9, up to 4 images), sold at cost from CreatePulse's API prices: $0.05 / $0.072 / $0.086 / $0.1072 per clip. The API refuses every job while the account holds less than $10; top up with USDT in CreatePulse.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkCreatePulse()">Check key</button></div>
+          <div id="createPulseActionMsg" class="muted" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
           <div class="source-head"><h3>Video Studio · Higgsfield (Wan 3.0)</h3><label class="source-switch"><input id="higgsfieldEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="higgsfieldEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://api.higgsfield.ai</div>
@@ -371,6 +383,7 @@
       <label class="provider-access-item"><div><strong>888API</strong><span class="muted">Video Studio + Image Studio</span></div><span class="source-switch"><input id="accessApi888" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>CreatePulse</strong><span class="muted">Video Studio · Omni Flash</span></div><span class="source-switch"><input id="accessCreatePulse" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -448,7 +461,7 @@ function planOptions(selected){
 const num=v=>Number(v||0).toLocaleString();
 function userRow(u){
   const a=u.provider_access||{};
-  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['createpulse','CreatePulse'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
   const off=sourceLabels.filter(([k])=>a[k]===false).map(([,l])=>l);
   const sources=off.length?'<span class="muted" title="Turned off: '+esc(off.join(', '))+'">'+(sourceLabels.length-off.length)+' of '+sourceLabels.length+' on</span>':'<span class="muted">All on</span>';
   return '<tr id="urow'+u.id+'"><td>'+u.id+'</td>'+
@@ -650,6 +663,7 @@ function openProviderAccess(id){
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessSluice').checked=a.sluice!==false;
+  $('accessCreatePulse').checked=a.createpulse!==false;
   $('accessFal').checked=a.fal!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessSmartaipi').checked=a.smartaipi!==false;
@@ -667,6 +681,7 @@ async function saveProviderAccess(){
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
     sluice:$('accessSluice').checked,
+    createpulse:$('accessCreatePulse').checked,
     fal:$('accessFal').checked,
     vgenv:$('accessVgenv').checked,
     smartaipi:$('accessSmartaipi').checked,
@@ -849,6 +864,7 @@ function updateSourceSwitchLabels(){
     ['api888Enabled','api888EnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
     ['sluiceEnabled','sluiceEnabledText'],
+    ['createPulseEnabled','createPulseEnabledText'],
     ['falEnabled','falEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
@@ -982,6 +998,10 @@ async function loadProviderSettings(){try{
   $('sluiceApiKey').value='';$('clearSluiceApiKey').checked=false;
   $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   $('sluiceInflight').value=s.sluice?.maxInflight||3;
+  $('createPulseEnabled').checked=s.createpulse?.enabled!==false;
+  $('createPulseApiKey').value='';$('clearCreatePulseApiKey').checked=false;
+  $('createPulseSecretStatus').textContent=s.createpulse?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('createPulseInflight').value=s.createpulse?.maxInflight||3;
   $('falEnabled').checked=s.fal?.enabled!==false;
   $('falApiKey').value='';$('clearFalApiKey').checked=false;
   $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
@@ -1013,6 +1033,7 @@ async function saveProviderSettings(){
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
+    createPulseEnabled:$('createPulseEnabled').checked,createPulseApiKey:$('createPulseApiKey').value.trim(),clearCreatePulseApiKey:$('clearCreatePulseApiKey').checked,createPulseMaxInflight:Number($('createPulseInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
@@ -1130,6 +1151,11 @@ async function checkSluice(){
   const msg=$('sluiceActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
   try{const d=await api('/admin/sluice/check',{method:'POST',body:'{}'});const b=d.balance||{};const f=v=>v==null?'?':'$'+v.toFixed(2);
     msg.className='ok';msg.textContent='Connected · balance '+f(b.availableUsd)+' · this month '+f(b.monthSpendUsd)+(b.spendLimitUsd!=null?' of '+f(b.spendLimitUsd)+' limit':'');}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function checkCreatePulse(){
+  const msg=$('createPulseActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  try{const d=await api('/admin/createpulse/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · '+d.ready+' of '+d.total+' model ready and visible';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function syncSluiceModels(){

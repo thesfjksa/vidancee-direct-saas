@@ -252,15 +252,15 @@ test('the Higgsfield queue uploads references, saves the request, then stores, u
   await assert.rejects(queue.pollJob(db, client, { ...polled, provider_operation: JSON.stringify({ requestId: 'x' }) }), /could not be resumed/);
 });
 
-test('retired sources (Yotta, Vidancee, CreatePulse) have their open jobs refunded; Higgsfield jobs are not', async () => {
+test('retired sources (Yotta, Vidancee) have their open jobs refunded; Higgsfield and CreatePulse jobs are not', async () => {
   const { GenerationWorker } = require('../src/worker_admin_settings.js');
   const w = new GenerationWorker();
   let query = '', moved = '';
   await w.retireRemovedSources({ query: async text => { query = text; return [[]]; }, execute: async text => { moved = text; return [{ affectedRows: 0 }]; } });
-  assert.match(query, /provider IN \('atlascloud','yotta','vidancee','createpulse'\)/);
-  assert.doesNotMatch(query, /higgsfield/);
+  assert.match(query, /provider IN \('atlascloud','yotta','vidancee'\)/);
+  assert.doesNotMatch(query, /higgsfield|createpulse/);
   // MiniMax H3 jobs queued under the old default source move to vgenv instead of being refunded.
-  assert.match(moved, /SET provider='vgenv'.*provider IN \('vidancee','createpulse'\) AND model='minimax_h3' AND status='queued'/);
+  assert.match(moved, /SET provider='vgenv'.*provider='vidancee' AND model='minimax_h3' AND status='queued'/);
   w.stop?.();
 });
 

@@ -5,6 +5,7 @@ const { DEFAULT_ON_MODELS } = require('./api888_access.js');
 const { hideApi888Name } = require('./vendor_names.js');
 const { higgsfieldMediaModels, higgsfieldReferenceCapabilities } = require('./higgsfield_models.js');
 const { sluiceMediaModels } = require('./sluice_models.js');
+const { createPulseMediaModels, createPulseReferenceCapabilities } = require('./createpulse_models.js');
 const { modelFamily } = require('./model_families.js');
 const { modelReady, normalizePriceOverride, mediaModels, quoteGateway, publishedImageTiers, applyModelFixups, promptLimit } = require('./vercel_models.js');
 
@@ -165,7 +166,7 @@ async function syncProviderModels(provider, discoveredModels) {
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','api888','falimg'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','createpulse','api888','falimg'];
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -212,6 +213,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
     ...(row.provider==='sluice'?{sluice:options.sluice||{},referenceCapabilities:options.referenceCapabilities}:{}),
+    ...(row.provider==='createpulse'?{createPulse:options.createPulse||{},referenceCapabilities:options.referenceCapabilities||createPulseReferenceCapabilities(4)}:{}),
   };
   if (includeInternal) {
     base.provider = row.provider;
@@ -563,6 +565,18 @@ async function ensureSluiceCatalog(fetchCatalog) {
   } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_sluice_catalog_seed')");conn.release();}
 }
 
+// CreatePulse has no catalogue: its models and prices are in the code and
+// are written on every start, so a price change ships with a deploy.
+async function ensureCreatePulseCatalog() {
+  const db=getPool();
+  const conn=await db.getConnection();let locked=false;
+  try {
+    const [[lock]]=await conn.query("SELECT GET_LOCK('cmm_createpulse_catalog_seed',10) AS acquired");
+    locked=Number(lock?.acquired)===1;if(!locked)return;
+    await syncProviderModels('createpulse',createPulseMediaModels());
+  } finally {if(locked)await conn.query("SELECT RELEASE_LOCK('cmm_createpulse_catalog_seed')");conn.release();}
+}
+
 async function ensureApi888Catalog(){
   const db=getPool();
   const [[count]]=await db.execute("SELECT COUNT(*) AS total FROM provider_models WHERE provider='api888'");
@@ -577,6 +591,7 @@ async function ensureApi888Catalog(){
 module.exports = {
   ensureApi888Catalog,
   ensureSluiceCatalog,
+  ensureCreatePulseCatalog,
   ensureArgoCatalog,
   ensureHiggsfieldCatalog,
   isPricedSource,
