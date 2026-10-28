@@ -197,8 +197,6 @@ const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validate
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
-const { isCreatePulseModel, createPulseMediaModels } = require('./src/createpulse_models.js');
-const { CreatePulseClient } = require('./src/provider/createpulse.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
@@ -216,7 +214,7 @@ const {
   listProviderModels,
   getProviderModelByPublicId,
   setProviderModelEnabled,
-  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog, ensureCreatePulseCatalog, ensureApi888Catalog,
+  syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog, ensureApi888Catalog,
 } = require('./src/provider_models.js');
 
 const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -436,7 +434,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['api888','sluice','createpulse','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
@@ -625,11 +623,6 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
-  // Omni Flash on CreatePulse: a flat price per clip length, at cost.
-  if(access.createpulse && providerSettings.createpulse.active){
-    const catalog=await safeCatalog('createpulse',()=>publicProviderCatalog('createpulse',{creditsPerUsd:providerSettings.createpulse.customerCreditsPerUsd}));
-    video=[...video,...catalog.video];
-  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
@@ -640,7 +633,6 @@ function modelVendor(id){
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
   if(isSluiceModel(id))return 'Sluice';
-  if(isCreatePulseModel(id))return 'CreatePulse';
   if(isFalImageModel(id))return 'fal.ai';
   if(isGatewayModel(id))return 'Vercel AI Gateway';
   if(smartImageModel(id))return 'SmartAIPI';
@@ -748,13 +740,6 @@ async function quoteModelForUser(userId,body){
     const model=await getProviderModelByPublicId('sluice',String(body.model),'video');
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
     const quote=quoteGateway(model,body,providerSettings.sluice.customerCreditsPerUsd);
-    return {cost:quote.cost,isEstimate:quote.isEstimate};
-  }
-  if(isCreatePulseModel(body.model)&&mediaType==='video'){
-    if(!access.createpulse||!providerSettings.createpulse.active)throw httpError(403,'This model source is unavailable for your account.');
-    const model=await getProviderModelByPublicId('createpulse',String(body.model),'video');
-    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
-    const quote=quoteGateway(model,body,providerSettings.createpulse.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isHiggsfieldModel(body.model)&&mediaType==='video'){
@@ -900,19 +885,6 @@ async function submitVideoGeneration(user,body,req=null){
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'sluice',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model,...(cartoonOptions||{})},
-    });
-  }
-
-  // Omni Flash on CreatePulse (Video Studio only).
-  if(!cartoonOptions&&isCreatePulseModel(requestedModel)){
-    if(!customerAccess.createpulse||!providerSettings.createPulseEnabled||!providerSettings.createPulseApiKey)throw httpError(503,'This video model is currently unavailable.');
-    const model=await getProviderModelByPublicId('createpulse',requestedModel,'video');
-    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
-    validateReferences(model,body);
-    const quote=quoteGateway(model,body,providerSettings.createPulseCustomerCreditsPerUsd);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'createpulse',dynamicModel:true,
-      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
   }
 
@@ -1308,7 +1280,7 @@ const server=http.createServer(async (req,res)=>{
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.createpulse.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -2270,12 +2242,6 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();const s=await getProviderSettings();
         return sendJson(res,200,{ok:true,balance:await new SluiceClient({apiKey:s.sluiceApiKey}).balance()});
       }
-      if(req.method==='POST'&&routePath==='/admin/createpulse/check'){
-        requireDatabase();const s=await getProviderSettings();
-        await new CreatePulseClient({apiKey:s.createPulseApiKey}).verifyKey();
-        const models=await syncProviderModels('createpulse',createPulseMediaModels());
-        return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
-      }
       if(req.method==='POST'&&routePath==='/admin/sluice/sync'){
         requireDatabase();
         const models=await syncProviderModels('sluice',sluiceMediaModels(await fetchSluiceCatalog()));
@@ -2408,7 +2374,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice','createpulse','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const models=await listProviderModels(provider);
         return sendJson(res,200,{ok:true,models});
       }
@@ -2418,7 +2384,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','higgsfield','sluice','createpulse'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield','sluice'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
@@ -2489,7 +2455,6 @@ const server=http.createServer(async (req,res)=>{
             argolink:providerSettings.argolink.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
             sluice:providerSettings.sluice.enabled,
-            createpulse:providerSettings.createpulse.enabled,
             fal:providerSettings.fal.enabled,
           },
           providerActive:{
@@ -2500,7 +2465,6 @@ const server=http.createServer(async (req,res)=>{
             argolink:providerSettings.argolink.active,
             higgsfield:providerSettings.higgsfield.active,
             sluice:providerSettings.sluice.active,
-            createpulse:providerSettings.createpulse.active,
             fal:providerSettings.fal.active,
           },
           vgenvMaxInflight:providerSettings.vgenv.maxInflight,
@@ -2510,7 +2474,6 @@ const server=http.createServer(async (req,res)=>{
           argoLinkMaxInflight:providerSettings.argolink.maxInflight,
           higgsfieldMaxInflight:providerSettings.higgsfield.maxInflight,
           sluiceMaxInflight:providerSettings.sluice.maxInflight,
-          createPulseMaxInflight:providerSettings.createpulse.maxInflight,
           falMaxInflight:providerSettings.fal.maxInflight,
           customerCreditMultiplier:creditMultiplier(),
           plans:publicPlans(),
@@ -2855,7 +2818,6 @@ function bootstrap() {
       await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
-      await ensureCreatePulseCatalog().catch(error=>console.error('CreatePulse catalog initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});
