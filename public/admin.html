@@ -190,6 +190,7 @@
           <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
           <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
           <div id="api888SecretStatus" class="muted"></div>
+          <label class="muted" for="api888Inflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="api888Inflight" type="number" min="1" max="10" value="6" style="width:100%;margin-top:6px">
           <div class="muted" style="margin-top:12px"><strong>888API billing: 1 yuan = 1 CMM credit.</strong> Fixed-price models charge once per request; dynamic models charge their yuan-per-second rate × selected duration. Previous USD conversion and 3.5× markup are disabled for 888API only.</div>
           <div class="muted" style="margin:10px 0">After you save a valid key, supported models are imported automatically. Turn on the provider to show those models in Video and Image Studio. Unpriced or incompatible models remain Admin-only.</div>
           <div id="api888ModelSummary" class="muted" role="status">888API catalog: checking…</div>
@@ -964,7 +965,7 @@ async function loadProviderSettings(){try{
   $('vercelCreditsPerUsd').value=s.vercel?.customerCreditsPerUsd||(160/0.0265);
   loadVercelModels();
   $('api888Enabled').checked=s.api888?.enabled===true;
-  $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;
+  $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;$('api888Inflight').value=s.api888?.maxInflight||6;
   $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
   loadApi888ModelSummary();
   $('argoEnabled').checked=s.argolink?.enabled!==false;
@@ -1008,7 +1009,7 @@ async function saveProviderSettings(){
     smartAipiModels:Object.fromEntries([...document.querySelectorAll('[data-smart-model]')].map(row=>[row.dataset.smartModel,{enabled:row.querySelector('.smart-model-enabled').checked,sourceUsd:Number(row.querySelector('.smart-model-price').value),qualitySourceUsd:Object.fromEntries([...row.querySelectorAll('[data-smart-quality]')].map(input=>[input.dataset.smartQuality,Number(input.value)]))}])),
     vgenvBaseUrl:$('vgenvBaseUrl').value.trim(),vgenvApiKey:$('vgenvApiKey').value.trim(),clearVgenvApiKey:$('clearVgenvApiKey').checked,vgenvMaxInflight:Number($('vgenvInflight').value),
     vercelEnabled:$('vercelEnabled').checked,vercelApiKey:$('vercelApiKey').value.trim(),clearVercelApiKey:$('clearVercelApiKey').checked,vercelMaxInflight:Number($('vercelInflight').value),vercelCustomerCreditsPerUsd:Number($('vercelCreditsPerUsd').value),
-    api888Enabled:$('api888Enabled').checked,api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,
+    api888Enabled:$('api888Enabled').checked,api888MaxInflight:Number($('api888Inflight').value),api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),

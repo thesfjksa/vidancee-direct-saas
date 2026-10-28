@@ -8,7 +8,7 @@ class Api888Queue extends VercelQueue{
   constructor(options={}){super({...options,provider:'api888',clientFactory:options.clientFactory||((o)=>new Api888Client(o))});this.videoTimeoutMs=3*60*60*1000;}
   apiKey(s){return s.api888ApiKey||'';}
   sourceEnabled(s){return Boolean(s.api888Enabled);}
-  maxInflight(s){return s.api888MaxInflight||2;}
+  maxInflight(s){return s.api888MaxInflight||6;}
   // Reference files kept in cloud storage are handed to 888API as 24-hour
   // presigned links: downloading large videos through the web host was too
   // slow, and 888API then rendered without the reference.
