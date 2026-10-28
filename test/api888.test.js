@@ -633,7 +633,7 @@ test('888API exposes reference video, audio and image upload controls only for v
     ['s2-2.5-720p-v3',30,10,10],
     ['s2-2.5-720p-v4',30,10,10],
     ['dola-seedance-2.5-301010',30,10,10],
-    ['seedance2.5-930-1080p',9,0,3],
+    ['seedance2.5-930-1080p',4,0,3],
     ['wan30-720p',10,5,5],
     ['wan30-1080p-fast',10,5,5],
     ['wan3.0-video',10,10,0],

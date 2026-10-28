@@ -199,7 +199,7 @@ async function getProviderSettings() {
     vercelCustomerCreditsPerUsd: CREDITS_PER_USD,
     api888ApiKey: String(read('api888_api_key') || '').trim(),
     api888Enabled: asBool(read('api888_enabled')),
-    api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||2))),
+    api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||6))),
     argoLinkApiKey: String(read('argolink_api_key') || '').trim(),
     argoLinkEnabled: asBool(read('argolink_enabled')),
     argoLinkMaxInflight: Math.max(1, Math.min(10, Number(read('argolink_max_inflight') || 3))),
