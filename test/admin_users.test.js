@@ -68,9 +68,14 @@ test('admin media links are signed and expire', () => {
 });
 
 test('boosted pricing scales prices and charges by 60000/42000', () => {
-  const { BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices } = require('../src/billing.js');
-  assert.equal(priceRate({ price_rate: '1.000000' }), 1);
-  assert.equal(priceRate({}), 1);
+  const { BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('../src/billing.js');
+  assert.equal(customerRate({ price_rate: '1.000000' }), 1);
+  assert.equal(customerRate({}), 1);
+  // Every customer pays 5% above cost; boosted pricing multiplies on top.
+  assert.equal(priceRate({}), 1.05);
+  assert.equal(priceRate(null), 1.05);
+  assert.equal(applyPriceRate(100, priceRate({})), 105);
+  assert.equal(applyPriceRate(42000, priceRate({ price_rate: BOOSTED_PRICE_RATE })), 63000);
   assert.equal(applyPriceRate(42, 1), 42);
   assert.equal(applyPriceRate(42, BOOSTED_PRICE_RATE), 60);
   assert.equal(applyPriceRate(42000, BOOSTED_PRICE_RATE), 60000);

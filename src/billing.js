@@ -46,9 +46,16 @@ function sourceToCustomerCredits(sourceCredits) {
 // and charged x 60000/42000, so a 60,000-credit plan buys what 42,000 credits
 // buy at the normal rate. 1 is the normal rate.
 const BOOSTED_PRICE_RATE = 60000 / 42000;
-function priceRate(user) {
+// Every customer price is 5% above cost (owner's request, 28 Oct 2026), on
+// top of boosted pricing where that is on.
+const PRICE_INCREASE = 1.05;
+// The admin-set rate alone (1 = normal, BOOSTED_PRICE_RATE = boosted).
+function customerRate(user) {
   const rate = Number(user?.price_rate);
   return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+function priceRate(user) {
+  return customerRate(user) * PRICE_INCREASE;
 }
 function applyPriceRate(cost, rate) {
   const value = Number(cost), r = Number(rate);
@@ -67,4 +74,4 @@ function scalePrices(value, rate, inPrice = false) {
   return inPrice && typeof value === 'number' ? applyPriceRate(value, rate) : value;
 }
 
-module.exports = { BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices, positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };
+module.exports = { BOOSTED_PRICE_RATE, PRICE_INCREASE, customerRate, priceRate, applyPriceRate, scalePrices, positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };
