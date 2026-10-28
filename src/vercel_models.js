@@ -204,11 +204,6 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
     // image quote is an estimate, not an invented conversion of output tokens.
     if (positive(p.input)) isEstimate=true;
   } else if (override?.perSecond) {sourceUsd=Number(override.perSecond)*chosen.duration;isEstimate=true;}
-  // Some sources (CreatePulse) charge a flat price per clip length.
-  else if ((p.video_duration_prices||[]).length) {
-    const tier=p.video_duration_prices.find(t=>Number(t.duration)===chosen.duration);
-    if (tier&&positive(tier.cost)) sourceUsd=Number(tier.cost);
-  }
   else {
     const matches=(p.video_duration_pricing||[]).filter(t=>
       (!t.resolution||t.resolution===chosen.resolution)&&(!t.mode||t.mode===chosen.generationMode)&&

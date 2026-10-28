@@ -25,9 +25,6 @@ const DEFAULTS = {
   sluice_api_key: '',
   sluice_enabled: 'true',
   sluice_max_inflight: '3',
-  createpulse_api_key: '',
-  createpulse_enabled: 'true',
-  createpulse_max_inflight: '3',
   fal_api_key: '',
   fal_enabled: 'true',
   fal_max_inflight: '3',
@@ -215,10 +212,6 @@ async function getProviderSettings() {
     sluiceEnabled: asBool(read('sluice_enabled')),
     sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),
     sluiceCustomerCreditsPerUsd: CREDITS_PER_USD,
-    createPulseApiKey: String(read('createpulse_api_key') || '').trim(),
-    createPulseEnabled: asBool(read('createpulse_enabled')),
-    createPulseMaxInflight: Math.max(1, Math.min(10, Number(read('createpulse_max_inflight') || 3))),
-    createPulseCustomerCreditsPerUsd: CREDITS_PER_USD,
     falApiKey: String(read('fal_api_key') || '').trim(),
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
@@ -276,12 +269,6 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.sluiceApiKey), configured: Boolean(s.sluiceApiKey),
       enabled: s.sluiceEnabled, active: Boolean(s.sluiceEnabled && s.sluiceApiKey),
       maxInflight: s.sluiceMaxInflight, customerCreditsPerUsd: s.sluiceCustomerCreditsPerUsd,
-    },
-    createpulse: {
-      baseUrl: 'https://createpulse.online',
-      apiKeyConfigured: Boolean(s.createPulseApiKey), configured: Boolean(s.createPulseApiKey),
-      enabled: s.createPulseEnabled, active: Boolean(s.createPulseEnabled && s.createPulseApiKey),
-      maxInflight: s.createPulseMaxInflight, customerCreditsPerUsd: s.createPulseCustomerCreditsPerUsd,
     },
     fal: {
       baseUrl: 'https://queue.fal.run',
@@ -418,18 +405,6 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Sluice max inflight must be 1 to 10.'), {statusCode:400});
     sluiceUpdates.push(['sluice_max_inflight',String(n)]);
   }
-  const createPulseUpdates=[];
-  if ('createPulseEnabled' in input) {
-    if (typeof input.createPulseEnabled !== 'boolean') throw Object.assign(new Error('CreatePulse enabled must be true or false.'), {statusCode:400});
-    createPulseUpdates.push(['createpulse_enabled',input.createPulseEnabled?'true':'false']);
-  }
-  if ('createPulseApiKey' in input && (typeof input.createPulseApiKey !== 'string' || input.createPulseApiKey.length>512 || /\s/.test(input.createPulseApiKey.trim())))
-    throw Object.assign(new Error('Invalid CreatePulse API key.'), {statusCode:400});
-  if ('createPulseMaxInflight' in input) {
-    const n=Number(input.createPulseMaxInflight);
-    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('CreatePulse max inflight must be 1 to 10.'), {statusCode:400});
-    createPulseUpdates.push(['createpulse_max_inflight',String(n)]);
-  }
   if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
     throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
   }
@@ -506,10 +481,6 @@ async function updateProviderSettings(input = {}) {
   if (input.clearSluiceApiKey===true) await del('sluice_api_key');
   else if (String(input.sluiceApiKey||'').trim()) await put('sluice_api_key',input.sluiceApiKey.trim(),true);
 
-  for (const [key,value] of createPulseUpdates) await put(key,value);
-  if (input.clearCreatePulseApiKey===true) await del('createpulse_api_key');
-  else if (String(input.createPulseApiKey||'').trim()) await put('createpulse_api_key',input.createPulseApiKey.trim(),true);
-
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
 }
@@ -532,7 +503,6 @@ async function migrateLegacyProviderEnvSettings() {
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('sluice_api_key', 'SLUICE_API_KEY');
-  secret('createpulse_api_key', 'CREATEPULSE_API_KEY');
   secret('fal_api_key', 'FAL_KEY');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');
