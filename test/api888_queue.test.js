@@ -52,7 +52,7 @@ test('failed 888API video keeps the provider reason in Activity and gives custom
  queue.log=(_job,event,message,details,level)=>events.push({event,message,details,level});
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'Content moderation rejected the input image',providerStatus:'failure',progress:40})},job);
  assert.equal(refunds.length,1);
- assert.equal(refunds[0].message,'The video could not be completed: Content moderation rejected the input image. Credits were refunded.');
+ assert.equal(refunds[0].message,'The safety filter blocked this video. Please change your prompt or images and try again. Credits were refunded.');
  assert.equal(events[0].event,'job.provider_failed');assert.equal(events[0].level,'error');
  assert.equal(events[0].details.reason,'Content moderation rejected the input image');
  // Customers get this through sendJson's hideVendorsInBody: no provider name, even in the reason.
@@ -71,5 +71,5 @@ test('failed 888API video keeps the provider reason in Activity and gives custom
 
  refunds.length=0;
  await queue.pollJob({}, {videoStatus:async()=>({status:'failed',error:'未知错误'})},job);
- assert.equal(refunds[0].message,'The video could not be completed. Credits were refunded.');
+ assert.equal(refunds[0].message,'Model under maintenance. Please choose another model. Credits were refunded.');
 });

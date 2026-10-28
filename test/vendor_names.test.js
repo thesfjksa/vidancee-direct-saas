@@ -19,7 +19,10 @@ test('customers never see vendor names; prompts are left alone', () => {
 test('customers never see the 888API source name', () => {
   assert.equal(hideVendors('888API could not complete the video. Credits were refunded.'), 'The generation service could not complete the video. Credits were refunded.');
   assert.equal(hideVendors('Video finished at 888API, but the provider supplied unsafe download links.'), 'Video finished at the generation service, but the provider supplied unsafe download links.');
-  assert.equal(hideVendors('888API request failed (HTTP 500): upstream error'), 'Request failed (HTTP 500): upstream error');
+  // Raw source errors are never shown, whatever their language.
+  assert.equal(hideVendors('888API request failed (HTTP 500): upstream error'), 'Model under maintenance. Please choose another model.');
+  assert.equal(hideVendors('Request failed (HTTP 400) 请改用其他模型 (request id 202610280708092022055mn6LiQ). Credits were refunded.'),
+    'Model under maintenance. Please choose another model. Credits were refunded.');
   assert.equal(hideVendors('This 888API model accepts at most 4 image references.'), 'This model accepts at most 4 image references.');
   assert.equal(hideVendors('Could not reach 888api.xin'), 'Could not reach the generation service');
   assert.equal(hideVendors('Model api888_seedance-2.5-g5-v2 is busy'), 'Model seedance-2.5-g5-v2 is busy');

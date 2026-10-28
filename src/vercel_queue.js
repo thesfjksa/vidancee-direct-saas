@@ -103,10 +103,14 @@ class VercelQueue {
       // an unavailable model cannot terminate the worker or strand the wallet.
       Promise.resolve().then(()=>this.submit(db,job,client))
         .catch(async error=>{this.log(job,'job.submit_failed',error.message,errorDetails(error),'error');
-          try{await this.refund(job.id,'failed',error.message||'Generation failed. Credits were refunded.',null);}
+          try{await this.refund(job.id,'failed',this.submitFailureMessage(error,job),null);}
           catch{console.error(this.provider+' generation refund will be retried by recovery:',job.id);}})
         .finally(()=>this.tasks.delete(job.id));
     }
+  }
+  // What the customer reads when a job cannot be sent to the source.
+  submitFailureMessage(error) {
+    return error.message||'Generation failed. Credits were refunded.';
   }
   async references(db,job) {
     const [images]=await db.execute('SELECT position_index,mime_type FROM generation_images WHERE generation_id=? ORDER BY position_index',[job.id]);

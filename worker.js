@@ -129,7 +129,13 @@ healthServer.listen(port,host,()=>{
     try{
       const settings=await getProviderSettings();
       if(!settings.api888Enabled||!settings.api888ApiKey)return;
-      api888Health=await refreshApi888Health({client:new Api888Client({apiKey:settings.api888ApiKey})});
+      const client=new Api888Client({apiKey:settings.api888ApiKey});
+      api888Health=await refreshApi888Health({client});
+      // 888API's live model list decides which models exist right now: a
+      // model it stops listing is marked unavailable (hidden) until it returns.
+      const {syncProviderModels}=require('./src/provider_models.js');
+      const {api888MediaModels}=require('./src/api888_models.js');
+      await syncProviderModels('api888',api888MediaModels(await client.models()));
     }catch(error){console.error('[worker] 888API model health refresh failed:',error.message);}
   };
   refreshHealth();setInterval(refreshHealth,API888_HEALTH_REFRESH_MS).unref();
