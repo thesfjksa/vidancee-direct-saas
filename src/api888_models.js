@@ -18,7 +18,7 @@ seedance2.5-720p-plus seedance2.5-720p-pro seedance2.5-1080p-plus seedance2.5-10
 xin-seedance-2.5-3010 xin-seedance-2.5-900 dola-seedance-2.5 seedance2.5-vip-30-10-10 seedance2.5-vip-30-0-10
 seedance2.5-900-wool seedance2.5-101010-wool seedance2.5-301010-wool dola-seedance-2.5-900 dola-seedance-2.5-301010
 seedance-2.5-G2-V seedance-2.5-g5-v2 seedance2.5-900 seedance2.5-301010 seedance2.5-301010-av seedance2.5-930-1080p
-ss-2.5-720p-v1 ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doubao-seedance-2.5
+ss-2.5-720p-v1 ss-2.5-720p-v3 sd2.5-G3-特惠-1 MC-WAN3-Prime-1080P-30S ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doubao-seedance-2.5
 wan30-720p wan30-1080p-fast wan3.0-video wan3.0-video-prime wan3.0-image wan3.0-image-prime
 sora2-480p minimax-h3 minimax-h3-c4 pidoi-h3video-2k minimax-h3-480p-t minimax-h3-768p-t
 pidoi-omni-flash-720p pidoi-veo31-fast grok-imagine-video-1.5-preview
@@ -120,6 +120,10 @@ Object.assign(SPECS, {
  // 5–30 seconds, ¥7 fixed, 30 images + 10 videos + 10 audio references.
  // Field mapping follows the G2-V family and still needs a live test.
  'seedance-2.5-g5-v2':[7,'job',5,30,'720p',30,10,10],
+ // 888API /api/pricing, 28 Oct 2026 (当前可用).
+ 'sd2.5-G3-特惠-1':[6,'job',4,30,'720p',30,10,10],
+ 'ss-2.5-720p-v3':[6.5,'job',4,30,'720p',30,10,10],
+ 'MC-WAN3-Prime-1080P-30S':[6.5,'job',5,30,'1080p',10,5,5],
  'dola-seedance-2.0-fast':[1.5,'job',4,15,'720p',9,0,0],
  'dola-seedance-2.0-900':[1.3,'job',4,15,'720p',9,0,0],
  'dola-seedance-2.0-933':[1.5,'job',4,15,'720p',9,3,3],
@@ -178,6 +182,9 @@ const VIDEO_INPUTS={
  'seedance2.0-fast-4img':{videos:3,audios:1,videoField:'referenceVideos',audioField:'referenceAudios'},
  'doubao-seedance-2-0-fast':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
   'ss-2.5-720p-v1':{videos:10,audios:10},
+  'ss-2.5-720p-v3':{videos:10,audios:10},
+  'sd2.5-G3-特惠-1':{videos:10,audios:10},
+  'MC-WAN3-Prime-1080P-30S':{videos:5,audios:5,videoField:'video_urls',audioField:'audio_urls'},
   's2-2.5-480p-v2':{videos:0,audios:10},
   's2-2.5-720p-v3':{videos:10,audios:10},
   's2-2.5-720p-v4':{videos:10,audios:10},
@@ -235,6 +242,13 @@ const OFFERED={
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
  'seedance2.5-301010-wool-1080p':'Seedance 2.5 Standard HD',
  'seedance2.0-900-wool':'Seedance 2.0 Economy',
+ 'sd2.5-G3-特惠-1':'Seedance 2.5 Special',
+ 'ss-2.5-720p-v3':'Seedance 2.5 Full Spec',
+ 'seedance2.0-933-economy':'Seedance 2.0 Realism',
+ 'seedance2.0-stable-480p':'Seedance 2.0 Stable 480p',
+ 'sd_2.0_mini_special':'Seedance 2.0 Mini',
+ 'wan30-1080p-fast':'Wan 3.0 Fast 1080p',
+ 'MC-WAN3-Prime-1080P-30S':'Wan 3.0 Prime 1080p',
  'seedance2.0-933-wool':'Seedance 2.0 Economy Plus',
  'seedance2.5-101010-wool':'Seedance 2.5 Lite',
  'seedance2.5-900-wool':'Seedance 2.5 Economy',
@@ -355,7 +369,7 @@ function describedModel(id,type) {
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
       'dola-seedance-2.5','xin-seedance-2.5-3010','xin-seedance-2.5-900',
       'seedance2.5-vip-30-10-10','seedance2.5-vip-30-0-10',
-      'ss-2.5-720p-v1','s2-2.5-480p-v2','s2-2.5-720p-v3',
+      'ss-2.5-720p-v1','ss-2.5-720p-v3','sd2.5-G3-特惠-1','MC-WAN3-Prime-1080P-30S','s2-2.5-480p-v2','s2-2.5-720p-v3',
       's2-2.5-720p-v4','seedance2.5-930-1080p',
       'doubao-seedance-2.0-mini','ss-2.0-933-720p','seedance2.5-301010-wool-1080p',
       'sd_2.0_mini_special',
