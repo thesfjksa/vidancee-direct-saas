@@ -234,7 +234,9 @@ const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 // Owner's choice (25 Oct 2026): only these 888API models are offered, under
 // these names (Wan 3.0 720p added the same day). Tests of the wider catalog turn the rest on with
 // setApi888OfferAll(true).
-// 28 Oct 2026: every priced Seedance 2.5 SKU is offered too, each under its
+// 28 Oct 2026: Seedance 2.5 Full HD (seedance2.5-930-1080p) is off again at
+// the owner's request: its jobs were not finishing at 888API.
+// Also 28 Oct 2026: every priced Seedance 2.5 SKU is offered too, each under its
 // own customer name (never the raw 888API id). Which ones customers see at a
 // given moment follows 888API's live model list and health status.
 const OFFERED={
@@ -255,7 +257,6 @@ const OFFERED={
  'seedance2.5-900':'Seedance 2.5 Classic',
  'seedance2.5-301010':'Seedance 2.5 Multi-Reference',
  'seedance2.5-301010-av':'Seedance 2.5 Beta',
- 'seedance2.5-930-1080p':'Seedance 2.5 Full HD',
  'doubao-seedance-2.5':'Seedance 2.5 Original',
  'dola-seedance-2.5':'Seedance 2.5 Flex',
  'dola-seedance-2.5-900':'Seedance 2.5 Flex Lite',
