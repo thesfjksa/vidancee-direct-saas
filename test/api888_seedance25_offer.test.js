@@ -32,3 +32,13 @@ test('a model that answered "use another model" is hidden for 30 minutes',async(
  // No health data at all still hides a model that is down.
  assert.equal(isApi888Available({down},'seedance-2.5-g5-v2',now),false);
 });
+
+test('Seedance 2.0 wool models are offered: 4–10 s, 720p, up to 9 images',()=>{
+ for(const [id,label] of [['seedance2.0-900-wool','Seedance 2.0 Economy'],['seedance2.0-933-wool','Seedance 2.0 Economy Plus']]){
+  const m=api888MediaModels({data:[{id}]})[0];
+  assert.equal(m.options.adapterSupported,true);
+  assert.equal(m.label,label);
+  assert.deepEqual(m.options.durations,[4,5,6,7,8,9,10]);
+  assert.equal(m.options.referenceCapabilities.image.max,9);
+ }
+});

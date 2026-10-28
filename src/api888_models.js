@@ -88,8 +88,10 @@ const SPECS = {
 
 Object.assign(SPECS, {
  'seedance2.5-900-wool':[1.1,'job',4,30,'720p',9,0,0],
- 'seedance2.0-900-wool':[0.9,'job',4,15,'720p',9,0,0],
- 'seedance2.0-933-wool':[1.1,'job',4,15,'720p',9,0,0],
+ // 888API catalog (28 Oct 2026): 4–10 s, 720p, 9 reference images. Their
+ // ¥0.45 / ¥0.55 is a temporary half price; the regular price is kept here.
+ 'seedance2.0-900-wool':[0.9,'job',4,10,'720p',9,0,0],
+ 'seedance2.0-933-wool':[1.1,'job',4,10,'720p',9,0,0],
  'seedance2.5-101010-wool':[1.3,'job',4,30,'720p',10,0,0],
  'seedance2.5-301010-wool':[7,'job',4,30,'720p',30,0,0],
  // https://888api.xin/docs (25 Oct 2026): same contract as 301010-wool, 1080P output.
@@ -232,6 +234,8 @@ const OFFERED={
  'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
  'seedance2.5-301010-wool-1080p':'Seedance 2.5 Standard HD',
+ 'seedance2.0-900-wool':'Seedance 2.0 Economy',
+ 'seedance2.0-933-wool':'Seedance 2.0 Economy Plus',
  'seedance2.5-101010-wool':'Seedance 2.5 Lite',
  'seedance2.5-900-wool':'Seedance 2.5 Economy',
  'seedance2.5-900':'Seedance 2.5 Classic',
