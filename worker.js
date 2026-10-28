@@ -122,6 +122,7 @@ healthServer.listen(port,host,()=>{
   await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
   await require('./src/api888_access.js').enableDefaultApi888ModelsOnce(getPool()).catch(error=>console.error('888API default-on models failed:',error.message));
   await require('./src/api888_access.js').cancelFullHdJobsOnce(getPool()).catch(error=>console.error('Full HD cancel failed:',error.message));
+  await require('./src/api888_access.js').cancelFullSpecJobsOnce(getPool()).catch(error=>console.error('Full Spec cancel failed:',error.message));
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
   worker=new GenerationWorker();
   worker.start();
