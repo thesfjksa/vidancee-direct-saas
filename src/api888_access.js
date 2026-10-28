@@ -45,16 +45,16 @@ async function enableDefaultApi888ModelsOnce(db) {
   } catch(error){await conn.rollback();throw error;}
   finally {conn.release();}
 }
-// Owner's request (28 Oct 2026): Seedance 2.5 Full HD was not finishing at
-// 888API, so its open jobs are cancelled and refunded once.
-const FULL_HD_PUBLIC_ID='api888_seedance2_5_930_1080p';
-async function cancelFullHdJobsOnce(db,refund=require('./generations.js').refundGeneration){
+// Owner's requests (28 Oct 2026): Seedance 2.5 Full HD and Full Spec were not
+// finishing at 888API, so their open jobs are cancelled and refunded once.
+async function cancelOpenJobsOnce(db,publicModelId,key,refund=require('./generations.js').refundGeneration){
   const {getSettingValue,setSettingValue}=require('./settings.js');
-  const key='api888_full_hd_cancelled_v1';
   if(await getSettingValue(key,''))return 0;
   await setSettingValue(key,new Date().toISOString());
-  const [rows]=await db.execute("SELECT id FROM generations WHERE model=? AND refunded_at IS NULL AND status IN ('queued','submitting','submitted','processing')",[FULL_HD_PUBLIC_ID]);
+  const [rows]=await db.execute("SELECT id FROM generations WHERE model=? AND refunded_at IS NULL AND status IN ('queued','submitting','submitted','processing')",[publicModelId]);
   for(const row of rows)await refund(row.id,'failed','Cancelled: model under maintenance. Credits were refunded.',null);
   return rows.length;
 }
-module.exports={disableApi888ForUsersOnce,enableDefaultApi888ModelsOnce,cancelFullHdJobsOnce,DEFAULT_ON_MODELS};
+const cancelFullHdJobsOnce=(db,refund)=>cancelOpenJobsOnce(db,'api888_seedance2_5_930_1080p','api888_full_hd_cancelled_v1',refund);
+const cancelFullSpecJobsOnce=(db,refund)=>cancelOpenJobsOnce(db,'api888_ss_2_5_720p_v3','api888_full_spec_cancelled_v1',refund);
+module.exports={disableApi888ForUsersOnce,enableDefaultApi888ModelsOnce,cancelFullHdJobsOnce,cancelFullSpecJobsOnce,DEFAULT_ON_MODELS};
