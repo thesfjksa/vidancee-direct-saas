@@ -46,14 +46,14 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   const nano = config.imagePricing.find(m => m.id === 'argo_nano_banana_pro');
   assert.ok(nano, 'Nano Banana Pro is listed');
   assert.deepEqual(nano.imageSizes, ['1K', '2K', '4K']);
-  assert.equal(nano.costTable['16:9||4K'], 202); // $0.03 x 6,720 credits per USD (24 per rupee of cost), rounded up
+  assert.equal(nano.costTable['16:9||4K'], 212.1); // $0.03 x 6,720 credits per USD (24 per rupee of cost), rounded up
   const seedance = config.pricing.find(m => m.id === 'argo_seedance_2_5');
   assert.ok(seedance && seedance.supportsAudio);
   assert.ok(config.pricing.some(m => m.id === 'argo_wan_3') && config.pricing.some(m => m.id === 'argo_grok_imagine_video_1_5'));
   assert.equal(config.providerAccess.argolink, true);
 
   const cost = await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '720p', aspectRatio: '16:9' });
-  assert.deepEqual(cost.data, { ok: true, cost: 7392, isEstimate: false }); // no fal key: 720p is rendered natively ($1.10 x 6,720)
+  assert.deepEqual(cost.data, { ok: true, cost: 7761.6, isEstimate: false }); // no fal key: 720p is rendered natively ($1.10 x 6,720)
   // Without fal, 1080p is offered only where ArgoLink renders it.
   assert.deepEqual(config.pricing.find(m => m.id === 'argo_seedance_2_0_fast').resolutions.map(r => r.id), ['720p']);
   assert.deepEqual(seedance.resolutions.map(r => r.id), ['720p', '1080p']);
@@ -65,9 +65,9 @@ test('ArgoLink models are listed for assigned customers, priced with HD enhancem
   assert.ok(hd.pricing.every(m => m.resolutions.every(r => ['720p', '1080p'].includes(r.id))));
   assert.deepEqual(hd.pricing.find(m => m.id === 'argo_seedance_2_0_fast').resolutions.map(r => r.id), ['720p', '1080p']);
   // 10 s at 480p ($0.53) + 10 s upscale ($0.072), each x 6,720 rounded up
-  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '720p', aspectRatio: '16:9' })).data.cost, 3562 + 484);
+  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '720p', aspectRatio: '16:9' })).data.cost, 4248.3); // (3562 + 484) x 1.05
   // 10 s at 720p ($1.10) + 10 s upscale ($0.072), each x 6,720 rounded up
-  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '1080p', aspectRatio: '16:9' })).data.cost, 7392 + 484);
+  assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '1080p', aspectRatio: '16:9' })).data.cost, 8269.8); // (7392 + 484) x 1.05
   assert.equal((await post('/api/model-cost', { model: 'argo_seedance_2_0', duration: 10, resolution: '480p', aspectRatio: '16:9' })).status, 400);
 
   const image = await post('/api/image-generations', { model: 'argo_gpt_image_2', prompt: 'A red apple', aspectRatio: '16:9', imageSize: '4K', quality: 'high' });

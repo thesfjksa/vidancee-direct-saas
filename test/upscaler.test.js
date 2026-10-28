@@ -125,8 +125,8 @@ test('customers upscale a finished video or an upload; the source link is signed
   const config = await (await fetch(origin + '/api/config')).json();
   assert.equal(config.upscaler.enabled, true);
   assert.deepEqual(config.upscaler.resolutions.map(r => r.id), ['1080p', '2k', '4k']);
-  assert.deepEqual((await json('/api/upscales/quote', { sourceGenerationId: source.id, resolution: '4k' })).data, { ok: true, cost: 1936 });
-  assert.deepEqual((await json('/api/upscales/quote', { width: 854, height: 480, seconds: 4.5, resolution: '1080p' })).data, { ok: true, cost: 242 });
+  assert.deepEqual((await json('/api/upscales/quote', { sourceGenerationId: source.id, resolution: '4k' })).data, { ok: true, cost: 2032.8 });
+  assert.deepEqual((await json('/api/upscales/quote', { width: 854, height: 480, seconds: 4.5, resolution: '1080p' })).data, { ok: true, cost: 254.1 });
   assert.equal((await json('/api/upscales/quote', { width: 1920, height: 1080, seconds: 4, resolution: '1080p' })).status, 400);
 
   const form = new FormData(); form.append('resolution', '4k'); form.append('sourceGenerationId', source.id);
@@ -134,7 +134,7 @@ test('customers upscale a finished video or an upload; the source link is signed
   let d = await r.json();
   assert.equal(r.status, 201);
   assert.deepEqual(d.generation.generation_options, { generationMode: null, generateAudio: false, studio: 'upscale', source_generation_id: source.id, target_resolution: '4k', source_seconds: 10 });
-  assert.deepEqual([d.generation.credits_cost, d.generation.resolution, d.generation.aspect_ratio, debits[0]], [1936, '4k', '9:16', 1936]);
+  assert.deepEqual([d.generation.credits_cost, d.generation.resolution, d.generation.aspect_ratio, debits[0]], [2032.8, '4k', '9:16', 2032.8]);
   assert.equal(JSON.parse(jobs.get(d.generation.id).generation_options).upscale.input.target_resolution, '4k');
 
   const upload = new FormData(); upload.append('resolution', '1080p');
@@ -142,7 +142,7 @@ test('customers upscale a finished video or an upload; the source link is signed
   r = await fetch(origin + '/api/upscales', { method: 'POST', body: upload });
   d = await r.json();
   assert.equal(r.status, 201);
-  assert.deepEqual([d.generation.credits_cost, d.generation.duration], [242, 5]); // 5 billed seconds x $0.0072 x 6,720, rounded up
+  assert.deepEqual([d.generation.credits_cost, d.generation.duration], [254.1, 5]); // 5 billed seconds x $0.0072 x 6,720, rounded up
   assert.equal(media[0][2], 'video/mp4');
 
   const bad = new FormData(); bad.append('resolution', '4k'); bad.append('sourceGenerationId', '00000000-0000-4000-8000-000000000000');

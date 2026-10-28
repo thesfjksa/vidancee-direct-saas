@@ -140,7 +140,7 @@ const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, fetchFalImageCatalog, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
+const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
 const {
   publicPlans,
   getPlanStatus,
@@ -662,7 +662,9 @@ const PRICING_PAGE_HIDDEN=['argo_seedance_2_5'];
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
-  const catalog=await customerMediaCatalog(defaultCustomerProviderAccess());
+  const rate=priceRate(null);
+  const catalog=scalePrices(await customerMediaCatalog(defaultCustomerProviderAccess()),rate);
+  const quote=async body=>{const q=await quoteModelForUser(null,body);return {...q,cost:applyPriceRate(q.cost,rate)};};
   const video=[],image=[],perSecond=[];
   for(const m of catalog.video){
     // Not listed on the Pricing page; the studios still offer it.
@@ -672,10 +674,10 @@ async function priceExamples(){
       const list=(m.resolutions?.length?((m.resolutions.find(r=>r.id===resolution)||m.resolutions[0]).durations):m.durations)||[];
       const d=list.find(x=>x.seconds===seconds)||list[0];credits=Number(d?.cost)||null;seconds=d?.seconds??seconds;
     }else{
-      try{credits=(await quoteModelForUser(null,{model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:m.supportsAudio===true})).cost;}catch{}
+      try{credits=(await quote({model:m.id,mediaType:'video',duration:seconds,resolution,aspectRatio:m.defaultAspectRatio,generateAudio:m.supportsAudio===true})).cost;}catch{}
     }
     if(credits>0)video.push({name:m.label,seconds,resolution,credits,...(m.warning?{warning:m.warning}:{})});
-    if(/^Seedance 2\.5\b/.test(m.label))perSecond.push(...await perSecondPrices(m,body=>quoteModelForUser(null,body)));
+    if(/^Seedance 2\.5\b/.test(m.label))perSecond.push(...await perSecondPrices(m,quote));
   }
   for(const m of catalog.image){
     let credits=Number(m.cost)||null;
@@ -691,7 +693,7 @@ async function priceExamples(){
 let priceComparisonCache=null;
 async function priceComparison(){
   if(priceComparisonCache&&Date.now()-priceComparisonCache.at<10*60*1000)return priceComparisonCache.data;
-  const data=await comparePrices(async c=>(await quoteModelForUser(null,{model:c.model,mediaType:'video',duration:c.seconds,resolution:c.resolution,aspectRatio:'16:9',generateAudio:c.audio})).cost);
+  const data=await comparePrices(async c=>applyPriceRate((await quoteModelForUser(null,{model:c.model,mediaType:'video',duration:c.seconds,resolution:c.resolution,aspectRatio:'16:9',generateAudio:c.audio})).cost,priceRate(null)));
   if(data.rows.length)priceComparisonCache={at:Date.now(),data};
   return data;
 }
@@ -699,9 +701,9 @@ async function priceComparison(){
 const httpError=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
 
 // Live price of an ArgoLink or AI Gateway model ({cost,isEstimate}).
-// A customer's price multiplier (1 unless the admin turned on boosted pricing).
+// A customer's price multiplier (the 5% increase, times boosted pricing if on).
 async function userPriceRate(userId){
-  if(!userId)return 1;
+  if(!userId)return priceRate(null);
   const [rows]=await getPool().execute('SELECT price_rate FROM users WHERE id=? LIMIT 1',[userId]);
   return priceRate(rows[0]);
 }
@@ -2508,7 +2510,7 @@ const server=http.createServer(async (req,res)=>{
         }
         return sendJson(res,200,{ok:true,users:rows.map(row=>({
           ...userPayload(row),
-          price_rate:priceRate(row),
+          price_rate:customerRate(row),
           provider_access:accessByUser.get(Number(row.id))||defaultCustomerProviderAccess(),
         }))});
       }
