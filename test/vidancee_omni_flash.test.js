@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {vidanceeMediaModels,isVidanceeModel}=require('../src/vidancee_models.js');
-const {quoteGateway,modelReady}=require('../src/vercel_models.js');
+const {quoteGateway,modelReady,validateReferences}=require('../src/vercel_models.js');
 const {CREDITS_PER_USD}=require('../src/billing.js');
 const {VidanceeClient}=require('../src/provider/vidancee.js');
 const {VidanceeQueue}=require('../src/vidancee_queue.js');
@@ -111,4 +111,13 @@ test('Vidancee queue hydrates DB image bytes and passes them to one submission',
  assert.match(calls.at(-1)[0],/status='submitted'/);
  assert.equal(calls.at(-1)[1][1],'26443');
  q.stop();
+});
+
+test('customer validation allows one image and blocks unsupported media before billing',()=>{
+ const image={data:Buffer.from([1,2,3]),mimeType:'image/png',filename:'one.png'};
+ assert.doesNotThrow(()=>validateReferences(model,{images:[image]}));
+ assert.doesNotThrow(()=>validateReferences(model,{images:[]}));
+ assert.throws(()=>validateReferences(model,{images:[image,image]}),/too many|Unsupported/i);
+ assert.throws(()=>validateReferences(model,{videos:[{data:Buffer.from([1]),mimeType:'video/mp4'}]}),/Unsupported video/i);
+ assert.throws(()=>validateReferences(model,{images:[{...image,mimeType:'image/svg+xml'}]}),/format/i);
 });
