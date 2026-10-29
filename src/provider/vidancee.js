@@ -2,6 +2,7 @@
 // Website session adapter: login.php + studio.php CSRF, POST generate.php,
 // GET jobs.php. Credentials remain encrypted in shared Admin settings.
 const { readBounded, checkOutputUrl, VIDEO_LIMIT }=require('./vercel.js');
+const { vidanceeCreditsForDuration } = require('../vidancee_models.js');
 const ORIGIN='https://vidancee.com';
 const UA='CMMTools/1.0 (+https://cmmtools.site)';
 const safeId=id=>/^[0-9]{1,20}$/.test(String(id));
@@ -45,7 +46,9 @@ class VidanceeClient {
     // Captured Vidancee job 26443 confirms image-reference mode for Omni Flash.
     // Historical Vidancee browser request contract sends binary images[].
     if(references.length>1)throw new Error('Omni Flash accepts one reference image in CMMTools.');
-    if(Number(params.duration)!==4||params.aspectRatio!=='9:16')throw new Error('Unsupported Omni Flash options.');
+    const duration = Number(params.duration);
+    const providerCredits = vidanceeCreditsForDuration(duration);
+    if(params.aspectRatio!=='9:16')throw new Error('Unsupported Omni Flash aspect ratio.');
     const ref=references[0]||null;
     if(ref){
       const mime=String(ref.mimeType||'').toLowerCase();
@@ -55,7 +58,7 @@ class VidanceeClient {
     }
     await this.auth();
     const form=new FormData();
-    for(const [k,v] of Object.entries({mode:ref?'image-to-video':'text-to-video',model:'Omni-Flash',duration:'4',aspect_ratio:'9:16',prompt:String(params.prompt||''),quantity:'1'}))form.append(k,v);
+    for(const [k,v] of Object.entries({mode:ref?'image-to-video':'text-to-video',model:'Omni-Flash',duration:String(duration),aspect_ratio:'9:16',prompt:String(params.prompt||''),quantity:'1'}))form.append(k,v);
     if(ref){
       // Vidancee accepts the binary reference in multipart images[]; do not send
       // a CMMTools signed link, which the provider may not be able to fetch.
@@ -69,7 +72,7 @@ class VidanceeClient {
     if(!r.ok)throw new Error('Vidancee submission unavailable (HTTP '+r.status+').');
     const data=await r.json();const id=data.job_ids?.[0]??data.job_id;
     if(data.ok!==true||!safeId(id))throw new Error('Vidancee did not confirm a usable job ID.');
-    return {requestId:String(id),providerCredits:30};
+    return {requestId:String(id),providerCredits};
   }
   async videoStatus(op){
     if(!safeId(op?.requestId))throw new Error('Invalid Vidancee job ID.');
