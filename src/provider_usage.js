@@ -8,7 +8,7 @@ const { ArgoLinkClient } = require('./provider/argolink.js');
 // Grouped by studio: Video (ArgoLink, Higgsfield), Image (AI Gateway, SmartAIPI, then
 // ArgoLink), Video and Cartoon (vgenv), Upscaler and HD enhancement (fal.ai) and Voice (Vibi).
 const PROVIDERS = [
-  ['argolink', 'ArgoLink'], ['higgsfield', 'Higgsfield'], ['sluice', 'Sluice'], ['vercel', 'Vercel AI Gateway'], ['smartaipi', 'SmartAIPI'],
+  ['argolink', 'ArgoLink'], ['higgsfield', 'Higgsfield'], ['sluice', 'Sluice'], ['vidancee', 'Vidancee'], ['vercel', 'Vercel AI Gateway'], ['smartaipi', 'SmartAIPI'],
   ['vgenv', 'MiniMax (vgenv)'], ['fal', 'fal.ai upscaler'], ['vibi', 'Vibi voice'],
 ];
 const STATUS_KEY = 'status_provider_runtime';
