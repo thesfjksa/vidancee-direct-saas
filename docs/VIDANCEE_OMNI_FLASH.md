@@ -20,10 +20,25 @@ max_retries=0
 
 This confirms one working image reference and the payload fields. The generated video is complete on Vidancee, **not** yet a CMMTools-to-Vidancee end-to-end verification. The Vidancee cost of this image job is not visible in the screenshot.
 
-CMMTools enables **one JPEG/PNG/WebP image (up to 10 MB), 4s, 9:16** in addition to text-to-video. This uses the **now-confirmed** Omni Flash website request: multipart `mode=image-to-video`, `images[]` containing binary image data, and `max_retries=0`. Do not restore the older Seedance `max_retries=3` setting for Omni Flash. More images, start/end frames, reference video/audio, other durations and ratios remain disabled. The 30-source-credit price comes from an earlier **text-to-video** record; Omni Flash image-mode cost has not been independently confirmed and must be checked before offering it for paid customer use.
+CMMTools enables **text-to-video or one JPEG/PNG/WebP reference image (up to 10 MB), 4/6/8/10 seconds, 9:16**. This uses the **now-confirmed** Omni Flash website request: multipart `mode=image-to-video`, `images[]` containing binary image data, and `max_retries=0`. Do not restore the older Seedance `max_retries=3` setting for Omni Flash. More images, start/end frames, reference video/audio, other durations and ratios remain disabled. The owner has now confirmed source costs for all four durations and both modes (table below); no separate image surcharge is used.
+
+## Owner-confirmed Omni Flash credit tiers — both modes
+
+On 29 October 2026 the account owner confirmed the **same source-credit schedule** for both text-to-video and image-to-video:
+
+| Duration | Vidancee source credits (text-to-video) | Vidancee source credits (image-to-video) |
+|---|---:|---:|
+| 4 seconds | 30 | 30 |
+| 6 seconds | 40 | 40 |
+| 8 seconds | 50 | 50 |
+| 10 seconds | 60 | 60 |
+
+The code uses the same four allowed durations for both modes. `vidanceeCreditsForDuration` validates the selected duration and is used for `provider_cost`. `quoteGateway` maps these numeric source credits to the existing base CMMTools credit quotes; any existing account-specific price adjustments (including the site-wide 5% increase) remain applied separately. **This does not convert Vidancee credits to US dollars.**
+
+Vidancee was independently demonstrated at 4 seconds with image input. The owner has supplied the 6/8/10 second billing rates, but the exact longer-duration network requests and resulting files have not been captured in this chat. Keep the existing provider switch off until the end-to-end integration is tested.
 
 ## Implementation
-- `src/vidancee_models.js`: isolated catalog and per-clip quote. Provider 30 credits are represented as a USD-equivalent pricing **calculation only** to reuse the existing `quoteGateway` interface; they are **not a USD Vidancee charge**. Server record uses `provider_cost_unit=vidancee_credits`.
+- `src/vidancee_models.js`: isolated catalog and per-clip quote. Provider source-credit amounts 30/40/50/60 are represented as a USD-equivalent pricing **calculation only** to reuse the existing `quoteGateway` interface; they are **not a USD Vidancee charge**. Server record uses `provider_cost_unit=vidancee_credits`.
 - `src/provider/vidancee.js`: retrieves login CSRF, posts authorized session email/password, retains PHP session and studio CSRF, submits text or image mode through multipart `generate.php` **with an inline binary `images[]` Blob** (not a public signed URL). Does not re-submit the paid POST. Polls jobs by exact ID and downloads MP4.
 - `src/vidancee_queue.js`: uses existing queue claim/heartbeat/refund handling, loads stored reference bytes from `generation_media` (including R2 hydration), persists provider job ID before polling, and does not retry ambiguous charged POSTs.
 - Admin source settings store login email and password encrypted. Enter them through Admin Providers, not in this document or code.
