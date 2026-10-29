@@ -1,24 +1,30 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {vidanceeMediaModels,isVidanceeModel}=require('../src/vidancee_models.js');
+const {vidanceeMediaModels,isVidanceeModel,vidanceeCreditsForDuration,DURATION_CREDITS}=require('../src/vidancee_models.js');
 const {quoteGateway,modelReady,validateReferences}=require('../src/vercel_models.js');
 const {CREDITS_PER_USD}=require('../src/billing.js');
 const {VidanceeClient}=require('../src/provider/vidancee.js');
 const {VidanceeQueue}=require('../src/vidancee_queue.js');
 const [row]=vidanceeMediaModels();
 const model={...row,...row.options,provider:'vidancee'};
-test('only verified Vidancee Omni Flash choices are offered, 30 base credits',()=>{
+test('Omni Flash uses owner-confirmed duration options and exact base credits in both modes',()=>{
  assert.equal(isVidanceeModel('vd_omni_flash'),true);
  assert.equal(row.providerModelId,'Omni-Flash');
- assert.deepEqual(model.durations,[4]);
+ assert.deepEqual(model.durations,[4,6,8,10]);
  assert.deepEqual(model.aspectRatios,['9:16']);
  assert.equal(model.referenceCapabilities.image.supported,true);
  assert.equal(model.referenceCapabilities.image.max,1);
  assert.deepEqual(model.referenceCapabilities.image.roles,['image_references']);
  assert.ok(modelReady(model));
- assert.equal(quoteGateway(model,{duration:4,aspectRatio:'9:16'},CREDITS_PER_USD).cost,30);
- assert.throws(()=>quoteGateway(model,{duration:6},CREDITS_PER_USD),/duration/i);
+ for(const [duration,credits] of [[4,30],[6,40],[8,50],[10,60]]){
+   assert.equal(vidanceeCreditsForDuration(duration),credits);
+   assert.equal(DURATION_CREDITS[duration],credits);
+   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16'},CREDITS_PER_USD).cost,credits);
+   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16',previewHasReferences:true},CREDITS_PER_USD).cost,credits);
+ }
+ assert.throws(()=>quoteGateway(model,{duration:5},CREDITS_PER_USD),/duration/i);
+ assert.throws(()=>vidanceeCreditsForDuration(9),/duration/i);
  assert.throws(()=>quoteGateway(model,{duration:4,aspectRatio:'16:9'},CREDITS_PER_USD),/aspect/i);
 });
 test('login then submit once via Vidancee website CSRF and poll id',async()=>{
@@ -120,4 +126,38 @@ test('customer validation allows one image and blocks unsupported media before b
  assert.throws(()=>validateReferences(model,{images:[image,image]}),/too many|Unsupported/i);
  assert.throws(()=>validateReferences(model,{videos:[{data:Buffer.from([1]),mimeType:'video/mp4'}]}),/Unsupported video/i);
  assert.throws(()=>validateReferences(model,{images:[{...image,mimeType:'image/svg+xml'}]}),/format/i);
+});
+
+test('Vidancee submits all 4/6/8/10 second options for text and image without duplicate paid POSTs',async()=>{
+ const makeResponse=(value,{status=200,headers={}}={})=>
+   new Response(typeof value==='string'?value:JSON.stringify(value),{status,headers});
+ for(const [duration,credits] of [[4,30],[6,40],[8,50],[10,60]]){
+   for(const mode of ['text-to-video','image-to-video']){
+     const seen=[];
+     const responseList=[
+       makeResponse('<input name="csrf_token" value="token">',{headers:{'set-cookie':'PHPSESSID=before; Path=/'}}),
+       makeResponse('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=after; Path=/'}}),
+       makeResponse('<meta name="csrf-token" content="studio-token">'),
+       makeResponse({ok:true,job_id:26443,job_ids:[26443],quantity:1})
+     ];
+     const client=new VidanceeClient({email:'example@test.invalid',password:'irrelevant',fetchImpl:async(url,opts)=>{
+       seen.push({url:String(url),opts});return responseList.shift();
+     }});
+     const files=mode==='image-to-video'?[{role:'image_references',mimeType:'image/png',
+       filename:'poster.png',data:Buffer.from([137,80,78,71])}]:[];
+     const result=await client.startVideo(model,{duration,aspectRatio:'9:16',prompt:'animate'},files);
+     assert.equal(result.requestId,'26443');
+     assert.equal(result.providerCredits,credits);
+     assert.equal(seen.length,4);
+     const paid=seen.filter(call=>call.url.endsWith('/api/generate.php'));
+     assert.equal(paid.length,1);
+     const data=paid[0].opts.body;
+     assert.equal(data.get('mode'),mode);
+     assert.equal(data.get('duration'),String(duration));
+     assert.equal(data.get('model'),'Omni-Flash');
+     assert.equal(data.get('aspect_ratio'),'9:16');
+     assert.equal(data.getAll('images[]').length,files.length);
+     if(files.length)assert.equal(data.get('max_retries'),'0');
+   }
+ }
 });
