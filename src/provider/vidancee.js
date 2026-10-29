@@ -42,11 +42,27 @@ class VidanceeClient {
     return data;
   }
   async startVideo(model,params,references=[]){
-    if(references.length)throw new Error('Omni Flash references are not yet verified on Vidancee.');
+    // Captured Vidancee job 26443 confirms image-reference mode for Omni Flash.
+    // Historical Vidancee browser request contract sends binary images[].
+    if(references.length>1)throw new Error('Omni Flash accepts one reference image in CMMTools.');
     if(Number(params.duration)!==4||params.aspectRatio!=='9:16')throw new Error('Unsupported Omni Flash options.');
+    const ref=references[0]||null;
+    if(ref){
+      const mime=String(ref.mimeType||'').toLowerCase();
+      if(ref.role && ref.role!=='image_references')throw new Error('Unsupported Omni Flash image reference role.');
+      if(!['image/jpeg','image/png','image/webp'].includes(mime)||!Buffer.isBuffer(ref.data)||!ref.data.length||ref.data.length>10*1024*1024)
+        throw new Error('Omni Flash needs a JPEG, PNG or WebP reference image under 10 MB.');
+    }
     await this.auth();
     const form=new FormData();
-    for(const [k,v] of Object.entries({mode:'text-to-video',model:'Omni-Flash',duration:'4',aspect_ratio:'9:16',prompt:String(params.prompt||''),quantity:'1'}))form.append(k,v);
+    for(const [k,v] of Object.entries({mode:ref?'image-to-video':'text-to-video',model:'Omni-Flash',duration:'4',aspect_ratio:'9:16',prompt:String(params.prompt||''),quantity:'1'}))form.append(k,v);
+    if(ref){
+      // Vidancee accepts the binary reference in multipart images[]; do not send
+      // a CMMTools signed link, which the provider may not be able to fetch.
+      const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[ref.mimeType];
+      form.append('images[]',new Blob([ref.data],{type:ref.mimeType}),ref.filename||('reference.'+ext));
+      form.append('max_retries','3'); // historical website field, not a CMMTools resubmission
+    }
     const r=await this.request('/api/generate.php',{method:'POST',timeoutMs:120000,body:form,
       headers:{'x-csrf-token':this.csrf,origin:ORIGIN,referer:ORIGIN+'/studio.php'}});
     // Never automatically resend a potentially billed POST.
