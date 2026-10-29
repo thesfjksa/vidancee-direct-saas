@@ -216,7 +216,8 @@ async function getProviderSettings() {
     sluiceEnabled: asBool(read('sluice_enabled')),
     sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),
     sluiceCustomerCreditsPerUsd: CREDITS_PER_USD,
-    vidanceeEmail: String(read('vidancee_api_key') || '').trim(),
+    vidanceeEmail: String(read('vidancee_email') || '').trim(),
+    vidanceePassword: String(read('vidancee_password') || ''),
     vidanceeEnabled: asBool(read('vidancee_enabled')),
     vidanceeMaxInflight: Math.max(1, Math.min(10, Number(read('vidancee_max_inflight') || 3))),
     vidanceeCustomerCreditsPerUsd: CREDITS_PER_USD,
@@ -420,12 +421,13 @@ async function updateProviderSettings(input = {}) {
     sluiceUpdates.push(['sluice_max_inflight',String(n)]);
   }
   const vidanceeUpdates=[];
+  if('vidanceePassword' in input && (typeof input.vidanceePassword!=='string'||input.vidanceePassword.length>512))throw Object.assign(new Error('Invalid Vidancee password.'),{statusCode:400});
   if ('vidanceeEnabled' in input) {
     if (typeof input.vidanceeEnabled !== 'boolean') throw Object.assign(new Error('Vidancee enabled must be true or false.'), {statusCode:400});
     vidanceeUpdates.push(['vidancee_enabled',input.vidanceeEnabled?'true':'false']);
   }
   if ('vidanceeEmail' in input && (typeof input.vidanceeEmail !== 'string' || input.vidanceeEmail.length>512 || /\s/.test(input.vidanceeEmail.trim())))
-    throw Object.assign(new Error('Invalid Vidancee API key.'), {statusCode:400});
+    throw Object.assign(new Error('Invalid Vidancee email.'), {statusCode:400});
   if ('vidanceeMaxInflight' in input) {
     const n=Number(input.vidanceeMaxInflight);
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Vidancee max inflight must be 1 to 10.'), {statusCode:400});
@@ -508,8 +510,10 @@ async function updateProviderSettings(input = {}) {
   else if (String(input.sluiceApiKey||'').trim()) await put('sluice_api_key',input.sluiceApiKey.trim(),true);
 
   for (const [key,value] of vidanceeUpdates) await put(key,value);
-  if (input.clearVidanceeApiKey===true) await del('vidancee_api_key');
-  else if (String(input.vidanceeEmail||'').trim()) await put('vidancee_api_key',input.vidanceeEmail.trim(),true);
+  if (input.clearVidanceeEmail===true) await del('vidancee_email');
+  else if (String(input.vidanceeEmail||'').trim()) await put('vidancee_email',input.vidanceeEmail.trim(),true);
+  if (input.clearVidanceePassword===true) await del('vidancee_password');
+  else if (String(input.vidanceePassword||'')) await put('vidancee_password',input.vidanceePassword,true);
 
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
@@ -533,7 +537,8 @@ async function migrateLegacyProviderEnvSettings() {
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('sluice_api_key', 'SLUICE_API_KEY');
-  secret('vidancee_api_key', 'VIDANCEE_EMAIL');
+  secret('vidancee_email', 'VIDANCEE_EMAIL');
+  secret('vidancee_password', 'VIDANCEE_PASSWORD');
   secret('fal_api_key', 'FAL_KEY');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');
