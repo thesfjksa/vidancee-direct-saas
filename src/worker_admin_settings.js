@@ -4,6 +4,7 @@ const { FalImageQueue } = require('./fal_image_queue.js');
 const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { SluiceQueue } = require('./sluice_queue.js');
+const { VidanceeQueue } = require('./vidancee_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
@@ -72,6 +73,8 @@ class GenerationWorker {
     this.higgsfieldQueue = new HiggsfieldQueue();
     // Seedance Lite on Sluice.
     this.sluiceQueue = new SluiceQueue();
+    // Omni Flash on Vidancee.
+    this.vidanceeQueue = new VidanceeQueue();
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -127,6 +130,7 @@ class GenerationWorker {
     this.argoLinkQueue.start();
     this.higgsfieldQueue.start();
     this.sluiceQueue.start();
+    this.vidanceeQueue.start();
     this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
@@ -144,6 +148,7 @@ class GenerationWorker {
     this.argoLinkQueue.stop();
     this.higgsfieldQueue.stop();
     this.sluiceQueue.stop();
+    this.vidanceeQueue.stop();
     this.upscaleQueue.stop();
   }
 
@@ -451,14 +456,15 @@ class GenerationWorker {
     }
   }
 
-  // Atlas Cloud, Yotta Labs, Vidancee and CreatePulse were removed. Jobs still open on them can no
+  // Atlas Cloud, Yotta Labs and CreatePulse were removed. Jobs still open on them can no
   // longer be followed, so they are refunded (once; refundGeneration is idempotent).
+  // Vidancee returns for Omni Flash; do not retire new Vidancee jobs.
   async retireRemovedSources(db) {
     // MiniMax H3 jobs queued under the old default source belong to vgenv.
     await db.execute("UPDATE generations SET provider='vgenv', updated_at=UTC_TIMESTAMP() WHERE provider IN ('vidancee','createpulse') AND model='minimax_h3' AND status='queued' AND refunded_at IS NULL");
     // Old Higgsfield (MCP) jobs were refunded when it was removed; 'higgsfield'
     // is the Higgsfield API source again, so only Atlas and Yotta are retired here.
-    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','yotta','vidancee','createpulse')
+    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','yotta','createpulse')
       AND status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 50`);
     for (const row of rows) {
       await refundGeneration(row.id, 'failed', 'This generation source was retired. Credits were refunded.', null)
@@ -477,7 +483,7 @@ class GenerationWorker {
     if (dbConfigured()) recordProviderStatus(getPool(), { outOfCredits: this.outOfCreditsUntil }).catch(() => {});
   }
 
-  // Video jobs this queue runs: MiniMax H3 Base, Cinematic and Origin on vgenv (Vidancee and CreatePulse were removed).
+  // Video jobs this queue runs: MiniMax H3 Base, Cinematic and Origin on vgenv.
   chooseProvider(job, vgenvSlots, access = {}) {
     if (!isH3Model(job.model)) return null;
     return access.vgenv !== false && this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;

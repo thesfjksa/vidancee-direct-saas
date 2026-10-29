@@ -25,6 +25,10 @@ const DEFAULTS = {
   sluice_api_key: '',
   sluice_enabled: 'true',
   sluice_max_inflight: '3',
+  vidancee_email: '',
+  vidancee_enabled: 'false',
+  vidancee_password: '',
+  vidancee_max_inflight: '1',
   fal_api_key: '',
   fal_enabled: 'true',
   fal_max_inflight: '3',
@@ -212,6 +216,11 @@ async function getProviderSettings() {
     sluiceEnabled: asBool(read('sluice_enabled')),
     sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),
     sluiceCustomerCreditsPerUsd: CREDITS_PER_USD,
+    vidanceeEmail: String(read('vidancee_email') || '').trim(),
+    vidanceePassword: String(read('vidancee_password') || ''),
+    vidanceeEnabled: asBool(read('vidancee_enabled')),
+    vidanceeMaxInflight: 1,
+    vidanceeCustomerCreditsPerUsd: CREDITS_PER_USD,
     falApiKey: String(read('fal_api_key') || '').trim(),
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
@@ -269,6 +278,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.sluiceApiKey), configured: Boolean(s.sluiceApiKey),
       enabled: s.sluiceEnabled, active: Boolean(s.sluiceEnabled && s.sluiceApiKey),
       maxInflight: s.sluiceMaxInflight, customerCreditsPerUsd: s.sluiceCustomerCreditsPerUsd,
+    },
+    vidancee: {
+      baseUrl: 'https://vidancee.com',
+      apiKeyConfigured: Boolean(s.vidanceeEmail && s.vidanceePassword), configured: Boolean(s.vidanceeEmail && s.vidanceePassword),
+      enabled: s.vidanceeEnabled, active: Boolean(s.vidanceeEnabled && s.vidanceeEmail && s.vidanceePassword),
+      maxInflight: s.vidanceeMaxInflight, customerCreditsPerUsd: s.vidanceeCustomerCreditsPerUsd,
     },
     fal: {
       baseUrl: 'https://queue.fal.run',
@@ -405,6 +420,19 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Sluice max inflight must be 1 to 10.'), {statusCode:400});
     sluiceUpdates.push(['sluice_max_inflight',String(n)]);
   }
+  const vidanceeUpdates=[];
+  if('vidanceePassword' in input && (typeof input.vidanceePassword!=='string'||input.vidanceePassword.length>512))throw Object.assign(new Error('Invalid Vidancee password.'),{statusCode:400});
+  if ('vidanceeEnabled' in input) {
+    if (typeof input.vidanceeEnabled !== 'boolean') throw Object.assign(new Error('Vidancee enabled must be true or false.'), {statusCode:400});
+    vidanceeUpdates.push(['vidancee_enabled',input.vidanceeEnabled?'true':'false']);
+  }
+  if ('vidanceeEmail' in input && (typeof input.vidanceeEmail !== 'string' || input.vidanceeEmail.length>512 || /\s/.test(input.vidanceeEmail.trim())))
+    throw Object.assign(new Error('Invalid Vidancee email.'), {statusCode:400});
+  if ('vidanceeMaxInflight' in input) {
+    const n=Number(input.vidanceeMaxInflight);
+    if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Vidancee max inflight must be 1 to 10.'), {statusCode:400});
+    vidanceeUpdates.push(['vidancee_max_inflight',String(n)]);
+  }
   if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
     throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
   }
@@ -481,6 +509,12 @@ async function updateProviderSettings(input = {}) {
   if (input.clearSluiceApiKey===true) await del('sluice_api_key');
   else if (String(input.sluiceApiKey||'').trim()) await put('sluice_api_key',input.sluiceApiKey.trim(),true);
 
+  for (const [key,value] of vidanceeUpdates) await put(key,value);
+  if (input.clearVidanceeEmail===true) await del('vidancee_email');
+  else if (String(input.vidanceeEmail||'').trim()) await put('vidancee_email',input.vidanceeEmail.trim(),true);
+  if (input.clearVidanceePassword===true) await del('vidancee_password');
+  else if (String(input.vidanceePassword||'')) await put('vidancee_password',input.vidanceePassword,true);
+
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
 }
@@ -503,6 +537,8 @@ async function migrateLegacyProviderEnvSettings() {
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
   secret('sluice_api_key', 'SLUICE_API_KEY');
+  secret('vidancee_email', 'VIDANCEE_EMAIL');
+  secret('vidancee_password', 'VIDANCEE_PASSWORD');
   secret('fal_api_key', 'FAL_KEY');
   plain('vgenv_base_url', 'VGENV_BASE_URL');
   secret('vgenv_api_key', 'VGENV_API_KEY');

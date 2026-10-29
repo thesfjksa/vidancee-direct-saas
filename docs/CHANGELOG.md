@@ -1,3 +1,7 @@
+## 2026-10-29 — Vidancee Omni Flash draft integration
+
+- Draft PR #111 restores the authorized Vidancee website session source for **Omni Flash** in Video Studio, not CreatePulse. Supports both text-to-video and one-image-to-video at **4 / 6 / 8 / 10 seconds** for the owner's confirmed **30 / 40 / 50 / 60 Vidancee source credits** respectively, in 9:16. The owner's image-reference job 26443 completed and its multipart payload (`images[]`, `max_retries=0`) was verified. Includes encrypted Admin credentials, isolated worker queue, durable provider job IDs, no duplicate charged POST, polling, MP4 download, and mocked tests for all four tiers and both modes. **Not yet production-verified**, source off by default; see docs/VIDANCEE_OMNI_FLASH.md.
+
 # Changelog
 
 ## 2026-10-28 — CreatePulse removed again

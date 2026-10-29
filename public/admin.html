@@ -108,7 +108,7 @@
     </div>
     <div class="card" style="margin-top:12px">
       <h2 style="margin:0">Support access</h2>
-      <div class="muted" style="margin-top:6px">A read-only key for whoever helps you fix problems (for example Claude). It can read this activity log and generation details, with customer emails masked. It cannot change anything, see API keys or spend credits. Revoke it any time.</div>
+      <div class="muted" style="margin-top:6px">A read-only key for whoever helps you fix problems (for example Claude). It can read this activity log and generation details, with customer emails masked. It cannot change anything, see login emails or spend credits. Revoke it any time.</div>
       <div id="supportKeyStatus" class="muted" style="margin-top:10px">Checking...</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="secondary" onclick="createSupportKey()">Create new key</button><button class="danger" onclick="revokeSupportKey()">Revoke key</button></div>
       <pre id="supportKeyOut" class="hide" style="margin-top:10px;white-space:pre-wrap;word-break:break-all"></pre>
@@ -140,8 +140,8 @@
             <label class="source-switch" title="Enable prompt enhancement"><input id="enhancerEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label>
           </div>
           <div id="enhancerEnabledText" class="source-state"></div>
-          <div class="muted">Gemini API key</div><input id="enhancerApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearEnhancerApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div class="muted">Gemini login email</div><input id="enhancerApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearEnhancerApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="enhancerSecretStatus" class="muted" style="margin-top:8px"></div>
           <p class="muted">Enhances text before image or video submission using gemini-3.8-flash. No extra customer credits are deducted; Google may charge API usage. Requires the global paid-generation switch. The connection check only reads model information.</p>
           <button class="secondary" onclick="checkPromptEnhancer()">Test saved connection</button>
@@ -156,8 +156,8 @@
           </div>
           <div id="smartEnabledText" class="source-state"></div>
           <div class="muted">API base URL (including /v1)</div><input id="smartBaseUrl" style="width:100%;margin:6px 0 10px">
-          <div class="muted">API key</div><input id="smartApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearSmartApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div class="muted">login email</div><input id="smartApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearSmartApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="smartSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="muted" style="margin-top:12px">Max inflight jobs</div><input id="smartInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
           <div class="muted" style="margin-top:12px">Customer credits per USD</div><input id="smartCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" value="6720" style="width:100%;margin-top:6px">
@@ -179,8 +179,8 @@
           </div>
           <div id="vgenvEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="vgenvBaseUrl" style="width:100%;margin:6px 0 10px" placeholder="https://api.vgenv.com">
-          <div class="muted">API key</div><input id="vgenvApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearVgenvApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div class="muted">login email</div><input id="vgenvApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearVgenvApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="vgenvSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="muted" style="margin-top:12px">Max inflight H3 jobs</div><input id="vgenvInflight" type="number" min="1" max="50" value="4" style="width:100%;margin-top:6px">
         </div>
@@ -188,7 +188,7 @@
           <div class="source-head"><h3>888API · Video + Image Catalog</h3><label class="source-switch"><input id="api888Enabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div><div id="api888EnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://888api.xin/v1 · Video + Image Studio for supported models</div>
           <label class="muted" for="api888ApiKey">888API token</label><input id="api888ApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted"><input id="clearApi888ApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="api888SecretStatus" class="muted"></div>
           <label class="muted" for="api888Inflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="api888Inflight" type="number" min="1" max="10" value="6" style="width:100%;margin-top:6px">
           <div class="muted" style="margin-top:12px"><strong>888API billing: 1 yuan = 1 CMM credit.</strong> Fixed-price models charge once per request; dynamic models charge their yuan-per-second rate × selected duration. Previous USD conversion and 3.5× markup are disabled for 888API only.</div>
@@ -197,7 +197,7 @@
           <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Inspect all imported 888API models</summary>
             <div id="api888ModelAudit" class="muted" style="max-height:320px;overflow-y:auto;margin-top:8px">Loading inventory…</div>
           </details>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check API key</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check login email</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
            <div id="api888LiveAudit" class="muted" role="status" style="margin:10px 0;white-space:pre-wrap"></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
@@ -205,8 +205,8 @@
           <div class="source-head"><h3>Video Studio + image backup · ArgoLink</h3><label class="source-switch"><input id="argoEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="argoEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://argolink.io/v1</div>
-          <label class="muted" for="argoApiKey">ArgoLink API key</label><input id="argoApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearArgoApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted" for="argoApiKey">ArgoLink login email</label><input id="argoApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearArgoApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="argoSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="argoInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="argoInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
           <label class="muted" for="argoCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="argoCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
@@ -218,8 +218,8 @@
           <div class="source-head"><h3>Video Studio · Sluice (Seedance Lite)</h3><label class="source-switch"><input id="sluiceEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="sluiceEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://www.getsluice.com</div>
-          <label class="muted" for="sluiceApiKey">Sluice API key (slu_live_…)</label><input id="sluiceApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearSluiceApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted" for="sluiceApiKey">Sluice login email (slu_live_…)</label><input id="sluiceApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearSluiceApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="sluiceSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="sluiceInflight" style="display:block;margin-top:12px">Max inflight generations (Sluice allows 3 per key)</label><input id="sluiceInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
           <div class="muted" style="margin:10px 0">Seedance 2.5 / 2.0 / 2.0 Fast Lite, sold at cost (24 credits per rupee) from Sluice's per-second prices, plus $0.10 when reference images are used. Keys have a monthly spend cap (default $50): raise it in Sluice.</div>
@@ -227,11 +227,25 @@
           <div id="sluiceActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
         <div class="card">
+          <div class="source-head"><h3>Video Studio · Vidancee (Omni Flash)</h3><label class="source-switch"><input id="vidanceeEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="vidanceeEnabledText" class="source-state"></div>
+          <div class="muted">Website source · https://vidancee.com</div>
+          <label class="muted">Vidancee email</label><input id="vidanceeEmail" type="email" style="width:100%;margin:6px 0 8px" placeholder="Email used to sign in">
+          <label class="muted">Vidancee password</label><input id="vidanceePassword" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave empty to keep saved password">
+          <label class="muted"><input id="clearVidanceeApiKey" type="checkbox" style="width:auto"> Clear saved email</label>
+          <label class="muted"><input id="clearVidanceePassword" type="checkbox" style="width:auto"> Clear saved password</label>
+          <div id="vidanceeSecretStatus" class="muted"></div>
+          <label class="muted">Max inflight (verified account: 1)</label><input id="vidanceeInflight" type="number" min="1" max="1" value="1">
+          <div class="muted">Omni Flash · text-to-video + image-to-video (one reference image), 9:16. Duration/source credits: 4s/30, 6s/40, 8s/50, 10s/60. Prices confirmed by owner for both modes. Other ratios, multiple images, audio and video references are not verified.</div>
+          <button class="secondary" onclick="checkVidancee()">Check website session</button>
+          <div id="vidanceeActionMsg" class="muted"></div>
+        </div>
+        <div class="card">
           <div class="source-head"><h3>Video Studio · Higgsfield (Wan 3.0)</h3><label class="source-switch"><input id="higgsfieldEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="higgsfieldEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://api.higgsfield.ai</div>
-          <label class="muted" for="higgsfieldApiKey">Higgsfield API key (from console.higgsfield.ai, entered as KEY_ID:KEY_SECRET)</label><input id="higgsfieldApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearHiggsfieldApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted" for="higgsfieldApiKey">Higgsfield login email (from console.higgsfield.ai, entered as KEY_ID:KEY_SECRET)</label><input id="higgsfieldApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearHiggsfieldApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="higgsfieldSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="higgsfieldInflight" style="display:block;margin-top:12px">Max inflight generations (keep at or below your Higgsfield concurrency limit)</label><input id="higgsfieldInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
           <div class="muted" style="margin:10px 0">480p is rendered natively. With fal.ai set up, 720p is rendered at 480p and 1080p at 720p, then upscaled to 1080p (HD enhancement, cheaper than Higgsfield's own 720p/1080p). Wan 3.0 is sold at cost from Higgsfield's price estimates: saving a new key reads them, and Sync prices refreshes them (nothing is charged). The model stays hidden until prices are read.</div>
@@ -242,8 +256,8 @@
           <div class="source-head"><h3>Image Studio · Vercel AI Gateway</h3><label class="source-switch"><input id="vercelEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="vercelEnabledText" class="source-state"></div>
           <div class="muted">Endpoint · https://ai-gateway.vercel.sh/v1</div>
-          <label class="muted" for="vercelApiKey">AI Gateway API key</label><input id="vercelApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearVercelApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted" for="vercelApiKey">AI Gateway login email</label><input id="vercelApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearVercelApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="vercelSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="vercelInflight" style="display:block;margin-top:12px">Max inflight generations</label><input id="vercelInflight" type="number" min="1" max="10" value="2" style="width:100%;margin-top:6px">
           <label class="muted" for="vercelCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="vercelCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
@@ -255,8 +269,8 @@
           <div class="source-head"><h3>Upscaler + HD enhancement · fal.ai</h3><label class="source-switch"><input id="falEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="falEnabledText" class="source-state"></div>
           <div class="muted">ByteDance Video Upscaler · fal-ai/bytedance-upscaler</div>
-          <label class="muted" for="falApiKey">fal.ai API key</label><input id="falApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearFalApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <label class="muted" for="falApiKey">fal.ai login email</label><input id="falApiKey" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearFalApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="falSecretStatus" class="muted" style="margin-top:8px"></div>
           <label class="muted" for="falInflight" style="display:block;margin-top:12px">Max inflight upscales</label><input id="falInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
           <label class="muted" for="falCreditsPerUsd" style="display:block;margin-top:12px">Customer credits per USD</label><input id="falCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any" style="width:100%;margin-top:6px">
@@ -276,8 +290,8 @@
           </div>
           <div id="vibiEnabledText" class="source-state"></div>
           <div class="muted">Base URL</div><input id="vibiBaseUrl" style="width:100%;margin:6px 0 10px" value="https://api.vibi.pro">
-          <div class="muted">API key</div><input id="vibiApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearVibiApiKey" type="checkbox" style="width:auto"> Clear saved API key</label>
+          <div class="muted">login email</div><input id="vibiApiKey" type="password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
+          <label class="muted"><input id="clearVibiApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
           <div id="vibiSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="muted" style="margin-top:12px">Max inflight voice jobs</div><input id="vibiInflight" type="number" min="1" max="20" value="4" style="width:100%;margin:6px 0 10px">
           <div class="muted">Customer cost for creating a cloned voice</div><input id="vibiCloneCost" type="number" min="0" step="0.01" value="0" style="width:100%;margin:6px 0 10px">
@@ -371,6 +385,7 @@
       <label class="provider-access-item"><div><strong>888API</strong><span class="muted">Video Studio + Image Studio</span></div><span class="source-switch"><input id="accessApi888" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Video Studio · Omni Flash</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -448,7 +463,7 @@ function planOptions(selected){
 const num=v=>Number(v||0).toLocaleString();
 function userRow(u){
   const a=u.provider_access||{};
-  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['vidancee','Vidancee'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
   const off=sourceLabels.filter(([k])=>a[k]===false).map(([,l])=>l);
   const sources=off.length?'<span class="muted" title="Turned off: '+esc(off.join(', '))+'">'+(sourceLabels.length-off.length)+' of '+sourceLabels.length+' on</span>':'<span class="muted">All on</span>';
   return '<tr id="urow'+u.id+'"><td>'+u.id+'</td>'+
@@ -650,6 +665,7 @@ function openProviderAccess(id){
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
   $('accessSluice').checked=a.sluice!==false;
+  $('accessVidancee').checked=a.vidancee!==false;
   $('accessFal').checked=a.fal!==false;
   $('accessVgenv').checked=a.vgenv!==false;
   $('accessSmartaipi').checked=a.smartaipi!==false;
@@ -667,6 +683,7 @@ async function saveProviderAccess(){
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
     sluice:$('accessSluice').checked,
+    vidancee:$('accessVidancee').checked,
     fal:$('accessFal').checked,
     vgenv:$('accessVgenv').checked,
     smartaipi:$('accessSmartaipi').checked,
@@ -849,6 +866,7 @@ function updateSourceSwitchLabels(){
     ['api888Enabled','api888EnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
     ['sluiceEnabled','sluiceEnabledText'],
+    ['vidanceeEnabled','vidanceeEnabledText'],
     ['falEnabled','falEnabledText'],
     ['vibiEnabled','vibiEnabledText'],
   ];
@@ -929,7 +947,7 @@ async function auditApi888Models(){
         const name=item.id+' — '+item.state.replaceAll('_',' ');
         lines.push(name+'\n  '+item.nextAction);
       }
-      lines.push('This check uses the saved 888API key. Provider-wide and per-customer switches still control what customers see.');
+      lines.push('This check uses the saved 888login email. Provider-wide and per-customer switches still control what customers see.');
     }
     const unsupported=(d.details||[]).filter(x=>!x.adapterSupported);
     if(unsupported.length)lines.push('Not yet supported for paid generation ('+unsupported.length+'): '+
@@ -955,48 +973,52 @@ async function loadProviderSettings(){try{
   const d=await api('/admin/provider-settings');const s=d.settings;
   $('enhancerEnabled').checked=s.promptEnhancer?.enabled!==false;
   $('enhancerApiKey').value='';$('clearEnhancerApiKey').checked=false;
-  $('enhancerSecretStatus').textContent=s.promptEnhancer?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('enhancerSecretStatus').textContent=s.promptEnhancer?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('smartEnabled').checked=s.smartaipi?.enabled!==false;
   $('vgenvEnabled').checked=s.vgenv?.enabled!==false;
   $('vercelEnabled').checked=s.vercel?.enabled!==false;
   $('vercelApiKey').value='';$('clearVercelApiKey').checked=false;
-  $('vercelSecretStatus').textContent=s.vercel?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('vercelSecretStatus').textContent=s.vercel?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('vercelInflight').value=s.vercel?.maxInflight||2;
   $('vercelCreditsPerUsd').value=s.vercel?.customerCreditsPerUsd||(160/0.0265);
   loadVercelModels();
   $('api888Enabled').checked=s.api888?.enabled===true;
   $('api888ApiKey').value='';$('clearApi888ApiKey').checked=false;$('api888Inflight').value=s.api888?.maxInflight||6;
-  $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('api888SecretStatus').textContent=s.api888?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   loadApi888ModelSummary();
   $('argoEnabled').checked=s.argolink?.enabled!==false;
   $('argoApiKey').value='';$('clearArgoApiKey').checked=false;
-  $('argoSecretStatus').textContent=s.argolink?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('argoSecretStatus').textContent=s.argolink?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('argoInflight').value=s.argolink?.maxInflight||3;
   $('argoCreditsPerUsd').value=s.argolink?.customerCreditsPerUsd||(160/0.0265);
   loadArgoModels();
   $('higgsfieldEnabled').checked=s.higgsfield?.enabled!==false;
   $('higgsfieldApiKey').value='';$('clearHiggsfieldApiKey').checked=false;
-  $('higgsfieldSecretStatus').textContent=s.higgsfield?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('higgsfieldSecretStatus').textContent=s.higgsfield?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('higgsfieldInflight').value=s.higgsfield?.maxInflight||3;
   $('sluiceEnabled').checked=s.sluice?.enabled!==false;
   $('sluiceApiKey').value='';$('clearSluiceApiKey').checked=false;
-  $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('sluiceInflight').value=s.sluice?.maxInflight||3;
+  $('vidanceeEnabled').checked=s.vidancee?.enabled!==false;
+  $('vidanceeEmail').value='';$('vidanceePassword').value='';$('clearVidanceeApiKey').checked=false;$('clearVidanceePassword').checked=false;
+  $('vidanceeSecretStatus').textContent=s.vidancee?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
+  $('vidanceeInflight').value=s.vidancee?.maxInflight||1;
   $('falEnabled').checked=s.fal?.enabled!==false;
   $('falApiKey').value='';$('clearFalApiKey').checked=false;
-  $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('falInflight').value=s.fal?.maxInflight||3;
   $('falCreditsPerUsd').value=s.fal?.customerCreditsPerUsd||(160/0.0265);
   $('vibiEnabled').checked=s.vibi?.enabled!==false;
   updateSourceSwitchLabels();
   $('smartBaseUrl').value=s.smartaipi?.baseUrl||'https://api.smartaipi.com/v1';$('smartApiKey').value='';$('clearSmartApiKey').checked=false;
-  $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';
+  $('smartSecretStatus').textContent=s.smartaipi?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('smartInflight').value=s.smartaipi?.maxInflight||2;$('smartCreditsPerUsd').value=s.smartaipi?.customerCreditsPerUsd||(160/0.0265);
   const smartModels=s.smartaipi?.models||[],usd=v=>Number(Number(v||0).toPrecision(6));
   $('smartPricesSummary').textContent='Model prices · '+smartModels.filter(m=>m.enabled).length+' of '+smartModels.length+' models on';
   $('smartModelPrices').innerHTML=smartModels.map(model=>'<div class="smart-price-row" data-smart-model="'+esc(model.id)+'"><label><input class="smart-model-enabled" type="checkbox" style="width:auto"'+(model.enabled?' checked':'')+'> '+esc(model.label)+'</label><div>'+['low','medium','high'].map(q=>'<input aria-label="'+esc(model.label)+' '+q+' USD" data-smart-quality="'+q+'" class="smart-quality-price'+(q==='medium'?' smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+usd(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'">').join('')+'</div></div>').join('');
-  $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
-  $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved API key: configured':'Saved API key: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
+  $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
+  $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
   $('providerCharges').value=s.allowProviderCharges?'true':'false';
 }catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
 async function saveProviderSettings(){
@@ -1013,6 +1035,7 @@ async function saveProviderSettings(){
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
+    vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeEmail:$('clearVidanceeApiKey').checked,vidanceePassword:$('vidanceePassword').value,clearVidanceePassword:$('clearVidanceePassword').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
@@ -1117,19 +1140,24 @@ async function revokeSupportKey(){
   catch(e){alert(e.message);}
 }
 async function checkFal(){
-  const msg=$('falActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  const msg=$('falActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{await api('/admin/fal/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · fal.ai accepted the key';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function checkArgo(){
-  const msg=$('argoActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  const msg=$('argoActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{const d=await api('/admin/argolink/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.balance?'Connected · '+d.balance.remaining+' '+d.balance.unit+' available':'Connected · balance not reported';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function checkSluice(){
-  const msg=$('sluiceActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  const msg=$('sluiceActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{const d=await api('/admin/sluice/check',{method:'POST',body:'{}'});const b=d.balance||{};const f=v=>v==null?'?':'$'+v.toFixed(2);
     msg.className='ok';msg.textContent='Connected · balance '+f(b.availableUsd)+' · this month '+f(b.monthSpendUsd)+(b.spendLimitUsd!=null?' of '+f(b.spendLimitUsd)+' limit':'');}
+  catch(e){msg.className='err';msg.textContent=e.message;}
+}
+async function checkVidancee(){
+  const msg=$('vidanceeActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
+  try{const d=await api('/admin/vidancee/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · '+d.ready+' of '+d.total+' model ready and visible';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function syncSluiceModels(){
@@ -1138,7 +1166,7 @@ async function syncSluiceModels(){
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
 async function checkHiggsfield(){
-  const msg=$('higgsfieldActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  const msg=$('higgsfieldActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{await api('/admin/higgsfield/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · Higgsfield accepted the key';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
@@ -1174,7 +1202,7 @@ async function toggleArgoModel(id,enabled){
   catch(e){$('argoCatalogMsg').className='err';$('argoCatalogMsg').textContent=e.message;}
 }
 async function checkVercel(){
-  const msg=$('vercelActionMsg');msg.className='muted';msg.textContent='Checking saved API key...';
+  const msg=$('vercelActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{const d=await api('/admin/vercel/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · $'+String(d.balance??'—')+' available · $'+String(d.totalUsed??'—')+' used';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
@@ -1215,13 +1243,13 @@ async function toggleVercelModel(id,enabled){
 }
 
 async function checkPromptEnhancer(){
-  const m=$('enhancerActionMsg');m.className='muted';m.textContent='Checking saved Gemini API key...';
+  const m=$('enhancerActionMsg');m.className='muted';m.textContent='Checking saved Gemini login email...';
   try{const d=await api('/admin/prompt-enhancer/check',{method:'POST',body:'{}'});m.className='ok';m.textContent='Connected · '+d.model;}
   catch(e){m.className='err';m.textContent=e.message;}
 }
 
 async function checkSmartAipi(){
-  const m=$('smartActionMsg');m.className='muted';m.textContent='Checking saved API key...';
+  const m=$('smartActionMsg');m.className='muted';m.textContent='Checking saved login...';
   try{
     const d=await api('/admin/smartaipi/check',{method:'POST',body:'{}'});
     const found=(d.models||[]).filter(x=>x.available).length;
@@ -1230,7 +1258,7 @@ async function checkSmartAipi(){
 }
 
 async function checkVibi(){
-  const m=$('vibiActionMsg');m.className='muted';m.textContent='Checking API key...';
+  const m=$('vibiActionMsg');m.className='muted';m.textContent='Checking login email...';
   try{
     await saveProviderSettings();
     const d=await api('/admin/vibi/check',{method:'POST',body:'{}'});
