@@ -15,6 +15,9 @@ const KNOWN = [
   [MODEL_DOWN, MAINTENANCE],
   [/频繁|限流|繁忙|并发|排队|too many requests|rate limit/i, 'The service is busy right now. Please try again in a few minutes'],
   [/超时|timed? ?out/i, 'The video took too long to generate. Please try again'],
+  // One-off glitches at the source that it asks us to resubmit, e.g.
+  // "网络波动异常，请重新提交" (network blip) or "系统异常，请重新提交".
+  [/重新提交|重试|网络波动|网络异常|系统异常|服务异常|内部错误|internal (server )?error/i, 'The video failed because of a temporary error. Please try again'],
 ];
 
 const modelUnavailable = reason => MODEL_DOWN.test(String(reason || ''));

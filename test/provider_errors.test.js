@@ -14,6 +14,9 @@ test('Chinese provider reasons become plain English, unknown ones read "Model un
   assert.equal(failureMessage('video', 'Prompt too long.'), 'Model under maintenance. Please choose another model. Credits were refunded.');
   assert.equal(failureMessage('video', '请改用其他模型'), 'Model under maintenance. Please choose another model. Credits were refunded.');
   assert.doesNotMatch(failureMessage('video', '输入图片触发安全策略'), /888|[㐀-鿿]/);
+  assert.equal(failureMessage('video', '网络波动异常，请重新提交'), 'The video failed because of a temporary error. Please try again. Credits were refunded.');
+  assert.equal(failureMessage('video', '系统异常，请重新提交'), 'The video failed because of a temporary error. Please try again. Credits were refunded.');
+  assert.equal(failureMessage('video', '2.5需要临时修复，排查一下卡顿问题'), 'Model under maintenance. Please choose another model. Credits were refunded.');
 });
 
 test('"please use another model" answers mark the model as down', () => {
