@@ -1925,6 +1925,26 @@ const server=http.createServer(async (req,res)=>{
           download:await sniff(store.presign(key,{contentType:'video/mp4',disposition:'attachment; filename="'+name+'"'})),
           plain:await sniff(store.presign(key))});
       }
+      // The finished video or image itself, for support work that needs to look
+      // at outputs (for example picking clips for an ad). Each fetch is logged.
+      const opsFile=routePath.match(/^\/ops\/generations\/([0-9a-f-]{36})\/file$/i);
+      if (opsFile) {
+        const [[row]]=await db.execute("SELECT id,output_url FROM generations WHERE id=? AND status='completed'",[opsFile[1]]);
+        if(!row)return sendJson(res,404,{ok:false,error:'Generation not found.'});
+        logActivity({level:'info',category:'admin',event:'support.media_viewed',generationId:row.id,message:'Output opened with the support key'});
+        if(row.output_url==='db:image'){
+          const [outputs]=await db.execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+          await require('./src/object_storage.js').hydrateBlobs(outputs,'image_data');
+          if(!outputs[0])return sendJson(res,404,{ok:false,error:'Generated image is unavailable.'});
+          res.writeHead(200,{'content-type':outputs[0].mime_type,'content-length':outputs[0].image_data.length,'cache-control':'private, no-store','x-content-type-options':'nosniff'});
+          return res.end(outputs[0].image_data);
+        }
+        const key=keyFromMarker(row.output_url);
+        if(!key)return sendJson(res,404,{ok:false,error:'This output is not in cloud storage.'});
+        const store=await configuredStorage({requireEnabled:false});
+        if(!store)return sendJson(res,503,{ok:false,error:'Video storage is not configured.'});
+        return redirectToObject(store,key,res,{contentType:'video/mp4',filename:'cmm-tools-'+row.id.slice(0,8)+'.mp4',download:false});
+      }
       const opsJob=routePath.match(/^\/ops\/generations\/([0-9a-f-]{36})$/i);
       if (opsJob) {
         const [[row]]=await db.execute('SELECT '+JOB_FIELDS+' FROM generations WHERE id=?',[opsJob[1]]);
