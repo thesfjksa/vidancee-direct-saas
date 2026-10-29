@@ -105,9 +105,26 @@ healthServer=http.createServer((req,res)=>{
     });
     return res.end(body);
   }
+  // Read-only network test from this worker (support key from Admin → Activity).
+  if(req.method==='GET'&&req.url.startsWith('/ops/network'))return networkCheck(req,res);
   res.writeHead(404,{'content-type':'application/json'});
   res.end('{"ok":false,"error":"Not found"}');
 });
+async function networkCheck(req,res){
+  const send=(status,body)=>{const text=JSON.stringify(body);res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(text);};
+  try{
+    const url=new URL(req.url,'http://worker');
+    const {getSettingValue}=require('./src/settings.js');
+    const {SUPPORT_KEY_SETTING,supportKeyMatches}=require('./src/activity_log.js');
+    const supplied=String(req.headers['x-support-key']||'');
+    if(!worker||!supportKeyMatches(supplied,await getSettingValue(SUPPORT_KEY_SETTING,'')))
+      return send(401,{ok:false,error:'A valid support key is required.'});
+    const settings=await getProviderSettings();
+    const {runNetworkCheck}=require('./src/network_check.js');
+    send(200,{ok:true,service:'worker',...await runNetworkCheck({rounds:url.searchParams.get('rounds'),
+      task:url.searchParams.get('task')||'',api888Key:settings.api888ApiKey})});
+  }catch(error){send(500,{ok:false,error:'Network check failed.'});}
+}
 healthServer.listen(port,host,()=>{
   console.log('[worker] health server listening on '+host+':'+port);
 });
