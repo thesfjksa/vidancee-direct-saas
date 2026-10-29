@@ -13,7 +13,9 @@ test('only verified Vidancee Omni Flash choices are offered, 30 base credits',()
  assert.equal(row.providerModelId,'Omni-Flash');
  assert.deepEqual(model.durations,[4]);
  assert.deepEqual(model.aspectRatios,['9:16']);
- assert.equal(model.referenceCapabilities.image.supported,false);
+ assert.equal(model.referenceCapabilities.image.supported,true);
+ assert.equal(model.referenceCapabilities.image.max,1);
+ assert.deepEqual(model.referenceCapabilities.image.roles,['image_references']);
  assert.ok(modelReady(model));
  assert.equal(quoteGateway(model,{duration:4,aspectRatio:'9:16'},CREDITS_PER_USD).cost,30);
  assert.throws(()=>quoteGateway(model,{duration:6},CREDITS_PER_USD),/duration/i);
@@ -44,5 +46,69 @@ test('queue stores accepted operation and never repeats the POST during polling'
  await q.submit(db,job,{startVideo:async()=>({requestId:'26394'})});
  assert.match(calls[0].sql,/status='submitted'/);
  assert.equal(calls[0].args[1],'26394');
+ q.stop();
+});
+
+test('Omni Flash image-to-video posts one binary images[] with documented fields',async()=>{
+ const seen=[];
+ const reply=(body,{status=200,headers={}}={})=>new Response(body,{status,headers});
+ const responses=[
+  reply('<input name="csrf_token" value="login-token">',{headers:{'set-cookie':'PHPSESSID=pending; Path=/'}}),
+  reply('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=done; Path=/'}}),
+  reply('<meta name="csrf-token" content="studio-token">'),
+  reply(JSON.stringify({ok:true,job_id:26443,job_ids:[26443],quantity:1}))
+ ];
+ const client=new VidanceeClient({email:'user@example.test',password:'fake',fetchImpl:async(url,options)=>{
+  seen.push({url:String(url),options});return responses.shift();
+ }});
+ const reference={role:'image_references',mimeType:'image/png',filename:'burger.png',data:Buffer.from('not-a-real-image')};
+ const job=await client.startVideo(model,{duration:4,aspectRatio:'9:16',prompt:'ad of this poster'},[reference]);
+ assert.equal(job.requestId,'26443');
+ const request=seen[3];assert.equal(request.url,'https://vidancee.com/api/generate.php');
+ assert.equal(request.options.headers.cookie,'PHPSESSID=done');
+ assert.equal(request.options.headers['x-csrf-token'],'studio-token');
+ const form=request.options.body;
+ assert.equal(form.get('mode'),'image-to-video');
+ assert.equal(form.get('model'),'Omni-Flash');
+ assert.equal(form.get('duration'),'4');
+ assert.equal(form.get('aspect_ratio'),'9:16');
+ assert.equal(form.get('quantity'),'1');
+ assert.equal(form.get('max_retries'),'3');
+ assert.equal(form.getAll('images[]').length,1);
+ assert.equal(form.get('images[]').name,'burger.png');
+ assert.equal(form.get('images[]').type,'image/png');
+ assert.equal(form.get('images[]').size,reference.data.length);
+ assert.equal(seen.filter(v=>v.url.endsWith('/api/generate.php')).length,1);
+});
+
+test('Omni Flash rejects too many, unsupported, or invalid reference images without a paid POST',async()=>{
+ const c=new VidanceeClient({email:'user@example.test',password:'fake',fetchImpl:()=>{throw Error('unexpected network call')}});
+ const params={duration:4,aspectRatio:'9:16',prompt:'animate poster'};
+ const good={role:'image_references',mimeType:'image/png',data:Buffer.from([137,80,78,71])};
+ await assert.rejects(c.startVideo(model,params,[good,good]),/one reference/i);
+ await assert.rejects(c.startVideo(model,params,[{...good,role:'end_image'}]),/role/i);
+ await assert.rejects(c.startVideo(model,params,[{...good,mimeType:'image/svg+xml'}]),/JPEG|PNG|WebP/i);
+ await assert.rejects(c.startVideo(model,params,[{...good,data:Buffer.alloc(0)}]),/JPEG|PNG|WebP/i);
+ await assert.rejects(c.startVideo(model,params,[{...good,data:Buffer.alloc(10*1024*1024+1)}]),/10 MB/i);
+});
+
+test('Vidancee queue hydrates DB image bytes and passes them to one submission',async()=>{
+ const q=new VidanceeQueue({getModel:async()=>({...model,ready:true})});
+ const bitmap=Buffer.from([137,80,78,71]);
+ q.references=async()=>[{role:'image_references',mimeType:'image/png',url:'https://cmmtools.site/provider-media/a'}];
+ const calls=[];let sent=null;
+ const db={execute:async(sql,args)=>{
+  calls.push([sql,args]);
+  if(sql.includes('FROM generation_media'))return [[{position_index:0,media_kind:'image',media_role:'image_references',filename:'burger.png',mime_type:'image/png',media_data:bitmap}]];
+  return [{affectedRows:1}];
+ }};
+ const job={id:'a1',model:'vd_omni_flash',media_type:'video',prompt:'animate burger',generation_options:JSON.stringify({model:{providerModelId:'Omni-Flash'},duration:4,aspectRatio:'9:16'})};
+ await q.submit(db,job,{startVideo:async(_model,_params,refs)=>{sent=refs;return {requestId:'26443'};}});
+ assert.equal(sent.length,1);
+ assert.equal(sent[0].filename,'burger.png');
+ assert.ok(sent[0].data.equals(bitmap));
+ assert.equal(sent[0].url,undefined);
+ assert.match(calls.at(-1)[0],/status='submitted'/);
+ assert.equal(calls.at(-1)[1][1],'26443');
  q.stop();
 });
