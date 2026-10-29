@@ -20,8 +20,10 @@ test('Omni Flash uses owner-confirmed duration options and exact base credits in
  for(const [duration,credits] of [[4,30],[6,40],[8,50],[10,60]]){
    assert.equal(vidanceeCreditsForDuration(duration),credits);
    assert.equal(DURATION_CREDITS[duration],credits);
-   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16'},CREDITS_PER_USD).cost,credits);
-   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16',previewHasReferences:true},CREDITS_PER_USD).cost,credits);
+   // Sold at cost: Vidancee credits are $1 per 900.
+   const atCost=Math.ceil(credits/900*CREDITS_PER_USD-1e-9);
+   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16'},CREDITS_PER_USD).cost,atCost);
+   assert.equal(quoteGateway(model,{duration,aspectRatio:'9:16',previewHasReferences:true},CREDITS_PER_USD).cost,atCost);
  }
  assert.throws(()=>quoteGateway(model,{duration:5},CREDITS_PER_USD),/duration/i);
  assert.throws(()=>vidanceeCreditsForDuration(9),/duration/i);

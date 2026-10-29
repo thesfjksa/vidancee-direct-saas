@@ -4,6 +4,10 @@
 
 # Changelog
 
+## 2026-10-29 — Omni Flash (Vidancee) priced at cost
+
+- Omni Flash charged customers one CMM credit per Vidancee credit (30/40/50/60 for 4/6/8/10 s), but Vidancee credits cost $1 per 900, so each clip sold at about 1/7.5 of its cost. It is now sold at cost like every model: 224/299/374/448 credits before the 5% increase (236/314/393/471 after it). `VIDANCEE_CREDITS_PER_USD` in `src/vidancee_models.js`.
+
 ## 2026-10-28 — CreatePulse removed again
 
 - Owner request: Omni Flash from CreatePulse (#109) is removed. Its client, queue, Admin card, settings and Sources switch are gone, and CreatePulse is back in the retired-sources cleanup, so any open job on it is refunded. Its only job (28 Oct) was refused by CreatePulse for the $10 minimum balance and refunded.
