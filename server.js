@@ -197,7 +197,7 @@ const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validate
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
-const { isVidanceeModel, vidanceeMediaModels } = require('./src/vidancee_models.js');
+const { isVidanceeModel, vidanceeMediaModels, vidanceeCreditsForDuration } = require('./src/vidancee_models.js');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
 const { applyWanCap } = require('./src/wan_pricing.js');
 const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js');
@@ -912,7 +912,7 @@ async function submitVideoGeneration(user,body,req=null){
     const quote=quoteGateway(model,body,providerSettings.vidanceeCustomerCreditsPerUsd);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vidancee',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:30,providerCostUnit:'vidancee_credits',generationOptions:{...quote,model},
+      costOverride:quote.cost,providerCost:vidanceeCreditsForDuration(quote.duration),providerCostUnit:'vidancee_credits',generationOptions:{...quote,model},
     });
   }
 
