@@ -912,7 +912,7 @@ async function submitVideoGeneration(user,body,req=null){
     const quote=quoteGateway(model,body,providerSettings.vidanceeCustomerCreditsPerUsd);
     generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vidancee',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
+      costOverride:quote.cost,providerCost:30,providerCostUnit:'vidancee_credits',generationOptions:{...quote,model},
     });
   }
 
