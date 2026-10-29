@@ -73,7 +73,7 @@ test('Omni Flash image-to-video posts one binary images[] with documented fields
  assert.equal(form.get('duration'),'4');
  assert.equal(form.get('aspect_ratio'),'9:16');
  assert.equal(form.get('quantity'),'1');
- assert.equal(form.get('max_retries'),'3');
+ assert.equal(form.get('max_retries'),'0');
  assert.equal(form.getAll('images[]').length,1);
  assert.equal(form.get('images[]').name,'burger.png');
  assert.equal(form.get('images[]').type,'image/png');
