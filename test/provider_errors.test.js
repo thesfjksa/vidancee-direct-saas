@@ -17,6 +17,8 @@ test('Chinese provider reasons become plain English, unknown ones read "Model un
   assert.equal(failureMessage('video', '输入图片被识别为可能包含真人，请更换参考图片。'),
     'This model does not accept reference images that show a real person. Please use a different image. Credits were refunded.');
   assert.equal(failureMessage('video', '网络波动异常，请重新提交'), 'The video failed because of a temporary error. Please try again. Credits were refunded.');
+  assert.equal(failureMessage('video', '888API request interrupted. Paid operations are not retried automatically.'),
+    'The video failed because of a temporary error. Please try again. Credits were refunded.');
   assert.equal(failureMessage('video', '系统异常，请重新提交'), 'The video failed because of a temporary error. Please try again. Credits were refunded.');
   assert.equal(failureMessage('video', '2.5需要临时修复，排查一下卡顿问题'), 'Model under maintenance. Please choose another model. Credits were refunded.');
 });

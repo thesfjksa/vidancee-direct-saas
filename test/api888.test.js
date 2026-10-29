@@ -395,6 +395,18 @@ test('888API paid POST creation is never retried after an ambiguous interruption
    });
  assert.equal(calls,1);
 });
+test('888API paid POST is sent again only when the connection never opened',async()=>{
+ let calls=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(_url,options)=>{
+   calls++;
+   assert.equal(options.method,'POST');
+   if(calls<3)throw Object.assign(new Error('connect timeout'),{cause:{code:'UND_ERR_CONNECT_TIMEOUT'}});
+   return new Response(JSON.stringify({task_id:'task_987654321'}),{status:200});
+ }});
+ assert.equal(await client.startVideo(modelById('ss-2.5-720p-v1'),
+   {prompt:'A scene',duration:10,resolution:'720p',aspectRatio:'16:9'}),'task_987654321');
+ assert.equal(calls,3);
+});
 test('888API queue clears stale transient video polling warning on successful poll',async()=>{
  const {Api888Queue}=require('../src/api888_queue.js');
  const queue=new Api888Queue();
