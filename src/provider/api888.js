@@ -76,13 +76,17 @@ function safeNetworkCode(error){
   const code=String(error?.cause?.code||error?.code||'').slice(0,50);
   return /^[A-Z][A-Z0-9_]{1,49}$/.test(code)?code:null;
 }
+// The connection never opened, so 888API received nothing and charged
+// nothing: even a paid POST may be sent again.
+const NOT_SENT=new Set(['UND_ERR_CONNECT_TIMEOUT','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','EHOSTUNREACH','ENETUNREACH']);
+const POST_CONNECT_ATTEMPTS=3;
 Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxBytes=API888_JSON_LIMIT){
   if(!this.apiKey)throw new Error('888API key is not configured.');
   const isGet=body==null;
   const isVideoStatus=isGet&&/^\/v1\/videos\/[A-Za-z0-9_-]+$/.test(path);
   // Provider documentation recommends 60s timeout on video task reads.
   const requestTimeout=isVideoStatus?Math.max(timeoutMs,60000):timeoutMs;
-  const attempts=isVideoStatus?2:1;
+  const attempts=isVideoStatus?2:POST_CONNECT_ATTEMPTS;
   for(let attempt=1;attempt<=attempts;attempt++){
     let response;
     try{
@@ -92,6 +96,7 @@ Api888Client.prototype.json=async function(path,body=null,timeoutMs=30000,maxByt
     }catch(error){
       // A GET may be safely repeated; a POST may have been charged upstream.
       if(isVideoStatus&&attempt<attempts){await sleep(500);continue;}
+      if(!isVideoStatus&&attempt<attempts&&NOT_SENT.has(safeNetworkCode(error))){await sleep(2000*attempt);continue;}
       throw Object.assign(new Error(isVideoStatus?'888API video status request interrupted; original task will be checked again.':
         '888API request interrupted. Paid operations are not retried automatically.'),{
         statusCode:502,retryable:isVideoStatus,requestMethod:isGet?'GET':'POST',
