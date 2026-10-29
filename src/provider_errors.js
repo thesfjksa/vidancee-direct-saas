@@ -11,6 +11,9 @@ const MAINTENANCE = 'Model under maintenance. Please choose another model';
 // "2.5需要临时修复…" (model pulled for a temporary fix).
 const MODEL_DOWN = /改用其他模型|不支持模型|临时修复|换其他模型|其他模型|无可用渠道|没有可用|暂无可用|模型不可用|模型.{0,6}(维护|下线|停用|不存在|不支持)|维护中|已下线|已停用|no available channel|model.{0,24}(not found|unavailable|disabled|does not exist|not supported|offline|maintenance)/i;
 const KNOWN = [
+  // Some models refuse reference images showing a real person, e.g.
+  // "输入图片被识别为可能包含真人，请更换参考图片。"
+  [/真人|人脸|real (person|human)/i, 'This model does not accept reference images that show a real person. Please use a different image'],
   // Safety / moderation. 888API says "input image" even for text-to-video
   // jobs without images, so the advice names both.
   [/安全策略|安全审核|内容安全|审核|敏感|违规|不合规|色情|涉黄|涉政|暴力|moderation|safety|sensitive content|nsfw/i, 'The safety filter blocked this video. Please change your prompt or images and try again'],
