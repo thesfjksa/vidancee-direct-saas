@@ -161,3 +161,74 @@ test('Vidancee submits all 4/6/8/10 second options for text and image without du
    }
  }
 });
+
+test('Vidancee jobs polling recovers once from an expired website session without creating paid jobs',async()=>{
+ const make=(body,{status=200,headers={}}={})=>new Response(body,{status,headers});
+ const login=()=>[
+   make('<input name="csrf_token" value="login-csrf">',{headers:{'set-cookie':'PHPSESSID=s1; Path=/'}}),
+   make('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=s2; Path=/'}}),
+   make('<meta name="csrf-token" content="studio-csrf">')
+ ];
+ const responses=[
+   ...login(),
+   make('',{status:302,headers:{location:'/login.php'}}),
+   ...login(),
+   make(JSON.stringify({ok:true,jobs:[{id:26443,status:'completed',output_url:'renders/video.mp4'}]}))
+ ];
+ const seen=[];
+ const client=new VidanceeClient({email:'u@site.test',password:'not-real',fetchImpl:async(url,opts)=>{
+   seen.push({url:String(url),opts});return responses.shift();
+ }});
+ const result=await client.getJobs();
+ assert.equal(result.jobs[0].id,26443);
+ assert.equal(seen.length,8);
+ assert.equal(seen.filter(x=>x.url.includes('generate.php')).length,0);
+ assert.equal(seen.filter(x=>x.url.includes('jobs.php')).length,2);
+});
+
+test('a rejected paid Vidancee generation surfaces safe error and never automatically resubmits',async()=>{
+ const make=(body,{status=200,headers={}}={})=>new Response(body,{status,headers});
+ const responses=[
+   make('<input name="csrf_token" value="token">',{headers:{'set-cookie':'PHPSESSID=s1; Path=/'}}),
+   make('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=s2; Path=/'}}),
+   make('<meta name="csrf-token" content="studio-csrf">'),
+   make(JSON.stringify({ok:false,error:'Insufficient provider credits'}))
+ ];
+ const seen=[];
+ const client=new VidanceeClient({email:'u@site.test',password:'not-real',fetchImpl:async(url,opts)=>{
+   seen.push({url:String(url),opts});return responses.shift();
+ }});
+ await assert.rejects(client.startVideo(model,{duration:4,aspectRatio:'9:16',prompt:'bird flying'}),
+   /Vidancee rejected the generation: Insufficient provider credits/);
+ assert.equal(seen.filter(x=>x.url.includes('generate.php')).length,1);
+});
+
+test('a paid Vidancee POST that returns an expired login does not silently retry',async()=>{
+ const make=(body,{status=200,headers={}}={})=>new Response(body,{status,headers});
+ const responses=[
+   make('<input name="csrf_token" value="token">',{headers:{'set-cookie':'PHPSESSID=s1; Path=/'}}),
+   make('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=s2; Path=/'}}),
+   make('<meta name="csrf-token" content="studio-csrf">'),
+   make('',{status:302,headers:{location:'/login.php'}})
+ ];
+ const seen=[];
+ const client=new VidanceeClient({email:'u@site.test',password:'not-real',fetchImpl:async(url,opts)=>{
+   seen.push({url:String(url),opts});return responses.shift();
+ }});
+ await assert.rejects(client.startVideo(model,{duration:4,aspectRatio:'9:16',prompt:'bird flying'}),
+   /rejected the generation session.*not retried/);
+ assert.equal(seen.filter(x=>x.url.includes('generate.php')).length,1);
+});
+
+test('Vidancee error messages redact unsafe raw provider responses',async()=>{
+ const make=(body,{status=200,headers={}}={})=>new Response(body,{status,headers});
+ const responses=[
+   make('<input name="csrf_token" value="token">',{headers:{'set-cookie':'PHPSESSID=s1; Path=/'}}),
+   make('',{status:302,headers:{location:'/studio.php','set-cookie':'PHPSESSID=s2; Path=/'}}),
+   make('<meta name="csrf-token" content="studio-csrf">'),
+   make(JSON.stringify({ok:false,error:'password=secret and token=abc'}))
+ ];
+ const client=new VidanceeClient({email:'u@site.test',password:'not-real',fetchImpl:async()=>responses.shift()});
+ await assert.rejects(client.startVideo(model,{duration:4,aspectRatio:'9:16',prompt:'test'}),
+   err=>err.message==='Vidancee rejected the generation.');
+});
