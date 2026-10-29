@@ -483,7 +483,7 @@ class GenerationWorker {
     if (dbConfigured()) recordProviderStatus(getPool(), { outOfCredits: this.outOfCreditsUntil }).catch(() => {});
   }
 
-  // Video jobs this queue runs: MiniMax H3 Base, Cinematic and Origin on vgenv (Vidancee and Vidancee were removed).
+  // Video jobs this queue runs: MiniMax H3 Base, Cinematic and Origin on vgenv.
   chooseProvider(job, vgenvSlots, access = {}) {
     if (!isH3Model(job.model)) return null;
     return access.vgenv !== false && this.vgenvEnabled && this.vgenv && vgenvSlots > 0 ? 'vgenv' : null;
