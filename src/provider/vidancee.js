@@ -6,6 +6,26 @@ const { vidanceeCreditsForDuration } = require('../vidancee_models.js');
 const ORIGIN='https://vidancee.com';
 const UA='CMMTools/1.0 (+https://cmmtools.site)';
 const safeId=id=>/^[0-9]{1,20}$/.test(String(id));
+const sessionExpired = response => response.status===401 || response.status===403 ||
+  ([301,302,303,307,308].includes(response.status) &&
+    /login\.php/i.test(String(response.headers.get('location')||'')));
+function safeProviderMessage(data){
+  const raw=String(data?.error_message||data?.error||data?.message||data?.detail||'').trim();
+  // Providers occasionally return raw HTML or detailed request diagnostics.
+  // Do not leak credentials, session tokens, or customer images/prompts into logs.
+  if(!raw||/[<>\r\n]/.test(raw)||/password|token|secret|cookie|session|csrf/i.test(raw))
+    return '';
+  return raw.replace(/https?:\/\/\S+/g,'[URL]').replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/ig,'[email]').slice(0,160);
+}
+async function jsonReply(response,endpoint){
+  let body;
+  try{body=await response.json();}
+  catch {throw new Error('Vidancee '+endpoint+' returned non-JSON (HTTP '+response.status+'); check provider login/session or upstream access.');}
+  if(!body||typeof body!=='object'||Array.isArray(body))
+    throw new Error('Vidancee '+endpoint+' returned an invalid response (HTTP '+response.status+').');
+  return body;
+}
+
 class VidanceeClient {
   constructor({email,password,fetchImpl=fetch}={}){
     this.email=String(email||'');this.password=String(password||'');this.fetch=fetchImpl;
@@ -36,10 +56,20 @@ class VidanceeClient {
   async auth(){if(!this.csrf){if(!this.loginPromise)this.loginPromise=this.login().finally(()=>{this.loginPromise=null;});await this.loginPromise;}}
   async getJobs(limit=100){
     await this.auth();
-    const r=await this.request('/api/jobs.php?limit='+Math.min(100,Math.max(1,Number(limit)||100))+'&status=finished&with_active=1');
-    if(r.status===401||r.status===403)throw new Error('Vidancee session expired; recheck Admin login.');
-    if(!r.ok)throw new Error('Vidancee status unavailable (HTTP '+r.status+').');
-    const data=await r.json();if(data.ok!==true||!Array.isArray(data.jobs))throw new Error('Invalid Vidancee job response.');
+    const path='/api/jobs.php?limit='+Math.min(100,Math.max(1,Number(limit)||100))+'&status=finished&with_active=1';
+    let r=await this.request(path);
+    // GET is read-only: a refreshed session can safely retry it once.
+    // Never apply this retry logic to the paid POST /api/generate.php.
+    if(sessionExpired(r)){
+      this.csrf='';this.cookie='';
+      await this.auth();
+      r=await this.request(path);
+    }
+    if(sessionExpired(r))throw new Error('Vidancee job polling rejected the session (HTTP '+r.status+').');
+    if(!r.ok)throw new Error('Vidancee job polling failed (HTTP '+r.status+').');
+    const data=await jsonReply(r,'jobs.php');
+    if(data.ok!==true||!Array.isArray(data.jobs))
+      throw new Error('Vidancee jobs.php rejected the request'+(safeProviderMessage(data)?': '+safeProviderMessage(data):'.'));
     return data;
   }
   async startVideo(model,params,references=[]){
@@ -68,10 +98,17 @@ class VidanceeClient {
     }
     const r=await this.request('/api/generate.php',{method:'POST',timeoutMs:120000,body:form,
       headers:{'x-csrf-token':this.csrf,origin:ORIGIN,referer:ORIGIN+'/studio.php'}});
-    // Never automatically resend a potentially billed POST.
-    if(!r.ok)throw new Error('Vidancee submission unavailable (HTTP '+r.status+').');
-    const data=await r.json();const id=data.job_ids?.[0]??data.job_id;
-    if(data.ok!==true||!safeId(id))throw new Error('Vidancee did not confirm a usable job ID.');
+    // Never automatically resend a potentially billed POST, including after
+    // session expiry or non-JSON responses: a response loss might still be billed.
+    if(sessionExpired(r))throw new Error('Vidancee rejected the generation session (HTTP '+r.status+'). Check Vidancee login in Admin; paid request not retried.');
+    if(!r.ok)throw new Error('Vidancee submission rejected (HTTP '+r.status+').');
+    const data=await jsonReply(r,'generate.php');
+    if(data.ok!==true){
+      const detail=safeProviderMessage(data);
+      throw new Error('Vidancee rejected the generation'+(detail?': '+detail:'.'));
+    }
+    const id=data.job_ids?.[0]??data.job_id;
+    if(!safeId(id))throw new Error('Vidancee accepted the request but did not confirm a usable job ID. Check provider history before retrying.');
     return {requestId:String(id),providerCredits};
   }
   async videoStatus(op){
@@ -91,8 +128,16 @@ class VidanceeClient {
     const target=new URL(checkOutputUrl(url));
     if(target.origin!==ORIGIN)throw new Error('Vidancee output must use its verified host.');
     await this.auth();
-    const r=await this.request(target.pathname+target.search,{timeoutMs:180000,headers:{accept:'video/mp4'}});
-    if(!r.ok)throw new Error('Vidancee video download unavailable.');
+    const path=target.pathname+target.search;
+    let r=await this.request(path,{timeoutMs:180000,headers:{accept:'video/mp4'}});
+    if(sessionExpired(r)){
+      // A video GET is read-only and safe to repeat after session renewal.
+      this.csrf='';this.cookie='';
+      await this.auth();
+      r=await this.request(path,{timeoutMs:180000,headers:{accept:'video/mp4'}});
+    }
+    if(sessionExpired(r))throw new Error('Vidancee download rejected the session (HTTP '+r.status+').');
+    if(!r.ok)throw new Error('Vidancee video download failed (HTTP '+r.status+').');
     const data=await readBounded(r,VIDEO_LIMIT);
     if(data.toString('ascii',4,8)!=='ftyp')throw new Error('Vidancee did not return MP4 video.');
     return {data,mimeType:'video/mp4'};
