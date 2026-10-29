@@ -461,10 +461,10 @@ class GenerationWorker {
   // Vidancee returns for Omni Flash; do not retire new Vidancee jobs.
   async retireRemovedSources(db) {
     // MiniMax H3 jobs queued under the old default source belong to vgenv.
-    await db.execute("UPDATE generations SET provider='vgenv', updated_at=UTC_TIMESTAMP() WHERE provider='vidancee' AND model='minimax_h3' AND status='queued' AND refunded_at IS NULL");
+    await db.execute("UPDATE generations SET provider='vgenv', updated_at=UTC_TIMESTAMP() WHERE provider IN ('vidancee','createpulse') AND model='minimax_h3' AND status='queued' AND refunded_at IS NULL");
     // Old Higgsfield (MCP) jobs were refunded when it was removed; 'higgsfield'
     // is the Higgsfield API source again, so only Atlas and Yotta are retired here.
-    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','yotta','vidancee')
+    const [rows] = await db.query(`SELECT id FROM generations WHERE provider IN ('atlascloud','yotta','createpulse')
       AND status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 50`);
     for (const row of rows) {
       await refundGeneration(row.id, 'failed', 'This generation source was retired. Credits were refunded.', null)
