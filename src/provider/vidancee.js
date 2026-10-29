@@ -61,7 +61,7 @@ class VidanceeClient {
       // a CMMTools signed link, which the provider may not be able to fetch.
       const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[ref.mimeType];
       form.append('images[]',new Blob([ref.data],{type:ref.mimeType}),ref.filename||('reference.'+ext));
-      form.append('max_retries','3'); // historical website field, not a CMMTools resubmission
+      form.append('max_retries','0'); // confirmed successful Vidancee Omni-Flash image reference request
     }
     const r=await this.request('/api/generate.php',{method:'POST',timeoutMs:120000,body:form,
       headers:{'x-csrf-token':this.csrf,origin:ORIGIN,referer:ORIGIN+'/studio.php'}});
