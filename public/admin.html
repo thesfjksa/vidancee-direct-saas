@@ -229,14 +229,16 @@
         <div class="card">
           <div class="source-head"><h3>Video Studio · Vidancee (Omni Flash)</h3><label class="source-switch"><input id="vidanceeEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="vidanceeEnabledText" class="source-state"></div>
-          <div class="muted">Endpoint · https://vidancee.online</div>
-          <label class="muted" for="vidanceeEmail">Vidancee login email (cp_…, from the API tab of its dashboard)</label><input id="vidanceeEmail" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave blank to keep current">
-          <label class="muted"><input id="clearVidanceeApiKey" type="checkbox" style="width:auto"> Clear saved login</label>
-          <div id="vidanceeSecretStatus" class="muted" style="margin-top:8px"></div>
-          <label class="muted" for="vidanceeInflight" style="display:block;margin-top:12px">Max inflight generations (Vidancee allows 3, or 10 for VIP accounts)</label><input id="vidanceeInflight" type="number" min="1" max="10" value="3" style="width:100%;margin-top:6px">
-          <div class="muted" style="margin:10px 0">Omni Flash 4 / 6 / 8 / 10 s (9:16, 16:9, up to 4 images), sold at cost from Vidancee's API prices: $0.05 / $0.072 / $0.086 / $0.1072 per clip. The API refuses every job while the account holds less than $10; top up with USDT in Vidancee.</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkVidancee()">Check key</button></div>
-          <div id="vidanceeActionMsg" class="muted" style="margin-top:10px"></div>
+          <div class="muted">Website source · https://vidancee.com</div>
+          <label class="muted">Vidancee email</label><input id="vidanceeEmail" type="email" style="width:100%;margin:6px 0 8px" placeholder="Email used to sign in">
+          <label class="muted">Vidancee password</label><input id="vidanceePassword" type="password" autocomplete="new-password" style="width:100%;margin:6px 0 8px" placeholder="Leave empty to keep saved password">
+          <label class="muted"><input id="clearVidanceeApiKey" type="checkbox" style="width:auto"> Clear saved email</label>
+          <label class="muted"><input id="clearVidanceePassword" type="checkbox" style="width:auto"> Clear saved password</label>
+          <div id="vidanceeSecretStatus" class="muted"></div>
+          <label class="muted">Max inflight (verified account: 1)</label><input id="vidanceeInflight" type="number" min="1" max="1" value="1">
+          <div class="muted">Omni Flash · verified 4 seconds, 9:16, text-to-video only. Source charges 30 Vidancee credits. Other durations, ratios, and references require verification.</div>
+          <button class="secondary" onclick="checkVidancee()">Check website session</button>
+          <div id="vidanceeActionMsg" class="muted"></div>
         </div>
         <div class="card">
           <div class="source-head"><h3>Video Studio · Higgsfield (Wan 3.0)</h3><label class="source-switch"><input id="higgsfieldEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
@@ -999,9 +1001,9 @@ async function loadProviderSettings(){try{
   $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('sluiceInflight').value=s.sluice?.maxInflight||3;
   $('vidanceeEnabled').checked=s.vidancee?.enabled!==false;
-  $('vidanceeEmail').value='';$('clearVidanceeApiKey').checked=false;
+  $('vidanceeEmail').value='';$('vidanceePassword').value='';$('clearVidanceeApiKey').checked=false;$('clearVidanceePassword').checked=false;
   $('vidanceeSecretStatus').textContent=s.vidancee?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
-  $('vidanceeInflight').value=s.vidancee?.maxInflight||3;
+  $('vidanceeInflight').value=s.vidancee?.maxInflight||1;
   $('falEnabled').checked=s.fal?.enabled!==false;
   $('falApiKey').value='';$('clearFalApiKey').checked=false;
   $('falSecretStatus').textContent=s.fal?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
@@ -1033,7 +1035,7 @@ async function saveProviderSettings(){
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
-    vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeApiKey:$('clearVidanceeApiKey').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
+    vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeEmail:$('clearVidanceeApiKey').checked,vidanceePassword:$('vidanceePassword').value,clearVidanceePassword:$('clearVidanceePassword').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
