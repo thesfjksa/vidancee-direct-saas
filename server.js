@@ -905,7 +905,7 @@ async function submitVideoGeneration(user,body,req=null){
 
   // Omni Flash on Vidancee (Video Studio only).
   if(!cartoonOptions&&isVidanceeModel(requestedModel)){
-    if(!customerAccess.vidancee||!providerSettings.vidanceeEnabled||!providerSettings.vidanceeEmail&&providerSettings.vidanceePassword)throw httpError(503,'This video model is currently unavailable.');
+    if(!customerAccess.vidancee||!providerSettings.vidanceeEnabled||(!providerSettings.vidanceeEmail||!providerSettings.vidanceePassword))throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('vidancee',requestedModel,'video');
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
