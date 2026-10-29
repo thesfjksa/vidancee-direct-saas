@@ -32,8 +32,8 @@ test('usage combines provider balances with 30-day consumption from job records'
   const admin = { vercel: { active: true, configured: true }, vgenv: { active: true, configured: true } };
   const rows = await usage.providerUsage(db, settings, admin, { fetchImpl });
   const by = Object.fromEntries(rows.map(r => [r.key, r]));
-  assert.equal(rows.length, 8);
-  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'sluice', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
+  assert.equal(rows.length, 9);
+  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'sluice', 'vidancee', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
   assert.deepEqual([by.argolink.balance.remaining, by.argolink.balance.unit], [12.34, 'USD']);
   assert.match(by.vibi.balance.note, /does not report/);
   assert.deepEqual([by.vercel.balance.remaining, by.vercel.balance.used, by.vercel.balance.unit], [95.5, 4.5, 'USD']);
@@ -57,8 +57,8 @@ test('a provider without a billing route reports "not reported" instead of faili
 
 test('the worker merges status updates instead of overwriting them', async () => {
   const db = fakeDb(JSON.stringify({ vidancee: { credits: 5 } }));
-  await usage.recordProviderStatus(db, { outOfCredits: { createpulse: 1 } });
+  await usage.recordProviderStatus(db, { outOfCredits: { vidancee: 1 } });
   const saved = JSON.parse(db.writes[0][1][1]);
-  assert.deepEqual(saved, { vidancee: { credits: 5 }, outOfCredits: { createpulse: 1 } });
+  assert.deepEqual(saved, { vidancee: { credits: 5 }, outOfCredits: { vidancee: 1 } });
   assert.equal(db.writes[0][1][0], usage.STATUS_KEY);
 });
