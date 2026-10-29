@@ -6,8 +6,10 @@
 const HAN = /[㐀-鿿]/;
 const MAINTENANCE = 'Model under maintenance. Please choose another model';
 // The source has switched the model off or has no capacity for it, e.g.
-// "请改用其他模型" (please use another model) or "无可用渠道" (no channel).
-const MODEL_DOWN = /改用其他模型|换其他模型|其他模型|无可用渠道|没有可用|暂无可用|模型不可用|模型.{0,6}(维护|下线|停用|不存在|不支持)|维护中|已下线|已停用|no available channel|model.{0,24}(not found|unavailable|disabled|does not exist|not supported|offline|maintenance)/i;
+// "请改用其他模型" (please use another model), "无可用渠道" (no channel),
+// "该渠道不支持模型: …" (channel dropped the model) or
+// "2.5需要临时修复…" (model pulled for a temporary fix).
+const MODEL_DOWN = /改用其他模型|不支持模型|临时修复|换其他模型|其他模型|无可用渠道|没有可用|暂无可用|模型不可用|模型.{0,6}(维护|下线|停用|不存在|不支持)|维护中|已下线|已停用|no available channel|model.{0,24}(not found|unavailable|disabled|does not exist|not supported|offline|maintenance)/i;
 const KNOWN = [
   // Safety / moderation. 888API says "input image" even for text-to-video
   // jobs without images, so the advice names both.

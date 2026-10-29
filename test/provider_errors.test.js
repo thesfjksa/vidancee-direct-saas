@@ -23,6 +23,9 @@ test('"please use another model" answers mark the model as down', () => {
   assert.equal(modelUnavailable('请改用其他模型'), true);
   assert.equal(modelUnavailable('当前分组无可用渠道'), true);
   assert.equal(modelUnavailable('model not found'), true);
+  assert.equal(modelUnavailable('888API request failed (HTTP 400): 该渠道不支持模型: SD2.5-30-10-10'), true);
+  assert.equal(modelUnavailable('2.5需要临时修复，排查一下卡顿问题'), true);
+  assert.equal(modelUnavailable('网络波动异常，请重新提交'), false);
   assert.equal(modelUnavailable('输入图片触发安全策略'), false);
   assert.equal(modelUnavailable(''), false);
 });
