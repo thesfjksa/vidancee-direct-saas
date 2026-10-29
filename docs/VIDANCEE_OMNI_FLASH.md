@@ -5,9 +5,22 @@ Source: Vidancee website session, not CreatePulse API. Project: https://cmmtools
 ## Verified evidence and scope
 The owner's Vidancee jobs JSON displayed a completed text-to-video job **26394**, model `Omni-Flash`, duration 4 seconds, ratio 9:16, provider cost **30 Vidancee credits** and an `output_url` relative to the Vidancee website. That record proves completion in the owner's account; it does not prove CMMTools has yet submitted and downloaded an Omni Flash job.
 
-The owner's 29 October screenshot also shows the Vidancee studio with **Omni Flash · Image ref · 4s · 9:16** and a successful `POST /api/generate.php` response `{"ok":true,"job_id":26443,"job_ids":[26443],"quantity":1}`. It proves that **Vidancee accepted a reference-image request**, not that this job completed or what it cost. The screenshot does not display the multipart Payload tab.
+The owner's 29 October screenshot also showed Vidancee accepting Omni Flash image-reference job **26443** (4 seconds, 9:16), and a subsequent screenshot shows the resulting clip **Done** in the Recent list. The new screenshot displays the successful request's exact **Payload**:
 
-CMMTools enables **one JPEG/PNG/WebP image (up to 10 MB), 4s, 9:16** in addition to text-to-video. This uses the historical *Vidancee website* image-to-video protocol, already documented in old `docs/VIDANCEE_PROTOCOL.md`: multipart `mode=image-to-video`, `images[]` with binary bytes, and `max_retries=3`. The screenshot independently confirms Omni Flash's image-reference capability, **not** its exact multipart field names. Verify the Payload tab before enabling public use. More images, start/end frames, reference video/audio, other durations and ratios remain disabled. The 30-source-credit price comes from an earlier **text-to-video** record; Omni Flash image-mode cost has not been independently confirmed and must be checked before offering it for paid customer use.
+```text
+mode=image-to-video
+model=Omni-Flash
+duration=4
+aspect_ratio=9:16
+prompt=ad of this poster
+quantity=1
+images[]=(binary)
+max_retries=0
+```
+
+This confirms one working image reference and the payload fields. The generated video is complete on Vidancee, **not** yet a CMMTools-to-Vidancee end-to-end verification. The Vidancee cost of this image job is not visible in the screenshot.
+
+CMMTools enables **one JPEG/PNG/WebP image (up to 10 MB), 4s, 9:16** in addition to text-to-video. This uses the **now-confirmed** Omni Flash website request: multipart `mode=image-to-video`, `images[]` containing binary image data, and `max_retries=0`. Do not restore the older Seedance `max_retries=3` setting for Omni Flash. More images, start/end frames, reference video/audio, other durations and ratios remain disabled. The 30-source-credit price comes from an earlier **text-to-video** record; Omni Flash image-mode cost has not been independently confirmed and must be checked before offering it for paid customer use.
 
 ## Implementation
 - `src/vidancee_models.js`: isolated catalog and per-clip quote. Provider 30 credits are represented as a USD-equivalent pricing **calculation only** to reuse the existing `quoteGateway` interface; they are **not a USD Vidancee charge**. Server record uses `provider_cost_unit=vidancee_credits`.
