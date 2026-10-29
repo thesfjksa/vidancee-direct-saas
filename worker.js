@@ -88,6 +88,7 @@ healthServer=http.createServer((req,res)=>{
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),
       sluicePolling:worker.sluiceQueue.health(),
+      vidanceePolling:worker.vidanceeQueue.health(),
       upscalePolling:worker.upscaleQueue.health(),
       workerEnabled:worker.enabled(),
       polling:{running:worker.running,lastStartedAt:worker.lastTickStartedAt,lastFinishedAt:worker.lastTickFinishedAt},
