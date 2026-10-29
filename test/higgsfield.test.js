@@ -257,11 +257,11 @@ test('only retired Atlas, Yotta and CreatePulse jobs are refunded; current Vidan
   const w = new GenerationWorker();
   let query = '', moved = '';
   await w.retireRemovedSources({ query: async sql => { query = sql; return [[]]; }, execute: async sql => { moved = sql; return [{ affectedRows: 0 }]; } });
-  assert.match(query, /provider IN \\('atlascloud','yotta','createpulse'\\)/);
+  assert.match(query, /provider IN \('atlascloud','yotta','createpulse'\)/);
   assert.doesNotMatch(query, /higgsfield|vidancee/);
   // Legacy queued MiniMax H3 work can still be migrated; new Vidancee Omni Flash
   // is never refunded by retired-source cleanup.
-  assert.match(moved, /SET provider='vgenv'.*provider IN \\('vidancee','createpulse'\\) AND model='minimax_h3' AND status='queued'/);
+  assert.match(moved, /SET provider='vgenv'.*provider IN \('vidancee','createpulse'\) AND model='minimax_h3' AND status='queued'/);
   w.stop?.();
 });
 
