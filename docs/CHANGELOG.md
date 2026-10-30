@@ -1,3 +1,9 @@
+## 2026-10-30 — Minimax Beast (Origin Quality via vgenv)
+
+- Added **Minimax Beast** as a separate vgenv MiniMax H3 choice (internal ID `minimax_beast`) in Video Studio and Cartoon Studio. It submits `model: origin` and `tier: quality` to vgenv's `/v3/videos`; the existing Base, Cinematic, and Origin entries remain on `fast`.
+- Beast uses the vgenv Origin Quality published USD pricing: **$0.0077/s at 480p** and **$0.015/s at 768p**, plus the existing customer price-rate rules. Supports the existing H3 4–15-second range and reference paths. No new vgenv credentials or provider switch.
+- Includes unit checks of Beast pricing, request payload, worker tier routing, and legacy Fast behavior. **GitHub code only; do not claim Hostinger deployment or a paid end-to-end video has succeeded until verified.** See `docs/MINIMAX_BEAST.md`.
+
 ## 2026-10-29 — Vidancee Omni Flash draft integration
 
 - Draft PR #111 restores the authorized Vidancee website session source for **Omni Flash** in Video Studio, not CreatePulse. Supports both text-to-video and one-image-to-video at **4 / 6 / 8 / 10 seconds** for the owner's confirmed **30 / 40 / 50 / 60 Vidancee source credits** respectively, in 9:16. The owner's image-reference job 26443 completed and its multipart payload (`images[]`, `max_retries=0`) was verified. Includes encrypted Admin credentials, isolated worker queue, durable provider job IDs, no duplicate charged POST, polling, MP4 download, and mocked tests for all four tiers and both modes. **Not yet production-verified**, source off by default; see docs/VIDANCEE_OMNI_FLASH.md.
