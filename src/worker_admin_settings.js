@@ -8,7 +8,7 @@ const { VidanceeQueue } = require('./vidancee_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
-const { isH3Model, h3VgenvModel } = require('./pricing.js');
+const { isH3Model, h3VgenvModel, h3VgenvTier } = require('./pricing.js');
 const { SmartAipiClient } = require('./provider/smartaipi.js');
 const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
 const { VibiClient } = require('./provider/vibi.js');
@@ -517,6 +517,7 @@ class GenerationWorker {
     const result = await this.vgenv.generateVideo({
       // The base model the customer chose; the price was charged for it.
       model: h3VgenvModel(job.model),
+      tier: h3VgenvTier(job.model),
       prompt: providerPrompt(job),
       duration: Number(job.duration),
       // The customer's choice (480p or 768p); the price was charged for it.
@@ -777,4 +778,5 @@ class GenerationWorker {
 }
 
 module.exports = { GenerationWorker };
+
 

@@ -96,6 +96,7 @@ class VgenvClient {
   // was, on /v1), 'cinematic' or 'origin' (only on /v3, which names them).
   async generateVideo({
     model = 'base',
+    tier = 'fast',
     prompt,
     duration,
     resolution = '768p',
@@ -105,10 +106,13 @@ class VgenvClient {
     referenceVideoAssetId = null,
     idempotencyKey = null,
   }) {
+    if (!['fast', 'standard', 'enhanced', 'quality'].includes(tier)) {
+      throw new Error('Unsupported vgenv generation tier.');
+    }
     const v3 = model === 'cinematic' || model === 'origin';
     const body = {
       model: v3 ? model : 'minimax/h3',
-      tier: 'fast',
+      tier,
       prompt,
       duration: Number(duration),
       resolution: String(resolution || '768p'),
@@ -194,3 +198,4 @@ class VgenvClient {
 }
 
 module.exports = { VgenvClient, ASSET_TYPES };
+

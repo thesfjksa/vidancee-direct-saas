@@ -1,12 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getCost, publicPricing, H3_MODEL_IDS, h3VgenvModel } = require('../src/pricing.js');
+const { getCost, publicPricing, H3_MODEL_IDS, h3VgenvModel, h3VgenvTier } = require('../src/pricing.js');
 const { usdToCredits } = require('../src/billing.js');
 const { VgenvClient } = require('../src/provider/vgenv.js');
 
-test('MiniMax H3 Base, Cinematic and Origin are priced at vgenv Fast-tier cost', () => {
-  assert.deepEqual(H3_MODEL_IDS, ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin']);
-  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin']);
+test('MiniMax H3 existing Fast prices are preserved alongside Origin Quality', () => {
+  assert.deepEqual(H3_MODEL_IDS, ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_h3_origin_quality']);
+  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin', 'MiniMax H3 Origin Quality']);
   const credits = (usd, seconds) => Math.ceil(usdToCredits(usd) * seconds - 1e-9);
   for (const id of ['minimax_h3', 'minimax_h3_cinematic']) {
     assert.equal(getCost(id, 10, '480p'), credits(0.0015, 10));
@@ -14,7 +14,7 @@ test('MiniMax H3 Base, Cinematic and Origin are priced at vgenv Fast-tier cost',
   }
   assert.equal(getCost('minimax_h3_origin', 14, '480p'), credits(0.0023, 14));
   assert.equal(getCost('minimax_h3_origin', 7, '768p'), credits(0.0046, 7));
-  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvModel), ['base', 'cinematic', 'origin']);
+  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvModel), ['base', 'cinematic', 'origin', 'origin']);
 });
 
 test('vgenv gets Base on /v1 as before and Cinematic or Origin on /v3', async t => {
@@ -50,3 +50,51 @@ test('the worker sends every H3 model to vgenv', () => {
   for (const model of H3_MODEL_IDS) assert.equal(w.chooseProvider({ model }, 1), 'vgenv');
   w.stop?.();
 });
+
+test('Origin Quality prices cover every offered duration and resolution', () => {
+  const id = 'minimax_h3_origin_quality';
+  assert.equal(h3VgenvTier(id), 'quality');
+  for (const legacy of H3_MODEL_IDS.filter(m => m !== id)) assert.equal(h3VgenvTier(legacy), 'fast');
+  const model = publicPricing().find(m => m.id === id);
+  for (const [resolution, rate] of Object.entries({ '480p': 0.0077, '768p': 0.015 })) {
+    for (let seconds = 4; seconds <= 15; seconds++) {
+      const expected = Math.ceil(usdToCredits(rate) * seconds - 1e-9);
+      assert.equal(getCost(id, seconds, resolution), expected);
+      assert.equal(model.resolutions.find(r => r.id === resolution).durations.find(d => d.seconds === seconds).cost, expected);
+    }
+  }
+  assert.throws(() => getCost(id, 30, '768p'));
+  assert.throws(() => getCost(id, 10, '1080p'));
+});
+
+test('saved Origin Quality job reaches v3 with Quality, references and stable retry key', async t => {
+  const { GenerationWorker } = require('../src/worker_admin_settings.js');
+  const calls = [], updates = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, headers: options.headers, body: JSON.parse(options.body) });
+    return new Response(JSON.stringify({ id: 'quality_job', status: 'queued', price: { currency: 'USD', amount_micros: 150000 } }), { status: 202 });
+  });
+  const w = new GenerationWorker();
+  t.after(() => w.stop?.());
+  w.vgenv = new VgenvClient({ apiKey: 'test-key' });
+  w.vgenvAssets = async () => ({ referenceAudioAssetIds: ['asset_audio'], referenceVideoAssetId: 'asset_video' });
+  const db = { execute: async (sql, values) => { updates.push({ sql, values }); return [{ affectedRows: 1 }]; } };
+  const job = { id: 'local-quality', model: 'minimax_h3_origin_quality', mode: 'image-to-video', duration: 10, resolution: '768p', aspect_ratio: '16:9', prompt: 'Follow the reference movement' };
+  await w.submitVgenv(db, job, 0);
+  await w.submitVgenv(db, job, 0);
+  assert.equal(calls[0].url, 'https://api.vgenv.com/v3/videos');
+  assert.equal(calls[0].body.model, 'origin');
+  assert.equal(calls[0].body.tier, 'quality');
+  assert.deepEqual(calls[0].body.reference_video, { asset_id: 'asset_video' });
+  assert.deepEqual(calls[0].body.reference_audios, [{ asset_id: 'asset_audio' }]);
+  assert.deepEqual(calls[0].body.prompt_optimization, { mode: 'raw' });
+  assert.equal(calls[0].headers['Idempotency-Key'], 'mehroz-local-quality');
+  assert.deepEqual(calls[1], calls[0]);
+  assert.deepEqual(updates[0].values, ['quality_job', 0.15, 'usd', 'local-quality']);
+});
+
+test('unsupported tiers fail before a provider request', async t => {
+  t.mock.method(globalThis, 'fetch', () => { assert.fail('must not submit'); });
+  await assert.rejects(new VgenvClient({ apiKey: 'test-key' }).generateVideo({ model: 'origin', tier: 'typo' }), /Unsupported.*tier/);
+});
+

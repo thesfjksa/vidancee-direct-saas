@@ -49,6 +49,8 @@ Video Studio uses ArgoLink, Higgsfield (Wan 3.0) and MiniMax H3 on vgenv; Image 
 
 ## Documentation
 
+- [MiniMax H3 Origin Quality integration and deployment handoff](docs/VGENV_ORIGIN_QUALITY.md)
+
 Start with [the updated 25 October production and development handoff](docs/PROJECT_HANDOFF_2026-10-25.md) for the latest verified source control, model-audit evidence, and safe activation instructions; [the original project handoff](docs/PROJECT_HANDOFF.md) retains older architecture and incident details.
 
 - [Cloud storage (Cloudflare R2)](docs/CLOUD_STORAGE.md)
@@ -64,3 +66,4 @@ Start with [the updated 25 October production and development handoff](docs/PROJ
 The archive contains superseded milestone instructions. Use the current handoff when continuing development. Real passwords, API keys, OAuth tokens, cookies and database credentials must stay outside documentation and the repository.
 
 See [Vercel setup](docs/VERCEL_AI_GATEWAY.md) for API-key setup, the 83-model initial catalog, price overrides and current workflow limits.
+

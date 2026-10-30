@@ -71,9 +71,9 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   const config = await (await fetch(origin + '/api/config')).json();
   assert.equal(config.cartoon.enabled, true);
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
-  assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin']);
+  assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_h3_origin_quality']);
   // Video Studio lists MiniMax H3 (ArgoLink and Higgsfield are not configured here); Seedance Lite is gone.
-  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin']);
+  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_h3_origin_quality']);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'clay' })).status, 400);
@@ -138,3 +138,4 @@ test('MiniMax H3 jobs left half-sent by a restart are queued again', async () =>
   await w.recoverStaleSubmissions(db).catch(() => {});
   assert.ok(sql.some(([t, a]) => t.startsWith("UPDATE generations SET status='queued'") && a[0] === 'a'));
 });
+

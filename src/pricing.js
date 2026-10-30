@@ -13,11 +13,16 @@ const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  // Origin Quality rates verified at vgenv.com/pricing on 30 October 2026.
+  minimax_h3_origin_quality: { label: 'MiniMax H3 Origin Quality', vgenvModel: 'origin', tier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
 const isH3Model = id => Object.hasOwn(H3_MODELS, String(id || ''));
 // The model name vgenv takes for one of our ids ('base' for unknown ids).
 const h3VgenvModel = id => (isH3Model(id) ? H3_MODELS[id].vgenvModel : 'base');
+
+// A distinct saved model ID preserves the billed tier across queue retries/reuse.
+const h3VgenvTier = id => (isH3Model(id) ? H3_MODELS[id].tier || 'fast' : 'fast');
 
 function h3Durations(rate) {
   const durations = {};
@@ -136,4 +141,6 @@ module.exports = {
   H3_MODEL_IDS,
   isH3Model,
   h3VgenvModel,
+  h3VgenvTier,
 };
+
