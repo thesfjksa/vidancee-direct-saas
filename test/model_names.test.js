@@ -36,7 +36,9 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   assert.deepEqual(h3.resolutions.map(r => r.id), ['480p', '768p']);
   assert.equal(h3.defaultResolution, '768p');
   assert.ok(h3.durations.length && h3.aspectRatios.length && h3.capabilities.image.supported);
-  assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin']);
+  assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
+  assert.ok(config.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast · up to 15 s'));
+  assert.ok(config.cartoon.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast'));
 
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
   assert.ok(list.models.some(m => m.key === 'video:minimax_h3' && m.vendor === 'vgenv' && m.defaultName === 'MiniMax H3 Base · up to 15 s' && m.name === ''));
