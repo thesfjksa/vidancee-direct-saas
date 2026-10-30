@@ -1,4 +1,6 @@
 # CMM Tools — comprehensive implementation and recovery handoff
+> **30 October 2026 continuation (code-only):** Minimax Beast is a new CMMTools model ID routed to vgenv Origin + Quality (480p $0.0077/s, 768p $0.015/s). The existing Origin remains Fast. See [Minimax Beast](MINIMAX_BEAST.md). Verify tests, GitHub merge, Hostinger web/worker revision and a single authorized paid job before announcing it live. This note supersedes only the H3 model catalog described in older sections; historical 25 October incident evidence below is unchanged.
+
 **Checkpoint: 25 October 2026 (Asia/Karachi). Historic deployment incidents plus verified GitHub continuation through PR #45; no production operation executed by this documentation update.**
 
 > **READ THIS FIRST.** This file supersedes the October 11 architecture checkpoint in `docs/PROJECT_HANDOFF.md`. The newly added release section below tracks `main` through **PR #45 / `f82b02c0`**; older sections retain date-specific evidence, not fresh production verification. **GitHub merge ≠ Hostinger deployment.**
