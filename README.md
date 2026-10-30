@@ -59,6 +59,7 @@ Start with [the updated 25 October production and development handoff](docs/PROJ
 - [CMM Tools UI](docs/CMM_UI_DESIGN.md)
 - [Plans and credit rules](docs/PLANS.md)
 - [Changelog](docs/CHANGELOG.md)
+- [Minimax Beast (vgenv Origin Quality model)](docs/MINIMAX_BEAST.md)
 - [Historical milestone handoff](docs/archive/PROJECT_HANDOFF_2026-10-09.md)
 
 The archive contains superseded milestone instructions. Use the current handoff when continuing development. Real passwords, API keys, OAuth tokens, cookies and database credentials must stay outside documentation and the repository.
