@@ -5,19 +5,22 @@ const { usdToCredits } = require('./billing.js');
 // to whole credits. The profit is in the plan price, not here.
 const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
 
-// vgenv MiniMax H3, Fast tier (vgenv.com/pricing, 27 October 2026). vgenv
-// sells three base models: Base and Cinematic cost $0.0015/s at 480p and
-// $0.003/s at 768p, Origin $0.0023/s and $0.0046/s. minimax_h3 is Base (it
-// was the only one before), so its id and price are unchanged.
+// vgenv MiniMax H3 (vgenv.com/pricing, checked 30 October 2026).
+// Preserve the three existing Fast-tier models and their pricing.
+// "Minimax Beast" is a separate CMMTools choice using vgenv Origin + Quality,
+// not a new upstream model; its higher tier must be passed to /v3/videos.
 const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
 const isH3Model = id => Object.hasOwn(H3_MODELS, String(id || ''));
 // The model name vgenv takes for one of our ids ('base' for unknown ids).
 const h3VgenvModel = id => (isH3Model(id) ? H3_MODELS[id].vgenvModel : 'base');
+// Base/Cinematic/Origin remain Fast; Beast requests Origin Quality.
+const h3VgenvTier = id => (isH3Model(id) ? (H3_MODELS[id].vgenvTier || 'fast') : 'fast');
 
 function h3Durations(rate) {
   const durations = {};
@@ -136,4 +139,5 @@ module.exports = {
   H3_MODEL_IDS,
   isH3Model,
   h3VgenvModel,
+  h3VgenvTier,
 };
