@@ -13,6 +13,9 @@ const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  // CMMTools alias; actual upstream is MiniMax H3 Origin Fast, NOT Seedance.
+  seedance_2_0_mini: { label: 'Seedance 2.0 Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 },
+    warning: 'Powered by MiniMax H3 Origin (Fast) on vgenv, not the original ByteDance Seedance model.' },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
@@ -37,6 +40,7 @@ function h3ResolutionCosts(usdPerSecond) {
 function pricingMap() {
   return Object.fromEntries(Object.entries(H3_MODELS).map(([id, model]) => [id, {
     label: model.label,
+    ...(model.warning ? { warning: model.warning } : {}),
     defaultResolution: '768p',
     resolutions: ['480p', '768p'],
     resolutionCosts: h3ResolutionCosts(model.usdPerSecond),
@@ -106,6 +110,7 @@ function publicPricing() {
       return {
         id,
         label: info.label,
+        ...(info.warning ? { warning: info.warning } : {}),
         defaultResolution,
         resolutions,
         durations: defaultEntry ? defaultEntry.durations : [],

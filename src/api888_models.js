@@ -240,6 +240,9 @@ const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 // Also 28 Oct 2026: every priced Seedance 2.5 SKU is offered too, each under its
 // own customer name (never the raw 888API id). Which ones customers see at a
 // given moment follows 888API's live model list and health status.
+// 31 Oct 2026: sd_2.0_mini_special retired from the 888API customer offer.
+// A new Video Studio alias uses vgenv Origin Fast; keep historical 888API
+// IDs and jobs intact for reconciliation.
 const OFFERED={
  'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
@@ -248,7 +251,6 @@ const OFFERED={
  'sd2.5-G3-特惠-1':'Seedance 2.5 Special',
  'seedance2.0-933-economy':'Seedance 2.0 Realism',
  'seedance2.0-stable-480p':'Seedance 2.0 Stable 480p',
- 'sd_2.0_mini_special':'Seedance 2.0 Mini',
  'wan30-1080p-fast':'Wan 3.0 Fast 1080p',
  'MC-WAN3-Prime-1080P-30S':'Wan 3.0 Prime 1080p',
  'seedance2.0-933-wool':'Seedance 2.0 Economy Plus',

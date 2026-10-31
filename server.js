@@ -653,7 +653,7 @@ function modelVendor(id){
 async function adminModelNameList(){
   const everyone=defaultCustomerProviderAccess();
   const [catalog,names,hdOff]=await Promise.all([sourceMediaCatalog(everyone),modelDisplayNames(),argoHdOffModels()]);
-  const cartoon=publicPricing();
+  const cartoon=publicPricing().filter(model => CARTOON_MODELS.includes(model.id));
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
     for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||'',
@@ -1374,7 +1374,7 @@ const server=http.createServer(async (req,res)=>{
           const names=await modelDisplayNames().catch(()=>({}));
           cartoonPricing=applyModelNames('cartoon',[
             ...(customerProviderAccess.sluice&&providerSettings.sluice.active?await sluiceCartoonPricing(providerSettings):[]),
-            ...publicPricing().filter(model=>isH3Model(model.id)&&h3Active)],names);
+            ...publicPricing().filter(model=>CARTOON_MODELS.includes(model.id)&&h3Active)],names);
           cartoonEnabled=cartoonPricing.length>0;
 
           const media=await customerMediaCatalog(customerProviderAccess,providerSettings,{names});

@@ -24,6 +24,7 @@ test('cartoon styles shape the provider prompt but not the stored prompt', () =>
   // Old Seedance ids are gone; Seedance Lite now uses sl_* (Sluice).
   assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'clay', model: 'seedance_2.5' }), /supports Seedance Lite and MiniMax H3/);
   assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'argo_wan_3' }), /supports Seedance Lite and MiniMax H3/);
+  assert.throws(() => cartoon.normalizeCartoonRequest({ cartoonStyle: 'anime', model: 'seedance_2_0_mini' }), /supports Seedance Lite and MiniMax H3/);
   assert.equal(cartoon.looksOutOfCredits(new Error('HTTP 402')), true);
   assert.equal(cartoon.looksOutOfCredits(new Error('Network timeout')), false);
   const config = cartoon.publicCartoonConfig(true, [{ id: 'seedance_2.5' }, { id: 'minimax_h3' }]);
@@ -73,7 +74,7 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   // Video Studio lists MiniMax H3 (ArgoLink and Higgsfield are not configured here); Seedance Lite is gone.
-  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
+  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'seedance_2_0_mini', 'minimax_beast']);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'clay' })).status, 400);
@@ -84,6 +85,11 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(ok.data.generation.prompt, 'A dragon learns to fly');
   assert.deepEqual(JSON.parse(inserted[13]), { studio: 'cartoon', cartoonStyle: 'clay' });
   assert.equal(inserted[2], 'vgenv');
+  const mini = await post({ prompt: 'A dragon over the sea', model: 'seedance_2_0_mini', duration: 10, resolution: '768p', aspectRatio: '16:9' });
+  assert.equal(mini.status, 201);
+  assert.equal(inserted[2], 'vgenv');
+  assert.equal(inserted[5], 'seedance_2_0_mini');
+  assert.equal(inserted[10], require('../src/billing.js').applyPriceRate(require('../src/pricing.js').getCost('seedance_2_0_mini',10,'768p'),1.05));
 
   // The same model from Video Studio: no cartoon style on the job, and it goes to vgenv too.
   const plain = await post({ prompt: 'A dragon over the sea', model: 'minimax_h3', duration: 10, resolution: '768p', aspectRatio: '16:9' });

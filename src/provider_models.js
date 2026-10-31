@@ -589,6 +589,8 @@ async function ensureApi888Catalog(){
 }
 
 module.exports = {
+  // Exported for regression tests: stale saved 888API rows must be blocked at read time.
+  serializeProviderModel,
   ensureApi888Catalog,
   ensureSluiceCatalog,
   ensureVidanceeCatalog,
