@@ -1,6 +1,8 @@
 'use strict';
 
 const http = require('node:http');
+const { detectRevision } = require('./src/build_revision.js');
+const RELEASE = detectRevision();
 const { dbConfigured, initDb, getPool } = require('./src/db.js');
 const { recordBoot } = require('./src/runtime_diagnostics.js');
 const { GenerationWorker } = require('./src/worker_admin_settings.js');
@@ -75,9 +77,10 @@ process.on('SIGINT',()=>shutdown('SIGINT'));
 // so a fresh worker is not stopped while it holds a job.
 healthServer=http.createServer((req,res)=>{
   if(req.url==='/health' || req.url==='/live' || req.url==='/'){
-    const body=JSON.stringify(!worker?{ok:true,service:'mehroz-ai-worker',pid:process.pid,uptimeSeconds:Math.round(process.uptime()),revision:6,starting:true}:{
+    const body=JSON.stringify(!worker?{ok:true,service:'mehroz-ai-worker',release:RELEASE,pid:process.pid,uptimeSeconds:Math.round(process.uptime()),revision:6,starting:true}:{
       ok:true,
       service:'mehroz-ai-worker',
+      release:RELEASE,
       pid:process.pid,
       uptimeSeconds:Math.round(process.uptime()),
       revision:6,

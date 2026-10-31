@@ -1,5 +1,19 @@
 # CMM Tools Hostinger Deployment
 
+## 31 October 2026 — Verify the *exact deployed commit* (code in release-revision PR)
+
+After the web and worker are deployed from the same reviewed GitHub commit, check **both** public endpoints independently:
+
+- `https://cmmtools.site/live` (web; also `https://cmmtools.site/health`)
+- `https://worker.mehroz.online/live` (worker; also `/health`)
+
+Each reports `release: { "commit": "<40-character SHA or null>", "source": "git|environment|unavailable" }` while retaining its existing health data. The worker's numeric `revision: 6` is a **health schema version**, not a Git commit. Compare `release.commit` to the SHA shown in GitHub and the **specific** deployment record for each Hostinger application; both should match before releasing a new feature.
+
+`source: "git"` means a SHA read from the deployed checkout's `.git` metadata (including packed refs); `source: "environment"` means the host-supplied `SOURCE_REVISION`, `GIT_COMMIT_SHA`, `GITHUB_SHA`, `RENDER_GIT_COMMIT`, or `VERCEL_GIT_COMMIT_SHA` and **must be cross-checked** against the host deployment, since it can be stale or set manually. If the deployment strips `.git` and supplies no validated SHA, the response is `commit: null, source: "unavailable"`; this is **not evidence** the release is current. Check Hostinger hPanel logs and the exact redeployed commit in that case. Do not set a new `SOURCE_REVISION` without also deploying that same commit.
+
+The response does **not** establish that MySQL writes work, the worker is polling, source credentials are valid, or a paid generation succeeded. Continue the DB/queue/credit-ledger safeguards below. This section describes code in the associated PR until merged and deployed; it is not a claim that Hostinger is currently running it.
+
+
 ## Release checkpoint: 25 October 2026, after 888API PR #45
 
 **GitHub source only:** `main` includes [PR #43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43), [PR #44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44), [PR #45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45), current application commit **`f82b02c0bd9d80672bf267f5705b294954bc1a85`**. Its [post-merge GitHub CI](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) succeeded **281/281 tests**. **Web/worker Hostinger deployment is NOT separately verified** and must not be inferred from the repo head.
