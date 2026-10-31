@@ -1,3 +1,9 @@
+## 2026-10-31 — Replace 888API Seedance 2.0 Mini with vgenv Origin Fast alias
+
+- Removed `sd_2.0_mini_special` from the 888API customer offer; historical rows are unready at read time without reimport. Existing jobs, charges and refunds are untouched.
+- Added Video Studio `seedance_2_0_mini`, displayed as **Seedance 2.0 Mini**, routed to vgenv `origin` + `fast` (`POST /v3/videos`) at the same 480p/768p and 4–15s pricing as MiniMax H3 Origin. Existing Origin and Beast are unchanged. Cartoon Studio excludes the alias.
+- The customer-facing warning discloses that the alias uses MiniMax H3 Origin and is **not** genuine ByteDance Seedance. Includes catalog, routing, pricing, and retirement tests. Code only pending separate web/worker deployment; no paid generation or live database mutation.
+
 ## 2026-10-30 — Minimax Beast (Origin Quality via vgenv)
 
 - Added **Minimax Beast** as a separate vgenv MiniMax H3 choice (internal ID `minimax_beast`) in Video Studio and Cartoon Studio. It submits `model: origin` and `tier: quality` to vgenv's `/v3/videos`; the existing Base, Cinematic, and Origin entries remain on `fast`.

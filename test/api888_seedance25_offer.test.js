@@ -46,12 +46,29 @@ test('Seedance 2.0 wool models are offered: 4–10 s, 720p, up to 9 images',()=>
 test('models 888API listed as currently available on 28 Oct 2026 are offered',()=>{
  const ids=['sd2.5-G3-特惠-1','seedance2.0-900-wool','seedance2.0-933-economy','seedance2.0-stable-480p',
   'seedance2.5-301010-wool-1080p','wan30-720p','seedance2.0-933-wool','wan30-1080p-fast','seedance2.5-301010-wool',
-  'seedance2.0-933','sd_2.0_mini_special','MC-WAN3-Prime-1080P-30S'];
+  'seedance2.0-933','MC-WAN3-Prime-1080P-30S'];
  for(const m of api888MediaModels({data:ids.map(id=>({id}))})){
   assert.equal(m.options.adapterSupported,true,m.providerModelId);
   assert.ok(m.options.api888.sourceCny>0,m.providerModelId);
   assert.doesNotMatch(m.label,/[㐀-鿿]|_|MC-/,m.label);
  }
+});
+
+test('retired 888API Mini is unready, even with a saved stale MySQL adapter',()=>{
+ const id='sd_2.0_mini_special';
+ assert.equal(OFFERED_API888_MODELS.includes(id),false);
+ const live=api888MediaModels({data:[{id,type:'video'}]})[0];
+ assert.equal(live.options.adapterSupported,false);
+ assert.match(live.options.setupReason,/Not offered on CMM Tools/);
+ const {serializeProviderModel}=require('../src/provider_models.js');
+ const saved=serializeProviderModel({
+   id:99,provider:'api888',provider_model_id:id,public_model_id:'api888_sd_2_0_mini_special',
+   label:'Seedance 2.0 Mini',media_type:'video',enabled:1,available:1,
+   options_json:JSON.stringify({adapterSupported:true,api888:{sourceCny:0.15},durations:[4,5],resolutions:['720p']})
+ });
+ assert.equal(saved.ready,false);
+ assert.equal(saved.adapterSupported,false);
+ assert.match(saved.setupReason,/Not offered/);
 });
 
 test('open Seedance 2.5 Full HD jobs are cancelled and refunded once',async()=>{
