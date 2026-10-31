@@ -1,3 +1,8 @@
+## 2026-10-31 — Deploy revision visibility (review branch)
+
+- Web and standalone worker expose `release.commit` and `release.source` in `/live` and `/health` without using a database or provider API. Read the checked-out `.git` HEAD (loose, packed or detached) first, then accepted full-SHA host metadata; report null rather than inventing a commit when unavailable.
+- Add unit and web-route checks, plus the Hostinger verification runbook. This lets operators distinguish a GitHub merge from separately deployed web/worker code. The PR does **not** deploy anything, modify pricing, call paid providers or touch production MySQL.
+
 ## 2026-10-30 — Minimax Beast (Origin Quality via vgenv)
 
 - Added **Minimax Beast** as a separate vgenv MiniMax H3 choice (internal ID `minimax_beast`) in Video Studio and Cartoon Studio. It submits `model: origin` and `tier: quality` to vgenv's `/v3/videos`; the existing Base, Cinematic, and Origin entries remain on `fast`.

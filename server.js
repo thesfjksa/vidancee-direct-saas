@@ -1,5 +1,7 @@
 const http = require('node:http');
 const os = require('node:os');
+const { detectRevision } = require('./src/build_revision.js');
+const RELEASE = detectRevision();
 
 const PROCESS_STARTED_AT = Date.now();
 function runtimeSnapshot() {
@@ -1294,6 +1296,7 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{
         ok:true,
         app:'mehroz-ai',
+        release:RELEASE,
         startedAt:new Date(PROCESS_STARTED_AT).toISOString(),
         runtime:{...runtimeSnapshot(),...diagnostics.summary()},
       });
@@ -1316,6 +1319,7 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,{
         ok:true,
         app:'mehroz-ai',
+        release:RELEASE,
         milestone:5,
         node:process.version,
         database,

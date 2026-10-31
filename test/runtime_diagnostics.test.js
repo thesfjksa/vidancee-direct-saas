@@ -140,6 +140,10 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   assert.ok((await logo.arrayBuffer()).byteLength < 20000);
 
   const health = await (await fetch(origin + '/health')).json();
+  const live = await (await fetch(origin + '/live')).json();
+  assert.deepEqual(live.release, health.release);
+  assert.ok(['git', 'environment', 'unavailable'].includes(live.release.source));
+  assert.ok(live.release.commit === null || /^[a-f0-9]{40}$/.test(live.release.commit));
   assert.ok(health.runtime.startedAt);
   assert.equal(typeof health.runtime.worstEventLoopLagMs, 'number');
   const diag = await (await fetch(origin + '/admin/diagnostics', { headers: { 'x-admin-token': 'test-admin-only' } })).json();
