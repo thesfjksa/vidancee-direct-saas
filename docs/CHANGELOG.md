@@ -1,3 +1,9 @@
+## 2026-10-31 — Neutral model branding without a warning banner
+
+- Customer-facing Video Studio label is now **CMM Mini**, not "Seedance 2.0 Mini", because the actual backend is MiniMax H3 Origin Fast. Removed the prominent backend warning for the now-neutral name. Admin metadata and internal documentation keep the real provider and model identity.
+- Retained historical internal ID `seedance_2_0_mini` for compatibility, along with source pricing, worker routing, reference support, credit accounting and completed/queued job IDs. No paid provider operation or Hostinger deployment was performed.
+- Updated catalog and regression tests. Prior changelog entry below documents the original intermediate alias before this correction.
+
 ## 2026-10-31 — Replace 888API Seedance 2.0 Mini with vgenv Origin Fast alias
 
 - Removed `sd_2.0_mini_special` from the 888API customer offer; historical rows are unready at read time without reimport. Existing jobs, charges and refunds are untouched.

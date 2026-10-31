@@ -13,9 +13,10 @@ const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
-  // CMMTools alias; actual upstream is MiniMax H3 Origin Fast, NOT Seedance.
-  seedance_2_0_mini: { label: 'Seedance 2.0 Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 },
-    warning: 'Powered by MiniMax H3 Origin (Fast) on vgenv, not the original ByteDance Seedance model.' },
+  // Historical internal ID is retained for existing records; customer-visible
+  // CMM Mini is a neutral storefront name for the existing MiniMax Origin Fast
+  // route. Do not present the source as an actual Seedance product.
+  seedance_2_0_mini: { label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
