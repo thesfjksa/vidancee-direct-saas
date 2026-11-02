@@ -66,7 +66,8 @@ const SPECS = {
   'seedance2.5-480p-pro':[0.5,'second',4,15,'480p',0,0,0],
   'seedance2.5-720p-plus':[0.9,'second',4,15,'720p',0,0,0],
   'seedance2.5-720p-pro':[0.75,'second',4,15,'720p',0,0,0],
-  'seedance2.5-1080p-plus':[1.25,'second',4,15,'1080p',0,0,0],
+  // 888API /docs (2 Nov 2026): Plus is ¥0.90/s; Pro remains ¥1.25/s.
+  'seedance2.5-1080p-plus':[0.9,'second',4,15,'1080p',0,0,0],
   'seedance2.5-1080p-pro':[1.25,'second',4,15,'1080p',0,0,0],
   'xin-seedance-2.0-900':[1.7,'job',4,30,'720p',9,0,0],
   'xin-seedance-2.0-933':[3,'job',4,30,'720p',9,3,3],
