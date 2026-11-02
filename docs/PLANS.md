@@ -24,12 +24,14 @@ The plan price does not multiply generation costs again. Source assignments and 
 
 There is no automatic payment gateway, recurring billing or scheduled monthly credit grant. Included credits are granted for each approved purchase request. The displayed monthly price does not implement automatic renewal.
 
-1. Customer opens **Plans**.
-2. Customer requests Creator or Studio (Enterprise requires manual contact).
-3. The request appears in **Admin → Plans**.
-4. Admin verifies payment externally.
-5. Admin approves the request.
-6. The app activates the plan and adds its included credits.
+1. Customer opens **Plans**, or selects a priced plan on the public pricing page and signs in.
+2. Creator shows the owner's **PKR 5,000** Easypaisa QR; Studio shows the separate **PKR 10,000** QR. These were reconstructed as vector assets from the original uploaded QR payloads and independently decoded.
+3. The QR checkout displays recipient **MEHROOZ MUSHARRAF**, number ending **0512**, and the expiration date **27 November 2026**. The interface hides the expired code and requests that customers contact support after that date. Replace both assets with fresh bank-issued codes before expiry.
+4. After sending funds externally, the customer selects **I have paid — submit for review**, creating the existing pending plan request. This is a *claim*, not proof or automated verification.
+5. The user can send their payment receipt or transaction ID to existing WhatsApp support with their request number. There is no new receipt storage system.
+6. The request appears in **Admin → Plans**; admin independently verifies cleared funds in Easypaisa, not merely from the screenshot.
+7. Only after admin approval are plan and credits granted. Rejection leaves credits untouched.
+8. Enterprise remains a custom WhatsApp quote without a QR.
 
 Rejecting a request does not modify the user's plan or credits.
 
@@ -59,3 +61,10 @@ Plan definitions are in:
 
 Do not duplicate plan prices/credits in frontend JavaScript. The customer page receives plan definitions from `/api/config`.
 
+
+## Easypaisa QR implementation (2 November 2026)
+
+- `public/assets/payments/easypaisa-5000.svg` and `easypaisa-10000.svg` are scannable vector reproductions of the owner's uploaded QR payloads; they must **not** be freely regenerated with new account details.
+- `public/payment-qr.js` and `public/payment-qr.css` provide the checkout dialog, receipt-submission WhatsApp link, and expiry guard. `public/index.html` retains the existing database-backed pending-plan-request flow, and `public/pricing.html` provides the selected-plan login deep link.
+- No changes to plan prices, credit grants, financial ledger logic, or the admin approval route. Clicking I have paid does not confirm payment.
+- GitHub merge does not guarantee that Hostinger's separate web and worker applications deploy this revision. Verify the web release and scan both QR codes on the actual deployed site.
