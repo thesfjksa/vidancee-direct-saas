@@ -33,9 +33,10 @@ jobs:
           }
           Copy-Item (Join-Path $source 'node_modules') (Join-Path $target 'node_modules') -Recurse
           Copy-Item (Get-Command node).Source (Join-Path $target 'node.exe')
-          Compress-Archive -Path $target -DestinationPath 'aivid-rdp-runner-windows.zip' -Force
+          & (Join-Path $source 'build-windows.ps1') -Target $target
+          Compress-Archive -Path $target -DestinationPath 'aivid-rdp-runner-windows-exe.zip' -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: aivid-rdp-runner-windows
-          path: aivid-rdp-runner-windows.zip
+          name: aivid-rdp-runner-windows-exe
+          path: aivid-rdp-runner-windows-exe.zip
           retention-days: 7
