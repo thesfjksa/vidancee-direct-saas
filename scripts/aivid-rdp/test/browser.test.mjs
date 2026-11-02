@@ -25,11 +25,12 @@ test('Windows Chrome actually starts without --no-sandbox', { skip: process.plat
   try {
     context = await launchAividBrowser(chromium, profile);
     const page = context.pages()[0] || await context.newPage();
-    const session = await context.newCDPSession(page);
-    const { arguments: args } = await session.send('Browser.getBrowserCommandLine');
-    assert.equal(args.includes('--no-sandbox'), false);
-    assert.equal(args.some(arg => arg.startsWith('--user-data-dir=')), true);
-    await session.detach();
+    // chrome://version works without requiring an --enable-automation switch.
+    await page.goto('chrome://version/');
+    const commandLine = await page.locator('#command_line').innerText();
+    assert.doesNotMatch(commandLine, /(?:^|\s)--no-sandbox(?:\s|$)/);
+    assert.match(commandLine, /--user-data-dir=/);
+    assert.ok(commandLine.includes(profile));
   } finally {
     if (context) await context.close();
     await rm(profile, { recursive: true, force: true });
