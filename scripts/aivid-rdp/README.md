@@ -1,27 +1,36 @@
-# AIVID visible-browser preflight (Windows RDP)
+# AIVID Windows RDP runner 1.1
 
-This is the first, **non-charging** stage of the proposed CMMTools bridge. It prepares one text-only Seedance 2.0 (Mini) form in a visible AIVID browser. It never clicks Generate, solves a CAPTCHA, reads customer queues, settles credits, or downloads output. It is not a live CMMTools provider.
+This local runner prepares a text-only Seedance 2.0 (Mini) form and can submit one reviewed job. The Windows ZIP contains portable Node.js, Playwright and three EXE launchers. Google Chrome must already be installed; the EXEs require Windows x64 and .NET Framework 4.x.
 
-1. On the Windows RDP machine, install Node.js 20+ and run `npm install` in this folder, followed by `npx playwright install chromium`. Run `npm test` to check input guards.
-2. Create a local `trial.job.json` in this folder, for example `{"prompt":"A quiet river at dawn","duration":15,"aspectRatio":"16:9"}`. Use only your own test prompt at this stage; do not place production customer jobs in the file.
-3. Run `node preflight.mjs trial.job.json` from this folder. Sign in normally in the visible browser if asked and press Enter in the terminal. Review the selected Mini model, prompt, duration, ratio and displayed credit price. Press Enter again to close. The browser profile stays only on that RDP machine in `.aivid-rdp-profile` and is excluded from Git; protect the RDP account and profile.
+## Sign in before starting automation
 
-The site form was inspected on 2 November 2026 while signed out. The script verifies values after filling and stops if controls change. Signed-in behavior, CAPTCHA after Generate, AIVID job status/history, reference uploads, download links, and actual billing have not been validated. No paid request should be automated or retried after an ambiguous response.
+Google may reject authentication inside an automated browser. Version 1.1 adds a manual sign-in stage using installed Chrome, without Playwright, automation switches or remote debugging. It cannot guarantee Google account access and does not bypass an authentication challenge.
 
-For the next stage, map a real signed-in job history/status response and one completed output using the owner account, then implement a durable CMMTools queue handoff with a claim lease, provider job ID, reconciliation state, independent MP4 storage and transactional success/refund. Keep the customer-facing AIVID model disabled until a controlled end-to-end job succeeds and web/worker deployments are verified. Never commit sessions, RDP profiles, prompts, reference media, tokens or signed output links.
+1. Extract the whole ZIP into a writable folder. When updating, close the runner and its Chrome first, overwrite the program files in the existing folder, and retain `.aivid-rdp-profile`, `receipts` and `trial.job.json`.
+2. Open **AIVID-Login.exe**. Sign in to AIVID using Google yourself in the normal Chrome window. No password is entered into the runner terminal.
+3. After AIVID shows you are signed in, close **all** windows of this separate AIVID Chrome profile. Your ordinary Chrome windows can remain open.
+4. Open **AIVID-Preflight.exe**. It opens the saved profile with Playwright and checks the form. If AIVID is signed out, it stops and directs you back to the manual login launcher.
+5. Review the local job, selected Mini model, duration, ratio and displayed credit price. Preflight does not click Generate.
+6. For an intended paid test, open **AIVID-Submit.exe**, review the visible balance and price and type `SUBMIT`. The runner clicks Generate once.
 
-## One-job RDP runner (controlled test)
+The manual login launcher and runner use the same separate `.aivid-rdp-profile` folder, or the same `AIVID_RDP_PROFILE` setting. They never copy your ordinary Chrome profile or export session tokens. Keep the folder private on the RDP. If Google still rejects manual sign-in, stop and provide the exact visible error without credentials. Keep the RDP session open during a run.
 
-`runner.mjs` is a local, one-job test runner. It uses the Chrome installed on the RDP (`channel: 'chrome'`). The GitHub Actions **AIVID RDP runner ZIP** artifact bundles portable Node.js and local Playwright dependencies: download the ZIP from the successful workflow run, unzip it on the RDP, then double-click `run-preflight.cmd`. This requires no administrator installation or separate Chromium download. If running from source instead, Node.js 20+ and `npm install` in this folder are required. The browser profile is separate from your existing Chrome profile, so sign in to AIVID manually in the Chrome window it opens. Keep the RDP session open while testing.
+## Local job and duplicate prevention
 
-Create `trial.job.json` locally (it is ignored by Git):
+Preflight creates `trial.job.json` from the example when missing. Review it locally:
 
 ```json
 {"jobId":"trial_mini_001","prompt":"A quiet river at dawn","duration":15,"aspectRatio":"16:9"}
 ```
 
-The ZIP copies `trial.example.json` to `trial.job.json` on the first preflight. Edit the local job file if needed. Double-click `run-preflight.cmd` to prepare the form only; it will not click Generate. To make one real submission, double-click `run-submit.cmd` (or run `node runner.mjs trial.job.json --submit` from source). The script verifies visible AIVID balance and price, asks you to review the form and type `SUBMIT`, then clicks Generate **once**. AIVID may charge credits. The current demo account showed zero credits, so the runner refuses a paid click there. Do not use production customer prompts in this local test.
+Before Generate, a private receipt is written to `receipts/<jobId>.json`. A previously attempted job ID is refused even after a crash. Receipts retain the prompt hash, settings, status and recognized provider job ID, without credentials, raw API responses or signed URLs. If submission is uncertain, inspect AIVID My Videos before another attempt. A new job ID is only for an intentionally new generation.
 
-Before the click, the runner writes `receipts/<jobId>.json`. It refuses to reuse that job ID even if the process crashes or the response is unclear. The receipt stores only the prompt hash, selected settings, HTTP status and recognized provider job ID; it does not store account credentials, prompt text, raw API responses or signed URLs. Keep the profile and receipts private on the RDP. If the result is `submission_uncertain`, inspect AIVID My Videos and reconcile manually before any new attempt. Use a new job ID only for an intentionally new generation, never to retry an ambiguous paid click.
+## Checks and source use
 
-**Current boundary:** this runner records submission acceptance/rejection only. It does not poll for a completed video, download MP4, accept CMMTools customer jobs, upload outputs, settle/refund credits, or run unattended. No visible CAPTCHA was observed in the demo zero-credit test; if a challenge appears in a later paid flow, stop for the owner rather than bypassing it. Keep the CMMTools customer model disabled until a paid end-to-end test and durable bridge protocol are implemented.
+Run any EXE with `--check` from a terminal to verify its packaged script/runtime without opening Chrome. For source use, install Node.js 20+ and run `npm install` and `npm test`; use `node login.mjs` first, close that Chrome profile, then `node runner.mjs trial.job.json` or `node runner.mjs trial.job.json --submit`. Installed Google Chrome is used; a separate Chromium download is unnecessary.
+
+Windows build checks cover the three EXE launchers with a local stub, including paths containing spaces and Unicode, dependency checks, missing files and exit-code propagation. Unit tests check manual Chrome launch arguments and prevent duplicate paid submissions. These checks do not prove Google sign-in or a live paid generation works on the RDP.
+
+## Integration status
+
+The runner records submission acceptance/rejection only. CMMTools queue leasing, provider completion polling, MP4 retrieval/upload and transactional credit settlement/refund are not connected. It does not yet run unattended. Complete a verified paid end-to-end job and the durable bridge protocol before enabling a customer model. If a human challenge appears, pause for the owner; do not bypass it. Never commit profiles, receipts, prompts, tokens or signed output links.

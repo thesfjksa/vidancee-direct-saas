@@ -121,7 +121,7 @@ async function main() {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });
     if (await page.getByRole('button', { name: 'Sign In' }).isVisible())
-      await ask('Sign in yourself in the visible Chrome window, then press Enter here. ');
+      throw new Error('Sign in using AIVID-Login.exe first. Close ALL AIVID login Chrome windows, then reopen this runner.');
     if (!submit) {
       console.log(JSON.stringify(await prepareMiniForm(page, job)));
       await ask('No Generate click was made. Review the form, then press Enter to close. ');
@@ -143,3 +143,4 @@ async function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
+

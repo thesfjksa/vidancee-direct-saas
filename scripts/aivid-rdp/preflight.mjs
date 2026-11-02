@@ -22,7 +22,7 @@ export async function prepareMiniForm(page, job) {
   const input = validateJob(job);
   if (new URL(page.url()).origin !== 'https://aivid.dev') throw new Error('Unexpected generation origin.');
   if (await page.getByRole('button', { name: 'Sign In' }).isVisible())
-    throw new Error('Sign in to AIVID manually in the visible browser, then rerun preflight.');
+    throw new Error('Sign in using AIVID-Login.exe first. Close ALL AIVID login Chrome windows, then rerun preflight.');
 
   await page.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
   await page.getByRole('button', { name: /^Seedance 2\.0 \(Mini\)/ }).click();
@@ -56,16 +56,12 @@ async function main() {
   const job = validateJob(JSON.parse(await readFile(resolve(jobFile), 'utf8')));
   const { chromium } = await import('playwright');
   const profile = resolve(process.env.AIVID_RDP_PROFILE || './.aivid-rdp-profile');
-  const context = await chromium.launchPersistentContext(profile, { headless: false, acceptDownloads: false });
+  const context = await chromium.launchPersistentContext(profile, { channel: 'chrome', headless: false, acceptDownloads: false });
   try {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });
-    if (await page.getByRole('button', { name: 'Sign In' }).isVisible()) {
-      process.stdout.write('Sign in yourself in the open browser. Press Enter here after sign-in.\n');
-      const { createInterface } = await import('node:readline/promises');
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      try { await rl.question(''); } finally { rl.close(); }
-    }
+    if (await page.getByRole('button', { name: 'Sign In' }).isVisible())
+      throw new Error('Sign in using AIVID-Login.exe first. Close ALL AIVID login Chrome windows, then rerun preflight.');
     const result = await prepareMiniForm(page, job);
     process.stdout.write(JSON.stringify(result) + '\n');
     process.stdout.write('Review the visible AIVID form and price. This script never submits a paid generation. Press Enter to close.\n');
@@ -77,3 +73,4 @@ async function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
+

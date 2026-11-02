@@ -4,7 +4,7 @@ using System.IO;
 using System.Reflection;
 
 [assembly: AssemblyTitle("AIVID RDP Runner Launcher")]
-[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
 internal static class Launcher
 {
     private static string Root = AppDomain.CurrentDomain.BaseDirectory;
@@ -34,16 +34,27 @@ internal static class Launcher
         try
         {
             if (args.Length > 0 && !check) throw new ArgumentException("Usage: double-click this EXE, or run it with --check.");
-            bool submit = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location)
-                .IndexOf("Submit", StringComparison.OrdinalIgnoreCase) >= 0;
-            Console.WriteLine("AIVID " + (submit ? "Submit" : "Preflight") + " - Windows runner");
+            string name = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+            bool submit = name.IndexOf("Submit", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool login = name.IndexOf("Login", StringComparison.OrdinalIgnoreCase) >= 0;
+            Console.WriteLine("AIVID " + (login ? "Login" : submit ? "Submit" : "Preflight") + " - Windows runner 1.1");
             Require("node.exe");
-            Require("runner.mjs");
-            Require("preflight.mjs");
-            Require(Path.Combine("node_modules", "playwright", "package.json"));
+            Require(login ? "login.mjs" : "runner.mjs");
+            if (!login) {
+                Require("preflight.mjs");
+                Require(Path.Combine("node_modules", "playwright", "package.json"));
+            }
             if (check)
             {
-                code = RunNode("-e \"require('playwright');console.log('Runtime and Playwright OK');\"");
+                code = RunNode(login ? "--check " + Quote(Path.Combine(Root, "login.mjs"))
+                    : "-e \"require('playwright');console.log('Runtime and Playwright OK');\"");
+                return code;
+            }
+            if (login)
+            {
+                code = RunNode(Quote(Path.Combine(Root, "login.mjs")));
+                Console.WriteLine("Press Enter to close this launcher. Chrome stays open for your manual sign-in.");
+                Console.ReadLine();
                 return code;
             }
             string job = Path.Combine(Root, "trial.job.json");
@@ -72,3 +83,4 @@ internal static class Launcher
         return code;
     }
 }
+
