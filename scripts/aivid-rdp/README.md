@@ -12,7 +12,7 @@ For the next stage, map a real signed-in job history/status response and one com
 
 ## One-job RDP runner (controlled test)
 
-`runner.mjs` is a local, one-job test runner. It uses the Chrome installed on the RDP (`channel: 'chrome'`), so it does not need Playwright's separate Chromium download. Node.js 20+ and the local `playwright` npm package are still required. A portable Node.js Windows ZIP can be used without an administrator install; extract it locally and run its `npm.cmd install` from this folder. The browser profile is separate from your existing Chrome profile, so sign in to AIVID manually in the Chrome window it opens. Keep the RDP session open while testing.
+`runner.mjs` is a local, one-job test runner. It uses the Chrome installed on the RDP (`channel: 'chrome'`). The GitHub Actions **AIVID RDP runner ZIP** artifact bundles portable Node.js and local Playwright dependencies: download the ZIP from the successful workflow run, unzip it on the RDP, then double-click `run-preflight.cmd`. This requires no administrator installation or separate Chromium download. If running from source instead, Node.js 20+ and `npm install` in this folder are required. The browser profile is separate from your existing Chrome profile, so sign in to AIVID manually in the Chrome window it opens. Keep the RDP session open while testing.
 
 Create `trial.job.json` locally (it is ignored by Git):
 
@@ -20,7 +20,7 @@ Create `trial.job.json` locally (it is ignored by Git):
 {"jobId":"trial_mini_001","prompt":"A quiet river at dawn","duration":15,"aspectRatio":"16:9"}
 ```
 
-From this folder, run `node runner.mjs trial.job.json` for form preparation only. It will not click Generate. To make one real submission, run `node runner.mjs trial.job.json --submit`; the script first verifies the visible AIVID balance and price, asks you to review the form and type `SUBMIT`, then clicks Generate **once**. AIVID may charge credits. The current demo account showed zero credits, so the runner refuses a paid click there. Do not use production customer prompts in this local test.
+The ZIP copies `trial.example.json` to `trial.job.json` on the first preflight. Edit the local job file if needed. Double-click `run-preflight.cmd` to prepare the form only; it will not click Generate. To make one real submission, double-click `run-submit.cmd` (or run `node runner.mjs trial.job.json --submit` from source). The script verifies visible AIVID balance and price, asks you to review the form and type `SUBMIT`, then clicks Generate **once**. AIVID may charge credits. The current demo account showed zero credits, so the runner refuses a paid click there. Do not use production customer prompts in this local test.
 
 Before the click, the runner writes `receipts/<jobId>.json`. It refuses to reuse that job ID even if the process crashes or the response is unclear. The receipt stores only the prompt hash, selected settings, HTTP status and recognized provider job ID; it does not store account credentials, prompt text, raw API responses or signed URLs. Keep the profile and receipts private on the RDP. If the result is `submission_uncertain`, inspect AIVID My Videos and reconcile manually before any new attempt. Use a new job ID only for an intentionally new generation, never to retry an ambiguous paid click.
 
