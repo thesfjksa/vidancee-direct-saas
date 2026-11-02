@@ -16,7 +16,7 @@ seedance2.0-900-wool seedance2.0-933-wool seedance-doubao12-803 seedance-doubao1
 seedance-2.5-c1 seedance2.5-480p-value seedance2.5-480p-plus seedance2.5-480p-pro
 seedance2.5-720p-plus seedance2.5-720p-pro seedance2.5-1080p-plus seedance2.5-1080p-pro
 xin-seedance-2.5-3010 xin-seedance-2.5-900 dola-seedance-2.5 seedance2.5-vip-30-10-10 seedance2.5-vip-30-0-10
-seedance2.5-900-wool seedance2.5-101010-wool seedance2.5-301010-wool dola-seedance-2.5-900 dola-seedance-2.5-301010
+seedance2.5-900-wool seedance2.5-101010-wool seedance2.5-301010-max seedance2.5-301010-wool dola-seedance-2.5-900 dola-seedance-2.5-301010
 seedance-2.5-G2-V seedance-2.5-g5-v2 seedance2.5-900 seedance2.5-301010 seedance2.5-301010-av seedance2.5-930-1080p
 ss-2.5-720p-v1 ss-2.5-720p-v3 sd2.5-G3-特惠-1 MC-WAN3-Prime-1080P-30S ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doubao-seedance-2.5
 wan30-720p wan30-1080p-fast wan3.0-video wan3.0-video-prime wan3.0-image wan3.0-image-prime
@@ -66,7 +66,8 @@ const SPECS = {
   'seedance2.5-480p-pro':[0.5,'second',4,15,'480p',0,0,0],
   'seedance2.5-720p-plus':[0.9,'second',4,15,'720p',0,0,0],
   'seedance2.5-720p-pro':[0.75,'second',4,15,'720p',0,0,0],
-  'seedance2.5-1080p-plus':[1.25,'second',4,15,'1080p',0,0,0],
+  // 888API /docs (2 Nov 2026): Plus is ¥0.90/s; Pro remains ¥1.25/s.
+  'seedance2.5-1080p-plus':[0.9,'second',4,15,'1080p',0,0,0],
   'seedance2.5-1080p-pro':[1.25,'second',4,15,'1080p',0,0,0],
   'xin-seedance-2.0-900':[1.7,'job',4,30,'720p',9,0,0],
   'xin-seedance-2.0-933':[3,'job',4,30,'720p',9,3,3],
@@ -80,6 +81,9 @@ const SPECS = {
   'doubao-seedance-2.5':[6.5,'job',5,30,'720p',9,0,0],
   'seedance2.5-301010':[5.8,'job',5,30,'720p',30,0,0],
   'seedance2.5-301010-av':[5.1,'job',4,30,'720p',30,0,0],
+  // 888API /docs (2 Nov 2026): ¥7/request, 4–30 s, 720p, 30 images.
+  // A/V references remain off until the gateway forwards them in a live probe.
+  'seedance2.5-301010-max':[7,'job',4,30,'720p',30,0,0],
   'seedance2.5-900':[5.7,'job',5,30,'720p',9,0,0],
   'seedance2.5-900-wool':[1.3,'job',5,30,'720p',9,0,0],
   'seedance2.5-101010-wool':[1.5,'job',5,30,'720p',9,0,0],
@@ -259,6 +263,7 @@ const OFFERED={
  'seedance2.5-900':'Seedance 2.5 Classic',
  'seedance2.5-301010':'Seedance 2.5 Multi-Reference',
  'seedance2.5-301010-av':'Seedance 2.5 Beta',
+ 'seedance2.5-301010-max':'Seedance 2.5 Max',
  'doubao-seedance-2.5':'Seedance 2.5 Original',
  'dola-seedance-2.5':'Seedance 2.5 Flex',
  'dola-seedance-2.5-900':'Seedance 2.5 Flex Lite',
@@ -368,7 +373,7 @@ function describedModel(id,type) {
       'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
       'seedance2.5-720p-plus','seedance2.5-720p-pro',
       'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
-      'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av',
+      'seedance2.5-900','seedance2.5-301010','seedance2.5-301010-av','seedance2.5-301010-max',
       'dola-seedance-2.5-900','dola-seedance-2.5-301010','seedance-2.5-g5-v2','doubao-seedance-2.5',
       'dola-seedance-2.5','xin-seedance-2.5-3010','xin-seedance-2.5-900',
       'seedance2.5-vip-30-10-10','seedance2.5-vip-30-0-10',

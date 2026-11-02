@@ -2,7 +2,7 @@
 // These tests cover the whole 888API catalog, not just the models offered.
 require('../src/api888_models.js').setApi888OfferAll(true);
 // Regression fixtures checked against 888API's published video-contract tables,
-// https://888api.xin/docs and https://888api.xin/about (25 October 2026).
+// https://888api.xin/docs and https://888api.xin/about (updated 2 November 2026).
 // These tests use no provider token and never submit a paid generation.
 const test=require('node:test');
 const assert=require('node:assert/strict');
@@ -27,7 +27,7 @@ test('priced Seedance 2.5 per-second SKUs use exact published rates and string s
     ['seedance2.5-480p-pro',0.5,'480p'],
     ['seedance2.5-720p-plus',0.9,'720p'],
     ['seedance2.5-720p-pro',0.75,'720p'],
-    ['seedance2.5-1080p-plus',1.25,'1080p'],
+    ['seedance2.5-1080p-plus',0.9,'1080p'],
     ['seedance2.5-1080p-pro',1.25,'1080p'],
   ];
   const client=new Api888Client({apiKey:'not-used'});
@@ -46,6 +46,53 @@ test('priced Seedance 2.5 per-second SKUs use exact published rates and string s
     assert.ok(!Object.hasOwn(body,'duration'),id);
     assert.ok(!Object.hasOwn(body,'images'),id);
   }
+});
+
+test('Seedance 2.5 Max offers 4–30s image-reference video at a fixed ¥7 quote',async()=>{
+  const id='seedance2.5-301010-max';
+  const model=byId(id);
+  assert.equal(model.adapterSupported,true);
+  assert.equal(model.defaultResolution,'720p');
+  assert.equal(model.api888.billing,'job');
+  assert.equal(model.api888.sourceCny,7);
+  assert.equal(model.api888.secondsField,'duration');
+  assert.deepEqual(model.durations,[...Array(27)].map((_,i)=>i+4));
+  assert.equal(model.referenceCapabilities.image.max,30);
+  assert.equal(model.referenceCapabilities.video.max,0);
+  assert.equal(model.referenceCapabilities.audio.max,0);
+  for(const duration of [4,30]){
+    const q=quoteApi888(model,{duration,resolution:'720p',aspectRatio:'16:9'});
+    assert.equal(q.sourceCny,7);
+    assert.equal(q.cost,6720);
+  }
+  const refs=Array.from({length:30},(_,i)=>reference('image',i));
+  let posts=0;
+  const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,options)=>{
+    if(url==='https://888api.xin/v1/videos'&&options.method==='POST'){
+      posts++;
+      const body=JSON.parse(options.body);
+      assert.equal(options.headers.authorization,'Bearer sk-test');
+      assert.equal(body.model,id);
+      assert.equal(body.prompt,'A dawn river with @图1');
+      assert.equal(body.duration,30);
+      assert.equal(body.resolution,'720p');
+      assert.equal(body.ratio,'16:9');
+      assert.equal(body.images.length,30);
+      assert.equal(Object.hasOwn(body,'seconds'),false);
+      return new Response(JSON.stringify({id:'video_max_123',status:'queued'}),{status:200});
+    }
+    if(url==='https://888api.xin/v1/videos/video_max_123'&&options.method==='GET')
+      return new Response(JSON.stringify({status:'completed',url:'https://example.test/video.mp4'}),{status:200});
+    throw Error('Unexpected request '+url);
+  }});
+  assert.equal(await client.startVideo(model,{prompt:'A dawn river with @Image1',duration:30,
+    resolution:'720p',aspectRatio:'16:9'},refs),'video_max_123');
+  assert.equal((await client.videoStatus('video_max_123')).status,'done');
+  assert.equal(posts,1);
+  assert.throws(()=>client.videoBody(model,{prompt:'Scene',duration:10},
+    [reference('video')]),/at most 0 video references/i);
+  assert.throws(()=>client.videoBody(model,{prompt:'Scene',duration:10},
+    [reference('audio')]),/at most 0 audio references/i);
 });
 
 test('multimodal fixed job models enforce global reference count where published',()=>{
