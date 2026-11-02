@@ -13,7 +13,7 @@ foreach ($name in @('AIVID-Login.exe', 'AIVID-Preflight.exe', 'AIVID-Submit.exe'
 # Exercise the real Windows executables with a local stub; never contact AIVID.
 $smoke = Join-Path $env:RUNNER_TEMP 'AIVID runner space 测试'
 New-Item -ItemType Directory -Path $smoke -Force | Out-Null
-foreach ($name in @('node.exe','AIVID-Login.exe','AIVID-Preflight.exe','AIVID-Submit.exe','trial.example.json','preflight.mjs')) {
+foreach ($name in @('node.exe','AIVID-Login.exe','AIVID-Preflight.exe','AIVID-Submit.exe','trial.example.json','preflight.mjs','session.mjs')) {
   Copy-Item (Join-Path $Target $name) (Join-Path $smoke $name) -Force
 }
 New-Item -ItemType Directory -Path (Join-Path $smoke 'node_modules/playwright') -Force | Out-Null
@@ -59,7 +59,7 @@ Invoke-Launcher 'AIVID-Preflight.exe' 1
 Remove-Item $smoke -Recurse -Force
 
 @'
-AIVID Windows EXE runner 1.1 - manual Google sign-in
+AIVID Windows EXE runner 1.2 - wait for automatic sign-in
 
 1. Extract the ENTIRE ZIP to a writable folder on your Windows 10/11 x64 RDP.
    When updating, close the old runner and its Chrome first, overwrite program files in
@@ -70,7 +70,12 @@ AIVID Windows EXE runner 1.1 - manual Google sign-in
 5. Sign in to AIVID using Google yourself in that Chrome window.
 6. When AIVID shows you are signed in, CLOSE ALL windows of that AIVID Chrome profile.
 7. Open AIVID-Preflight.exe. It reuses the saved session; review the form and trial.job.json.
+   Wait while AIVID restores the session. The runner allows up to 45 seconds for sign-in
+   and waits for the generation form to be ready. It does not stop on the initial Sign In frame.
 8. For one intended paid submission, open AIVID-Submit.exe and type SUBMIT when asked.
+
+If the page still is not ready, the browser stays open until you press Enter in the terminal
+so you can inspect the actual state. Use Login.exe for any new Google sign-in.
 
 Use the Google sign-in inside AIVID; Gmail itself does not need to stay open.
 Never type Google credentials into a runner terminal. The runner does not collect passwords.
@@ -80,7 +85,7 @@ Keep that folder private. Do not leave Login Chrome open when starting the runne
 If Google still rejects sign-in, stop and provide the error wording without credentials.
 This build changes the login workflow; it cannot guarantee Google account access.
 
-Keep the EXEs with node.exe, login.mjs, runner.mjs, preflight.mjs and node_modules.
+Keep the EXEs with node.exe, login.mjs, runner.mjs, preflight.mjs, session.mjs and node_modules.
 Portable Node.js and Playwright are bundled. No separate Node installation is needed.
 The launchers require Windows .NET Framework 4.x. The executables are unsigned.
 Run --check from a terminal to check the packaged runtime without opening Chrome.
@@ -93,4 +98,5 @@ Keep the browser profile and receipts private on the RDP.
 '@ | Set-Content (Join-Path $Target 'START-HERE.txt') -Encoding utf8
 Copy-Item (Join-Path $PSScriptRoot 'Launcher.cs') (Join-Path $Target 'Launcher.cs')
 Get-ChildItem $Target -Filter '*.exe' | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content (Join-Path $Target 'SHA256SUMS.txt')
+
 

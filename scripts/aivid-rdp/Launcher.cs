@@ -4,7 +4,7 @@ using System.IO;
 using System.Reflection;
 
 [assembly: AssemblyTitle("AIVID RDP Runner Launcher")]
-[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
 internal static class Launcher
 {
     private static string Root = AppDomain.CurrentDomain.BaseDirectory;
@@ -37,11 +37,12 @@ internal static class Launcher
             string name = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
             bool submit = name.IndexOf("Submit", StringComparison.OrdinalIgnoreCase) >= 0;
             bool login = name.IndexOf("Login", StringComparison.OrdinalIgnoreCase) >= 0;
-            Console.WriteLine("AIVID " + (login ? "Login" : submit ? "Submit" : "Preflight") + " - Windows runner 1.1");
+            Console.WriteLine("AIVID " + (login ? "Login" : submit ? "Submit" : "Preflight") + " - Windows runner 1.2");
             Require("node.exe");
             Require(login ? "login.mjs" : "runner.mjs");
             if (!login) {
                 Require("preflight.mjs");
+                Require("session.mjs");
                 Require(Path.Combine("node_modules", "playwright", "package.json"));
             }
             if (check)
@@ -83,4 +84,5 @@ internal static class Launcher
         return code;
     }
 }
+
 

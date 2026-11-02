@@ -3,6 +3,7 @@ import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AIVID_URL, prepareMiniForm, validateJob } from './preflight.mjs';
+import { waitForAividSession } from './session.mjs';
 
 const API_ORIGIN = 'https://api.aivid.dev';
 const RECEIPT_DIR = resolve(process.env.AIVID_RDP_RECEIPTS || './receipts');
@@ -120,8 +121,8 @@ async function main() {
   try {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });
-    if (await page.getByRole('button', { name: 'Sign In' }).isVisible())
-      throw new Error('Sign in using AIVID-Login.exe first. Close ALL AIVID login Chrome windows, then reopen this runner.');
+    console.log('Waiting up to 45 seconds for AIVID to restore the saved sign-in and load the form...');
+    await waitForAividSession(page);
     if (!submit) {
       console.log(JSON.stringify(await prepareMiniForm(page, job)));
       await ask('No Generate click was made. Review the form, then press Enter to close. ');
@@ -138,9 +139,14 @@ async function main() {
     console.log(JSON.stringify(result));
     console.log('Do not retry this jobId. The receipt records the submission state; finished video retrieval is not implemented yet.');
     await ask('Inspect AIVID My Videos if needed, then press Enter to close. ');
+  } catch (error) {
+    console.error(error.message);
+    await ask('Browser paused for inspection. Press Enter to close it. ');
+    throw error;
   } finally { await context.close(); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
+
 

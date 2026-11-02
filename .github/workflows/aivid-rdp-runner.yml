@@ -28,7 +28,7 @@ jobs:
           $source = 'scripts/aivid-rdp'
           $target = Join-Path $env:RUNNER_TEMP 'aivid-rdp-runner'
           New-Item -ItemType Directory -Path $target -Force | Out-Null
-          foreach ($name in @('runner.mjs','preflight.mjs','login.mjs','README.md','trial.example.json','run-preflight.cmd','run-submit.cmd')) {
+          foreach ($name in @('runner.mjs','preflight.mjs','session.mjs','login.mjs','README.md','trial.example.json','run-preflight.cmd','run-submit.cmd')) {
             Copy-Item (Join-Path $source $name) (Join-Path $target $name)
           }
           Copy-Item (Join-Path $source 'node_modules') (Join-Path $target 'node_modules') -Recurse
@@ -40,4 +40,5 @@ jobs:
           name: aivid-rdp-runner-windows-exe
           path: aivid-rdp-runner-windows-exe.zip
           retention-days: 7
+
 

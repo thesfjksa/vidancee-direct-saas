@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { waitForAividSession } from './session.mjs';
 
 export const AIVID_URL = 'https://aivid.dev/';
 export const MINI_LABEL = 'Seedance 2.0 (Mini)';
@@ -60,17 +61,24 @@ async function main() {
   try {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });
-    if (await page.getByRole('button', { name: 'Sign In' }).isVisible())
-      throw new Error('Sign in using AIVID-Login.exe first. Close ALL AIVID login Chrome windows, then rerun preflight.');
+    process.stdout.write('Waiting up to 45 seconds for AIVID to restore the saved sign-in and load the form...\n');
+    await waitForAividSession(page);
     const result = await prepareMiniForm(page, job);
     process.stdout.write(JSON.stringify(result) + '\n');
     process.stdout.write('Review the visible AIVID form and price. This script never submits a paid generation. Press Enter to close.\n');
     const { createInterface } = await import('node:readline/promises');
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     try { await rl.question(''); } finally { rl.close(); }
+  } catch (error) {
+    process.stderr.write(error.message + '\n');
+    const { createInterface } = await import('node:readline/promises');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try { await rl.question('Browser paused for inspection. Press Enter to close it. '); } finally { rl.close(); }
+    throw error;
   } finally { await context.close(); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
+
 
