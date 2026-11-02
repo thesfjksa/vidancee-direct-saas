@@ -73,6 +73,36 @@ test('888API dynamic billing charges exact CNY rate multiplied by duration',()=>
  assert.equal(q.sourceCny,2.2);
  assert.equal(q.pricingMode,'per_second');
 });
+test('Seedance 2.5 Plus 1080p uses the video task API and current per-second quote',async()=>{
+ const id='seedance2.5-1080p-plus';
+ const model=modelById(id);
+ assert.equal(model.adapterSupported,true);
+ assert.deepEqual(model.durations,[4,5,6,7,8,9,10,11,12,13,14,15]);
+ assert.equal(model.defaultResolution,'1080p');
+ assert.equal(model.referenceCapabilities.image.max,0);
+ assert.equal(quoteApi888(model,{duration:10,resolution:'1080p',aspectRatio:'16:9'}).sourceCny,9);
+ let submitted=0;
+ const client=new Api888Client({apiKey:'sk-test',fetchImpl:async(url,options)=>{
+   if(url==='https://888api.xin/v1/videos'&&options.method==='POST'){
+     submitted++;
+     assert.equal(options.headers.authorization,'Bearer sk-test');
+     assert.deepEqual(JSON.parse(options.body),{
+       model:id,prompt:'A river at dawn',seconds:'10',resolution:'1080p',ratio:'16:9'
+     });
+     return new Response(JSON.stringify({id:'video_12345',status:'queued'}),{status:200});
+   }
+   if(url==='https://888api.xin/v1/videos/video_12345'&&options.method==='GET')
+     return new Response(JSON.stringify({status:'completed',url:'https://example.test/result.mp4'}),{status:200});
+   throw Error('Unexpected request '+url);
+ }});
+ assert.equal(await client.startVideo(model,{prompt:'A river at dawn',duration:10,
+   resolution:'1080p',aspectRatio:'16:9'}),'video_12345');
+ assert.equal((await client.videoStatus('video_12345')).status,'done');
+ assert.equal(submitted,1);
+ assert.throws(()=>client.videoBody(model,{prompt:'Scene',duration:10},
+   [{mimeType:'image/png',url:'https://example.test/ref.png'}]),/at most 0 image references/i);
+});
+
 test('888API fractional yuan rates keep 4 decimals in the yuan record',()=>{
  // A ¥0.065/s rate (the former 888API MiniMax price) on a per-second model.
  const base=modelById('wan30-720p');
