@@ -59,7 +59,7 @@ Invoke-Launcher 'AIVID-Preflight.exe' 1
 Remove-Item $smoke -Recurse -Force
 
 @'
-AIVID Windows EXE runner 1.2 - wait for automatic sign-in
+AIVID Windows EXE runner 1.3 - sandboxed Chrome and saved-session wait
 
 1. Extract the ENTIRE ZIP to a writable folder on your Windows 10/11 x64 RDP.
    When updating, close the old runner and its Chrome first, overwrite program files in
@@ -73,6 +73,10 @@ AIVID Windows EXE runner 1.2 - wait for automatic sign-in
    Wait while AIVID restores the session. The runner allows up to 45 seconds for sign-in
    and waits for the generation form to be ready. It does not stop on the initial Sign In frame.
 8. For one intended paid submission, open AIVID-Submit.exe and type SUBMIT when asked.
+
+Preflight and Submit enable Chrome sandboxing; the --no-sandbox flag is no longer added.
+If that flag is still visible, close the old Chrome window and check launcher version 1.3.
+Removing the flag alone does not guarantee Google sign-in. Use Login.exe for sign-in.
 
 If the page still is not ready, the browser stays open until you press Enter in the terminal
 so you can inspect the actual state. Use Login.exe for any new Google sign-in.

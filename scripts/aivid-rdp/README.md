@@ -1,4 +1,6 @@
-# AIVID Windows RDP runner 1.2
+# AIVID Windows RDP runner 1.3
+
+Chrome sandboxing is explicitly enabled for Preflight and Submit. This removes the old `--no-sandbox` launch flag; it does not guarantee that Google will allow account sign-in. Use **AIVID-Login.exe** for manual authentication, then close its Chrome windows before running Preflight. If `--no-sandbox` is still visible, close that old browser and verify the launcher says version 1.3.
 
 This local runner prepares a text-only Seedance 2.0 (Mini) form and can submit one reviewed job. The Windows ZIP contains portable Node.js, Playwright and three EXE launchers. Google Chrome must already be installed; the EXEs require Windows x64 and .NET Framework 4.x.
 

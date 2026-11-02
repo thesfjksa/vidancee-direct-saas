@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AIVID_URL, prepareMiniForm, validateJob } from './preflight.mjs';
+import { AIVID_URL, launchAividBrowser, prepareMiniForm, validateJob } from './preflight.mjs';
 import { waitForAividSession } from './session.mjs';
 
 const API_ORIGIN = 'https://api.aivid.dev';
@@ -117,7 +117,7 @@ async function main() {
   }
   const { chromium } = await import('playwright');
   const profile = resolve(process.env.AIVID_RDP_PROFILE || './.aivid-rdp-profile');
-  const context = await chromium.launchPersistentContext(profile, { channel: 'chrome', headless: false, acceptDownloads: false });
+  const context = await launchAividBrowser(chromium, profile);
   try {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });

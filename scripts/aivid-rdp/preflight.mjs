@@ -6,6 +6,12 @@ import { waitForAividSession } from './session.mjs';
 export const AIVID_URL = 'https://aivid.dev/';
 export const MINI_LABEL = 'Seedance 2.0 (Mini)';
 
+export function launchAividBrowser(chromium, profile) {
+  return chromium.launchPersistentContext(profile, {
+    channel: 'chrome', headless: false, acceptDownloads: false, chromiumSandbox: true,
+  });
+}
+
 export function validateJob(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Job must be a JSON object.');
   const prompt = String(value.prompt ?? '').trim();
@@ -57,7 +63,7 @@ async function main() {
   const job = validateJob(JSON.parse(await readFile(resolve(jobFile), 'utf8')));
   const { chromium } = await import('playwright');
   const profile = resolve(process.env.AIVID_RDP_PROFILE || './.aivid-rdp-profile');
-  const context = await chromium.launchPersistentContext(profile, { channel: 'chrome', headless: false, acceptDownloads: false });
+  const context = await launchAividBrowser(chromium, profile);
   try {
     const page = context.pages()[0] || await context.newPage();
     await page.goto(AIVID_URL, { waitUntil: 'domcontentloaded' });
