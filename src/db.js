@@ -383,7 +383,7 @@ async function initDb() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ];
 
-  for (const sql of statements) {
+  for (const sql of [...statements, ...require('./customer_api_store.js').SCHEMA]) {
     await ensureSchemaTable(db,sql);
   }
 

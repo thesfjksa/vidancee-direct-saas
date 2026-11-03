@@ -1,3 +1,4 @@
+const customerApiStore = require('./customer_api_store.js');
 const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
 const { hideVendors } = require('./vendor_names.js');
 const crypto = require('node:crypto');
@@ -312,6 +313,11 @@ async function createGenerationForUser(userId, input, options = {}) {
       error.statusCode = 403;
       throw error;
     }
+    const apiReplay = await customerApiStore.beginRequest(conn, userId, options.apiRequest);
+    if (apiReplay) {
+      await conn.commit();
+      return serializeGeneration(apiReplay);
+    }
     cost = applyPriceRate(cost, priceRate(user));
     if (Number(user.credits) < cost) {
       const error = new Error('Not enough credits.');
@@ -536,6 +542,7 @@ async function createGenerationForUser(userId, input, options = {}) {
       [userId, id, -cost, 'Reserved for video generation'],
     );
 
+    await customerApiStore.completeRequest(conn, userId, options.apiRequest, id);
     await conn.commit();
   } catch (error) {
     await conn.rollback();
