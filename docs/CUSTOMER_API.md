@@ -2,6 +2,8 @@
 
 Customers use the website or their own applications with the same account, model permissions, price rate, plans, credit balance, generation queue, refunds and private library. The upstream provider key stays in the existing encrypted Admin settings. Customer keys do not expose it.
 
+The public, branded developer guide is available at `/developers/docs`, linked from the API key dashboard at `/developers`. It includes endpoint and parameter reference, file limits, billing and retry behavior, troubleshooting, and Python/Node.js examples. Both pages use the shared CMM Tools brand stylesheet and logo.
+
 ## Customer setup
 
 1. Sign in at `/app` and open **Account menu → Developer API & keys**, or visit `/developers`.
@@ -80,3 +82,4 @@ This is a change to `thesfjksa/vidancee-direct-saas`; it uses the existing Hosti
 4. With a funded test account, submit one small job, retry the identical request ID, and verify one generation debit, correct status and authenticated download. Confirm the job is visible in the studio. A paid production smoke test was not performed during implementation.
 
 Do not rotate or replace the owner's existing 888API credentials. Customer credits and imported model enablement are not changed by installing this feature. Browsers are not granted cross-origin API access; customer applications should call from their own server.
+

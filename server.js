@@ -294,7 +294,7 @@ function canonicalRedirect(req,routePath,url) {
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
-  if(!['/','/app','/developers','/pricing','/compare','/admin-console'].includes(routePath))return null;
+  if(!['/','/app','/developers','/developers/docs','/pricing','/compare','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
@@ -1166,6 +1166,7 @@ const customerApi=require('./src/customer_api.js').createCustomerApi({
   },
 });
 const developerPage=fs.readFileSync(path.join(__dirname,'public','developers.html'),'utf8');
+const developerDocsPage=fs.readFileSync(path.join(__dirname,'public','developer-docs.html'),'utf8');
 
 const server=http.createServer(async (req,res)=>{
   const requestStarted=performance.now();
@@ -1178,6 +1179,7 @@ const server=http.createServer(async (req,res)=>{
   try {
     const studioAssets={
       '/brand.css':['brand.css','text/css; charset=utf-8'],
+      '/developers.css':['developers.css','text/css; charset=utf-8'],
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
@@ -1203,6 +1205,7 @@ const server=http.createServer(async (req,res)=>{
     }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/developers') return sendHtml(res,200,developerPage);
+    if (req.method==='GET' && routePath==='/developers/docs') return sendHtml(res,200,developerDocsPage);
     if (await customerApi.handle(req,res,url,routePath)) return;
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
@@ -2922,5 +2925,6 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+
 
 
