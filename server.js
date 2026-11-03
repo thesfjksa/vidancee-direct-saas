@@ -294,7 +294,7 @@ function canonicalRedirect(req,routePath,url) {
   let canonicalHost;
   try{canonicalHost=new URL(target).host.toLowerCase();}catch{return null;}
   if(!host||host===canonicalHost||/^(localhost|127\.|\[?::1)/.test(host))return null;
-  if(!['/','/app','/pricing','/compare','/admin-console'].includes(routePath))return null;
+  if(!['/','/app','/developers','/pricing','/compare','/admin-console'].includes(routePath))return null;
   return target+url.pathname+url.search;
 }
 
@@ -847,7 +847,8 @@ async function referenceVideoLimit(id){
 }
 
 // Video Studio and Cartoon Studio submissions (the website and the Claude connector).
-async function submitVideoGeneration(user,body,req=null){
+async function submitVideoGeneration(user,body,req=null,apiRequest=null){
+  const createVideo=(userId,input,options={})=>createGenerationForUser(userId,input,{...options,apiRequest});
   // Preview hints are for /api/model-cost only; a job is priced from its files.
   if(body&&typeof body==='object'){delete body.previewVideoSeconds;delete body.previewHasReferences;}
   const providerSettings=await getProviderSettings();
@@ -872,7 +873,7 @@ async function submitVideoGeneration(user,body,req=null){
       throw httpError(503,'Model under maintenance. Please choose another model.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote},{provider:'api888',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',generationOptions:{...quote,model}});
   }
@@ -883,7 +884,7 @@ async function submitVideoGeneration(user,body,req=null){
     validateReferences(model,body);
     // 720p/1080p may be rendered lower and upscaled by fal (HD enhancement).
     const quote=await quoteArgoStudioVideo(model,body,providerSettings);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote},{provider:'argolink',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
@@ -897,7 +898,7 @@ async function submitVideoGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.sluiceCustomerCreditsPerUsd);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'sluice',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote},{provider:'sluice',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model,...(cartoonOptions||{})},
     });
@@ -910,7 +911,7 @@ async function submitVideoGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.vidanceeCustomerCreditsPerUsd);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'vidancee',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote},{provider:'vidancee',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:vidanceeCreditsForDuration(quote.duration),providerCostUnit:'vidancee_credits',generationOptions:{...quote,model},
     });
@@ -923,7 +924,7 @@ async function submitVideoGeneration(user,body,req=null){
     validateReferences(model,body);
     validateHiggsfieldReferences(model,body,{mp4Seconds});
     const quote=await quoteHiggsfieldVideo(model,body,providerSettings);
-    generation=await createGenerationForUser(user.id,{...body,...quote},{provider:'higgsfield',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote},{provider:'higgsfield',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
@@ -942,7 +943,7 @@ async function submitVideoGeneration(user,body,req=null){
     // Every direct model runs on vgenv now (MiniMax H3).
     const options=cartoonOptions?{provider:'vgenv',generationOptions:cartoonOptions}
       :{provider:'vgenv',validateMedia:(audios,videos,images)=>validateH3Media(audios,videos,images,{mp4Seconds})};
-    generation=await createGenerationForUser(user.id,body,options);
+    generation=await createVideo(user.id,body,options);
   }
 
   wakeForNewWork(req);
@@ -951,7 +952,8 @@ async function submitVideoGeneration(user,body,req=null){
 }
 
 // Image Studio submissions (the website and the Claude connector).
-async function submitImageGeneration(user,body,req=null){
+async function submitImageGeneration(user,body,req=null,apiRequest=null){
+  const createImage=(userId,input,options={})=>createImageGenerationForUser(userId,input,{...options,apiRequest});
   const providerSettings=await getProviderSettings();
   if (!providerSettings.allowProviderCharges) {
     throw httpError(503,'Generation submissions are currently paused.');
@@ -980,7 +982,7 @@ async function submitImageGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.vercelCustomerCreditsPerUsd);
-    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'vercel',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
       generationOptions:{...quote,model},
@@ -993,7 +995,7 @@ async function submitImageGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
     if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'This model creates images from text only.');
     const quote=quoteGateway(model,body,providerSettings.falCustomerCreditsPerUsd);
-    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:FAL_IMAGE_PROVIDER,dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
       generationOptions:{...quote,model},
@@ -1009,7 +1011,7 @@ async function submitImageGeneration(user,body,req=null){
     if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'888API image editing is not yet available.');
     validateReferences(model,body);
     const quote=quoteApi888(model,body);
-    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'api888',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceCny,providerCostUnit:'cny',
       generationOptions:{...quote,model}});
@@ -1020,7 +1022,7 @@ async function submitImageGeneration(user,body,req=null){
     if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.argoLinkCustomerCreditsPerUsd);
-    generation=await createImageGenerationForUser(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
       provider:'argolink',dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',imageQuality:quote.quality,
       generationOptions:{...quote,model},
@@ -1033,7 +1035,7 @@ async function submitImageGeneration(user,body,req=null){
     }
     const quote=smartImageQuote(requestedModel,String(body.aspectRatio||body.aspect_ratio||''),providerSettings,body.quality??'medium');
     for(const image of (Array.isArray(body.images)?body.images:[]))validateSmartReference(image?.data);
-    generation=await createImageGenerationForUser(user.id,body,{
+    generation=await createImage(user.id,body,{
       provider:'smartaipi',dynamicModel:true,referenceCapabilities:SMART_IMAGE_REFS,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd-estimate',imageQuality:quote.quality,
     });
@@ -1136,6 +1138,35 @@ const connector=createConnector({
   wake:()=>{if(wakeAllowed())wakeWorker();},
 });
 
+// Public customer API uses the same account permissions, prices and queue as the studio.
+const customerApi=require('./src/customer_api.js').createCustomerApi({
+  getPool,requireDatabase,requireUser,readJson,readGenerationRequest,sendJson,publicOrigin,
+  catalog:async userId=>scalePrices(await customerMediaCatalog(await getUserProviderAccess(userId)),await userPriceRate(userId)),
+  quote:customerQuote,submitVideo:submitVideoGeneration,submitImage:submitImageGeneration,
+  getVideo:getUserGeneration,getImage:getUserImageGeneration,listVideos:listUserGenerations,listImages:listUserImageGenerations,
+  serveMedia:async(row,req,res)=>{
+    if(row.output_url==='db:video')return serveVideoOutput(getPool(),req,res,row.id);
+    if(row.output_url==='db:image'){
+      const [outputs]=await getPool().execute('SELECT mime_type,image_data FROM generation_image_outputs WHERE generation_id=?',[row.id]);
+      await require('./src/object_storage.js').hydrateBlobs(outputs,'image_data');
+      const output=outputs[0];
+      if(!output)throw httpError(404,'Generated image is unavailable.');
+      res.writeHead(200,{'content-type':output.mime_type,'content-length':output.image_data.length,'cache-control':'private, no-store','x-content-type-options':'nosniff'});
+      return res.end(output.image_data);
+    }
+    const key=keyFromMarker(row.output_url);
+    if(key){
+      const storage=await configuredStorage({requireEnabled:false});
+      if(!storage)throw httpError(503,'Output storage is unavailable.');
+      return redirectToObject(storage,key,res,{contentType:row.media_type==='image'?'image/png':'video/mp4',filename:'cmm-tools-'+row.id+'.'+(row.media_type==='image'?'png':'mp4'),download:true});
+    }
+    const driveId=driveIdFromMarker(row.output_url);
+    if(driveId)return (await configuredDrive({requireEnabled:false})).streamVideo(driveId,req,res);
+    return proxyMedia(req,res,row,'video');
+  },
+});
+const developerPage=fs.readFileSync(path.join(__dirname,'public','developers.html'),'utf8');
+
 const server=http.createServer(async (req,res)=>{
   const requestStarted=performance.now();
   const url=new URL(req.url||'/', 'http://' + (req.headers.host||'localhost'));
@@ -1171,6 +1202,8 @@ const server=http.createServer(async (req,res)=>{
       return res.end(req.method==='HEAD'?undefined:data);
     }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
+    if (req.method==='GET' && routePath==='/developers') return sendHtml(res,200,developerPage);
+    if (await customerApi.handle(req,res,url,routePath)) return;
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
     if (req.method==='GET' && routePath==='/compare') return sendHtml(res,200,comparePage);

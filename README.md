@@ -58,6 +58,7 @@ Start with [the updated 25 October production and development handoff](docs/PROJ
 - [Prompt enhancer](docs/PROMPT_ENHANCER.md)
 - [CMM Tools UI](docs/CMM_UI_DESIGN.md)
 - [Plans and credit rules](docs/PLANS.md)
+- [Customer API, developer keys and deployment migration](docs/CUSTOMER_API.md)
 - [Changelog](docs/CHANGELOG.md)
 - [Minimax Beast (vgenv Origin Quality model)](docs/MINIMAX_BEAST.md)
 - [Historical milestone handoff](docs/archive/PROJECT_HANDOFF_2026-10-09.md)
