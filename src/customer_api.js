@@ -3,8 +3,8 @@ const store = require('./customer_api_store.js');
 const { hideVendors } = require('./vendor_names.js');
 const fail = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode }); };
 const FIELDS = new Set(['model','prompt','duration','resolution','aspectRatio','generateAudio','generationMode','quality','imageSize',
-  'images','videos','audios','referenceOrder','videoRoles','audioRoles','reuseGenerationId','reuseImageIds','videoUploads','audioUploads']);
-function normalizeInput(value) {
+  'images','videos','audios','referenceOrder','videoRoles','audioRoles','reuseGenerationId','reuseImageIds']);
+function normalizeInput(value, mediaType = 'video') {
   if (!value || Array.isArray(value) || typeof value !== 'object') fail(400, 'Send a JSON object or multipart form.');
   const body = { ...value };
   for (const [from,to] of [['seconds','duration'],['aspect_ratio','aspectRatio'],['ratio','aspectRatio'],['video_roles','videoRoles'],['audio_roles','audioRoles'],['reference_order','referenceOrder']]) {
@@ -24,6 +24,7 @@ function normalizeInput(value) {
       fail(400, 'Upload ' + field + ' as multipart files; JSON URLs and file objects are not accepted.');
     }
   }
+  if (mediaType === 'image' && (body.videos?.length || body.audios?.length)) fail(400, 'Image generation accepts image references only.');
   return body;
 }
 function publicJob(row, mediaType) {
@@ -81,7 +82,7 @@ function createCustomerApi(deps) {
         const input = await readJson(req);
         const mediaType = input?.mediaType === 'image' ? 'image' : 'video';
         const { mediaType: ignored, ...rest } = input || {};
-        const body = normalizeInput(rest);
+        const body = normalizeInput(rest, mediaType);
         const catalog = await deps.catalog(user.id);
         if (!(catalog[mediaType] || []).some(m => m.id === body.model)) fail(403, 'Model is unavailable for this account.');
         const quote = await deps.quote(user.id, { ...body, mediaType });
@@ -90,7 +91,7 @@ function createCustomerApi(deps) {
         const mediaType = routePath.startsWith('/v1/images/generations') ? 'image' : 'video';
         const base = mediaType === 'image' ? '/v1/images/generations' : '/v1/videos';
         if (routePath === base && req.method === 'POST') {
-          const body = normalizeInput(await readGenerationRequest(req));
+          const body = normalizeInput(await readGenerationRequest(req), mediaType);
           const context = store.requestContext(keyId, req.headers['idempotency-key'], body, mediaType);
           // Replay before catalog/credit checks: maintenance or a spent balance
           // must not turn a successful retry into another paid request.

@@ -21,6 +21,8 @@ test('request IDs are required and hashes cover settings, ordered references and
 test('public inputs reject billing overrides, internal job metadata, malformed references and conflicting aliases', () => {
   assert.throws(() => normalizeInput({ model: 'm', credits_cost: 0 }), { statusCode: 400 });
   assert.throws(() => normalizeInput({ model: 'm', apiRequest: {} }), { statusCode: 400 });
+  assert.throws(() => normalizeInput({ model: 'm', videoUploads: [{ key: 'ignored-upload' }] }), { statusCode: 400 });
+  assert.throws(() => normalizeInput({ model: 'm', videos: [{ data: Buffer.from('x'), mimeType: 'video/mp4', filename: 'x.mp4' }] }, 'image'), { statusCode: 400 });
   assert.throws(() => normalizeInput({ model: 'm', videos: ['http://127.0.0.1/'] }), { statusCode: 400 });
   assert.throws(() => normalizeInput({ model: 'm', duration: 5, seconds: 10 }), { statusCode: 400 });
   assert.throws(() => normalizeInput({ model: 'm', generateAudio: 'yes' }), { statusCode: 400 });
