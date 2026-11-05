@@ -1,0 +1,38 @@
+name: AIVID admin browser checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/admin.html'
+      - 'public/aivid-admin.js'
+      - 'public/admin.css'
+      - 'scripts/check-aivid-admin-ui.cjs'
+      - '.github/workflows/aivid-admin-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/admin.html'
+      - 'public/aivid-admin.js'
+      - 'public/admin.css'
+      - 'scripts/check-aivid-admin-ui.cjs'
+      - '.github/workflows/aivid-admin-ui.yml'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright-core install --with-deps chromium
+      - run: node scripts/check-aivid-admin-ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aivid-admin-ui
+          path: artifacts/aivid-admin-ui
+          if-no-files-found: ignore

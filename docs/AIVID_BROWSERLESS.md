@@ -2,7 +2,7 @@
 
 This is the first cloud integration stage. It replaces the need for a Windows
 RDP browser with a Browserless persistent Chrome session. It includes a CLI,
-an internal CMMTools generation queue, safe recovery and admin diagnostics.
+an internal CMMTools generation queue, safe recovery and admin setup.
 No customer model is registered or enabled yet. There has been no authenticated
 Browserless/AIVID end-to-end test. Do not advertise it as working production
 generation until the acceptance checks below pass.
@@ -26,7 +26,47 @@ generation until the acceptance checks below pass.
 - The standalone CLI saves local MP4s. Queue jobs use CMMTools storage and its
   existing transactional, idempotent customer refund function.
 
-## Setup
+## Set up in Admin
+
+No environment variables, terminal commands or session files are needed for
+dashboard setup.
+
+1. Open `/admin-console`, unlock Admin, and choose **Provider**.
+2. In **AIVID · Browserless connection**, enter your Browserless API key,
+   choose a region and session lifetime supported by your plan, then click
+   **Save Browserless key**. The key is encrypted in shared app_settings and
+   never returned to the page. Leave the field blank to keep a saved key.
+3. Click **Connect aivid**. The server creates a persistent session if one
+   is needed, saves it encrypted, and opens a short-lived login attempt.
+4. Click **Open aivid login window**. In that private cloud browser, complete
+   Google/AIVID sign-in yourself. Your Google password is not submitted to
+   CMMTools. The window lasts up to approximately two minutes; Google can
+   still reject a cloud browser.
+5. Return to Admin and click **Verify sign-in**. The server checks AIVID,
+   closes the browser, reconnects to the same persisted profile and verifies
+   sign-in again. Only then does the panel say **Sign-in verified**. The worker
+   can use the saved session immediately; there is no manual install step.
+6. Click **Check connection** to check the form, balance and price without
+   generating or charging for a video.
+
+The browser link grants temporary account control and is shown only through
+authenticated, no-store login responses. It is not put in browser storage or
+activity logs. Refreshing Admin resumes status from the shared database; a
+different web process can receive **Verify sign-in** or **Close login window**.
+The login owner keeps the remote browser connected and shares the same MySQL
+lock as the queue, so another worker cannot use it during sign-in.
+
+**Connect aivid** normally reuses the saved session. After expiry or an unusable
+session, **Session recovery → Create new login session** starts a replacement.
+Replacement is blocked while AIVID generations are outstanding. The previous
+session record is kept encrypted, and no existing profile is deleted. Session
+lifetimes are absolute and limited by your Browserless plan. Dashboard settings
+take precedence over legacy environment settings.
+
+Customer model activation remains disabled pending live generation/reference
+verification. Saving a key or verifying login never enables customer billing.
+
+## Optional command-line setup
 
 Use Node 20+ and `npm install`. `playwright-core` does not download a local
 browser. Run on a trusted computer or the application host. Keep the local
@@ -137,6 +177,11 @@ Existing admin authentication protects:
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/admin/aivid/status` | Credential-free setup and enable status |
+| POST | `/admin/aivid/settings` | Save Browserless credentials and region encrypted |
+| POST | `/admin/aivid/login` | Create/reuse the session and open manual login |
+| GET | `/admin/aivid/login/<uuid>` | Read one login attempt; private window link only while active |
+| POST | `/admin/aivid/login/<uuid>/finish` | Ask the browser owner to verify persisted sign-in |
+| POST | `/admin/aivid/login/<uuid>/cancel` | Close the login window and retain the saved profile |
 | POST | `/admin/aivid/check` | Read-only Mini form/balance preflight |
 | POST | `/admin/aivid/generations/<uuid>/reconcile` | Resolve an uncertain submission against account history |
 
