@@ -42,6 +42,8 @@ function validateConfig(input, current) {
   const apiKey = input.apiKey === undefined || input.apiKey === '' ? current.apiKey : input.apiKey;
   if (typeof apiKey !== 'string' || apiKey.length < 8 || apiKey.length > 1024 || /\s/.test(apiKey))
     throw Object.assign(new Error('Enter a valid Browserless API key.'), { statusCode: 400 });
+  if (/^[a-z]+:\/\//i.test(apiKey) || /^token=/i.test(apiKey))
+    throw Object.assign(new Error('Paste only the API token from your Browserless dashboard, not a connection URL or token= prefix.'), { statusCode: 400 });
   const endpoint = input.endpoint ?? current.endpoint;
   if (!ENDPOINTS.includes(endpoint)) throw Object.assign(new Error('Choose a supported Browserless region.'), { statusCode: 400 });
   const ttlDays = Number(input.ttlDays ?? current.ttlDays ?? 1);

@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AividAdminService, publicLogin, LOGIN_KEY, ACTION_KEY } = require('../src/aivid_admin.js');
 const { configFrom, validateConfig } = require('../src/aivid_settings.js');
+const { createSession } = require('../src/provider/browserless.js');
 const { EventEmitter } = require('node:events');
 
 const connectUrl = 'wss://production-sfo.browserless.io/session/test?token=private-session-token';
@@ -46,8 +47,37 @@ test('dashboard configuration overrides legacy environment credentials and rejec
   const config = configFrom({ AIVID_ENABLED: 'true', AIVID_MAX_SOURCE_CREDITS: '99', AIVID_BROWSERLESS_CONNECT_URL: connectUrl, BROWSERLESS_API_TOKEN: 'old-key' }, {}, saved);
   assert.equal(config.connectUrl, ''); assert.equal(config.apiKey, 'dashboard-api-key'); assert.equal(config.enabled, false);
   assert.equal(validateConfig({ apiKey: '', ttlDays: 1 }, config).apiKey, 'dashboard-api-key');
-  for (const input of [{ endpoint: 'http://127.0.0.1' }, { apiKey: 'bad key' }, { ttlDays: 1000 }, { enabled: 'true' }])
+  for (const input of [{ endpoint: 'http://127.0.0.1' }, { apiKey: 'bad key' }, { apiKey: connectUrl }, { apiKey: 'token=some-api-key' }, { ttlDays: 1000 }, { enabled: 'true' }])
     assert.throws(() => validateConfig(input, config));
+});
+
+test('session creation errors reach Admin and persist through refresh with the lock released', async () => {
+  for (const [status, body, expected] of [[401, 'Invalid API key', /HTTP 401/],
+    [400, 'ttl exceeds maximum', /Select 1 day/], [429, 'Too many requests', /HTTP 429/]]) {
+    const f = fixture();
+    f.service.create = args => createSession({ ...args, fetchImpl: async () =>
+      new Response(body + ' ' + connectUrl, { status }) });
+    await assert.rejects(f.service.startLogin(), expected);
+    await Promise.all([...f.service.tasks]);
+    const state = await f.service.status();
+    assert.equal(state.login.state, 'failed'); assert.match(state.login.message, expected);
+    assert.equal(f.stats().locked, false); assert.equal(f.stats().connected, 0);
+    assert.equal(f.records.has('aivid_browserless_session'), false);
+    assert.doesNotMatch(JSON.stringify(state), /private-session-token|saved-private-api-key|wss:/);
+  }
+});
+
+test('unknown infrastructure failures identify the failing stage and scrub all raw details', async () => {
+  for (const stage of ['getConfig', 'assertReplaceable', 'create', 'writeLogin']) {
+    const f = fixture();
+    f.service[stage] = async () => { throw new Error(connectUrl); };
+    await assert.rejects(f.service.startLogin(), error => {
+      assert.equal(error.statusCode, 502); assert.doesNotMatch(error.stack, /private-session-token|wss:/);
+      assert.match(error.message, stage === 'getConfig' ? /encrypted Browserless settings/ : stage === 'create' ? /create the persistent session/ : /database/);
+      return true;
+    });
+    await Promise.all([...f.service.tasks]); assert.equal(f.stats().locked, false);
+  }
 });
 
 test('login session is encrypted before opening and the cloud link is limited to login responses', async () => {

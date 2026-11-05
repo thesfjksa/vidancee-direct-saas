@@ -66,6 +66,28 @@ take precedence over legacy environment settings.
 Customer model activation remains disabled pending live generation/reference
 verification. Saving a key or verifying login never enables customer billing.
 
+### Setup errors
+
+Saving a key stores it encrypted; it does not validate it with Browserless.
+**Connect aivid** makes the session request. Failures now show the HTTP status
+and a fixed, actionable explanation and remain visible after refreshing status.
+Raw upstream responses, API tokens and connection URLs are never displayed.
+
+- **HTTP 401/403:** Copy the current API token (only the token, not a full
+  URL) from Browserless, save it, and reconnect. Check account permissions,
+  units and endpoint access if it still fails.
+- **Lifetime rejected:** Start with **1 day**, save settings, and reconnect.
+  Longer persistent-session lifetimes depend on the Browserless plan.
+- **No available units:** Check usage and billing in Browserless.
+- **HTTP 429:** Close unused Browserless connections, then retry. CMMTools
+  does not create extra sessions or retry automatically.
+- **Server cannot reach Browserless:** Retry or choose another region and
+  save settings. Database/encryption failures have separate CMMTools messages.
+
+An authentication error alone cannot prove that a key is incorrect: Browserless
+can also reject account limits or feature access. Diagnose the displayed status
+before changing the subscription. No customer video is generated during setup.
+
 ## Optional command-line setup
 
 Use Node 20+ and `npm install`. `playwright-core` does not download a local

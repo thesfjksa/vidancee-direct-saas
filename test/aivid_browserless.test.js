@@ -34,6 +34,49 @@ test('session creation uses an explicit persistent Chrome session without record
   await assert.rejects(createSession({ token: 'test-token', fetchImpl: async () => { throw new Error(connectUrl); } }), error => !error.message.includes('secret-test-token'));
 });
 
+test('Browserless creation failures report actionable HTTP errors without upstream secrets', async () => {
+  const cases = [
+    [401, 'Invalid API key', /rejected authentication/],
+    [403, 'Forbidden', /denied access/],
+    [400, 'ttl exceeds maximum allowed', /Select 1 day/],
+    [401, 'Your account is out of units', /no available units/],
+    [403, 'Requires a paid plan', /denied this feature/],
+    [429, 'Too many requests', /active-session or request limit/],
+    [503, 'Upstream unavailable', /unavailable/],
+  ];
+  for (const [status, reason, expected] of cases) {
+    await assert.rejects(createSession({ token: 'private-key', fetchImpl: async () =>
+      new Response(reason + ' ' + connectUrl, { status }) }), error => {
+      assert.equal(error.aividSafe, true); assert.equal(error.statusCode, 502);
+      assert.match(error.message, new RegExp('HTTP ' + status)); assert.match(error.message, expected);
+      assert.doesNotMatch(JSON.stringify(error) + error.stack, /secret-test-token|private-key|wss:/);
+      return true;
+    });
+  }
+  // Neither arbitrary upstream text nor credential-bearing invalid URLs are surfaced.
+  for (const response of [new Response('sensitive account information ' + connectUrl, { status: 400 }),
+    Response.json({ connect: 'wss://evil.test/?token=private-key', stop: connectUrl }),
+    Response.json({}), new Response('not JSON')]) {
+    await assert.rejects(createSession({ token: 'private-key', fetchImpl: async () => response }), error => {
+      assert.equal(error.aividSafe, true);
+      assert.doesNotMatch(error.stack, /private-key|secret-test-token|sensitive account|evil.test/); return true;
+    });
+  }
+});
+
+test('creation error bodies are bounded and WebSocket status is reported without the dial URL', async () => {
+  let cancelled = false;
+  const stream = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(20000)); },
+    cancel() { cancelled = true; } });
+  await assert.rejects(createSession({ token: 'private-key', fetchImpl: async () => new Response(stream, { status: 403 }) }), /HTTP 403/);
+  assert.equal(cancelled, true);
+  await assert.rejects(connectSession(connectUrl, { chromium: { connectOverCDP: async () => {
+    throw new Error('WebSocket error: ' + connectUrl + ' Unexpected server response: 429');
+  } } }), error => {
+    assert.match(error.message, /HTTP 429/); assert.doesNotMatch(error.stack, /secret-test-token|wss:/); return true;
+  });
+});
+
 test('remote connection keeps the persistent context and closes stale job pages', async () => {
   let closed = 0, newContexts = 0, remoteClosed = 0, gotUrl;
   const old = { close: async () => { closed++; } }, page = { setDefaultTimeout() {} };

@@ -13,6 +13,20 @@ const ACTIVE = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
 const problem = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode, aividSafe: true });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function setupFailure(error, stage) {
+  if (error.aividSafe) return error;
+  const message = {
+    settings: 'CMMTools could not read the encrypted Browserless settings. Check database access and the server encryption configuration.',
+    database: 'CMMTools could not save or lock the Browserless session in the database. Check server database access, then retry.',
+    create: 'Browserless could not create the persistent session. Check the account session limits and retry with a 1-day lifetime.',
+    connect: 'Could not connect to the saved Browserless session. Check active sessions in Browserless or use Session recovery.',
+    navigation: 'The cloud browser opened, but could not load AIVID. Reconnect or try another Browserless region.',
+    live: 'Browserless could not provide an interactive login window. Check whether Live URLs are available for your account, then reconnect.',
+    verify: 'AIVID sign-in could not be confirmed after reconnecting to the saved session. Reopen the login window and sign in again.',
+  }[stage];
+  return problem(message || 'The Browserless setup could not complete. Refresh status and reconnect.', 502);
+}
+
 function publicLogin(value, { includeLink = false, now = Date.now() } = {}) {
   if (!value) return { state: 'idle' };
   const expired = ACTIVE.has(value.state) && Date.parse(value.expiresAt) <= now;
@@ -54,88 +68,114 @@ class AividAdminService {
     const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
     const task = (async () => {
       const result = await withAividLock(this.db(), async () => {
-        const config = await this.getConfig();
-        const sessionExpired = config.expiresAt && Date.parse(config.expiresAt) <= this.now();
-        if (replaceSession || !config.connectUrl || sessionExpired) {
-          if (!config.apiKey) throw problem('Save your Browserless API key first.');
-          await this.assertReplaceable();
-          const session = await this.create({ token: config.apiKey, endpoint: config.endpoint, ttl: config.ttlDays * 86400000 });
-          // Store the session BEFORE opening sign-in. It is ready for the worker
-          // without installing a file or exposing the connect URL to the UI.
-          if (config.session?.connect) await this.write('aivid_browserless_previous_session', JSON.stringify(config.session), { secret: true });
-          await this.write(SESSION_KEY, JSON.stringify(session), { secret: true });
-          config.connectUrl = session.connect;
-        }
-        const id = crypto.randomUUID();
-        let state = { id, state: 'opening', expiresAt: new Date(this.now() + this.loginMs).toISOString(), message: 'Opening the AIVID login window.' };
-        let remote, linkId;
-        const save = async patch => { state = { ...state, ...patch }; await this.writeLogin(state); };
-        await save({});
+        let stage = 'settings';
         try {
-          remote = await this.connect(config.connectUrl, { timeoutMs: 120000 });
-          this.remotes.add(remote);
-          await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-          const cdp = await remote.context.newCDPSession(remote.page);
-          const remaining = Math.max(1000, Date.parse(state.expiresAt) - this.now());
-          const live = await cdp.send('Browserless.liveURL', { interactable: true, timeout: remaining,
-            showBrowserInterface: true });
-          if (live.error || !live.liveURL) throw new Error('Live login unavailable');
-          const liveUrl = browserlessUrl(live.liveURL, 'https:');
-          if (liveUrl.hostname !== new URL(config.connectUrl).hostname) throw new Error('Unexpected login host');
-          linkId = live.liveURLId;
-          const linkMs = Math.min(Number(live.timeout) || remaining, remaining);
-          await save({ state: 'waiting', liveURL: liveUrl.href, expiresAt: new Date(this.now() + linkMs).toISOString(),
-            message: 'Open the login window, sign in to AIVID with Google, then click Verify sign-in here.' });
-          resolveReady(publicLogin(state, { includeLink: true, now: this.now() }));
-          while (!this.stopping && this.now() < Date.parse(state.expiresAt)) {
-            let action = {};
-            try { action = JSON.parse(await this.read(ACTION_KEY, '{}')); } catch {}
-            if (action.id === id && action.action === 'cancel') {
-              await save({ state: 'cancelled', liveURL: null, message: 'Sign-in closed. The saved session was kept.' });
-              return true;
-            }
-            if (action.id === id && action.action === 'finish' && action.nonce !== state.lastAction) {
-              await save({ state: 'verifying', lastAction: action.nonce, message: 'Verifying the saved AIVID login.' });
-              try {
-                // The user may have opened Google in a popup. Return the
-                // persistent context to AIVID and verify actual page state.
-                await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 15000 });
-                await this.verify(remote.page, { timeoutMs: 5000 });
-              } catch {
-                await save({ state: 'waiting', message: 'Sign-in is not complete. Finish in the login window, then verify again.' });
-                await this.pause(500); continue;
-              }
-              // Close and reconnect to prove that authentication survived the
-              // browser connection. The worker will reuse this same profile.
-              if (linkId) await cdp.send('Browserless.closeLiveURL', { liveURLId: linkId }).catch(() => {});
-              await remote.close(); this.remotes.delete(remote);
-              remote = await this.connect(config.connectUrl);
-              this.remotes.add(remote);
-              await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 15000 });
-              await this.verify(remote.page, { timeoutMs: 10000 });
-              await remote.close(); this.remotes.delete(remote); remote = null;
-              await save({ state: 'connected', liveURL: null, verifiedAt: new Date(this.now()).toISOString(),
-                message: 'AIVID sign-in verified and saved for the worker.' });
-              return true;
-            }
-            await this.pause(750);
+          const config = await this.getConfig();
+          const sessionExpired = config.expiresAt && Date.parse(config.expiresAt) <= this.now();
+          if (replaceSession || !config.connectUrl || sessionExpired) {
+            if (!config.apiKey) throw problem('Save your Browserless API key first.');
+            stage = 'database';
+            await this.assertReplaceable();
+            stage = 'create';
+            const session = await this.create({ token: config.apiKey, endpoint: config.endpoint, ttl: config.ttlDays * 86400000 });
+            // Store the session BEFORE opening sign-in. It is ready for the worker
+            // without installing a file or exposing the connect URL to the UI.
+            stage = 'database';
+            if (config.session?.connect) await this.write('aivid_browserless_previous_session', JSON.stringify(config.session), { secret: true });
+            await this.write(SESSION_KEY, JSON.stringify(session), { secret: true });
+            config.connectUrl = session.connect;
           }
-          await save({ state: this.stopping ? 'cancelled' : 'expired', liveURL: null,
-            message: this.stopping ? 'Server restarted. Reopen the saved session to continue sign-in.' : 'The login window expired. Connect again to reopen the saved session.' });
+          const id = crypto.randomUUID();
+          let state = { id, state: 'opening', expiresAt: new Date(this.now() + this.loginMs).toISOString(), message: 'Opening the AIVID login window.' };
+          let remote, linkId;
+          const save = async patch => {
+            state = { ...state, ...patch };
+            try { await this.writeLogin(state); } catch (error) { throw setupFailure(error, 'database'); }
+          };
+          stage = 'database';
+          await save({});
+          try {
+            stage = 'connect';
+            remote = await this.connect(config.connectUrl, { timeoutMs: 120000 });
+            this.remotes.add(remote);
+            stage = 'navigation';
+            await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            stage = 'live';
+            const cdp = await remote.context.newCDPSession(remote.page);
+            const remaining = Math.max(1000, Date.parse(state.expiresAt) - this.now());
+            const live = await cdp.send('Browserless.liveURL', { interactable: true, timeout: remaining,
+              showBrowserInterface: true });
+            if (live.error || !live.liveURL) throw new Error('Live login unavailable');
+            const liveUrl = browserlessUrl(live.liveURL, 'https:');
+            if (liveUrl.hostname !== new URL(config.connectUrl).hostname) throw new Error('Unexpected login host');
+            linkId = live.liveURLId;
+            const linkMs = Math.min(Number(live.timeout) || remaining, remaining);
+            await save({ state: 'waiting', liveURL: liveUrl.href, expiresAt: new Date(this.now() + linkMs).toISOString(),
+              message: 'Open the login window, sign in to AIVID with Google, then click Verify sign-in here.' });
+            resolveReady(publicLogin(state, { includeLink: true, now: this.now() }));
+            while (!this.stopping && this.now() < Date.parse(state.expiresAt)) {
+              let action = {};
+              try { action = JSON.parse(await this.read(ACTION_KEY, '{}')); } catch {}
+              if (action.id === id && action.action === 'cancel') {
+                await save({ state: 'cancelled', liveURL: null, message: 'Sign-in closed. The saved session was kept.' });
+                return true;
+              }
+              if (action.id === id && action.action === 'finish' && action.nonce !== state.lastAction) {
+                await save({ state: 'verifying', lastAction: action.nonce, message: 'Verifying the saved AIVID login.' });
+                try {
+                  // The user may have opened Google in a popup. Return the
+                  // persistent context to AIVID and verify actual page state.
+                  await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 15000 });
+                  await this.verify(remote.page, { timeoutMs: 5000 });
+                } catch {
+                  await save({ state: 'waiting', message: 'Sign-in is not complete. Finish in the login window, then verify again.' });
+                  await this.pause(500); continue;
+                }
+                // Close and reconnect to prove that authentication survived the
+                // browser connection. The worker will reuse this same profile.
+                if (linkId) await cdp.send('Browserless.closeLiveURL', { liveURLId: linkId }).catch(() => {});
+                await remote.close(); this.remotes.delete(remote);
+                stage = 'connect';
+                remote = await this.connect(config.connectUrl);
+                this.remotes.add(remote);
+                stage = 'verify';
+                await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 15000 });
+                await this.verify(remote.page, { timeoutMs: 10000 });
+                await remote.close(); this.remotes.delete(remote); remote = null;
+                await save({ state: 'connected', liveURL: null, verifiedAt: new Date(this.now()).toISOString(),
+                  message: 'AIVID sign-in verified and saved for the worker.' });
+                return true;
+              }
+              await this.pause(750);
+            }
+            await save({ state: this.stopping ? 'cancelled' : 'expired', liveURL: null,
+              message: this.stopping ? 'Server restarted. Reopen the saved session to continue sign-in.' : 'The login window expired. Connect again to reopen the saved session.' });
+            return true;
+          } catch (error) {
+            const failure = setupFailure(error, stage);
+            await save({ state: 'failed', liveURL: null, message: failure.message });
+            rejectReady(failure);
+            return true;
+          } finally {
+            if (remote) { await remote.close().catch(() => {}); this.remotes.delete(remote); }
+          }
+        } catch (error) {
+          const failure = setupFailure(error, stage);
+          if (failure.statusCode >= 500) {
+            // Keep creation failures visible after a refresh, while still
+            // holding the lock so another attempt cannot be overwritten.
+            await this.writeLogin({ id: crypto.randomUUID(), state: 'failed',
+              expiresAt: new Date(this.now()).toISOString(), liveURL: null, message: failure.message }).catch(() => {});
+          }
+          rejectReady(failure);
           return true;
-        } catch {
-          await save({ state: 'failed', liveURL: null, message: 'Could not open or verify the cloud browser. Check your Browserless key, plan, session and Google sign-in.' });
-          rejectReady(problem(state.message, 502));
-          return true;
-        } finally {
-          if (remote) { await remote.close().catch(() => {}); this.remotes.delete(remote); }
         }
       });
       if (!result) rejectReady(problem('The AIVID browser is busy. Finish its current operation before connecting.', 409));
     })().catch(error => {
       // All uncontrolled infrastructure errors are scrubbed before the HTTP
       // response or activity logger can receive a credential-bearing URL.
-      rejectReady(error.aividSafe ? error : problem('Browserless setup failed. Check the saved key, plan and server connection.', 502));
+      rejectReady(setupFailure(error, 'database'));
     });
     this.tasks.add(task); task.finally(() => this.tasks.delete(task));
     return ready;
