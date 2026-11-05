@@ -226,6 +226,27 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkSluice()">Check key &amp; balance</button><button class="secondary" onclick="syncSluiceModels()">Sync models</button></div>
           <div id="sluiceActionMsg" class="muted" style="margin-top:10px"></div>
         </div>
+        <div class="card" id="aividAdminCard" style="grid-column:1 / -1">
+          <div class="source-head"><h3>AIVID · Browserless connection</h3><span class="source-state" id="aividConnectionBadge">Not connected</span></div>
+          <p class="muted">Save your Browserless key, then sign in to AIVID through a private browser window. Your login is saved automatically.</p>
+          <div class="field"><label for="aividBrowserlessKey">Browserless API key</label><input id="aividBrowserlessKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter your Browserless API key"></div>
+          <div id="aividKeyStatus" class="muted" role="status">Checking saved key...</div>
+          <div class="field"><label for="aividBrowserlessRegion">Browser region</label><select id="aividBrowserlessRegion"><option value="https://production-sfo.browserless.io">San Francisco</option><option value="https://production-lon.browserless.io">London</option><option value="https://production-ams.browserless.io">Amsterdam</option></select></div>
+          <div class="field"><label for="aividSessionDays">Keep the login session for</label><select id="aividSessionDays"><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>
+          <p class="muted">Choose a duration supported by your Browserless plan. The key and browser session are encrypted after saving.</p>
+          <div class="row" style="gap:8px;flex-wrap:wrap;margin:12px 0"><button class="btn" id="aividSaveButton" onclick="saveAividAdmin()">Save Browserless key</button><button class="secondary" onclick="loadAividAdmin()">Refresh status</button></div>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividConnectButton" onclick="connectAividAdmin(false)">Connect aivid</button><button class="secondary" id="aividCheckButton" onclick="checkAividAdmin()">Check connection</button></div>
+          <div id="aividLoginBox" class="hide" style="margin-top:16px;padding:14px;border:1px solid var(--line,#dbe2ea);border-radius:12px">
+            <p id="aividLoginMessage" class="muted" role="status"></p>
+            <a id="aividLoginLink" class="btn hide" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Open aivid login window ↗</a>
+            <p class="muted">Complete Google sign-in in that window, then return here.</p>
+            <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividVerifyButton" onclick="finishAividAdmin('finish')">Verify sign-in</button><button class="secondary" id="aividCancelButton" onclick="finishAividAdmin('cancel')">Close login window</button></div>
+          </div>
+          <p id="aividSessionStatus" class="muted" role="status"></p>
+          <p id="aividAdminMessage" class="muted" role="status" style="white-space:pre-wrap"></p>
+          <details style="margin-top:14px"><summary>Session recovery</summary><p class="muted">Connect reopens the saved session. If it has stopped working, create a new session and sign in again. Outstanding generations must be resolved before replacing their session.</p><button id="aividReplaceButton" class="secondary" onclick="connectAividAdmin(true)">Create new login session</button></details>
+          <p class="muted" style="margin-top:14px">Customer access stays off until a live video test passes.</p>
+        </div>
         <div class="card">
           <div class="source-head"><h3>Video Studio · Vidancee (Omni Flash)</h3><label class="source-switch"><input id="vidanceeEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="vidanceeEnabledText" class="source-state"></div>
@@ -970,6 +991,7 @@ async function syncApi888Models(){
   catch(e){m.className='err';m.textContent=e.message;}
 }
 async function loadProviderSettings(){try{
+  loadAividAdmin();
   const d=await api('/admin/provider-settings');const s=d.settings;
   $('enhancerEnabled').checked=s.promptEnhancer?.enabled!==false;
   $('enhancerApiKey').value='';$('clearEnhancerApiKey').checked=false;
@@ -1286,5 +1308,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script></body></html>
+</script><script src="/aivid-admin.js?v=1"></script></body></html>
+
 

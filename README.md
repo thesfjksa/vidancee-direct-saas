@@ -69,7 +69,10 @@ See [Vercel setup](docs/VERCEL_AI_GATEWAY.md) for API-key setup, the 83-model in
 
 # AIVID Browserless pilot
 
-The cloud browser adapter, owner trial commands and internal queue are described
-in [docs/AIVID_BROWSERLESS.md](docs/AIVID_BROWSERLESS.md). Customer activation is
-disabled pending authenticated generation and reference-upload verification.
+Set the Browserless API key and connect AIVID from **Admin → Provider → AIVID ·
+Browserless connection**. Credentials and the login session are encrypted and
+shared with the worker; no environment variables or terminal setup are needed.
+See [docs/AIVID_BROWSERLESS.md](docs/AIVID_BROWSERLESS.md) for setup and the
+optional owner trial commands. Customer activation is disabled pending
+authenticated generation and reference-upload verification.
 

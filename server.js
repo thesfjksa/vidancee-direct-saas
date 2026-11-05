@@ -1182,6 +1182,7 @@ const server=http.createServer(async (req,res)=>{
       '/developers.css':['developers.css','text/css; charset=utf-8'],
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
+      '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
       '/assets/cmmtools-logo-sm.png':['assets/cmmtools-logo-sm.png','image/png'],
       '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
@@ -2334,8 +2335,27 @@ const server=http.createServer(async (req,res)=>{
       }
       if(req.method==='GET'&&routePath==='/admin/aivid/status'){
         requireDatabase();
-        const {getAividSettings,publicConfig}=require('./src/aivid_settings.js');
-        return sendJson(res,200,{ok:true,...publicConfig(await getAividSettings())});
+        return sendJson(res,200,{ok:true,...await require('./src/aivid_admin.js').getAividAdminService().status()});
+      }
+      if(req.method==='POST'&&routePath==='/admin/aivid/settings'){
+        requireDatabase();
+        const saved=await require('./src/aivid_admin.js').getAividAdminService().save(await readJson(req));
+        return sendJson(res,200,{ok:true,...saved});
+      }
+      if(req.method==='POST'&&routePath==='/admin/aivid/login'){
+        requireDatabase();
+        const body=await readJson(req);
+        if(body.replaceSession!==undefined&&typeof body.replaceSession!=='boolean')throw httpError(400,'Invalid session replacement option.');
+        const login=await require('./src/aivid_admin.js').getAividAdminService().startLogin({replaceSession:body.replaceSession===true});
+        return sendJson(res,200,{ok:true,login});
+      }
+      const aividLogin=routePath.match(/^\/admin\/aivid\/login\/([0-9a-f-]{36})(?:\/(finish|cancel))?$/i);
+      if(aividLogin){
+        requireDatabase();
+        const service=require('./src/aivid_admin.js').getAividAdminService();
+        if(req.method==='GET'&&!aividLogin[2])return sendJson(res,200,{ok:true,login:await service.loginStatus(aividLogin[1])});
+        if(req.method==='POST'&&aividLogin[2])return sendJson(res,200,{ok:true,...await service.requestAction(aividLogin[1],aividLogin[2])});
+        return sendJson(res,405,{ok:false,error:'Method not allowed.'});
       }
       if(req.method==='POST'&&routePath==='/admin/aivid/check'){
         requireDatabase();
@@ -2842,6 +2862,7 @@ server.on('clientError',(error,socket)=>{
 // A server that could not open its port serves nothing; exit so the host
 // starts a fresh process instead of keeping this one alive.
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;if(!server.listening)setTimeout(()=>process.exit(1),250).unref();});
+server.on('close',()=>require('./src/aivid_admin.js').stopAividAdmin().catch(()=>{}));
 
 
 let workerChild=null;
@@ -2896,6 +2917,7 @@ function shutdown(signal){
   if(shuttingDown)return;
   console.warn('[runtime] shutting down on',signal);
   stopWorkerChild();
+  require('./src/aivid_admin.js').stopAividAdmin().catch(()=>{});
   server.close(()=>process.exit(0));
   server.closeIdleConnections?.();
   setTimeout(()=>process.exit(0),SHUTDOWN_GRACE_MS).unref();
