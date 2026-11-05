@@ -5,16 +5,20 @@ on:
     paths:
       - 'public/admin.html'
       - 'public/aivid-admin.js'
+      - 'public/provider-admin.js'
       - 'public/admin.css'
       - 'scripts/check-aivid-admin-ui.cjs'
+      - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
   push:
     branches: [main]
     paths:
       - 'public/admin.html'
       - 'public/aivid-admin.js'
+      - 'public/provider-admin.js'
       - 'public/admin.css'
       - 'scripts/check-aivid-admin-ui.cjs'
+      - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
 permissions:
   contents: read
@@ -30,9 +34,10 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright-core install --with-deps chromium
       - run: node scripts/check-aivid-admin-ui.cjs
+      - run: node scripts/check-provider-admin-ui.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: aivid-admin-ui
-          path: artifacts/aivid-admin-ui
+          path: artifacts/
           if-no-files-found: ignore

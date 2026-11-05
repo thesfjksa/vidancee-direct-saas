@@ -150,3 +150,23 @@ For setup and error handling, see [SMARTAIPI.md](SMARTAIPI.md) and [PROMPT_ENHAN
 ## Vercel AI Gateway
 
 Save an AI Gateway key, then use **Check saved key** to read the gateway credit balance. **Sync live models** updates the official catalog and account eligibility, while preserving per-model visibility and price overrides. Sync also works without a key for the public catalog. See [Vercel setup](VERCEL_AI_GATEWAY.md) for price configuration and supported workflows.
+
+# Provider workspace navigation
+
+The Provider page is organized into four views:
+
+- **Connections:** choose a source in the directory (or the mobile selector)
+  to edit one setup form at a time. Long source explanations are under Setup
+  notes & pricing. AIVID saves its Browserless connection with its own button;
+  other source changes use Save provider settings. The global generation
+  submission control remains at the top.
+- **Models:** Display names & HD, ArgoLink catalog and Vercel catalog each have
+  a separate view. Search/type filters and pagination keep the catalogs short.
+  Unsaved display names, HD choices and price drafts survive page/tab changes.
+- **Usage & limits:** balances, usage and active jobs without setup forms.
+- **Advanced:** the Claude connector and collapsed runtime/job diagnostics.
+
+Navigation does not change credentials, provider access, prices or enable flags.
+Catalogs and diagnostics load on first opening their view rather than when the
+Connections page opens. Refresh buttons still fetch the latest records.
+
