@@ -5,7 +5,7 @@ const { getPool } = require('./db.js');
 const { getSettingValue, setSettingValue } = require('./settings.js');
 const { getAividSettings, saveAividSettings, publicConfig, SESSION_KEY } = require('./aivid_settings.js');
 const { withAividLock } = require('./aivid_queue.js');
-const { createSession, connectSession, browserlessUrl } = require('./provider/browserless.js');
+const { createSession, connectSession, createLoginView, browserlessUrl } = require('./provider/browserless.js');
 const { waitForSession } = require('./provider/aivid.js');
 const LOGIN_KEY = 'aivid_browserless_login';
 const ACTION_KEY = 'aivid_browserless_login_action';
@@ -87,7 +87,8 @@ class AividAdminService {
           }
           const id = crypto.randomUUID();
           let state = { id, state: 'opening', expiresAt: new Date(this.now() + this.loginMs).toISOString(), message: 'Opening the AIVID login window.' };
-          let remote, linkId;
+          let remote, linkId, liveCdp, liveComplete;
+          let completion = null;
           const save = async patch => {
             state = { ...state, ...patch };
             try { await this.writeLogin(state); } catch (error) { throw setupFailure(error, 'database'); }
@@ -101,14 +102,17 @@ class AividAdminService {
             stage = 'navigation';
             await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 30000 });
             stage = 'live';
-            const cdp = await remote.context.newCDPSession(remote.page);
             const remaining = Math.max(1000, Date.parse(state.expiresAt) - this.now());
-            const live = await cdp.send('Browserless.liveURL', { interactable: true, timeout: remaining,
-              showBrowserInterface: true });
-            if (live.error || !live.liveURL) throw new Error('Live login unavailable');
+            const live = await createLoginView(remote, { timeoutMs: remaining });
+            const cdp = live.cdp;
             const liveUrl = browserlessUrl(live.liveURL, 'https:');
             if (liveUrl.hostname !== new URL(config.connectUrl).hostname) throw new Error('Unexpected login host');
             linkId = live.liveURLId;
+            // Listen after minting: replacement can complete an older link.
+            // Completion is not proof of sign-in, and feedback is never saved.
+            liveCdp = cdp;
+            liveComplete = event => { if (event.liveURLId === linkId) completion = event.reason; };
+            cdp.on('Browserless.liveComplete', liveComplete);
             const linkMs = Math.min(Number(live.timeout) || remaining, remaining);
             await save({ state: 'waiting', liveURL: liveUrl.href, expiresAt: new Date(this.now() + linkMs).toISOString(),
               message: 'Open the login window, sign in to AIVID with Google, then click Verify sign-in here.' });
@@ -146,6 +150,13 @@ class AividAdminService {
                   message: 'AIVID sign-in verified and saved for the worker.' });
                 return true;
               }
+              if (completion) {
+                await save({ state: completion === 'timeout' ? 'expired' : 'cancelled', liveURL: null,
+                  message: completion === 'timeout'
+                    ? 'The live login window reached its time limit. Connect again to reopen the saved profile.'
+                    : 'The live login window disconnected or closed. Connect again to reopen the saved profile.' });
+                return true;
+              }
               await this.pause(750);
             }
             await save({ state: this.stopping ? 'cancelled' : 'expired', liveURL: null,
@@ -157,6 +168,7 @@ class AividAdminService {
             rejectReady(failure);
             return true;
           } finally {
+            if (liveCdp && liveComplete) liveCdp.off('Browserless.liveComplete', liveComplete);
             if (remote) { await remote.close().catch(() => {}); this.remotes.delete(remote); }
           }
         } catch (error) {

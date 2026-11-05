@@ -12,7 +12,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture({ session = false, connectError = false, verifyError = false, outstanding = 0 } = {}) {
   let locked = false, clock = 1000000, created = 0, connected = 0, closed = 0, verified = 0;
-  const records = new Map(), secrets = new Map(), pauses = [], calls = [];
+  const records = new Map(), secrets = new Map(), pauses = [], calls = [], sessions = [];
   const read = async (key, fallback) => records.get(key) ?? fallback;
   const write = async (key, value, options = {}) => { records.set(key, value); secrets.set(key, options.secret === true); };
   let config = { apiKey: 'saved-private-api-key', endpoint: 'https://production-sfo.browserless.io', ttlDays: 1,
@@ -31,13 +31,15 @@ function fixture({ session = false, connectError = false, verifyError = false, o
     connect: async () => {
       connected++; if (connectError) throw new Error(connectUrl);
       const cdp = new EventEmitter();
+      sessions.push(cdp);
       cdp.send = async method => method === 'Browserless.liveURL' ? { liveURL, liveURLId: 'viewer-id', timeout: 9000 } : {};
-      return { page: { goto: async () => {} }, context: { newCDPSession: async () => cdp }, close: async () => { closed++; } };
+      return { page: { goto: async () => {}, setViewportSize: async () => {}, bringToFront: async () => {} },
+        context: { newCDPSession: async () => cdp }, close: async () => { closed++; } };
     },
     verify: async () => { verified++; if (verifyError) throw new Error('Sign In still visible'); },
   };
   const service = new AividAdminService(options);
-  return { service, options, records, secrets, calls, read, write,
+  return { service, options, records, secrets, calls, read, write, sessions,
     async step() { await flush(); pauses.shift()?.(); await flush(); },
     advance(ms) { clock += ms; }, stats: () => ({ created, connected, closed, verified, locked }) };
 }
@@ -133,6 +135,24 @@ test('expiry and server shutdown close the browser and release the shared lock',
     await f.step(); await Promise.all([...f.service.tasks]);
     assert.equal((await f.service.loginStatus(login.id)).state, stopping ? 'cancelled' : 'expired');
     assert.equal(f.stats().locked, false); assert.ok(f.stats().closed >= 1);
+  }
+});
+
+test('viewer timeout or disconnect clears the live link promptly without claiming sign-in', async () => {
+  for (const reason of ['timeout', 'viewerDisconnected', 'closed']) {
+    const f = fixture(); const login = await f.service.startLogin();
+    // Another viewer cannot end this attempt, and raw feedback is never saved.
+    f.sessions[0].emit('Browserless.liveComplete', { liveURLId: 'other', reason: 'closed' });
+    await f.step(); assert.equal((await f.service.loginStatus(login.id)).state, 'waiting');
+    f.sessions[0].emit('Browserless.liveComplete', { liveURLId: 'viewer-id', reason,
+      feedback: { message: connectUrl } });
+    await f.step(); await Promise.all([...f.service.tasks]);
+    const status = await f.service.loginStatus(login.id);
+    assert.equal(status.state, reason === 'timeout' ? 'expired' : 'cancelled');
+    assert.equal(status.liveURL, undefined); assert.equal(status.verifiedAt, null);
+    assert.equal(f.stats().verified, 0); assert.equal(f.stats().locked, false);
+    assert.equal(f.sessions[0].listenerCount('Browserless.liveComplete'), 0);
+    assert.doesNotMatch(JSON.stringify(await f.service.status()), /private-session-token|wss:/);
   }
 });
 
