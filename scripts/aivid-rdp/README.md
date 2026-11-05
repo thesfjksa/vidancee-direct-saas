@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0.2
+# CMMTools AIVID RDP agent 2.0.3
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -73,3 +73,9 @@ Version 2.0.2 adds the Windows pairing dialog and Paste code button. Admin also
 has Copy code and a selectable code field. The ZIP is a complete standalone
 package. Starting in a fresh folder requires a fresh manual login and pairing;
 keeping the existing folder preserves the saved profile and pairing.
+
+Version 2.0.3 finds the visible prompt editor in the Generate area instead of
+requiring specific placeholder text. It supports textareas and rich-text
+editors, ignores hidden fallback fields, and reports separate codes for a
+visible Sign In button, a missing editor, multiple editors or a redirected tab.
+A zero credit balance is still valid for the no-charge connection check.

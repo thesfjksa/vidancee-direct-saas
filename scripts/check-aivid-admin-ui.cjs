@@ -2,11 +2,11 @@ const fs=require('node:fs');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core');
-const {openLoginPage,AividBrowserlessClient}=require('../src/provider/aivid.js');
+const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/provider/aivid.js');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
  const formPage=await browser.newPage();
- await require('./aivid-rdp/fixtures/form.cjs').checkForm(formPage,AividBrowserlessClient);
+ await require('./aivid-rdp/fixtures/form.cjs').checkForm(formPage,AividBrowserlessClient,waitForSession);
  await formPage.close();
  console.log('AIVID full preflight: zero balance, 4/10/15 seconds, private visibility and safe stage diagnostics passed; no Generate click.');
  // Exercise the login preparation against a real DOM. Only the entry button

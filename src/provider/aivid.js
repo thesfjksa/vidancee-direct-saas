@@ -19,6 +19,10 @@ const DIAGNOSTICS = Object.freeze({
   browser_connection: 'Could not connect to the local Chrome profile. Close the Login Chrome windows, then restart Agent.',
   page_navigation: 'AIVID did not load in time. Check its Chrome tab and the RDP internet connection.',
   session_check: 'AIVID sign-in or its generation form is not ready. Inspect the Chrome tab before retrying.',
+  session_sign_in: 'AIVID still shows Sign In. Finish sign-in in the Login Chrome window, close it, then restart Agent.',
+  session_form_missing: 'No visible prompt editor was found in the AIVID generation area. Check that the Generate page has finished loading.',
+  session_form_ambiguous: 'More than one visible prompt editor was found. Close extra AIVID dialogs before retrying.',
+  session_page_left: 'The AIVID tab left the generation site. Inspect Chrome and finish any sign-in steps before retrying.',
   model_selection: 'Could not select Seedance 2.0 (Mini). Check that its model menu opens on the RDP.',
   aspect_ratio: 'Could not select the requested AIVID aspect ratio.',
   resolution: 'Could not select the requested AIVID resolution.',
@@ -123,17 +127,28 @@ function validateSubmission(body, job) {
   } else if (Array.isArray(body.imageIds) && body.imageIds.length) throw new Error('Unexpected AIVID image references.');
 }
 
+function promptEditors(page) {
+  // The signed-in editor can be contenteditable. Placeholder-only lookup can
+  // find a hidden fallback textarea or miss the actual rich-text editor.
+  return page.locator('main').first().locator('textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]').filter({ visible: true });
+}
+function sessionFailure(code) { return Object.assign(new Error(diagnosticMessage(code)), { aividCode: code }); }
 async function waitForSession(page, { timeoutMs = 45000 } = {}) {
-  const deadline = Date.now() + timeoutMs; let stableSince = null;
+  const deadline = Date.now() + timeoutMs; let stableSince = null, signedOut = false, count = 0;
   do {
-    if (new URL(page.url()).origin !== ORIGIN) throw new Error('Complete AIVID sign-in before running a job.');
-    const signedOut = await page.getByRole('button', { name: 'Sign In', exact: true }).isVisible();
-    const ready = !signedOut && await page.getByPlaceholder(/^Describe your video idea/).isVisible();
+    if (new URL(page.url()).origin !== ORIGIN) throw sessionFailure('session_page_left');
+    signedOut = await page.getByRole('button', { name: 'Sign In', exact: true }).filter({ visible: true }).count() > 0;
+    count = await promptEditors(page).count();
+    const ready = !signedOut && count === 1;
     if (ready) { stableSince ??= Date.now(); if (Date.now() - stableSince >= 1000) return; }
     else stableSince = null;
     await new Promise(resolve => setTimeout(resolve, 250));
   } while (Date.now() < deadline);
-  throw new Error('AIVID sign-in or generation form is not ready. Reopen the saved Browserless session to sign in.');
+  throw sessionFailure(signedOut ? 'session_sign_in' : count > 1 ? 'session_form_ambiguous' : 'session_form_missing');
+}
+
+async function promptValue(editor) {
+  return editor.evaluate(element => element.tagName === 'TEXTAREA' ? element.value : element.innerText);
 }
 
 async function openLoginPage(page) {
@@ -200,10 +215,10 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
       await input.setInputFiles(refs.map((r, i) => ({ name: 'reference-' + kind + '-' + (i + 1) + '.' + r.mimeType.split('/')[1], mimeType: r.mimeType, buffer: r.data })));
     }
   }, onProgress);
-  const prompt = main.getByPlaceholder(/^Describe your video idea/);
+  const prompt = promptEditors(page);
   await step('prompt', () => prompt.fill(job.prompt), onProgress);
   await step('form_verification', async () => {
-    if (await slider.inputValue() !== String(job.duration) || await prompt.inputValue() !== job.prompt ||
+    if (await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
         !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
@@ -336,4 +351,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, MINI, ID };
