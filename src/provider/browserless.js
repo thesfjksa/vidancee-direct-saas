@@ -115,4 +115,22 @@ async function connectSession(connectUrl, { chromium, timeoutMs = 90000 } = {}) 
   }
 }
 
-module.exports = { BrowserlessError, browserlessUrl, createSession, connectSession };
+async function createLoginView(remote, { timeoutMs = 90000 } = {}) {
+  // Keep one coordinate system while a person controls the stream. Resizing
+  // different viewers must not keep changing the remote page's viewport.
+  await remote.page.setViewportSize({ width: 1280, height: 800 });
+  await remote.page.bringToFront();
+  const cdp = await remote.context.newCDPSession(remote.page);
+  await cdp.send('Input.setIgnoreInputEvents', { ignore: false });
+  const live = await cdp.send('Browserless.liveURL', { interactable: true,
+    timeout: timeoutMs, resizable: false, showBrowserInterface: false,
+    mode: 'follow', showTimer: true });
+  if (live.error || !live.liveURL || live.interactable === false) {
+    if (live.liveURLId) await cdp.send('Browserless.closeLiveURL', { liveURLId: live.liveURLId }).catch(() => {});
+    throw new BrowserlessError('Browserless could not open an interactive login view. Reconnect from Admin to request a fresh window.', 'BROWSERLESS_LIVE_INPUT');
+  }
+  browserlessUrl(live.liveURL, 'https:');
+  return { ...live, cdp };
+}
+
+module.exports = { BrowserlessError, browserlessUrl, createSession, connectSession, createLoginView };

@@ -4,7 +4,7 @@
 // nor Live URLs are stored in browser storage, query strings or UI logs.
 (() => {
   const el = id => document.getElementById(id);
-  let loginId = null, timer = null, active = false, configured = false, busy = false;
+  let loginId = null, timer = null, countdownTimer = null, active = false, configured = false, busy = false;
   const states = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
   function message(text, error = false) {
     el('aividAdminMessage').textContent = text;
@@ -31,6 +31,26 @@
         link.href = url.href; link.classList.remove('hide');
       }
     }
+    clearInterval(countdownTimer);
+    let countdown = el('aividLoginCountdown');
+    if (!countdown) {
+      countdown = document.createElement('p'); countdown.id = 'aividLoginCountdown';
+      countdown.className = 'muted'; countdown.setAttribute('role', 'timer');
+      el('aividLoginLink').insertAdjacentElement('afterend', countdown);
+    }
+    countdown.hidden = !active;
+    const expires = Date.parse(login.expiresAt);
+    const updateCountdown = () => {
+      const seconds = Math.max(0, Math.ceil((expires - Date.now()) / 1000));
+      countdown.textContent = seconds
+        ? 'Login window: ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') + ' remaining. The saved profile lasts longer than this window.'
+        : 'Login window expired. Connect again to reopen the saved profile.';
+      if (!seconds) {
+        link.classList.add('hide'); link.removeAttribute('href');
+        el('aividVerifyButton').disabled = true; clearInterval(countdownTimer);
+      }
+    };
+    if (active && Number.isFinite(expires)) { updateCountdown(); countdownTimer = setInterval(updateCountdown, 1000); }
     if (login.state === 'connected') {
       el('aividConnectionBadge').textContent = 'Sign-in verified';
       message(login.message + (login.verifiedAt ? ' Verified ' + new Date(login.verifiedAt).toLocaleString() + '.' : ''));

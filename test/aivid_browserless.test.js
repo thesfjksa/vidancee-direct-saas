@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { browserlessUrl, createSession, connectSession } = require('../src/provider/browserless.js');
+const { browserlessUrl, createSession, connectSession, createLoginView } = require('../src/provider/browserless.js');
 const { configFrom, publicConfig } = require('../src/aivid_settings.js');
 const { validateJob, validateSubmission, creditState, providerId, submissionResult, AividBrowserlessClient, installRequestGuard } = require('../src/provider/aivid.js');
 const { AividQueue, reconcileAivid } = require('../src/aivid_queue.js');
@@ -87,6 +87,27 @@ test('remote connection keeps the persistent context and closes stale job pages'
   assert.equal(remote.context, context); assert.equal(closed, 1); assert.equal(newContexts, 0);
   assert.match(gotUrl, /timeout=90000/);
   await remote.close(); assert.equal(remoteClosed, 1);
+});
+
+test('login view fixes the viewport and enables input before handing off; read-only results are refused', async () => {
+  const calls = [];
+  let response = { liveURL: 'https://production-sfo.browserless.io/live/index.html?i=private-viewer', liveURLId: 'test-view', timeout: 80000 };
+  const cdp = { send: async (method, params) => { calls.push({ method, params }); return method === 'Browserless.liveURL' ? response : {}; } };
+  const remote = { page: { setViewportSize: async size => calls.push({ viewport: size }), bringToFront: async () => calls.push({ foreground: true }) },
+    context: { newCDPSession: async () => cdp } };
+  const live = await createLoginView(remote, { timeoutMs: 85000 });
+  assert.equal(live.cdp, cdp); assert.equal(live.timeout, 80000);
+  assert.deepEqual(calls.slice(0, 3), [{ viewport: { width: 1280, height: 800 } }, { foreground: true },
+    { method: 'Input.setIgnoreInputEvents', params: { ignore: false } }]);
+  assert.deepEqual(calls[3], { method: 'Browserless.liveURL', params: { interactable: true, timeout: 85000,
+    resizable: false, showBrowserInterface: false, mode: 'follow', showTimer: true } });
+  for (const rejected of [{ ...response, interactable: false }, { ...response, error: connectUrl }]) {
+    response = rejected;
+    await assert.rejects(createLoginView(remote), error => {
+      assert.equal(error.aividSafe, true); assert.doesNotMatch(error.stack, /secret-test-token|private-viewer|wss:/); return true;
+    });
+    assert.deepEqual(calls.at(-1), { method: 'Browserless.closeLiveURL', params: { liveURLId: 'test-view' } });
+  }
 });
 
 test('reference validation preserves all kinds and rejects over-limit files', () => {

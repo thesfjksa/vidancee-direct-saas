@@ -56,6 +56,22 @@ different web process can receive **Verify sign-in** or **Close login window**.
 The login owner keeps the remote browser connected and shares the same MySQL
 lock as the queue, so another worker cannot use it during sign-in.
 
+The sign-in viewer uses a fixed 1280 × 800 viewport with interaction explicitly
+enabled, keeps the page in the foreground, and hides Browserless's navigation
+frame. It follows new tabs/popups for Google sign-in. The fixed viewport prevents
+different viewers from repeatedly resizing the same remote page. Both the CLI
+and Admin use the same viewer settings.
+
+Admin and the viewer show the short login-window countdown. The 1/7/30/90-day
+setting controls the saved profile's lifetime, not the connected login window.
+Viewer timeout/disconnection clears the link and releases the login lock;
+neither event proves authentication. Reconnect to reopen the saved profile.
+
+In the owner's original live window, the page rendered and a dropdown click did
+not open it; the stream later reported its time limit. The fixed-viewport viewer
+is a mitigation that still requires a live account retest. Mock browser checks
+do not prove Browserless mouse/keyboard forwarding or Google login.
+
 **Connect aivid** normally reuses the saved session. After expiry or an unusable
 session, **Session recovery → Create new login session** starts a replacement.
 Replacement is blocked while AIVID generations are outstanding. The previous
