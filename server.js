@@ -1183,6 +1183,7 @@ const server=http.createServer(async (req,res)=>{
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
+      '/provider-admin.js':['provider-admin.js','text/javascript; charset=utf-8'],
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
       '/assets/cmmtools-logo-sm.png':['assets/cmmtools-logo-sm.png','image/png'],
       '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
