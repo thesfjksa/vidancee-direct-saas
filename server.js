@@ -1177,6 +1177,7 @@ const server=http.createServer(async (req,res)=>{
   if(canonical){res.writeHead(301,{location:canonical,'cache-control':'no-store'});return res.end();}
 
   try {
+    if (await require('./src/aivid_rdp_http.js').handle(req,res,routePath,{readJson,requireDatabase})) return;
     const studioAssets={
       '/brand.css':['brand.css','text/css; charset=utf-8'],
       '/developers.css':['developers.css','text/css; charset=utf-8'],
@@ -2343,6 +2344,12 @@ const server=http.createServer(async (req,res)=>{
         const saved=await require('./src/aivid_admin.js').getAividAdminService().save(await readJson(req));
         return sendJson(res,200,{ok:true,...saved});
       }
+      if(req.method==='POST'&&routePath==='/admin/aivid/rdp/pairing'){
+        requireDatabase();
+        const result=await require('./src/aivid_queue.js').withAividLock(getPool(),()=>require('./src/aivid_rdp_http.js').service().createPairing());
+        if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy. Try pairing after its current operation.'});
+        return sendJson(res,200,{ok:true,...result});
+      }
       if(req.method==='POST'&&routePath==='/admin/aivid/login'){
         requireDatabase();
         const body=await readJson(req);
@@ -2361,10 +2368,11 @@ const server=http.createServer(async (req,res)=>{
       if(req.method==='POST'&&routePath==='/admin/aivid/check'){
         requireDatabase();
         const config=await require('./src/aivid_settings.js').getAividSettings();
-        if(!config.connectUrl)return sendJson(res,503,{ok:false,error:'Configure the Browserless session first.'});
+        if(config.mode==='rdp'?!config.rdpDevice?.tokenHash:!config.connectUrl)return sendJson(res,503,{ok:false,error:'Configure the AIVID browser connection first.'});
         const {withAividLock}=require('./src/aivid_queue.js');
         // Read-only: no Generate click, wallet debit or provider catalog sync.
-        const result=await withAividLock(getPool(),()=>new (require('./src/provider/aivid.js').AividBrowserlessClient)(config)
+        const Client=config.mode==='rdp'?require('./src/aivid_rdp.js').AividRdpClient:require('./src/provider/aivid.js').AividBrowserlessClient;
+        const result=await withAividLock(getPool(),()=>new Client(config)
           .preflight({prompt:'A quiet river at dawn',duration:4,aspectRatio:'16:9',resolution:'480p'}));
         if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy.'});
         return sendJson(res,200,{ok:true,...result});

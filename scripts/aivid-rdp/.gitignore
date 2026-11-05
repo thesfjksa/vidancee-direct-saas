@@ -1,0 +1,6 @@
+node_modules/
+.aivid-rdp-profile/
+.aivid-agent.json
+.aivid-agent.lock
+receipts/
+*.exe

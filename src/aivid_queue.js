@@ -26,7 +26,8 @@ async function withAividLock(db, fn) {
 // This queue supports owner trial rows and the later verified model adapter.
 // No generic queue recovery can repeat or refund an ambiguous paid click.
 class AividQueue extends VercelQueue {
-  constructor({ getConfig = getAividSettings, clientFactory = opts => new AividBrowserlessClient(opts), ...options } = {}) {
+  constructor({ getConfig = getAividSettings, clientFactory = opts => opts.mode === 'rdp'
+    ? new (require('./aivid_rdp.js').AividRdpClient)(opts) : new AividBrowserlessClient(opts), ...options } = {}) {
     super({ ...options, provider: 'aivid', clientFactory });
     this.getConfig = getConfig;
   }
@@ -34,9 +35,10 @@ class AividQueue extends VercelQueue {
   async runOnce(db = getPool(), settings = null) {
     const config = await this.getConfig();
     this.sourceReady = false;
-    if (!config.connectUrl) return;
+    if (config.mode === 'rdp' ? !config.rdpDevice?.tokenHash : !config.connectUrl) return;
     const current = settings || await this.getSettings();
     this.sourceReady = Boolean(config.enabled && config.maxSourceCredits > 0 && current.allowProviderCharges);
+    if (config.mode === 'rdp' && (!require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}).online || config.rdpDevice.status !== 'ready')) this.sourceReady = false;
     const client = this.clientFactory(config);
     await withAividLock(db, async () => {
       // Holding this lock proves no other live queue operation can be clicking.
@@ -83,7 +85,7 @@ class AividQueue extends VercelQueue {
     try {
       const options = JSON.parse(job.generation_options || '{}');
       const references = await this.filesFor(db, job);
-      const result = await client.startVideo({ ...options, prompt: job.prompt, duration: job.duration,
+      const result = await client.startVideo({ ...options, jobId: job.id, prompt: job.prompt, duration: job.duration,
         aspectRatio: job.aspect_ratio, resolution: job.resolution }, references, { beforeClick: async ({ price }) => {
           if (this.stopped) throw new Error('Worker is stopping before submission.');
           const latest = await this.getSettings();

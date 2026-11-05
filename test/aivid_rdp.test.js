@@ -1,0 +1,158 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { AividRdpClient, AividRdpService, RdpStore, readDevice, publicDevice, DEVICE_KEY, HEARTBEAT_KEY, PAIR_KEY, hash } = require('../src/aivid_rdp.js');
+const { Agent } = require('../scripts/aivid-rdp/agent.cjs');
+const { validateConfig, publicConfig } = require('../src/aivid_settings.js');
+const flush = () => new Promise(resolve => setImmediate(resolve));
+const jobId = '12345678-1234-4234-9234-123456789012', providerJobId = '6aec589f09c74e1c2ef12900';
+const value = { jobId, prompt: 'A quiet river', duration: 4, resolution: '480p', aspectRatio: '16:9' };
+class MemoryStore {
+  constructor() { this.rows = new Map(); this.chunks = new Map(); }
+  async insert(c) { this.rows.set(c.id, { ...c, device_id: c.deviceId, generation_id: c.generationId, state: 'queued', response: {} }); }
+  async get(id) { const row = this.rows.get(id); return row ? { ...row } : null; }
+  async move(id, from, to, response = {}) {
+    const row = this.rows.get(id); if (!row || row.state !== from || row.expiresAt <= Date.now()) return false;
+    Object.assign(row, { state: to, response }); return true;
+  }
+  async cancel(id) { const r = this.rows.get(id); if (r && r.state !== 'done') r.state = 'cancelled'; }
+  async claim(deviceId, readOnly) {
+    const row = [...this.rows.values()].find(r => r.device_id === deviceId && r.state === 'queued' && r.expiresAt > Date.now() && (!readOnly || r.kind === 'preflight'));
+    if (!row || !await this.move(row.id, 'queued', 'running')) return null; return this.get(row.id);
+  }
+  async chunk(id, i, data) {
+    const rows = this.chunks.get(id) || new Map();
+    if (rows.has(i) && !rows.get(i).equals(data)) throw new Error('Conflicting chunk');
+    rows.set(i, data); this.chunks.set(id, rows);
+  }
+  async output(id, metadata) {
+    const rows = [...(this.chunks.get(id) || new Map())].sort((a, b) => a[0] - b[0]).map(([position_index, media_data]) => ({ position_index, media_data }));
+    return RdpStore.prototype.output.call({ db: { execute: async () => [rows] } }, id, metadata);
+  }
+  async remove(id) { this.rows.delete(id); this.chunks.delete(id); }
+}
+function fixture() {
+  const records = new Map(), store = new MemoryStore();
+  const token = 'a'.repeat(64), deviceId = crypto.randomUUID();
+  records.set(DEVICE_KEY, JSON.stringify({ deviceId, tokenHash: hash(token) }));
+  const read = async (key, fallback) => records.get(key) ?? fallback;
+  const write = async (key, value) => records.set(key, value);
+  const db = { query: async () => [[]], execute: async () => [[{ total: 0 }]], getConnection: async () => ({
+    query: async () => [[{ acquired: 1 }]], release() {} }) };
+  const service = new AividRdpService({ db: () => db, read, write, getConfig: async () => ({ mode: 'rdp' }), store });
+  const device = { deviceId, tokenHash: hash(token) };
+  const transport = { request: async (route, options = {}) => {
+    if (route === '/poll') return service.poll(device, options.body.status);
+    const parts = route.split('/'), id = parts[2], action = parts[3];
+    if (!action) return { state: (await service.command(device, id)).state };
+    if (action === 'reserve') return service.reserve(device, id, options.body.price);
+    if (action === 'result') return service.result(device, id, options.body);
+    if (action === 'chunks') { await service.command(device, id); await store.chunk(id, Number(parts[4]), options.body); return {}; }
+    throw new Error('Unexpected transport route');
+  } };
+  const client = new AividRdpClient({ rdpDevice: device, maxSourceCredits: 3, store, delay: flush });
+  return { records, db, store, service, read, write, token, device, transport, client };
+}
+
+test('RDP configuration accepts no Browserless key and exposes no agent credential', () => {
+  const config = validateConfig({ mode: 'rdp' }, { apiKey: '', endpoint: 'https://production-sfo.browserless.io' });
+  assert.equal(config.mode, 'rdp'); assert.equal(config.apiKey, ''); assert.equal(config.enabled, false);
+  const status = publicConfig({ ...config, rdpDevice: { deviceId: jobId, tokenHash: 'private-hash' } });
+  assert.equal(status.configured, true); assert.equal(status.rdp.paired, true);
+  assert.doesNotMatch(JSON.stringify(status), /private-hash/);
+});
+test('pairing is single-use, expires, and never reuses the admin credential', async () => {
+  const f = fixture(); const pairing = await f.service.createPairing();
+  assert.match(pairing.code, /^[A-F0-9]{24}$/); assert.doesNotMatch(f.records.get(PAIR_KEY), new RegExp(pairing.code));
+  const paired = await f.service.pair(pairing.code);
+  assert.match(paired.token, /^[a-f0-9]{64}$/);
+  assert.equal((await f.service.authorize('Bearer ' + paired.token)).deviceId, paired.deviceId);
+  await assert.rejects(f.service.pair(pairing.code), /Invalid or expired/);
+  await assert.rejects(f.service.authorize('Bearer ' + f.token), /authentication/);
+  await assert.rejects(f.service.authorize('Bearer admin-token'), /authentication/);
+  f.records.set(PAIR_KEY, JSON.stringify({ codeHash: hash(pairing.code), expiresAt: new Date(0).toISOString() }));
+  await assert.rejects(f.service.pair(pairing.code), /Invalid or expired/);
+});
+test('a stale heartbeat cannot restore a replaced RDP agent', async () => {
+  const f = fixture(); f.records.set(HEARTBEAT_KEY, JSON.stringify({ deviceId: 'old-device', seenAt: new Date().toISOString(), status: 'ready' }));
+  const state = publicDevice(await readDevice(f.read)); assert.equal(state.online, false);
+  assert.equal(state.deviceId, f.device.deviceId);
+  assert.equal(publicDevice({ ...f.device, seenAt: 'invalid' }).online, false);
+  assert.equal(publicDevice({ ...f.device, seenAt: new Date(Date.now() + 60000).toISOString() }).online, false);
+});
+test('pairing rechecks outstanding work when consuming a previously generated code', async () => {
+  const f = fixture(), pairing = await f.service.createPairing();
+  f.db.execute = async () => [[{ total: 1 }]];
+  await assert.rejects(f.service.pair(pairing.code), /outstanding AIVID jobs/);
+  assert.equal((await readDevice(f.read)).deviceId, f.device.deviceId);
+  assert.ok(f.records.get(PAIR_KEY), 'the code remains available after the conflicting job is resolved');
+});
+test('one command can be claimed once, and login-required agents can only claim preflight', async () => {
+  const f = fixture();
+  await f.store.insert({ id: jobId, deviceId: f.device.deviceId, kind: 'submit', payload: {}, expiresAt: Date.now() + 10000 });
+  assert.equal((await f.service.poll(f.device, 'starting')).command, null);
+  assert.equal((await f.service.poll(f.device, 'needs_login')).command, null);
+  const claims = await Promise.all([f.service.poll(f.device, 'ready'), f.service.poll(f.device, 'ready')]);
+  assert.equal(claims.filter(c => c.command).length, 1);
+  const other = { deviceId: crypto.randomUUID() };
+  await assert.rejects(f.service.command(other, jobId), /ended/);
+});
+test('agent Generate occurs only after the server reservation, and reporting retries never generate twice', { timeout: 10000 }, async t => {
+  const f = fixture(), root = await fs.mkdtemp(path.join(os.tmpdir(), 'rdp-agent-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  let clicked = 0, reserved = 0, reports = 0;
+  const request = f.transport.request;
+  f.transport.request = async (route, options) => {
+    if (route.endsWith('/result') && reports++ === 0) throw Object.assign(new Error('network'), { network: true });
+    return request(route, options);
+  };
+  const agent = new Agent({ root, transport: f.transport, pause: flush, clientFactory: () => ({ startVideo: async (_value, _refs, hooks) => {
+    await hooks.beforeClick({ price: 2 }); assert.equal(reserved, 1); clicked++; return { state: 'accepted', providerJobId };
+  } }) });
+  const waiting = f.client.startVideo(value, [], { beforeClick: async ({ price }) => { assert.equal(price, 2); reserved++; } });
+  await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  const [, result] = await Promise.all([agent.execute(command), waiting]);
+  assert.equal(result.providerJobId, providerJobId); assert.equal(clicked, 1); assert.equal(reports, 2);
+  const receipt = JSON.parse(await fs.readFile(path.join(root, 'receipts', jobId + '.json'), 'utf8'));
+  assert.equal(receipt.state, 'accepted'); assert.equal(receipt.providerJobId, providerJobId);
+  await assert.rejects(agent.execute(command), /EEXIST/); assert.equal(clicked, 1);
+});
+test('a rejected reservation cannot reach Generate; late callbacks are refused', { timeout: 10000 }, async t => {
+  const f = fixture(), root = await fs.mkdtemp(path.join(os.tmpdir(), 'rdp-denied-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  let clicked = 0;
+  const agent = new Agent({ root, transport: f.transport, pause: flush, clientFactory: () => ({ startVideo: async (_v, _r, hooks) => {
+    await hooks.beforeClick({ price: 9 }); clicked++; return { state: 'accepted', providerJobId };
+  } }) });
+  const waiting = f.client.startVideo(value, [], { beforeClick: async () => { throw new Error('price limit changed'); } });
+  waiting.catch(() => {}); await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  const results = await Promise.allSettled([agent.execute(command), waiting]);
+  assert.equal(results.every(r => r.status === 'rejected'), true); assert.equal(clicked, 0);
+  await assert.rejects(f.service.reserve(f.device, command.id, 9), /ended/);
+});
+test('read-only preflight works with zero balance and never requests a paid reservation', { timeout: 10000 }, async () => {
+  const f = fixture(); let reservations = 0;
+  f.service.reserve = async () => { reservations++; throw new Error(); };
+  const agent = new Agent({ transport: f.transport, clientFactory: () => ({ preflight: async () => ({ ready: true, submitted: false, price: 2, balance: 0 }) }) });
+  const waiting = f.client.preflight(value); await flush(); const { command } = await f.service.poll(f.device, 'needs_login');
+  const [, result] = await Promise.all([agent.execute(command), waiting]);
+  assert.equal(result.balance, 0); assert.equal(reservations, 0);
+});
+test('MP4 is transferred in bounded chunks and verified before the existing queue receives it', { timeout: 10000 }, async () => {
+  const f = fixture(), data = Buffer.alloc(1024 * 1024 + 20); data.write('ftyp', 4, 'ascii');
+  const agent = new Agent({ transport: f.transport, clientFactory: () => ({ collectVideo: async () => ({ state: 'completed', output: { data, mimeType: 'video/mp4' } }) }) });
+  const waiting = f.client.collectVideo(providerJobId); await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  const [, result] = await Promise.all([agent.execute(command), waiting]);
+  assert.equal(result.state, 'completed'); assert.deepEqual(result.output.data, data);
+  assert.equal(f.store.rows.size, 0); assert.equal(f.store.chunks.size, 0);
+});
+test('invalid, missing or out-of-order MP4 chunks cannot complete an output', async () => {
+  const f = fixture(), data = Buffer.from('0000ftypisom0000');
+  await f.store.chunk(jobId, 1, data);
+  await assert.rejects(f.store.output(jobId, { size: data.length, chunks: 1, sha256: hash(data) }), /Incomplete/);
+  f.store.chunks.clear(); await f.store.chunk(jobId, 0, data);
+  await assert.rejects(f.store.output(jobId, { size: data.length, chunks: 1, sha256: '0'.repeat(64) }), /Invalid MP4/);
+  assert.notEqual(hash(Buffer.from([0xff])), hash(Buffer.from([0xfe])));
+});

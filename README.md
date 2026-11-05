@@ -67,12 +67,14 @@ The archive contains superseded milestone instructions. Use the current handoff 
 
 See [Vercel setup](docs/VERCEL_AI_GATEWAY.md) for API-key setup, the 83-model initial catalog, price overrides and current workflow limits.
 
-# AIVID Browserless pilot
+# AIVID browser pilot
 
-Set the Browserless API key and connect AIVID from **Admin → Provider → AIVID ·
-Browserless connection**. Credentials and the login session are encrypted and
-shared with the worker; no environment variables or terminal setup are needed.
-See [docs/AIVID_BROWSERLESS.md](docs/AIVID_BROWSERLESS.md) for setup and the
-optional owner trial commands. Customer activation is disabled pending
-authenticated generation and reference-upload verification.
+Choose **Windows RDP** in **Admin → Provider → AIVID connection**, save settings,
+and generate a pairing code for the portable Windows agent. Sign in manually
+with `AIVID-Login.exe`, close its Chrome windows, then start `AIVID-Agent.exe`.
+The agent uses your existing RDP and sends work over outbound HTTPS.
+See [docs/AIVID_RDP.md](docs/AIVID_RDP.md) for setup and recovery.
+The optional [Browserless transport](docs/AIVID_BROWSERLESS.md) remains available
+with its key saved in Admin. Customer activation is disabled pending
+authenticated generation and reference-upload verification on the chosen transport.
 

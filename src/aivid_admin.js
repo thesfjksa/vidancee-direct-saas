@@ -51,10 +51,14 @@ class AividAdminService {
   async writeLogin(value) { await this.write(LOGIN_KEY, JSON.stringify(value), { secret: true }); }
   async status() {
     const [config, login] = await Promise.all([this.getConfig(), this.readLogin()]);
-    return { ...publicConfig(config), login: publicLogin(login, { now: this.now() }) };
+    return { ...publicConfig(config), login: config.mode === 'rdp' ? { state: 'idle' } : publicLogin(login, { now: this.now() }) };
   }
   async save(input) {
-    const result = await withAividLock(this.db(), () => this.saveConfig(input));
+    const result = await withAividLock(this.db(), async () => {
+      const current = await this.getConfig();
+      if (input?.mode && input.mode !== (current.mode || 'browserless')) await this.assertReplaceable();
+      return this.saveConfig(input);
+    });
     if (!result) throw problem('The browser is busy. Finish or cancel sign-in before saving settings.', 409);
     return result;
   }
@@ -71,6 +75,7 @@ class AividAdminService {
         let stage = 'settings';
         try {
           const config = await this.getConfig();
+          if (config.mode === 'rdp') throw problem('Sign in with AIVID-Login.exe on your RDP, start AIVID-Agent.exe, then use Check RDP connection.', 409);
           const sessionExpired = config.expiresAt && Date.parse(config.expiresAt) <= this.now();
           if (replaceSession || !config.connectUrl || sessionExpired) {
             if (!config.apiKey) throw problem('Save your Browserless API key first.');

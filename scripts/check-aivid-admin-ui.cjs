@@ -29,15 +29,17 @@ const {openLoginPage}=require('../src/provider/aivid.js');
  const artifacts=process.env.AIVID_UI_ARTIFACT_DIR||'artifacts/aivid-admin-ui';fs.mkdirSync(artifacts,{recursive:true});
  const page=await browser.newPage({viewport:{width:1365,height:1000}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000;const calls=[];
+ let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[];
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
   const req=route.request(),url=new URL(req.url()),p=url.pathname;
   if(p==='/admin-console')return route.fulfill({contentType:'text/html',body:fs.readFileSync('public/admin.html','utf8')});
-  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,apiKeyConfigured:saved,configured:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:login()}});
-  if(p==='/admin/aivid/settings'){calls.push({p,headers:req.headers(),body:req.postDataJSON()});saved=true;return route.fulfill({json:{ok:true,apiKeyConfigured:true}});}
+  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,mode,rdp:{paired:rdpPaired,online:rdpPaired,status:'ready',seenAt:new Date().toISOString()},apiKeyConfigured:saved,configured:mode==='rdp'?rdpPaired:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:mode==='rdp'?{state:'idle'}:login()}});
+  if(p==='/admin/aivid/settings'){const body=req.postDataJSON();calls.push({p,headers:req.headers(),body});mode=body.mode||mode;saved=true;return route.fulfill({json:{ok:true,apiKeyConfigured:true}});}
+  if(p==='/admin/aivid/rdp/pairing')return route.fulfill({json:{ok:true,code:'AABBCCDDEEFF001122334455',expiresAt:new Date(Date.now()+600000).toISOString()}});
   if(p==='/admin/aivid/login'){
+   cloudStarts++;
    if(failLogin){failLogin=false;loginState='failed';return route.fulfill({status:502,json:{ok:false,error:'Browserless session creation failed (HTTP 401). Browserless rejected authentication.'}});}
    loginState='waiting';loginExpiresAt=Date.now()+120000;return route.fulfill({json:{ok:true,login:login()}});
   }
@@ -91,7 +93,22 @@ const {openLoginPage}=require('../src/provider/aivid.js');
  await page.locator('#aividLoginBox').waitFor({state:'hidden'});
  assert.equal(await page.locator('#aividConnectButton').isEnabled(),true);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'expired.png')});
+ const previousCloudStarts=cloudStarts;
+ await page.locator('#aividTransport').selectOption('rdp');
+ await page.getByRole('button',{name:'Save RDP connection',exact:true}).click();
+ await page.getByRole('button',{name:'Generate pairing code',exact:true}).waitFor({state:'visible'});
+ assert.equal(await page.locator('#aividBrowserlessFields').isVisible(),false);
+ await page.getByRole('button',{name:'Generate pairing code',exact:true}).click();
+ await page.locator('#aividPairCode').filter({hasText:'AABBCCDDEEFF001122334455'}).waitFor();
+ rdpPaired=true;
+ await page.locator('#aividAdminCard').getByRole('button',{name:'Refresh status',exact:true}).click();
+ await page.locator('#aividRdpStatus').filter({hasText:'Agent online'}).waitFor();
+ await page.getByRole('button',{name:'Check RDP connection',exact:true}).click();
+ await page.locator('#aividAdminMessage').filter({hasText:'Balance: 25 credits'}).waitFor();
+ assert.equal(cloudStarts,previousCloudStarts);
+ assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
+ await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
+ console.log(JSON.stringify({rdpMode:true,rdpPairing:true,rdpCheckWithoutBrowserless:true,loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
