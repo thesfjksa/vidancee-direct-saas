@@ -6,7 +6,7 @@ const { getSettingValue, setSettingValue } = require('./settings.js');
 const { getAividSettings, saveAividSettings, publicConfig, SESSION_KEY } = require('./aivid_settings.js');
 const { withAividLock } = require('./aivid_queue.js');
 const { createSession, connectSession, createLoginView, browserlessUrl } = require('./provider/browserless.js');
-const { waitForSession } = require('./provider/aivid.js');
+const { waitForSession, openLoginPage } = require('./provider/aivid.js');
 const LOGIN_KEY = 'aivid_browserless_login';
 const ACTION_KEY = 'aivid_browserless_login_action';
 const ACTIVE = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
@@ -38,9 +38,9 @@ function publicLogin(value, { includeLink = false, now = Date.now() } = {}) {
 
 class AividAdminService {
   constructor({ db = getPool, read = getSettingValue, write = setSettingValue, getConfig = getAividSettings,
-    saveConfig = saveAividSettings, create = createSession, connect = connectSession, verify = waitForSession,
+    saveConfig = saveAividSettings, create = createSession, connect = connectSession, verify = waitForSession, openLogin = openLoginPage,
     now = Date.now, pause = delay, loginMs = 110000 } = {}) {
-    Object.assign(this, { db, read, write, getConfig, saveConfig, create, connect, verify, now, pause, loginMs });
+    Object.assign(this, { db, read, write, getConfig, saveConfig, create, connect, verify, openLogin, now, pause, loginMs });
     this.tasks = new Set(); this.remotes = new Set(); this.stopping = false;
   }
   async readLogin() {
@@ -100,7 +100,7 @@ class AividAdminService {
             remote = await this.connect(config.connectUrl, { timeoutMs: 120000 });
             this.remotes.add(remote);
             stage = 'navigation';
-            await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const signInOpened = await this.openLogin(remote.page);
             stage = 'live';
             const remaining = Math.max(1000, Date.parse(state.expiresAt) - this.now());
             const live = await createLoginView(remote, { timeoutMs: remaining });
@@ -115,7 +115,9 @@ class AividAdminService {
             cdp.on('Browserless.liveComplete', liveComplete);
             const linkMs = Math.min(Number(live.timeout) || remaining, remaining);
             await save({ state: 'waiting', liveURL: liveUrl.href, expiresAt: new Date(this.now() + linkMs).toISOString(),
-              message: 'Open the login window, sign in to AIVID with Google, then click Verify sign-in here.' });
+              message: signInOpened
+                ? 'Open the login window and choose Continue with Google. After signing in, return here and click Verify sign-in.'
+                : 'Open the saved login window. If you are already signed in, click Verify sign-in here.' });
             resolveReady(publicLogin(state, { includeLink: true, now: this.now() }));
             while (!this.stopping && this.now() < Date.parse(state.expiresAt)) {
               let action = {};

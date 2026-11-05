@@ -56,16 +56,27 @@ different web process can receive **Verify sign-in** or **Close login window**.
 The login owner keeps the remote browser connected and shares the same MySQL
 lock as the queue, so another worker cannot use it during sign-in.
 
-The sign-in viewer uses a fixed 1280 × 800 viewport with interaction explicitly
+The sign-in viewer uses a fixed 1024 × 720 viewport with interaction explicitly
 enabled, keeps the page in the foreground, and hides Browserless's navigation
 frame. It follows new tabs/popups for Google sign-in. The fixed viewport prevents
 different viewers from repeatedly resizing the same remote page. Both the CLI
-and Admin use the same viewer settings.
+and Admin use the same viewer settings. JPEG quality is set to 30 to reduce
+stream bandwidth. The viewport contains 28% fewer pixels than the previous
+1280 × 800 view. The server opens AIVID's **Sign In** dialog before delivering
+the link, leaving **Continue with Google**, credentials and verification to
+the owner. An already signed-in profile is left signed in.
 
 Admin and the viewer show the short login-window countdown. The 1/7/30/90-day
 setting controls the saved profile's lifetime, not the connected login window.
 Viewer timeout/disconnection clears the link and releases the login lock;
 neither event proves authentication. Reconnect to reopen the saved profile.
+
+Browserless Free limits each connection to two minutes. CMMTools cannot extend
+that provider limit; the login wait remains bounded and does not automatically
+reconnect. A longer paid-plan limit alone does not establish that the stream
+will be responsive. The lower-bandwidth view still needs a live owner test.
+See the provider's [session limits](https://docs.browserless.io/baas/session-management/standard-sessions)
+and [bandwidth options](https://docs.browserless.io/baas/advanced-configurations/hybrid-automation-configurations).
 
 In the owner's original live window, the page rendered and a dropdown click did
 not open it; the stream later reported its time limit. The fixed-viewport viewer

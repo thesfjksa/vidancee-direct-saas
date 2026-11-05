@@ -2,8 +2,30 @@ const fs=require('node:fs');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core');
+const {openLoginPage}=require('../src/provider/aivid.js');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
+ // Exercise the login preparation against a real DOM. Only the entry button
+ // is clicked; Google sign-in and paid actions must remain untouched.
+ const loginPage=await browser.newPage();
+ let signedIn=false,inertFirstClick=false;
+ await loginPage.route('https://aivid.dev/**',route=>route.fulfill({contentType:'text/html',body:
+  '<textarea placeholder="Describe your video idea..."></textarea>'+
+  (signedIn?'':'<button id="entry">Sign In</button>')+
+  '<button id="google" hidden>Continue with Google</button><script>window.entryClicks=0;window.googleClicks=0;'+
+  'document.querySelector("#entry")?.addEventListener("click",()=>{window.entryClicks++;'+(inertFirstClick?'if(window.entryClicks===1)return;':'')+'document.querySelector("#google").hidden=false;});'+
+  'document.querySelector("#google").addEventListener("click",()=>window.googleClicks++);</script>'}));
+ assert.equal(await openLoginPage(loginPage),true);
+ assert.equal(await loginPage.getByRole('button',{name:'Continue with Google',exact:true}).isVisible(),true);
+ assert.deepEqual(await loginPage.evaluate(()=>({entry:window.entryClicks,google:window.googleClicks})),{entry:1,google:0});
+ assert.deepEqual(loginPage.viewportSize(),{width:1024,height:720});
+ signedIn=true;
+ assert.equal(await openLoginPage(loginPage),false);
+ assert.deepEqual(await loginPage.evaluate(()=>({entry:window.entryClicks,google:window.googleClicks})),{entry:0,google:0});
+ signedIn=false;inertFirstClick=true;
+ assert.equal(await openLoginPage(loginPage),true);
+ assert.deepEqual(await loginPage.evaluate(()=>({entry:window.entryClicks,google:window.googleClicks})),{entry:2,google:0});
+ await loginPage.close();
  const artifacts=process.env.AIVID_UI_ARTIFACT_DIR||'artifacts/aivid-admin-ui';fs.mkdirSync(artifacts,{recursive:true});
  const page=await browser.newPage({viewport:{width:1365,height:1000}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -70,6 +92,6 @@ const {chromium}=require('playwright-core');
  assert.equal(await page.locator('#aividConnectButton').isEnabled(),true);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'expired.png')});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
+ console.log(JSON.stringify({loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

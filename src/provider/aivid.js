@@ -1,6 +1,6 @@
 'use strict';
 
-const { connectSession } = require('./browserless.js');
+const { connectSession, LOGIN_VIEWPORT } = require('./browserless.js');
 const ORIGIN = 'https://aivid.dev';
 const API = 'https://api.aivid.dev';
 const MINI = 'Seedance 2.0 (Mini)';
@@ -101,6 +101,30 @@ async function waitForSession(page, { timeoutMs = 45000 } = {}) {
     await new Promise(resolve => setTimeout(resolve, 250));
   } while (Date.now() < deadline);
   throw new Error('AIVID sign-in or generation form is not ready. Reopen the saved Browserless session to sign in.');
+}
+
+async function openLoginPage(page) {
+  // Prepare the real sign-in dialog before streaming. Leave Google's button,
+  // credentials and any verification to the owner in the private live window.
+  await page.setViewportSize(LOGIN_VIEWPORT);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.getByPlaceholder(/^Describe your video idea/).waitFor({ state: 'visible', timeout: 5000 });
+  const signIn = page.getByRole('button', { name: 'Sign In', exact: true });
+  if (!await signIn.isVisible()) return false;
+  const google = page.getByRole('button', { name: 'Continue with Google', exact: true });
+  // Server-rendered buttons can be visible before the app attaches handlers.
+  // Retry only this harmless entry click once, never Google's sign-in action.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await signIn.click({ timeout: 5000 });
+      await google.waitFor({ state: 'visible', timeout: 5000 });
+      return true;
+    } catch {
+      if (!await signIn.isVisible()) return false;
+    }
+  }
+  throw Object.assign(new Error('AIVID did not open its sign-in form. Its page controls are not ready; reconnect to retry.'),
+    { statusCode: 502, aividSafe: true });
 }
 
 async function choose(page, pattern, exactLabel) {
@@ -265,4 +289,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, prepare, installRequestGuard, MINI, ID };
+  isGenerationResponse, waitForSession, openLoginPage, prepare, installRequestGuard, MINI, ID };
