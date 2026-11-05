@@ -95,7 +95,11 @@
       const data = await api('/admin/aivid/login', { method: 'POST', body: JSON.stringify({ replaceSession }) });
       paintLogin(data.login); schedulePoll();
       message('Click Open aivid login window below. Finish Google sign-in, then click Verify sign-in.');
-    } catch (error) { message(error.message, true); }
+    } catch (error) {
+      // A creation failure also has a saved diagnostic status. Refresh the
+      // badge without replacing the precise response with a generic message.
+      await window.loadAividAdmin(); message(error.message, true);
+    }
     finally { busy = false; buttons(); }
   };
   window.finishAividAdmin = async action => {
