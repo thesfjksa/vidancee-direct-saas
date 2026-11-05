@@ -7,7 +7,8 @@
     "build": "node -e \"console.log('No build step required')\"",
     "start": "node server.js",
     "test": "ACTIVITY_LOG=off node --test",
-    "worker": "node worker.js"
+    "worker": "node worker.js",
+    "aivid:browserless": "node scripts/aivid-browserless.js"
   },
   "engines": {
     "node": ">=20"
@@ -16,9 +17,11 @@
   "dependencies": {
     "mysql2": "^3.11.5",
     "busboy": "^1.6.0",
+    "playwright-core": "1.62.1",
     "@modelcontextprotocol/client": "^2.3.0"
   },
   "optionalDependencies": {
     "sharp": "^0.35.5"
   }
 }
+

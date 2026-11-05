@@ -5,6 +5,7 @@ const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { SluiceQueue } = require('./sluice_queue.js');
 const { VidanceeQueue } = require('./vidancee_queue.js');
+const { AividQueue } = require('./aivid_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
@@ -75,6 +76,7 @@ class GenerationWorker {
     this.sluiceQueue = new SluiceQueue();
     // Omni Flash on Vidancee.
     this.vidanceeQueue = new VidanceeQueue();
+    this.aividQueue = new AividQueue();
     this.upscaleQueue = new UpscaleQueue();
     this.running = false;
     this.timer = null;
@@ -131,6 +133,7 @@ class GenerationWorker {
     this.higgsfieldQueue.start();
     this.sluiceQueue.start();
     this.vidanceeQueue.start();
+    this.aividQueue.start();
     this.upscaleQueue.start();
     this.smartImageLaneActive = true;
     this.scheduleSmartImages(500);
@@ -149,6 +152,7 @@ class GenerationWorker {
     this.higgsfieldQueue.stop();
     this.sluiceQueue.stop();
     this.vidanceeQueue.stop();
+    this.aividQueue.stop();
     this.upscaleQueue.stop();
   }
 
@@ -778,4 +782,5 @@ class GenerationWorker {
 }
 
 module.exports = { GenerationWorker };
+
 
