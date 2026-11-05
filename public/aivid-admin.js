@@ -5,6 +5,7 @@
 (() => {
   const el = id => document.getElementById(id);
   let loginId = null, timer = null, countdownTimer = null, active = false, configured = false, busy = false, savedMode = 'browserless';
+  let pairingExpiresAt = 0;
   const states = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
   function message(text, error = false) {
     el('aividAdminMessage').textContent = text;
@@ -152,10 +153,26 @@
     busy = true; buttons();
     try {
       const data = await api('/admin/aivid/rdp/pairing', { method: 'POST', body: '{}' });
-      el('aividPairCode').textContent = 'Pairing code: ' + data.code + ' · expires ' + new Date(data.expiresAt).toLocaleTimeString() + '. Enter it in AIVID-Agent.exe, then Refresh status.';
-      message('The one-time code pairs this RDP with CMMTools. It is not your Google password.');
+      pairingExpiresAt = Date.parse(data.expiresAt);
+      el('aividPairCodeInput').value = data.code;
+      el('aividPairCopyRow').hidden = false;
+      el('aividPairCode').textContent = 'Expires ' + new Date(data.expiresAt).toLocaleTimeString() + '. Click Copy code, then Paste code in the Agent pairing window. Saved pairing is reused on future starts.';
+      message('Code ready. Copy it, then click Paste code in AIVID-Agent.exe.');
     } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
+  };
+  window.copyAividRdpCode = async () => {
+    const input = el('aividPairCodeInput');
+    if (!input.value || !Number.isFinite(pairingExpiresAt) || Date.now() >= pairingExpiresAt) {
+      message('This pairing code expired. Generate a fresh code.', true); return;
+    }
+    try {
+      await navigator.clipboard.writeText(input.value);
+      message('Code copied. In the RDP Agent pairing window, click Paste code, then Connect.');
+    } catch {
+      input.focus(); input.select();
+      message('Code selected. Press Ctrl+C, then paste it into the Agent pairing window.');
+    }
   };
   window.finishAividAdmin = async action => {
     if (!loginId) return;

@@ -5,7 +5,16 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { chromeArguments, debuggerEndpoint, takeLock, downloadNative } = require('../native.cjs');
-const { origin, Transport, loadConfig, saveConfig } = require('../agent.cjs');
+const { origin, Transport, loadConfig, saveConfig, readPairingInput } = require('../agent.cjs');
+const { Readable } = require('node:stream');
+test('Windows dialog pairing input is bounded, validated and never included in errors', async () => {
+  const code = 'aabbccddeeff001122334455';
+  assert.deepEqual(await readPairingInput(Readable.from(['https://cmmtools.site\r\n', code + '\r\n'])),
+    { origin: 'https://cmmtools.site', code: code.toUpperCase() });
+  for (const input of ['https://cmmtools.site\nwrong', 'https://cmmtools.site\n' + code + '\nextra', 'x'.repeat(4097)])
+    await assert.rejects(readPairingInput(Readable.from([input])), error => { assert.doesNotMatch(error.message, new RegExp(code)); return true; });
+  await assert.rejects(readPairingInput(Readable.from(['http://cmmtools.site\n' + code])), /HTTPS/);
+});
 test('manual login has no automation or debugging flags; automation binds only to loopback', () => {
   const login = chromeArguments('./private-profile');
   assert.doesNotMatch(login.join(' '), /debugging|enable-automation|no-sandbox|disable-web-security|remote-allow-origins/);

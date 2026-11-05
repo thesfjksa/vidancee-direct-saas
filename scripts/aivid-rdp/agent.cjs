@@ -155,6 +155,17 @@ class Agent {
     } finally { await release(); }
   }
 }
+async function readPairingInput(input = process.stdin) {
+  const invalid = () => Object.assign(new Error('Pairing input is invalid. Reopen AIVID-Agent.exe and paste a fresh Admin code.'), { safe: true });
+  let raw = '';
+  for await (const chunk of input) {
+    raw += chunk.toString('utf8');
+    if (Buffer.byteLength(raw, 'utf8') > 4096) throw invalid();
+  }
+  const lines = raw.trimEnd().split(/\r?\n/);
+  if (lines.length !== 2 || !/^[a-f0-9]{24}$/i.test(lines[1].trim())) throw invalid();
+  return { origin: origin(lines[0].trim()), code: lines[1].trim().toUpperCase() };
+}
 async function main() {
   if (process.platform !== 'win32') throw new Error('Run AIVID-Agent.exe on your Windows RDP.');
   const root = __dirname;
@@ -162,18 +173,22 @@ async function main() {
   try { config = await loadConfig(root); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    const rl = require('node:readline/promises').createInterface({ input: process.stdin, output: process.stdout });
-    try {
-      const baseUrl = origin((await rl.question('CMMTools HTTPS address [https://cmmtools.site]: ')).trim() || 'https://cmmtools.site');
-      const code = (await rl.question('Pairing code from Admin: ')).trim();
-      const paired = await new Transport(baseUrl).request('/pair', { body: { code } });
-      config = { origin: baseUrl, token: paired.token }; await saveConfig(root, config);
-      console.log('RDP paired. Credential protected for this Windows user.');
-    } finally { rl.close(); }
+    let pairing;
+    if (process.env.AIVID_PAIRING_STDIN === '1') pairing = await readPairingInput();
+    else {
+      const rl = require('node:readline/promises').createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const baseUrl = origin((await rl.question('CMMTools HTTPS address [https://cmmtools.site]: ')).trim() || 'https://cmmtools.site');
+        pairing = { origin: baseUrl, code: (await rl.question('Pairing code from Admin: ')).trim() };
+      } finally { rl.close(); }
+    }
+    const paired = await new Transport(pairing.origin).request('/pair', { body: { code: pairing.code } });
+    config = { origin: pairing.origin, token: paired.token }; await saveConfig(root, config);
+    console.log('RDP paired. Credential protected for this Windows user. Future starts will use this saved pairing.');
   }
   const agent = new Agent({ root, transport: new Transport(config.origin, config.token) });
   process.once('SIGINT', () => { agent.stopping = true; }); process.once('SIGTERM', () => { agent.stopping = true; });
   await agent.run();
 }
 if (require.main === module) main().catch(error => { console.error(error.safe || error.network || error.statusCode ? error.message : 'The RDP agent stopped. Check Chrome, pairing and the writable agent folder.'); process.exitCode = 1; });
-module.exports = { Agent, Transport, origin, loadConfig, saveConfig, protect, main };
+module.exports = { Agent, Transport, origin, loadConfig, saveConfig, protect, readPairingInput, main };
