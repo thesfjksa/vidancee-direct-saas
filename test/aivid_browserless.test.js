@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { browserlessUrl, createSession, connectSession } = require('../src/provider/browserless.js');
 const { configFrom, publicConfig } = require('../src/aivid_settings.js');
-const { validateJob, validateSubmission, creditState, providerId, AividBrowserlessClient, installRequestGuard } = require('../src/provider/aivid.js');
+const { validateJob, validateSubmission, creditState, providerId, submissionResult, AividBrowserlessClient, installRequestGuard } = require('../src/provider/aivid.js');
 const { AividQueue, reconcileAivid } = require('../src/aivid_queue.js');
 
 const connectUrl = 'wss://production-sfo.browserless.io/session/test?token=secret-test-token';
@@ -100,6 +100,14 @@ test('paid submission cannot run without a reservation and explicit source credi
   await assert.rejects(client.startVideo(input), /reservation/);
   await assert.rejects(client.startVideo(input, [], { beforeClick: async () => {} }), /credit limit/);
   assert.equal(connections, 0);
+});
+
+test('timeouts, conflicts, throttles and successful responses without IDs remain uncertain', () => {
+  for (const status of [200, 202, 408, 409, 425, 429, 500, 502, 504])
+    assert.equal(submissionResult(status, {}).state, 'submission_uncertain');
+  assert.equal(submissionResult(402, {}).state, 'rejected');
+  assert.equal(submissionResult(200, { id: providerJobId }).state, 'accepted');
+  assert.equal(submissionResult(409, { id: providerJobId }).state, 'submission_uncertain');
 });
 
 function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pending' }, enabled = true, charges = true } = {}) {

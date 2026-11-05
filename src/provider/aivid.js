@@ -46,6 +46,16 @@ function providerId(body) {
     body?.data?.generationId, body?.generation?.id].find(id => typeof id === 'string' && ID.test(id)) || null;
 }
 
+function submissionResult(status, body) {
+  const id = providerId(body);
+  if (status >= 200 && status < 300 && id) return { state: 'accepted', providerJobId: id };
+  // A returned ID, timeout, conflict or throttle can describe an existing or
+  // still-running operation. Keep those for history reconciliation as well.
+  if (!id && [400, 401, 402, 403, 404, 405, 413, 415, 422].includes(status))
+    return { state: 'rejected', httpStatus: status };
+  return { state: 'submission_uncertain' };
+}
+
 function creditState(text) {
   const priceMatch = String(text).match(/\b(\d+(?:\.\d+)?)\s+Credits?\s*\/\s*Video\b/i);
   const balances = [...String(text).replace(/\b\d+(?:\.\d+)?\s+Credits?\s*\/\s*Video\b/gi, '')
@@ -205,11 +215,7 @@ class AividBrowserlessClient {
         if (guard.error && !guard.allowed) return { state: 'rejected', reason: guard.error.message };
         if (!response) return { state: 'submission_uncertain' };
         let body; try { body = await response.json(); } catch {}
-        const id = providerId(body), status = response.status();
-        if (status >= 200 && status < 300 && id) return { state: 'accepted', providerJobId: id, price: credits.price };
-        // Never treat an ambiguous 5xx or an unreadable success as safe to retry.
-        if (status >= 400 && status < 500) return { state: 'rejected', httpStatus: status };
-        return { state: 'submission_uncertain' };
+        return { ...submissionResult(response.status(), body), price: credits.price };
       } finally {
         // Stop the page before removing interception: a late web-app retry
         // must not escape the guard after our response timeout.
@@ -258,5 +264,5 @@ class AividBrowserlessClient {
   }
 }
 
-module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId,
+module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
   isGenerationResponse, waitForSession, prepare, installRequestGuard, MINI, ID };
