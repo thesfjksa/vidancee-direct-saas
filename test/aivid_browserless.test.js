@@ -97,10 +97,10 @@ test('login view fixes the viewport and enables input before handing off; read-o
     context: { newCDPSession: async () => cdp } };
   const live = await createLoginView(remote, { timeoutMs: 85000 });
   assert.equal(live.cdp, cdp); assert.equal(live.timeout, 80000);
-  assert.deepEqual(calls.slice(0, 3), [{ viewport: { width: 1280, height: 800 } }, { foreground: true },
+  assert.deepEqual(calls.slice(0, 3), [{ viewport: { width: 1024, height: 720 } }, { foreground: true },
     { method: 'Input.setIgnoreInputEvents', params: { ignore: false } }]);
   assert.deepEqual(calls[3], { method: 'Browserless.liveURL', params: { interactable: true, timeout: 85000,
-    resizable: false, showBrowserInterface: false, mode: 'follow', showTimer: true } });
+    resizable: false, showBrowserInterface: false, mode: 'follow', showTimer: true, type: 'jpeg', quality: 30 } });
   for (const rejected of [{ ...response, interactable: false }, { ...response, error: connectUrl }]) {
     response = rejected;
     await assert.rejects(createLoginView(remote), error => {

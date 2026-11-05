@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createSession, connectSession, createLoginView } = require('../src/provider/browserless.js');
-const { AividBrowserlessClient, validateJob } = require('../src/provider/aivid.js');
+const { AividBrowserlessClient, validateJob, openLoginPage } = require('../src/provider/aivid.js');
 const { SESSION_KEY } = require('../src/aivid_settings.js');
 const dir = path.resolve(process.env.AIVID_STATE_DIR || '.aivid-browserless');
 const sessionPath = path.join(dir, 'session.json');
@@ -52,7 +52,7 @@ async function main(args = process.argv.slice(2)) {
   if (command === 'login') {
     const remote = await connectSession(session.connect, { timeoutMs: 120000 });
     try {
-      await remote.page.goto('https://aivid.dev/', { waitUntil: 'domcontentloaded' });
+      await openLoginPage(remote.page);
       const live = await createLoginView(remote, { timeoutMs: 110000 });
       console.log('Open this private, temporary browser control link. Do not share or put it in logs:\n' + live.liveURL);
       const { createInterface } = require('node:readline/promises');

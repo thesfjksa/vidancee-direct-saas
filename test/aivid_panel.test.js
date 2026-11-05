@@ -37,6 +37,7 @@ function fixture({ session = false, connectError = false, verifyError = false, o
         context: { newCDPSession: async () => cdp }, close: async () => { closed++; } };
     },
     verify: async () => { verified++; if (verifyError) throw new Error('Sign In still visible'); },
+    openLogin: async page => { await page.goto('https://aivid.dev/'); return true; },
   };
   const service = new AividAdminService(options);
   return { service, options, records, secrets, calls, read, write, sessions,

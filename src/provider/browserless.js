@@ -1,5 +1,7 @@
 'use strict';
 
+const LOGIN_VIEWPORT = Object.freeze({ width: 1024, height: 720 });
+
 // Session connect/stop URLs are bearer credentials. Never include upstream
 // response bodies or Playwright connection errors (which contain URLs) in logs.
 class BrowserlessError extends Error {
@@ -118,13 +120,13 @@ async function connectSession(connectUrl, { chromium, timeoutMs = 90000 } = {}) 
 async function createLoginView(remote, { timeoutMs = 90000 } = {}) {
   // Keep one coordinate system while a person controls the stream. Resizing
   // different viewers must not keep changing the remote page's viewport.
-  await remote.page.setViewportSize({ width: 1280, height: 800 });
+  await remote.page.setViewportSize(LOGIN_VIEWPORT);
   await remote.page.bringToFront();
   const cdp = await remote.context.newCDPSession(remote.page);
   await cdp.send('Input.setIgnoreInputEvents', { ignore: false });
   const live = await cdp.send('Browserless.liveURL', { interactable: true,
     timeout: timeoutMs, resizable: false, showBrowserInterface: false,
-    mode: 'follow', showTimer: true });
+    mode: 'follow', showTimer: true, type: 'jpeg', quality: 30 });
   if (live.error || !live.liveURL || live.interactable === false) {
     if (live.liveURLId) await cdp.send('Browserless.closeLiveURL', { liveURLId: live.liveURLId }).catch(() => {});
     throw new BrowserlessError('Browserless could not open an interactive login view. Reconnect from Admin to request a fresh window.', 'BROWSERLESS_LIVE_INPUT');
@@ -133,4 +135,4 @@ async function createLoginView(remote, { timeoutMs = 90000 } = {}) {
   return { ...live, cdp };
 }
 
-module.exports = { BrowserlessError, browserlessUrl, createSession, connectSession, createLoginView };
+module.exports = { BrowserlessError, browserlessUrl, createSession, connectSession, createLoginView, LOGIN_VIEWPORT };
