@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0.1
+# CMMTools AIVID RDP agent 2.0.2
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -11,10 +11,13 @@ bundled; no installer or administrator access is required to run the package.
 2. Close all windows opened by that Login launcher once. Your other Chrome
    windows can remain open.
 3. In **CMMTools Admin → Provider → AIVID**, choose **Windows RDP agent** and
-   **Save RDP connection**. Click **Generate pairing code**.
-4. Open **AIVID-Agent.exe** on the RDP. Enter `https://cmmtools.site` and the
-   pairing code. The code works once and expires after ten minutes. Do not enter
-   a Google password or the CMMTools admin token in this terminal.
+   **Save RDP connection**. Click **Generate pairing code**, then **Copy code**.
+4. Open **AIVID-Agent.exe** on the RDP. A normal Windows pairing window opens
+   on the first run. The CMMTools address is prefilled. Click **Paste code**,
+   then **Connect**; Ctrl+V and right-click Paste also work in the code field.
+   The code works once and expires after ten minutes. After pairing, later
+   starts reuse the encrypted credential without asking for another code.
+   Do not enter a Google password or the CMMTools admin token here.
 5. Keep the Agent window running. It opens the saved AIVID Chrome profile,
    checks the form without generating a video, then polls CMMTools for work.
    Back in Admin, **Refresh status**, then **Check RDP connection**. A zero
@@ -65,3 +68,8 @@ agent folder with this ZIP's contents. Preserve the profile, encrypted pairing
 file and receipts. Reopen Agent, retry Check RDP connection, and report the
 bracketed diagnostic code if a check still fails. No new login or pairing is
 needed when using the same folder and Windows user.
+
+Version 2.0.2 adds the Windows pairing dialog and Paste code button. Admin also
+has Copy code and a selectable code field. The ZIP is a complete standalone
+package. Starting in a fresh folder requires a fresh manual login and pairing;
+keeping the existing folder preserves the saved profile and pairing.

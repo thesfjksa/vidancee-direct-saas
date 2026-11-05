@@ -32,6 +32,10 @@ const {openLoginPage,AividBrowserlessClient}=require('../src/provider/aivid.js')
  await loginPage.close();
  const artifacts=process.env.AIVID_UI_ARTIFACT_DIR||'artifacts/aivid-admin-ui';fs.mkdirSync(artifacts,{recursive:true});
  const page=await browser.newPage({viewport:{width:1365,height:1000}});
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{
+  if(window.fixtureClipboardBlocked)throw new Error('Clipboard unavailable');
+  window.fixtureCopiedCode=text;
+ }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[];
  const loginId='12345678-1234-1234-1234-123456789012';
@@ -103,7 +107,15 @@ const {openLoginPage,AividBrowserlessClient}=require('../src/provider/aivid.js')
  await page.getByRole('button',{name:'Generate pairing code',exact:true}).waitFor({state:'visible'});
  assert.equal(await page.locator('#aividBrowserlessFields').isVisible(),false);
  await page.getByRole('button',{name:'Generate pairing code',exact:true}).click();
- await page.locator('#aividPairCode').filter({hasText:'AABBCCDDEEFF001122334455'}).waitFor();
+ await page.locator('#aividPairCopyRow').waitFor({state:'visible'});
+ assert.equal(await page.locator('#aividPairCodeInput').inputValue(),'AABBCCDDEEFF001122334455');
+ await page.getByRole('button',{name:'Copy code',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.fixtureCopiedCode),'AABBCCDDEEFF001122334455');
+ await page.locator('#aividAdminMessage').filter({hasText:'Code copied'}).waitFor();
+ await page.evaluate(()=>{window.fixtureClipboardBlocked=true;});
+ await page.getByRole('button',{name:'Copy code',exact:true}).click();
+ await page.locator('#aividAdminMessage').filter({hasText:'Ctrl+C'}).waitFor();
+ assert.equal(await page.locator('#aividPairCodeInput').evaluate(input=>input.selectionEnd-input.selectionStart),24);
  rdpPaired=true;
  await page.locator('#aividAdminCard').getByRole('button',{name:'Refresh status',exact:true}).click();
  await page.locator('#aividRdpStatus').filter({hasText:'Agent online'}).waitFor();
@@ -113,6 +125,6 @@ const {openLoginPage,AividBrowserlessClient}=require('../src/provider/aivid.js')
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({rdpMode:true,rdpPairing:true,rdpCheckWithoutBrowserless:true,loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
+ console.log(JSON.stringify({rdpCopyCode:true,clipboardFallback:true,rdpMode:true,rdpPairing:true,rdpCheckWithoutBrowserless:true,loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

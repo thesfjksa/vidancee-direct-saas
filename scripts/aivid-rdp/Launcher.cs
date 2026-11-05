@@ -5,8 +5,10 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-[assembly: AssemblyVersion("2.0.1.0")]
+using System.Windows.Forms;
+[assembly: AssemblyVersion("2.0.2.0")]
 internal static class Launcher {
+  [STAThread]
   public static int Main(string[] args) {
     bool check = args.Length == 1 && args[0] == "--check";
     string root = AppDomain.CurrentDomain.BaseDirectory;
@@ -22,12 +24,28 @@ internal static class Launcher {
         string script = login ? "login.cjs" : "agent.cjs";
         foreach (string file in new string[] { "node.exe", script, "native.cjs", "AIVID-Protect.exe" })
           if (!File.Exists(Path.Combine(root, file))) throw new Exception("Extract the entire ZIP to one writable folder first. Missing " + file);
-        Console.WriteLine("CMMTools AIVID RDP agent 2.0.1 - " + (login ? "manual login" : "paired agent"));
+        Console.WriteLine("CMMTools AIVID RDP agent 2.0.2 - " + (login ? "manual login" : "paired agent"));
+        string site = null, pairingCode = null;
+        if (check) { PairingForm.SelfTest(); site = "https://cmmtools.site"; pairingCode = "AABBCCDDEEFF001122334455"; }
+        else if (!login && !File.Exists(Path.Combine(root, ".aivid-agent.json"))) {
+          Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+          using (var pairing = new PairingForm()) {
+            if (pairing.ShowDialog() != DialogResult.OK) return 0;
+            site = pairing.BaseUrl; pairingCode = pairing.Code;
+          }
+        }
         var start = new ProcessStartInfo(Path.Combine(root, "node.exe"));
         start.WorkingDirectory = root; start.UseShellExecute = false;
-        start.Arguments = check ? "-e \"require('./agent.cjs');console.log('Runtime and adapter OK');\"" : "\"" + Path.Combine(root, script) + "\"";
+        if (pairingCode != null) { start.RedirectStandardInput = true; start.EnvironmentVariables["AIVID_PAIRING_STDIN"] = "1"; }
+        start.Arguments = check ? "-e \"require('./agent.cjs').readPairingInput().then(p=>{if(p.origin!=='https://cmmtools.site'||p.code!=='AABBCCDDEEFF001122334455')process.exit(1);console.log('Runtime, adapter and pairing pipe OK')}).catch(()=>process.exit(1));\"" : "\"" + Path.Combine(root, script) + "\"";
         using (var process = Process.Start(start)) {
           if (process == null) throw new Exception("The bundled Node runtime could not start.");
+          if (pairingCode != null) {
+            // One-use code stays out of command lines, environment and files.
+            byte[] input = new UTF8Encoding(false).GetBytes(site + "\n" + pairingCode + "\n");
+            process.StandardInput.BaseStream.Write(input, 0, input.Length); process.StandardInput.BaseStream.Flush();
+            process.StandardInput.Close(); pairingCode = null;
+          }
           process.WaitForExit(); code = process.ExitCode;
         }
         mutex.ReleaseMutex();
