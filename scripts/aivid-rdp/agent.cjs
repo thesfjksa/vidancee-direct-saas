@@ -63,13 +63,18 @@ class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay } = {}) {
     this.root = root; this.transport = transport; this.pause = pause; this.status = 'starting'; this.stopping = false;
     this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
-    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, download: downloadNative, maxSourceCredits: limit }));
+    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, download: downloadNative, maxSourceCredits: limit,
+      onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...') }));
   }
   async check() {
+    console.log('Opening saved Chrome and checking AIVID. No video will be generated.');
     try {
       await this.clientFactory(0).preflight({ prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' });
       this.status = 'ready'; console.log('AIVID session ready. No video was generated.');
-    } catch { this.status = 'needs_login'; console.log('AIVID needs attention. Inspect Chrome or stop the agent and use AIVID-Login.exe, then restart.'); }
+    } catch (error) {
+      this.status = 'needs_login';
+      console.log('AIVID [' + adapter.diagnosticCode(error) + ']: ' + adapter.diagnosticMessage(adapter.diagnosticCode(error)));
+    }
   }
   async execute(command) {
     const route = '/commands/' + command.id;
@@ -123,7 +128,8 @@ class Agent {
     const release = await takeLock(this.root);
     try {
       await this.transport.request('/poll', { body: { status: 'starting' } });
-      await this.check();
+      const startupBeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
+      try { await this.check(); } finally { clearInterval(startupBeat); }
       while (!this.stopping) {
         try {
           const { command } = await this.transport.request('/poll', { body: { status: this.status } });
@@ -133,9 +139,11 @@ class Agent {
             const timer = setInterval(() => this.transport.request('/poll', { body: { status: 'busy' } }).catch(() => {}), 10000);
             try { await this.execute(command); this.status = 'ready'; console.log('RDP operation finished.'); }
             catch (error) {
-              await this.transport.request('/commands/' + command.id + '/result', { body: { error: true } }).catch(() => {});
+              const errorCode = adapter.diagnosticCode(error);
+              await this.transport.request('/commands/' + command.id + '/result', { body: { error: true, errorCode } }).catch(() => {});
               this.status = error.network ? previous : 'needs_login';
               console.log('Operation needs review. Check Chrome and Admin; existing paid jobs will not be submitted again.');
+              console.log('AIVID [' + errorCode + ']: ' + adapter.diagnosticMessage(errorCode));
             } finally { clearInterval(timer); }
           }
         } catch (error) {

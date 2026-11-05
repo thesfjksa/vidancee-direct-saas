@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { getSettingValue, setSettingValue } = require('./settings.js');
-const { ID, validateJob } = require('./provider/aivid.js');
+const { ID, validateJob, DIAGNOSTICS, diagnosticMessage } = require('./provider/aivid.js');
 const DEVICE_KEY = 'aivid_rdp_device', HEARTBEAT_KEY = 'aivid_rdp_heartbeat', PAIR_KEY = 'aivid_rdp_pairing';
 const UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
 const CHUNK = 1024 * 1024, MAX_OUTPUT = 100 * CHUNK;
@@ -121,7 +121,9 @@ class AividRdpClient {
         }
         if (current.state === 'done') {
           if (kind === 'submit' && !reserved) throw failure('RDP submission had no server reservation.', 409);
-          if (current.response.error) throw failure('The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503);
+          if (current.response.error) throw failure(current.response.errorCode
+            ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
+            : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503);
           const result = current.response;
           if (kind === 'collect' && result.state === 'completed') result.output = await this.store.output(command.id, result);
           return result;
@@ -230,7 +232,8 @@ class AividRdpService {
     const command = await this.command(device, id);
     if (command.state === 'done') return { saved: true };
     let result;
-    if (input.error === true) result = { error: true };
+    if (input.error === true) result = { error: true,
+      ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
     else if (command.kind === 'preflight' && input.ready === true && input.submitted === false &&
       Number.isFinite(input.price) && input.price > 0 && Number.isFinite(input.balance) && input.balance >= 0)
       result = { ready: true, submitted: false, price: input.price, balance: input.balance };

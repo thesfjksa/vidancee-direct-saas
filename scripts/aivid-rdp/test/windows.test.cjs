@@ -28,6 +28,8 @@ test('real installed Chrome keeps its profile alive after CDP disconnect and dow
   assert.match(args, /--remote-debugging-address=127\.0\.0\.1/); assert.ok(args.includes(profile));
   await remote.page.goto('http://127.0.0.1:' + server.address().port);
   assert.deepEqual((await downloadNative(remote.page)).data, clip);
+  const { AividBrowserlessClient } = require('../../../src/provider/aivid.js');
+  await require('../fixtures/form.cjs').checkForm(remote.page, AividBrowserlessClient);
   await remote.page.close(); // The paid-form cleanup must not terminate Chrome.
   await remote.close();
   assert.ok(await debuggerEndpoint(profile), 'Chrome must stay open after detaching');

@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.0.1.0")]
 internal static class Launcher {
   public static int Main(string[] args) {
     bool check = args.Length == 1 && args[0] == "--check";
@@ -22,7 +22,7 @@ internal static class Launcher {
         string script = login ? "login.cjs" : "agent.cjs";
         foreach (string file in new string[] { "node.exe", script, "native.cjs", "AIVID-Protect.exe" })
           if (!File.Exists(Path.Combine(root, file))) throw new Exception("Extract the entire ZIP to one writable folder first. Missing " + file);
-        Console.WriteLine("CMMTools AIVID RDP agent 2.0 - " + (login ? "manual login" : "paired agent"));
+        Console.WriteLine("CMMTools AIVID RDP agent 2.0.1 - " + (login ? "manual login" : "paired agent"));
         var start = new ProcessStartInfo(Path.Combine(root, "node.exe"));
         start.WorkingDirectory = root; start.UseShellExecute = false;
         start.Arguments = check ? "-e \"require('./agent.cjs');console.log('Runtime and adapter OK');\"" : "\"" + Path.Combine(root, script) + "\"";

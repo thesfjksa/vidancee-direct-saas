@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0
+# CMMTools AIVID RDP agent 2.0.1
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -56,3 +56,12 @@ Source-private visibility and the existing submission request guard are used.
 Customer model activation is still a separate live-verification step. The
 packaged tests do not prove Google login, a paid AIVID generation, or 24/7
 operation on your particular RDP. Start with the no-charge connection check.
+
+Version 2.0.1 prints each check stage and reports a fixed diagnostic code in
+Admin instead of discarding the failure. It keeps a starting heartbeat alive
+during the first Chrome check and uses keyboard events for the duration slider.
+To update, stop Agent and overwrite the program files inside your existing
+agent folder with this ZIP's contents. Preserve the profile, encrypted pairing
+file and receipts. Reopen Agent, retry Check RDP connection, and report the
+bracketed diagnostic code if a check still fails. No new login or pairing is
+needed when using the same folder and Windows user.

@@ -13,6 +13,39 @@ const INPUTS = {
 };
 const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/mp4', 'video/quicktime'], audio: ['audio/mpeg', 'audio/wav'] };
 
+// Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
+// Playwright call logs, page text, account data or connection URLs.
+const DIAGNOSTICS = Object.freeze({
+  browser_connection: 'Could not connect to the local Chrome profile. Close the Login Chrome windows, then restart Agent.',
+  page_navigation: 'AIVID did not load in time. Check its Chrome tab and the RDP internet connection.',
+  session_check: 'AIVID sign-in or its generation form is not ready. Inspect the Chrome tab before retrying.',
+  model_selection: 'Could not select Seedance 2.0 (Mini). Check that its model menu opens on the RDP.',
+  aspect_ratio: 'Could not select the requested AIVID aspect ratio.',
+  resolution: 'Could not select the requested AIVID resolution.',
+  duration: 'Could not set or verify the AIVID duration slider.',
+  privacy: 'Could not set AIVID private visibility. No video was submitted.',
+  reference_upload: 'AIVID reference upload controls did not match the requested files.',
+  prompt: 'Could not fill the AIVID prompt field.',
+  form_verification: 'AIVID form settings did not match after preparation. No video was submitted.',
+  credit_reading: 'Could not identify the AIVID account balance and video price. A zero balance is allowed for this check.',
+  browser_check: 'The AIVID operation failed. Inspect Chrome and the Agent window; no automatic resubmission is allowed.',
+});
+function diagnosticCode(error) {
+  return Object.hasOwn(DIAGNOSTICS, error?.aividCode) ? error.aividCode : 'browser_check';
+}
+function diagnosticMessage(code) {
+  return DIAGNOSTICS[Object.hasOwn(DIAGNOSTICS, code) ? code : 'browser_check'];
+}
+async function step(code, action, onProgress) {
+  if (onProgress) onProgress(code);
+  try { return await action(); }
+  catch (error) {
+    // Preserve a more specific nested stage, without copying its raw message.
+    const known = Object.hasOwn(DIAGNOSTICS, error?.aividCode) ? error.aividCode : code;
+    throw Object.assign(new Error(diagnosticMessage(known)), { aividCode: known });
+  }
+}
+
 function validateJob(value, references = []) {
   if (!value || typeof value !== 'object') throw new Error('An AIVID job is required.');
   const job = { prompt: String(value.prompt || '').trim(), duration: Number(value.duration),
@@ -136,35 +169,46 @@ async function choose(page, pattern, exactLabel) {
   }
 }
 
-async function prepare(page, value, references = []) {
+async function prepare(page, value, references = [], { onProgress } = {}) {
   const job = validateJob(value, references);
-  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await waitForSession(page);
+  await step('page_navigation', () => page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 }), onProgress);
+  await step('session_check', () => waitForSession(page), onProgress);
   const main = page.locator('main').first();
-  await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
-  await main.getByRole('button', { name: /^Seedance 2\.0 \(Mini\) / }).click();
-  await choose(page, /^\d+:\d+$/, job.aspectRatio);
-  await choose(page, /^\d+p$/, job.resolution);
+  await step('model_selection', async () => {
+    await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
+    await main.getByRole('button', { name: /^Seedance 2\.0 \(Mini\) / }).click();
+  }, onProgress);
+  await step('aspect_ratio', () => choose(page, /^\d+:\d+$/, job.aspectRatio), onProgress);
+  await step('resolution', () => choose(page, /^\d+p$/, job.resolution), onProgress);
   const slider = main.locator('input[type="range"][min="4"][max="15"]');
-  if (await slider.count() !== 1) throw new Error('AIVID duration control changed.');
-  await slider.fill(String(job.duration));
+  await step('duration', async () => {
+    if (await slider.count() !== 1) throw new Error();
+    // Keyboard events update the app's duration state as well as the DOM value.
+    await slider.press('Home');
+    for (let second = 4; second < job.duration; second++) await slider.press('ArrowRight');
+    if (await slider.inputValue() !== String(job.duration)) throw new Error();
+  }, onProgress);
   // Toggle is checked on the public default form. The request guard below
   // also requires an explicit private field and aborts on unknown schemas.
-  await main.locator('input[type="checkbox"]').first().setChecked(false);
-  for (const kind of Object.keys(INPUTS)) {
-    const refs = references.filter(ref => ref.kind === kind);
-    if (!refs.length) continue;
-    const input = main.locator(INPUTS[kind]);
-    if (await input.count() !== 1) throw new Error('AIVID reference upload control changed.');
-    await input.setInputFiles(refs.map((r, i) => ({ name: 'reference-' + kind + '-' + (i + 1) + '.' + r.mimeType.split('/')[1], mimeType: r.mimeType, buffer: r.data })));
-  }
+  await step('privacy', () => main.locator('input[type="checkbox"]').first().setChecked(false), onProgress);
+  await step('reference_upload', async () => {
+    for (const kind of Object.keys(INPUTS)) {
+      const refs = references.filter(ref => ref.kind === kind);
+      if (!refs.length) continue;
+      const input = main.locator(INPUTS[kind]);
+      if (await input.count() !== 1) throw new Error('AIVID reference upload control changed.');
+      await input.setInputFiles(refs.map((r, i) => ({ name: 'reference-' + kind + '-' + (i + 1) + '.' + r.mimeType.split('/')[1], mimeType: r.mimeType, buffer: r.data })));
+    }
+  }, onProgress);
   const prompt = main.getByPlaceholder(/^Describe your video idea/);
-  await prompt.fill(job.prompt);
-  if (await slider.inputValue() !== String(job.duration) || await prompt.inputValue() !== job.prompt ||
-      !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
-      !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
-      !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
-    throw new Error('AIVID form verification failed.');
+  await step('prompt', () => prompt.fill(job.prompt), onProgress);
+  await step('form_verification', async () => {
+    if (await slider.inputValue() !== String(job.duration) || await prompt.inputValue() !== job.prompt ||
+        !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
+        !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
+        !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
+      throw new Error('AIVID form verification failed.');
+  }, onProgress);
   return job;
 }
 
@@ -205,18 +249,18 @@ async function installRequestGuard(page, job) {
 }
 
 class AividBrowserlessClient {
-  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null } = {}) {
-    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download;
+  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, onProgress = null } = {}) {
+    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.onProgress = onProgress;
   }
   async withPage(fn) {
-    const session = await this.connect(this.connectUrl);
+    const session = await step('browser_connection', () => this.connect(this.connectUrl), this.onProgress);
     try { return await fn(session.page); }
     finally { await session.close(); } // Retains the persistent session; never DELETE its stop URL.
   }
   async preflight(value, references = []) {
     return this.withPage(async page => {
-      const job = await prepare(page, value, references);
-      const credits = creditState(await page.locator('body').innerText());
+      const job = await prepare(page, value, references, { onProgress: this.onProgress });
+      const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
       return { ready: true, model: MINI, duration: job.duration, resolution: job.resolution,
         aspectRatio: job.aspectRatio, referenceCounts: job.counts, ...credits, submitted: false };
     });
@@ -225,8 +269,8 @@ class AividBrowserlessClient {
     if (typeof beforeClick !== 'function') throw new Error('A durable submission reservation is required.');
     if (!Number.isFinite(this.maxSourceCredits) || this.maxSourceCredits <= 0) throw new Error('Set an explicit AIVID source credit limit before submission.');
     return this.withPage(async page => {
-      const job = await prepare(page, value, references);
-      const credits = creditState(await page.locator('body').innerText());
+      const job = await prepare(page, value, references, { onProgress: this.onProgress });
+      const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
       if (credits.price <= 0 || credits.price > this.maxSourceCredits || credits.balance < credits.price)
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
       const guard = await installRequestGuard(page, job);
@@ -292,4 +336,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, openLoginPage, prepare, installRequestGuard, MINI, ID };
+  isGenerationResponse, waitForSession, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, MINI, ID };
