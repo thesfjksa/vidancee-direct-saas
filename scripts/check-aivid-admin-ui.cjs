@@ -66,6 +66,7 @@ const {chromium}=require('playwright-core');
  assert.equal(await page.locator('#aividVerifyButton').isDisabled(),true);
  loginState='expired';
  await page.locator('#aividAdminCard').getByRole('button',{name:'Refresh status',exact:true}).click();
+ await page.locator('#aividLoginBox').waitFor({state:'hidden'});
  assert.equal(await page.locator('#aividConnectButton').isEnabled(),true);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'expired.png')});
  assert.deepEqual(errors,[]);
