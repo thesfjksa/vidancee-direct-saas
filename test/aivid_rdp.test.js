@@ -156,3 +156,16 @@ test('invalid, missing or out-of-order MP4 chunks cannot complete an output', as
   await assert.rejects(f.store.output(jobId, { size: data.length, chunks: 1, sha256: '0'.repeat(64) }), /Invalid MP4/);
   assert.notEqual(hash(Buffer.from([0xff])), hash(Buffer.from([0xfe])));
 });
+test('only fixed diagnostic codes reach Admin; raw browser failures stay private', async () => {
+  const f = fixture();
+  const waiting = f.client.preflight(value); waiting.catch(() => {});
+  await flush(); const { command } = await f.service.poll(f.device, 'needs_login');
+  await f.service.result(f.device, command.id, { error: true, errorCode: 'duration', message: 'SECRET cookie token' });
+  await assert.rejects(waiting, error => {
+    assert.match(error.message, /\[duration\].*duration slider/); assert.doesNotMatch(error.message, /SECRET|cookie|token/); return true;
+  });
+  const second = f.client.preflight(value); second.catch(() => {});
+  await flush(); const next = (await f.service.poll(f.device, 'needs_login')).command;
+  await f.service.result(f.device, next.id, { error: true, errorCode: 'SECRET cookie token' });
+  await assert.rejects(second, error => { assert.doesNotMatch(error.message, /SECRET|cookie|token/); return true; });
+});
