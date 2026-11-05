@@ -147,6 +147,9 @@ test('interception blocks duplicate POSTs and public or incomplete requests befo
   const guard = await installRequestGuard({ context: () => ({ newCDPSession: async () => cdp }) }, validateJob(input));
   const handler = cdp.listeners('Fetch.requestPaused')[0];
   const url = 'https://api.aivid.dev/v2/generations';
+  await handler({ requestId: 'too-early', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
+  assert.equal(calls.at(-1).method, 'Fetch.failRequest'); assert.equal(guard.allowed, false);
+  guard.arm();
   await handler({ requestId: 'public', request: { url, method: 'POST', postData: JSON.stringify({ ...payload, isPublic: true }) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
   await handler({ requestId: 'moved-endpoint', request: { url: 'https://api.aivid.dev/v3/generations', method: 'POST', postData: JSON.stringify(payload) } });

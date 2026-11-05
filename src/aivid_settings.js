@@ -17,7 +17,7 @@ function configFrom(env, session = {}, saved = null) {
   return { connectUrl, maxSourceCredits, enabled: saved ? saved.enabled === true : env.AIVID_ENABLED === 'true',
     apiKey: String(saved ? saved.apiKey || '' : env.BROWSERLESS_API_TOKEN || '').trim(),
     endpoint: saved?.endpoint || env.BROWSERLESS_ENDPOINT || ENDPOINTS[0],
-    ttlDays: saved?.ttlDays || 1, session, expiresAt: session.expiresAt || null };
+    ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
 }
 
 async function getAividSettings() {
@@ -26,11 +26,12 @@ async function getAividSettings() {
   let session = {}, saved = null;
   try { if (raw) session = JSON.parse(raw); if (config) saved = JSON.parse(config); }
   catch { throw new Error('The saved Browserless settings are invalid.'); }
-  return configFrom(process.env, session, saved);
+  return { ...configFrom(process.env, session, saved), rdpDevice: await require('./aivid_rdp.js').readDevice() };
 }
 
 function publicConfig(config) {
-  return { configured: Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
+  return { configured: config.mode === 'rdp' ? Boolean(config.rdpDevice?.tokenHash) : Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
+    mode: config.mode || 'browserless', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
     endpoint: config.endpoint, ttlDays: config.ttlDays || 1, enabled: config.enabled,
     maxSourceCredits: config.maxSourceCredits, expiresAt: config.expiresAt,
     sessionExpired: Boolean(config.expiresAt && Date.parse(config.expiresAt) <= Date.now()),
@@ -40,7 +41,9 @@ function publicConfig(config) {
 function validateConfig(input, current) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Invalid Browserless settings.'), { statusCode: 400 });
   const apiKey = input.apiKey === undefined || input.apiKey === '' ? current.apiKey : input.apiKey;
-  if (typeof apiKey !== 'string' || apiKey.length < 8 || apiKey.length > 1024 || /\s/.test(apiKey))
+  const mode = input.mode ?? current.mode ?? 'browserless';
+  if (!['rdp', 'browserless'].includes(mode)) throw Object.assign(new Error('Choose RDP or Browserless.'), { statusCode: 400 });
+  if (typeof apiKey !== 'string' || (!(mode === 'rdp' && apiKey === '') && (apiKey.length < 8 || apiKey.length > 1024 || /\s/.test(apiKey))))
     throw Object.assign(new Error('Enter a valid Browserless API key.'), { statusCode: 400 });
   if (/^[a-z]+:\/\//i.test(apiKey) || /^token=/i.test(apiKey))
     throw Object.assign(new Error('Paste only the API token from your Browserless dashboard, not a connection URL or token= prefix.'), { statusCode: 400 });
@@ -52,7 +55,7 @@ function validateConfig(input, current) {
   const maxSourceCredits = Number(input.maxSourceCredits ?? current.maxSourceCredits ?? 0);
   if (!Number.isFinite(maxSourceCredits) || maxSourceCredits < 0 || maxSourceCredits > 10000)
     throw Object.assign(new Error('The source credit limit must be between 0 and 10000.'), { statusCode: 400 });
-  return { apiKey, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits };
+  return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits };
 }
 
 async function saveAividSettings(input, { getConfig = getAividSettings, write = setSettingValue } = {}) {

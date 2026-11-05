@@ -4,18 +4,29 @@
 // nor Live URLs are stored in browser storage, query strings or UI logs.
 (() => {
   const el = id => document.getElementById(id);
-  let loginId = null, timer = null, countdownTimer = null, active = false, configured = false, busy = false;
+  let loginId = null, timer = null, countdownTimer = null, active = false, configured = false, busy = false, savedMode = 'browserless';
   const states = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
   function message(text, error = false) {
     el('aividAdminMessage').textContent = text;
     el('aividAdminMessage').className = error ? 'err' : 'muted';
   }
   function buttons() {
+    const mode = el('aividTransport').value;
     el('aividSaveButton').disabled = busy || active;
-    el('aividConnectButton').disabled = busy || active || !configured;
+    el('aividConnectButton').disabled = busy || active || !configured || mode !== savedMode;
     el('aividReplaceButton').disabled = busy || active || !configured;
     el('aividCheckButton').disabled = busy || active || !configured;
+    el('aividPairButton').disabled = busy || active || mode !== 'rdp' || savedMode !== 'rdp';
   }
+  window.updateAividTransport = () => {
+    const rdp = el('aividTransport').value === 'rdp';
+    el('aividBrowserlessFields').hidden = rdp; el('aividRdpFields').hidden = !rdp;
+    el('aividSaveButton').textContent = rdp ? 'Save RDP connection' : 'Save Browserless key';
+    el('aividConnectButton').textContent = rdp ? 'Check RDP connection' : 'Connect aivid';
+    el('aividCheckButton').hidden = rdp;
+    el('aividReplaceButton').closest('details').hidden = rdp;
+    buttons();
+  };
   function paintLogin(login) {
     active = states.has(login.state);
     loginId = login.id || null;
@@ -82,7 +93,11 @@
     clearTimeout(timer);
     try {
       const data = await api('/admin/aivid/status');
-      configured = data.apiKeyConfigured || data.configured;
+      savedMode = data.mode || 'browserless'; el('aividTransport').value = savedMode;
+      el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
+      el('aividRdpEnabled').checked = data.enabled === true;
+      configured = savedMode === 'rdp' ? data.rdp?.paired === true : data.apiKeyConfigured || data.configured;
+      window.updateAividTransport();
       el('aividKeyStatus').textContent = data.apiKeyConfigured ? 'Saved key: configured (encrypted)' : 'No Browserless key saved yet.';
       el('aividBrowserlessKey').placeholder = data.apiKeyConfigured ? 'Leave blank to keep the saved key' : 'Enter your Browserless API key';
       el('aividBrowserlessRegion').value = data.endpoint;
@@ -92,7 +107,15 @@
         : 'No browser session saved yet.';
       el('aividConnectionBadge').textContent = data.sessionExpired ? 'Session expired' : data.configured ? 'Session saved' : 'Not connected';
       paintLogin(data.login || { state: 'idle' });
-      if (data.sessionExpired && !active) el('aividConnectionBadge').textContent = 'Session expired';
+      if (savedMode === 'rdp') {
+        const rdp = data.rdp || {};
+        el('aividRdpStatus').textContent = !rdp.paired ? 'No RDP agent paired yet.' :
+          (rdp.online ? 'Agent online: ' + rdp.status.replaceAll('_', ' ') : 'Agent offline. Start AIVID-Agent.exe on your RDP.') +
+          (rdp.seenAt ? ' Last seen ' + new Date(rdp.seenAt).toLocaleString() + '.' : '');
+        el('aividConnectionBadge').textContent = rdp.online ? 'RDP online' : rdp.paired ? 'RDP offline' : 'Pair RDP agent';
+        el('aividSessionStatus').textContent = 'Sign-in stays in Chrome on your RDP. Browserless is not used in RDP mode.';
+      }
+      if (savedMode !== 'rdp' && data.sessionExpired && !active) el('aividConnectionBadge').textContent = 'Session expired';
       if (active) await pollLogin();
     } catch (error) { message(error.message, true); }
     finally { buttons(); }
@@ -101,15 +124,18 @@
     busy = true; buttons(); message('Saving Browserless settings…');
     try {
       await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
+        mode: el('aividTransport').value,
+        enabled: el('aividRdpEnabled').checked, maxSourceCredits: Number(el('aividRdpCeiling').value),
         apiKey: el('aividBrowserlessKey').value.trim(), endpoint: el('aividBrowserlessRegion').value,
         ttlDays: Number(el('aividSessionDays').value),
       }) });
       el('aividBrowserlessKey').value = '';
-      await window.loadAividAdmin(); message('Browserless settings saved. Click Connect aivid to sign in.');
+      await window.loadAividAdmin(); message(savedMode === 'rdp' ? 'RDP mode saved. Generate a pairing code and enter it in AIVID-Agent.exe.' : 'Browserless settings saved. Click Connect aivid to sign in.');
     } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
   };
   window.connectAividAdmin = async replaceSession => {
+    if (savedMode === 'rdp') return window.checkAividAdmin();
     busy = true; buttons(); message('Opening your private AIVID login session…');
     try {
       const data = await api('/admin/aivid/login', { method: 'POST', body: JSON.stringify({ replaceSession }) });
@@ -120,6 +146,15 @@
       // badge without replacing the precise response with a generic message.
       await window.loadAividAdmin(); message(error.message, true);
     }
+    finally { busy = false; buttons(); }
+  };
+  window.pairAividRdp = async () => {
+    busy = true; buttons();
+    try {
+      const data = await api('/admin/aivid/rdp/pairing', { method: 'POST', body: '{}' });
+      el('aividPairCode').textContent = 'Pairing code: ' + data.code + ' · expires ' + new Date(data.expiresAt).toLocaleTimeString() + '. Enter it in AIVID-Agent.exe, then Refresh status.';
+      message('The one-time code pairs this RDP with CMMTools. It is not your Google password.');
+    } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
   };
   window.finishAividAdmin = async action => {

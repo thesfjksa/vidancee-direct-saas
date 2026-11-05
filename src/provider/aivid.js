@@ -170,7 +170,7 @@ async function prepare(page, value, references = []) {
 
 async function installRequestGuard(page, job) {
   const cdp = await page.context().newCDPSession(page);
-  let guardError = null, allowed = false;
+  let guardError = null, allowed = false, armed = false;
   // Intercept every mutation, not just today's generation path. If the site
   // moves generation to a new path or host it must not escape this guard.
   await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
@@ -191,6 +191,7 @@ async function installRequestGuard(page, job) {
       if (allowed) throw new Error('A second AIVID submission was blocked.');
       const body = JSON.parse(event.request.postData || '{}');
       validateSubmission(body, job);
+      if (!armed) throw new Error('AIVID submission was blocked before its durable reservation.');
       allowed = true;
       await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
     } catch (error) {
@@ -199,13 +200,13 @@ async function installRequestGuard(page, job) {
     }
   };
   cdp.on('Fetch.requestPaused', handler);
-  return { get error() { return guardError; }, get allowed() { return allowed; },
+  return { arm() { armed = true; }, get error() { return guardError; }, get allowed() { return allowed; },
     close: async () => { await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
 }
 
 class AividBrowserlessClient {
-  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession } = {}) {
-    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect;
+  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null } = {}) {
+    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download;
   }
   async withPage(fn) {
     const session = await this.connect(this.connectUrl);
@@ -233,6 +234,7 @@ class AividBrowserlessClient {
         // Commit before any click, even if the process dies inside click().
         await beforeClick({ price: credits.price });
         const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 45000 }).catch(() => null);
+        guard.arm();
         try { await page.locator('main').first().getByRole('button', { name: 'Generate', exact: true }).click(); }
         catch { await page.close().catch(() => {}); return { state: 'submission_uncertain' }; }
         const response = await responsePromise;
@@ -257,6 +259,7 @@ class AividBrowserlessClient {
       if (['failed', 'cancelled', 'canceled'].includes(text)) return { state: 'failed' };
       if (['pending', 'queued', 'processing', 'generating', 'running', 'in progress'].includes(text)) return { state: 'pending' };
       if (text !== 'completed') throw new Error('AIVID video status is not recognized.');
+      if (this.download) return { state: 'completed', output: await this.download(page) };
       const cdp = await page.context().newCDPSession(page);
       let timer, listener;
       try {
