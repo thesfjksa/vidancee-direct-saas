@@ -1,0 +1,4 @@
+.aivid-rdp-profile/
+*.job.json
+downloads/
+receipts/
