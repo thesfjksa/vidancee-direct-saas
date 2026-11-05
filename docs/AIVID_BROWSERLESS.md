@@ -1,0 +1,169 @@
+# AIVID through Browserless: owner pilot
+
+This is the first cloud integration stage. It replaces the need for a Windows
+RDP browser with a Browserless persistent Chrome session. It includes a CLI,
+an internal CMMTools generation queue, safe recovery and admin diagnostics.
+No customer model is registered or enabled yet. There has been no authenticated
+Browserless/AIVID end-to-end test. Do not advertise it as working production
+generation until the acceptance checks below pass.
+
+## What is implemented
+
+- Persistent session creation and manual Google/AIVID login using a temporary
+  Browserless Live URL. The Google password never enters the CMMTools CLI.
+- Mini form preparation for 4–15 s, 480p/720p, 16:9/9:16/1:1, including image,
+  video and audio inputs. These controls were observed on the public site on
+  November 5, 2026. Upload acceptance still requires an authenticated test.
+- An explicit source-credit ceiling and a separate global charge switch.
+- A CDP request guard requiring exact job settings, private visibility, and
+  the expected reference count/kinds before allowing the web-app POST.
+  An unknown provider payload schema aborts before forwarding. No API access
+  token extraction, CAPTCHA solving, proxy rotation or login bypass is used.
+- A pre-click reservation. Unknown outcomes remain held for account-history
+  reconciliation. No automatic resubmission or timeout refund of unknown jobs.
+- Completed video retrieval from the source detail page using Browserless
+  download events, with a 100 MiB MP4 limit, then existing CMMTools storage.
+- The standalone CLI saves local MP4s. Queue jobs use CMMTools storage and its
+  existing transactional, idempotent customer refund function.
+
+## Setup
+
+Use Node 20+ and `npm install`. `playwright-core` does not download a local
+browser. Run on a trusted computer or the application host. Keep the local
+state folder on persistent, private storage.
+
+1. Set `BROWSERLESS_API_TOKEN` in the trusted host's environment. Never put it
+   in frontend code, a customer API response, a screenshot or a Git commit.
+2. Run `npm run aivid:browserless -- create-session`. It creates a one-day
+   persistent Chrome session and saves `.aivid-browserless/session.json`.
+   `BROWSERLESS_SESSION_TTL_MS` can change the lifetime within your plan limits.
+   `BROWSERLESS_ENDPOINT` chooses the documented Browserless cloud region.
+3. Run `npm run aivid:browserless -- login`. Open the temporary control link
+   printed in your own terminal and sign in manually. Press Enter after AIVID
+   is signed in. The link grants browser control: keep it private. The login
+   window has a two-minute connection limit; Google may reject cloud sessions.
+4. On the application host with DB credentials and `SETTINGS_ENCRYPTION_KEY`,
+   run `npm run aivid:browserless -- install-session`. It stores the session
+   object using the existing encrypted app_settings store shared by web/worker.
+   Alternatively set `AIVID_BROWSERLESS_CONNECT_URL` to the returned session's
+   connect URL on both hosts. Do not use a fresh generic endpoint per job:
+   it would lose the logged-in profile.
+
+The session data expires at the original TTL, independently of connection
+timeouts. Closing the browser preserves the session; DELETE on its `stop` URL
+permanently removes it. When it expires, create and manually log in to a new
+session. The CLI refuses to overwrite a session file; intentionally archive the
+old private state directory and use a new `AIVID_STATE_DIR` before replacing it.
+Do not overwrite a live session while jobs are outstanding.
+
+## Owner smoke test
+
+Create a local job file (keep real prompts/files out of Git):
+
+```json
+{
+  "jobId": "mini_trial_0001",
+  "prompt": "A quiet river at dawn",
+  "duration": 4,
+  "resolution": "480p",
+  "aspectRatio": "16:9",
+  "references": []
+}
+```
+
+Run `npm run aivid:browserless -- preflight trial.json`. It prepares the form
+and reads price/balance; it never clicks Generate. Zero credits must be read
+as zero balance, not confused with the video price.
+
+For an intentionally paid trial, set `AIVID_MAX_SOURCE_CREDITS` to your reviewed
+maximum per video, then run:
+
+```bash
+npm run aivid:browserless -- submit trial.json --submit
+npm run aivid:browserless -- collect trial.json
+```
+
+The explicit `--submit` command is paid authorization for that local job; it
+does not debit a CMMTools customer wallet. Keep its receipt directory. A job ID
+with any attempted submission receipt cannot be submitted again, even if a
+crash or network error occurred. A pending collect can be run again; it never
+generates. If an outcome is uncertain, inspect AIVID My Videos manually.
+
+Reference trial example:
+
+```json
+{
+  "jobId": "mini_refs_0001",
+  "prompt": "Animate @image1 with the motion shown in @video1",
+  "duration": 4,
+  "resolution": "480p",
+  "aspectRatio": "16:9",
+  "references": [
+    {"kind":"image","mimeType":"image/png","path":"reference.png"},
+    {"kind":"video","mimeType":"video/mp4","path":"motion.mp4"}
+  ]
+}
+```
+
+Relative reference paths resolve against the job file. Adapter limits: 9 images,
+3 videos, 3 audio files, 15 total, 64 MiB combined; 10 MiB/image and 30 MiB/video
+or audio. AIVID additionally requires total video and audio duration ≤15 s each
+for Mini. Use short fixtures in the pilot; duration, upload completion, private
+toggle semantics, outgoing reference fields and download streaming must all be
+confirmed in live tests. The request guard currently recognizes explicit
+`isPublic/public=false`, `isPrivate/private=true`, or `visibility=private`, and
+`references` with `type/kind` values `image/video/audio`. It fails closed if the
+real schema differs. Adjust only from observed requests, without logging raw
+credentials, prompts, uploaded media or signed URLs.
+
+## CMMTools queue and admin operations
+
+`GenerationWorker` starts the internal AIVID queue; it does nothing without a
+configured session. `AIVID_ENABLED=false` and `AIVID_MAX_SOURCE_CREDITS=0` are the
+defaults. Both explicit enable/ceiling and existing `allowProviderCharges` are
+required to claim a queued job. Accepted jobs can be collected while new starts
+are paused. Only one operation uses the browser at a time across worker
+processes, using MySQL `GET_LOCK`; no new tables or migrations are needed.
+
+Do not manually insert paid customer rows. Public catalog selection, verified
+pricing and customer enqueue activation are deliberately deferred to the next
+stage after live verification. The internal queue expects the existing
+`generations` and `generation_media` representation with `provider='aivid'`.
+Its state reservation is in `provider_operation`; accepted IDs are saved in
+`provider_job_id`. It uses the existing storage and wallet lifecycle.
+
+Existing admin authentication protects:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/admin/aivid/status` | Credential-free setup and enable status |
+| POST | `/admin/aivid/check` | Read-only Mini form/balance preflight |
+| POST | `/admin/aivid/generations/<uuid>/reconcile` | Resolve an uncertain submission against account history |
+
+After checking the correct AIVID account, reconcile with either
+`{"action":"attach","providerJobId":"<verified-existing-id>"}` or
+`{"action":"refund","confirmedNotSubmitted":true}`. Never refund an accepted
+source job just because the browser timed out. A held job blocks later starts.
+Preflight and reconciliation share the queue's MySQL browser lock. CLI access
+must be coordinated with the worker; Browserless allows one session connection.
+
+Worker `/health` includes `aividPolling` timestamps/readiness, never credentials.
+
+## Acceptance before customer activation
+
+1. Manual Google login survives browser close/reconnect on the selected plan.
+2. Text-only, image-reference, video-reference and mixed-reference trials each
+   produce the requested private video with the correct settings.
+3. The form balance/price and generated request schema match observed values;
+   no reference is omitted or unfinished when the request is allowed.
+4. Completed MP4 downloads through the actual Browserless account work and
+   save successfully to the configured CMMTools storage.
+5. Simulate a worker restart after click reservation and after acceptance:
+   no duplicate charge, no wrong-account video, no automatic ambiguous refund.
+6. Add verified source pricing and the public model/enqueue adapter, then
+   enable through the existing customer access controls.
+
+Reference docs:
+- https://docs.browserless.io/baas/session-management/persisting-state
+- https://docs.browserless.io/overview/getting-started/connect-playwright
+- https://docs.browserless.io/api-reference/cdp-extensions

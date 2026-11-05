@@ -66,3 +66,10 @@ Start with [the updated 25 October production and development handoff](docs/PROJ
 The archive contains superseded milestone instructions. Use the current handoff when continuing development. Real passwords, API keys, OAuth tokens, cookies and database credentials must stay outside documentation and the repository.
 
 See [Vercel setup](docs/VERCEL_AI_GATEWAY.md) for API-key setup, the 83-model initial catalog, price overrides and current workflow limits.
+
+# AIVID Browserless pilot
+
+The cloud browser adapter, owner trial commands and internal queue are described
+in [docs/AIVID_BROWSERLESS.md](docs/AIVID_BROWSERLESS.md). Customer activation is
+disabled pending authenticated generation and reference-upload verification.
+

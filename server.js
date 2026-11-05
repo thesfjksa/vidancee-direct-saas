@@ -2332,6 +2332,29 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vidancee',vidanceeMediaModels());
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='GET'&&routePath==='/admin/aivid/status'){
+        requireDatabase();
+        const {getAividSettings,publicConfig}=require('./src/aivid_settings.js');
+        return sendJson(res,200,{ok:true,...publicConfig(await getAividSettings())});
+      }
+      if(req.method==='POST'&&routePath==='/admin/aivid/check'){
+        requireDatabase();
+        const config=await require('./src/aivid_settings.js').getAividSettings();
+        if(!config.connectUrl)return sendJson(res,503,{ok:false,error:'Configure the Browserless session first.'});
+        const {withAividLock}=require('./src/aivid_queue.js');
+        // Read-only: no Generate click, wallet debit or provider catalog sync.
+        const result=await withAividLock(getPool(),()=>new (require('./src/provider/aivid.js').AividBrowserlessClient)(config)
+          .preflight({prompt:'A quiet river at dawn',duration:4,aspectRatio:'16:9',resolution:'480p'}));
+        if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy.'});
+        return sendJson(res,200,{ok:true,...result});
+      }
+      const aividReconcile=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/reconcile$/i);
+      if(req.method==='POST'&&aividReconcile){
+        requireDatabase();
+        const result=await require('./src/aivid_queue.js').reconcileAivid(getPool(),aividReconcile[1],await readJson(req));
+        logActivity({category:'admin',event:'aivid.reconciled',provider:'aivid',generationId:aividReconcile[1],message:'Owner reconciled held submission against account history.'});
+        return sendJson(res,200,{ok:true,...result});
+      }
       if(req.method==='POST'&&routePath==='/admin/sluice/sync'){
         requireDatabase();
         const models=await syncProviderModels('sluice',sluiceMediaModels(await fetchSluiceCatalog()));
@@ -2925,6 +2948,7 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+
 
 
 
