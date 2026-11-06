@@ -3,7 +3,7 @@
 Owner setting (6 November 2026): every preflight and generation selects Public.
 The form and outgoing request both verify public visibility. Price is read
 after the switch, then checked against the saved source-credit ceiling.
-Use the complete agent 2.0.5 ZIP for this behavior.
+Use the complete **agent 2.1.0 ZIP** for multi-model Premium support; older 2.0.5 packages may lack the new model registry. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for the build artifact and upgrade steps.
 
 The RDP agent is an alternative transport for the existing AIVID browser
 adapter and queue. Select **Windows RDP agent** in Admin and save it to stop
@@ -46,8 +46,7 @@ length, hash and MP4 header before returning bytes to the existing completion
 path. Temporary commands/chunks are consumed on success or pruned after a day.
 
 Preflight never generates or debits a wallet. The default source ceiling is 0,
-new submissions are disabled, and customer models stay unregistered pending
-a real video/reference test. Existing unrelated providers remain unchanged.
+and new submissions are blocked until Admin enables AIVID and sets a positive ceiling. **The three AIVID Premium models are now registered for customer Video Studio**, but only when the provider has been configured and the customer's AIVID source grant permits access; readiness controls whether Generate is enabled. Real paid generation/reference behavior for each model remains unverified. Existing unrelated providers remain unchanged.
 
 Native Chrome uses an isolated profile and an ephemeral loopback debugging port.
 Manual login has no debugging, `--enable-automation`, `--no-sandbox`, security

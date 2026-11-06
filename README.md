@@ -2,9 +2,11 @@
 
 Deployed multi-user platform for video, image and voice generation, with customer accounts, a credit ledger, plan requests and a private Admin dashboard.
 
-**Latest GitHub release / operational handoff: 25 October 2026.** Start with [the comprehensive, updated recovery and implementation handoff](docs/PROJECT_HANDOFF_2026-10-25.md) before production work. GitHub `main` includes 888API PRs **#43–#45**, checkpoint `f82b02c0` ([281 passing post-merge tests](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215)). The owner-provided read-only 888API audit confirmed **64 live account-returned IDs, 115 saved historical IDs, 0 missing imports, 27 implemented at that pre-upgrade snapshot**. The exact-account **Seedance 2.5 G5-V2** model is now in code for **30 image + 10 video + 10 audio inputs**, 720p, 5–30s, **¥7 / 7 credits per request**. Its G5-specific upstream request body still requires a controlled paid validation. **GitHub merges do not prove a live Hostinger web/worker deployment, database recovery or real video generation**: the previous screenshots showed a clone failure and MySQL **3,143 / 3,072 MB** quota problem. Verify again rather than assuming those historical problems persist or are fixed. Preserve the owner's SQL backup and financial records.
+**Historical 25 October checkpoint (superseded for current operation).** Start with [the comprehensive, updated recovery and implementation handoff](docs/PROJECT_HANDOFF_2026-10-25.md) before production work. GitHub `main` includes 888API PRs **#43–#45**, checkpoint `f82b02c0` ([281 passing post-merge tests](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215)). The owner-provided read-only 888API audit confirmed **64 live account-returned IDs, 115 saved historical IDs, 0 missing imports, 27 implemented at that pre-upgrade snapshot**. The exact-account **Seedance 2.5 G5-V2** model is now in code for **30 image + 10 video + 10 audio inputs**, 720p, 5–30s, **¥7 / 7 credits per request**. Its G5-specific upstream request body still requires a controlled paid validation. **GitHub merges do not prove a live Hostinger web/worker deployment, database recovery or real video generation**: the previous screenshots showed a clone failure and MySQL **3,143 / 3,072 MB** quota problem. Verify again rather than assuming those historical problems persist or are fixed. Preserve the owner's SQL backup and financial records.
 
-The October 11 architectural documentation below is supplemented by the dated handoff and the later provider/storage docs.
+**Current operational checkpoint: 6 November 2026.** Start with [the new full handoff](docs/PROJECT_HANDOFF_2026-11-06.md). GitHub `main` includes the AIVID Premium integration and customer visibility fix through PR #145 (`7759a443`), with Windows agent v2.1.0 and all related CI checks passing. Customer-visible Premium models require AIVID to have been configured and customer source access granted. They stay listed but are unavailable when offline or disabled; the actual paid service still needs Hostinger deployment, live connection and model-specific successful generations to be verified. The older 25 October checkpoint above and below is retained solely for incident history; do not treat its commit, prices or pending items as current.
+
+The October 11 architectural documentation below is supplemented by the dated handoffs and later provider/storage docs.
 
 ## Current features
 
@@ -49,7 +51,7 @@ Video Studio uses ArgoLink, Higgsfield (Wan 3.0) and MiniMax H3 on vgenv; Image 
 
 ## Documentation
 
-Start with [the updated 25 October production and development handoff](docs/PROJECT_HANDOFF_2026-10-25.md) for the latest verified source control, model-audit evidence, and safe activation instructions; [the original project handoff](docs/PROJECT_HANDOFF.md) retains older architecture and incident details.
+Start with [the current 6 November project handoff](docs/PROJECT_HANDOFF_2026-11-06.md) for the AIVID Premium source-control checkpoint, model visibility fix, deployment checklist and live verification boundary. The [25 October handoff](docs/PROJECT_HANDOFF_2026-10-25.md) and [original project handoff](docs/PROJECT_HANDOFF.md) retain earlier incident and architectural history.
 
 - [Cloud storage (Cloudflare R2)](docs/CLOUD_STORAGE.md)
 - [Hostinger deployment](docs/HPANEL_DEPLOYMENT.md)
@@ -75,6 +77,5 @@ with `AIVID-Login.exe`, close its Chrome windows, then start `AIVID-Agent.exe`.
 The agent uses your existing RDP and sends work over outbound HTTPS.
 See [docs/AIVID_RDP.md](docs/AIVID_RDP.md) for setup and recovery.
 The optional [Browserless transport](docs/AIVID_BROWSERLESS.md) remains available
-with its key saved in Admin. Customer activation is disabled pending
-authenticated generation and reference-upload verification on the chosen transport.
+with its key saved in Admin. Customer catalog registration now exists for the three AIVID Premium models. A configured source remains visible in Video Studio if it goes offline, but paid Generate stays blocked until Admin enables the source, sets a source-credit ceiling and the agent/session is ready. **Production deployment, actual paid model-specific AIVID generations and live reference uploads have not been verified.**
 

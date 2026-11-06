@@ -1,5 +1,8 @@
 # CMM Tools Web App Documentation
 
+> **CURRENT operational handoff — 6 November 2026:** Start with [PROJECT_HANDOFF_2026-11-06.md](PROJECT_HANDOFF_2026-11-06.md), covering PRs #141, #143, #144, #145, AIVID Premium Video Studio, Windows Agent v2.1.0, offline visibility fix, exact customer activation, CI evidence and unresolved live deployment/paid tests. The material below is a **historical** snapshot, not the current GitHub head or deployed-production proof. GitHub `main` feature checkpoint `7759a443`; see current `main` for later changes. **Do not reuse older 888API/AIVID prices or activation states without verifying current code and Admin settings.**
+
+
 > **LATEST VERIFIED GITHUB CHECKPOINT — 25 October 2026:** Start with [the comprehensive operational handoff](PROJECT_HANDOFF_2026-10-25.md), now updated through **PR #45 / `f82b02c0`**, rather than the October 11 baseline below. GitHub CI passed **281/281 tests** after the G5-V2 merge; this is not proof that the web and worker have deployed or that a paid 888API generation succeeded. The earlier Hostinger clone failure, MySQL quota, and Google Drive connection observations remain last-known incident evidence pending fresh checks. Do not claim the older code commit `089d08f` is still the repository head.
 
 ## CURRENT — 25 October 2026: GitHub continuation, live catalog audit, and multimodal G5-V2
