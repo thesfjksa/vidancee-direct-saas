@@ -2518,7 +2518,12 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
         if (!['vercel','argolink','higgsfield','sluice','vidancee','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
-        const models=await listProviderModels(provider);
+        let models=await listProviderModels(provider);
+        if(provider==='api888'){
+          const health=await loadApi888Health().catch(()=>null);
+          models=models.map(model=>({...model,upstreamStatus:health?.statuses?.[model.providerModelId]||'unknown',
+            upstreamAvailable:isApi888Available(health,model.providerModelId)}));
+        }
         return sendJson(res,200,{ok:true,models});
       }
 

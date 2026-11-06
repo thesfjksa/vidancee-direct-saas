@@ -923,7 +923,7 @@ async function loadApi888ModelSummary(){
   try{
     const d=await api('/admin/provider-models?provider=api888');
     const list=Array.isArray(d.models)?d.models:[];
-    const live=list.filter(x=>x.available),ready=live.filter(x=>x.enabled&&x.ready);
+    const live=list.filter(x=>x.available),ready=live.filter(x=>x.enabled&&x.ready&&x.upstreamAvailable!==false);
     const videos=ready.filter(x=>x.mediaType==='video').length;
     const images=ready.filter(x=>x.mediaType==='image').length;
     const seenAt=live.reduce((latest,x)=>{
@@ -938,7 +938,7 @@ async function loadApi888ModelSummary(){
         String(a.providerModelId).localeCompare(String(b.providerModelId)));
       audit.innerHTML=rows.length?rows.map(x=>{
         const state=!x.available?'Not returned by latest live sync':!x.enabled?'Disabled in Admin':
-          !x.ready?'Not supported / unpriced':'Ready';
+          !x.ready?'Not supported / unpriced':x.upstreamAvailable===false?'Imported · Hidden in Studio (888API: '+({no_recent_success:'no recent success',verifying:'verifying availability',disabled:'unavailable'}[x.upstreamStatus]||'temporarily unavailable')+')':'Ready';
         const reason=!x.ready&&x.setupReason?' · '+x.setupReason:'';
         const price=x.api888?.billing==='second'
           ?' · Dynamic (¥'+x.api888.sourceCny+'/sec = '+Math.round(x.api888.sourceCny*960*100)/100+' credits/sec)'
