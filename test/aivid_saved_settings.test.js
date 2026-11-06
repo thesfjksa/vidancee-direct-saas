@@ -28,6 +28,6 @@ test('Browser admin UI displays saved state distinct from changed checkbox and r
   const ui=fs.readFileSync(require.resolve('../public/aivid-admin.js'),'utf8');
   assert.match(ui,/Saved in Admin:/);
   assert.match(ui,/Unsaved changes/);
-  assert.match(ui,/const verified=await window\.loadAividAdmin\(\)/);
+  assert.match(ui,/const verified=await window\.loadAividAdmin\(\{strict:true\}\)/);
   assert.match(ui,/verified\.enabled!==expectedEnabled/);
 });
