@@ -19,8 +19,8 @@ class Api888Client {
   // table. A failed price fetch aborts the import, preserving saved models.
   async catalog(){
     const catalog=await this.models();
-    const {SEEDANCE25_DYNAMIC_IDS}=require('../api888_models.js');
-    if(!catalog.data.some(model=>SEEDANCE25_DYNAMIC_IDS.includes(model.id)))return catalog;
+    const {SEEDANCE25_DYNAMIC_IDS,RECENT_SEEDANCE25_IDS}=require('../api888_models.js');
+    if(!catalog.data.some(model=>(SEEDANCE25_DYNAMIC_IDS.includes(model.id)||RECENT_SEEDANCE25_IDS.includes(model.id))))return catalog;
     return {...catalog,pricing:await this.pricing(),pricingCheckedAt:new Date().toISOString()};
   }
   async pricing(){

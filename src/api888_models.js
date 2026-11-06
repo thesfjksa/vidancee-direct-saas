@@ -16,6 +16,7 @@ seedance2.0-900-wool seedance2.0-933-wool seedance-doubao12-803 seedance-doubao1
 seedance-2.5-c1 seedance2.5-480p-value seedance2.5-480p-plus seedance2.5-480p-pro
 seedance2.5-720p-plus seedance2.5-720p-pro seedance2.5-1080p-plus seedance2.5-1080p-pro
 xin-seedance-2.5-3010 xin-seedance-2.5-900 dola-seedance-2.5 seedance2.5-vip-30-10-10 seedance2.5-vip-30-0-10
+seedance2.5-301010-face seedance2.5-fullparam-limited sd2.5-720p-full tt-sd2.5-720p-v1
 seedance2.5-900-wool seedance2.5-101010-wool seedance2.5-301010-max seedance2.5-301010-wool dola-seedance-2.5-900 dola-seedance-2.5-301010
 seedance-2.5-G2-V seedance-2.5-g5-v2 seedance2.5-900 seedance2.5-301010 seedance2.5-301010-av seedance2.5-930-1080p
 ss-2.5-720p-v1 ss-2.5-720p-v3 sd2.5-G3-特惠-1 MC-WAN3-Prime-1080P-30S ss-2.0-933-720p s2-2.5-480p-v2 s2-2.5-720p-v3 s2-2.5-720p-v4 doubao-seedance-2.5
@@ -90,7 +91,14 @@ const SPECS = {
   'seedance2.5-301010-wool':[1.9,'job',5,30,'720p',9,0,0],
 };
 
+// 6 Nov 2026: current 888API model cards and /api/pricing. Start with
+// text/image inputs; upstream audio/video forwarding is not verified here.
+const RECENT_SEEDANCE25_IDS=['seedance2.5-301010-face','seedance2.5-fullparam-limited','sd2.5-720p-full','tt-sd2.5-720p-v1'];
 Object.assign(SPECS, {
+ 'seedance2.5-301010-face':[7.5,'job',5,30,'720p',30,0,0],
+ 'seedance2.5-fullparam-limited':[8,'job',15,30,'720p',30,0,0],
+ 'sd2.5-720p-full':[6,'job',5,30,'720p',30,0,0],
+ 'tt-sd2.5-720p-v1':[7,'job',4,30,'720p',30,0,0],
  'seedance2.5-900-wool':[1.1,'job',4,30,'720p',9,0,0],
  // 888API catalog (28 Oct 2026): 4–10 s, 720p, 9 reference images. Their
  // ¥0.45 / ¥0.55 is a temporary half price; the regular price is kept here.
@@ -220,6 +228,7 @@ const modelVideoRatios=id=>{
   if(/^minimax-h3-(480p|768p)-t$/.test(id))return [...RATS_WIDE,'3:2','2:3'];
   if(/^seedance2\.5-(930-1080p|301010-wool(-1080p)?)$/.test(id))return RATS_WIDE;
   if(id==='seedance2.5-900')return RATS_FIVE;
+  if(id==='seedance2.5-fullparam-limited')return RATS_WIDE;
   return RATS;
 };
 const makeCaps = (images=0,videos=0,audios=0,requiredImage=false) => ({
@@ -248,6 +257,10 @@ const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 // A new Video Studio alias uses vgenv Origin Fast; keep historical 888API
 // IDs and jobs intact for reconciliation.
 const OFFERED={
+ 'seedance2.5-301010-face':'Seedance 2.5 Face',
+ 'seedance2.5-fullparam-limited':'Seedance 2.5 Limited',
+ 'sd2.5-720p-full':'Seedance 2.5 Full',
+ 'tt-sd2.5-720p-v1':'Seedance 2.5 TT',
  'seedance-2.5-g5-v2':'Seedance 2.5 Realism',
  'seedance2.5-301010-wool':'Seedance 2.5 Standard',
  'seedance2.5-301010-wool-1080p':'Seedance 2.5 Standard HD',
@@ -370,6 +383,7 @@ function describedModel(id,type) {
       'seedance2.0-933','seedance2.0-pro-480p','seedance2.0-933-fast','seedance2.0-933-mini',
       'xin-seedance-2.0-900','xin-seedance-2.0-933',
       'seedance2.0-ss','seedance2.0-ss-fast',
+      ...RECENT_SEEDANCE25_IDS,
       'seedance2.5-480p-value','seedance2.5-480p-plus','seedance2.5-480p-pro',
       'seedance2.5-720p-plus','seedance2.5-720p-pro',
       'seedance2.5-1080p-plus','seedance2.5-1080p-pro',
@@ -424,7 +438,7 @@ function describedModel(id,type) {
           (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},
-      durations:isImage?[]:SORA_VARIANTS.includes(id)?[min]:
+      durations:isImage?[]:id==='seedance2.5-fullparam-limited'?[15,30]:SORA_VARIANTS.includes(id)?[min]:
         GROK_VARIANTS.includes(id)?(id==='grok-imagine-video-1.5-preview'?[5,6,10,15]:
           id==='grok-imagine-video-1.5-fast'?[10]:[6,10]):
         id==='seedance2.5-900'?[5,10,15,30]:
@@ -460,14 +474,23 @@ function seedance25LiveRate(pricing,id){
   return Number.isFinite(rate)&&rate>0&&rate<=10000&&typeof row.model_price==='number'&&Math.abs(rate-row.model_price)<1e-9?rate:null;
 }
 function applySeedance25LivePrice(model,live){
-  if(!SEEDANCE25_DYNAMIC_IDS.includes(model.providerModelId)||!Object.hasOwn(live||{},'pricing'))return model;
-  const rate=seedance25LiveRate(live.pricing,model.providerModelId);
+  const fixed=RECENT_SEEDANCE25_IDS.includes(model.providerModelId);
+  if((!fixed&&!SEEDANCE25_DYNAMIC_IDS.includes(model.providerModelId))||!Object.hasOwn(live||{},'pricing'))return model;
+  let rate=null;
+  if(fixed){
+    const pricing=live.pricing;
+    const rows=Array.isArray(pricing?.data)?pricing.data.filter(row=>row?.model_name===model.providerModelId):[];
+    const row=rows[0];
+    if(pricing?.success===true&&pricing.group_ratio?.default===1&&rows.length===1&&row.quota_type===1&&
+      !row.billing_mode&&!row.billing_expr&&Array.isArray(row.enable_groups)&&row.enable_groups.includes('default')&&
+      typeof row.model_price==='number'&&Number.isFinite(row.model_price)&&row.model_price>0&&row.model_price<=10000)rate=row.model_price;
+  }else rate=seedance25LiveRate(live.pricing,model.providerModelId);
   model.options.api888={...model.options.api888,sourceCny:rate,
     priceSource:'888api-public-default',priceCheckedAt:live.pricingCheckedAt||null};
-  model.options.pricing.video_duration_pricing=rate===null?[]:[{resolution:model.options.defaultResolution,cost_per_second:rate}];
+  model.options.pricing.video_duration_pricing=rate===null?[]:[{resolution:model.options.defaultResolution,cost_per_second:fixed?rate/model.options.defaultDuration:rate}];
   if(rate===null){
     model.options.adapterSupported=false;
-    model.options.setupReason='A verified live Seedance 2.5 per-second price is unavailable. Import models and prices again.';
+    model.options.setupReason='A verified live Seedance 2.5 price is unavailable. Import models and prices again.';
   }
   return model;
 }
@@ -514,5 +537,5 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={SEEDANCE25_DYNAMIC_IDS,seedance25LiveRate,VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
+module.exports={RECENT_SEEDANCE25_IDS,SEEDANCE25_DYNAMIC_IDS,seedance25LiveRate,VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
 
