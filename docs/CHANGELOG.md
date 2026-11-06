@@ -1,3 +1,9 @@
+## 2026-11-06 — AIVID priced using owner's $0.12 source-credit cost
+
+- Owner confirms **each AIVID source credit costs USD $0.12**. AIVID now shares the existing `src/billing.js` 6,720-CMM-credits/USD conversion: **806.40 base CMM credits per AIVID credit**. Existing customer pricing adds the standard 5% and any boosted rate: **846.72 credits per source credit** for an ordinary customer; 2 source credits = 1,693.44 customer credits. The actual AIVID **Public-mode live quote** determines how many AIVID credits a job consumes.
+- Legacy stored Admin values including 480 are **ignored**; there is no separate arbitrary AIVID multiplier. The Admin now displays the derived 806.4 rate read-only like other USD-priced providers. The saved source-credit ceiling and provider enabled switch are not altered. Old completed jobs, reserved wallet amounts, historical debits/refunds and provider-cost units are unchanged.
+- Tests cover USD conversion, ordinary/boosted customer rates, legacy rate migration and preflight source-credit quoting. Requires web **and** worker deployment of the current GitHub main, with no paid provider job required to test the arithmetic. This change does not confirm a live generation; source-credit amount must still be verified with AIVID.
+
 ## 2026-11-06 — AIVID Premium models, public mode and customer visibility (GitHub source)
 
 - PR [#141](https://github.com/thesfjksa/vidancee-direct-saas/pull/141): AIVID visibility is set to **Public** before reading its source price and independently checked in the outbound request guard.

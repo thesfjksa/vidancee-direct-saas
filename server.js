@@ -883,7 +883,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),
       costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',
-      generationOptions:{quotedSourceCredits:quote.sourceCredits,model:requestedModel}});
+      generationOptions:{quotedSourceCredits:quote.sourceCredits,sourceUsd:quote.sourceUsd,sourceUsdPerAividCredit:0.12,model:requestedModel}});
   }
   if(!cartoonOptions&&isApi888Model(requestedModel)){
     if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey)throw httpError(503,'888API video generation is unavailable.');

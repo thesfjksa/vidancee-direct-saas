@@ -74,3 +74,16 @@ paid submissions when the provider is not ready.
 If these choices do not appear at all, verify **both** Hostinger services have
 deployed the latest GitHub main revision, refresh the browser without cached
 assets, and check the customer's AIVID Source access in Admin → Users.
+
+## AIVID source-cost pricing update (6 November 2026)
+
+The owner confirms **$0.12 USD per AIVID source credit**. CMMTools converts
+this at 6,720 CMM credits per USD, so **806.40 base credits** per AIVID
+credit, then applies the global 5% and any boosted customer rate in the
+existing wallet quote/transaction logic. Example: a live AIVID Public-mode
+quote of **2 source credits** is USD $0.24, base 1,612.80 credits and
+standard customer charge **1,693.44 CMM credits**.
+Legacy stored AIVID rates such as 480 are ignored, and Admin displays
+this cost-based conversion as read-only. The **maximum AIVID credits per
+video** remains a separate safety ceiling; a value of 0 still blocks all
+paid AIVID jobs. No provider generation was run to validate the arithmetic.

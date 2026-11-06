@@ -119,7 +119,9 @@ then run AIVID-Agent.exe. Keep the existing agent profile, pairing file and
 receipts; do not delete or reset them. Existing uncertain submissions must
 be reconciled against provider history rather than retried.
 
-For the initial customer-credit conversion, the Admin rate defaults to **480
-CMMTools credits per one AIVID source credit** (Rs 20 at the current wallet
-scale). Check the real cost per AIVID credit and adjust before enabling customer
-payments. The normal per-customer price-rate adjustment still applies.
+**6 Nov source-cost update:** AIVID credits cost USD $0.12 each. The web and
+worker use the same USD-to-wallet scale as the other models: **806.40 base
+CMMTools credits per AIVID credit**, then standard 5% and any customer boost.
+The Admin rate is now read-only and ignores old saved 480 values. The AIVID
+source-credit ceiling is a separate per-video safety limit. Update both web
+and worker; the agent code does not need a new package for this pricing change.
