@@ -58,3 +58,20 @@ The owner confirmed ordinary Chrome Google/AIVID login works on the RDP. That
 does not establish that the new dedicated profile, production queue, downloads,
 or disconnect/reboot behavior has been verified there. Those need the owner's
 actual RDP and a permitted live trial; no RDP credentials are requested in chat.
+
+## Customer model visibility (November 2026)
+
+The three Premium choices (AIVID Seedance 2.0 Mini, 2.0, 2.5) stay visible
+in Video Studio for customers whose AIVID source access is allowed, once the
+AIVID source has been configured (paired RDP or saved browser session), even if
+the Windows agent is offline, the browser session expires, or the source-credit
+ceiling is zero. Such models display an **Unavailable** cost and a warning;
+the Generate button is disabled for the selected model. A model becomes ready
+after the Admin enables AIVID, sets a positive source-credit ceiling, and
+brings the RDP agent online with status Ready. Refresh the customer Studio
+page to load updated readiness. The price quote and AIVID worker still block
+paid submissions when the provider is not ready.
+
+If these choices do not appear at all, verify **both** Hostinger services have
+deployed the latest GitHub main revision, refresh the browser without cached
+assets, and check the customer's AIVID Source access in Admin → Users.

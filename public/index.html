@@ -1478,6 +1478,9 @@ function renderDurations(resetResolution=false){
     return;
   }
 
+  // Show unavailable Premium models in the picker, but never allow a paid
+  // generation until the RDP/browser connection has passed readiness checks.
+  $('generateBtn').disabled=m.unavailable===true;
   renderGatewayVideoSettings(m);
   showModelWarning('videoModelWarning',m);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
@@ -1574,6 +1577,7 @@ async function updateCost(){
 
   $('videoPriceNote').classList.add('hide');
   if(!model){$('cost').textContent='—';return}
+  if(model.unavailable===true){$('cost').textContent='Unavailable';return}
   if(!model.dynamicCost){
     $('cost').textContent=o&&o.dataset.cost?o.dataset.cost:'—';
     return;
