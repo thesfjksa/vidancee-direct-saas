@@ -183,3 +183,16 @@ Mock browser coverage exercises all media, input clearing/async previews, blocke
 probes, successful request release after reservation, invalid IDs and failed storage.
 Live uploads and paid reference-based generation/collection remain unverified until
 the owner installs the new complete Windows package and runs acceptance checks.
+
+## Follow-up screenshot: standard 2.0 fails both resolutions — v2.1.6
+
+Owner's Check all Premium models reported 4/6: Mini and 2.5 passed with balance
+50 unchanged; both standard 2.0 resolutions failed model_selection. Live DOM
+inspection confirmed distinct standard, Fast and Mini menu buttons. The previous
+standard regex excluded Mini only and matched Fast as well. Precise selection
+excluding parenthesized variants selected standard 2.0 in the public live form
+without Generate. Fix the matcher used for both candidate and selected-control
+checks; retain duplicate rejection and final provider ID verification. The browser
+fixture now includes Fast, switching from Fast/2.5 and both resolutions. Full agent
+v2.1.6 must replace the installed v2.1.5 package. The owner's six live preflights
+and paid acceptance remain outstanding after installation. No paid video generated.

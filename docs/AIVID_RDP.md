@@ -3,7 +3,7 @@
 Owner setting (6 November 2026): every preflight and generation selects Public.
 The form and outgoing request both verify public visibility. Price is read
 after the switch, then checked against the saved source-credit ceiling.
-Use the complete **agent 2.1.5 ZIP** for the current prompt and image/video/audio reference adapter. Older installed agents cannot run the new upload diagnostic. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for upgrade steps.
+Use the complete **agent 2.1.6 ZIP** for the current prompt and image/video/audio reference adapter. Older installed agents cannot run the new upload diagnostic. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for upgrade steps.
 
 The RDP agent is an alternative transport for the existing AIVID browser
 adapter and queue. Select **Windows RDP agent** in Admin and save it to stop

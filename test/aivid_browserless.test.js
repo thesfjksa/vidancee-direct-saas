@@ -277,3 +277,10 @@ test('reconciliation only accepts held jobs and explicit account-history confirm
   assert.equal(held.job.provider_job_id, providerJobId); assert.equal(refunds, 0);
   await assert.rejects(reconcileAivid(held.db, held.job.id, { action: 'attach', providerJobId }), /Only a held/);
 });
+
+test('standard Seedance 2.0 rejects Fast, Mini and other parenthesized variants',()=>{
+  const {selectedModelMatches}=require('../src/provider/aivid.js');
+  for(const text of ['Seedance 2.0','Seedance 2.0\nMultimodal references.','Seedance 2.0 High quality'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0'),true);
+  for(const text of ['Seedance 2.0 (Fast)','Seedance 2.0 (Fast)\nFaster generation with slightly reduced quality.','Seedance 2.0 (Mini)','Seedance 2.0 (Pro)','Seedance 2.0   (Fast)','Seedance 2.01','Seedance 2.5'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0'),false,text);
+  assert.equal(selectedModelMatches('Seedance 2.0 (Mini) Most cost-effective, quicker results.','aivid_seedance_2_0_mini'),true);
+});

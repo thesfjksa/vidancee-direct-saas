@@ -8,6 +8,8 @@ on:
       - 'public/provider-admin.js'
       - 'public/admin.css'
       - 'scripts/check-aivid-admin-ui.cjs'
+      - 'src/provider/aivid.js'
+      - 'scripts/aivid-rdp/fixtures/**'
       - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
   push:
@@ -18,6 +20,8 @@ on:
       - 'public/provider-admin.js'
       - 'public/admin.css'
       - 'scripts/check-aivid-admin-ui.cjs'
+      - 'src/provider/aivid.js'
+      - 'scripts/aivid-rdp/fixtures/**'
       - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
 permissions:

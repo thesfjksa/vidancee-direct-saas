@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const html = `<!doctype html><html><body><header>0 credits</header><main>
 <textarea placeholder="Describe your video idea..."></textarea>
 <button id="model" onclick="document.querySelector('#models').hidden=false">Seedance 2.5</button>
-<div id="models" hidden><button id="mini" onclick="model.textContent='Seedance 2.0 (Mini)';models.hidden=true;duration.max=15;update()">Seedance 2.0 (Mini) Most cost-effective, quicker results.</button><button id="full" onclick="model.textContent='Seedance 2.0';models.hidden=true;duration.max=15;update()">Seedance 2.0 High quality</button><button id="v25" onclick="model.textContent='Seedance 2.5';models.hidden=true;duration.max=30;update()">Seedance 2.5 Premium</button></div>
+<div id="models" hidden><button id="mini" onclick="model.textContent='Seedance 2.0 (Mini)';models.hidden=true;duration.max=15;update()">Seedance 2.0 (Mini) Most cost-effective, quicker results.</button><button id="fast" onclick="model.textContent='Seedance 2.0 (Fast)';models.hidden=true;duration.max=15;update()"><p>Seedance 2.0 (Fast)</p><p>Faster generation with slightly reduced quality.</p></button><button id="full" onclick="model.textContent='Seedance 2.0';models.hidden=true;duration.max=15;update()">Seedance 2.0 High quality</button><button id="v25" onclick="model.textContent='Seedance 2.5';models.hidden=true;duration.max=30;update()">Seedance 2.5 Premium</button></div>
 <button>16:9</button><button id="resolution" onclick="resolutions.hidden=false">720p</button>
 <div id="resolutions" hidden><button onclick="resolution.textContent='480p';resolutions.hidden=true">480p</button></div>
 <input id="duration" type="range" min="4" max="30" value="15" oninput="update()"><span id="seconds">15s</span>
@@ -19,9 +19,10 @@ function preview(input,kind){const files=Array.from(input.files);window.selected
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false, promptResetMode='none';
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false, promptResetMode='none', initialFast=false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
+    if(initialFast)body=body.replace('>Seedance 2.5</button>','>Seedance 2.0 (Fast)</button>');
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
     if (privacyMode === 'disabled') body = body.replace('id="privateToggle"', 'disabled id="privateToggle"');
     if (privacyMode === 'missing') body = body.replace('<span>Private</span>', '<span>Unknown</span>');
@@ -103,6 +104,16 @@ async function checkForm(page, Client, waitForSession) {
     assert.equal(result.modelId,model);
     assert.equal(await page.evaluate(()=>window.generateClicks),0);
   }
+  // Reproduce the live menu containing BOTH standard and Fast options.
+  // A previously selected Fast model must also never satisfy standard 2.0.
+  for(const fromFast of [false,true])for(const resolution of ['480p','720p']){
+    initialFast=fromFast;
+    const result=await client.preflight({model:'aivid_seedance_2_0',prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution});
+    assert.equal(result.modelId,'aivid_seedance_2_0');
+    assert.equal(await page.locator('#model').innerText(),'Seedance 2.0');
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  initialFast=false;
   delayedMenu=false;
   const alreadySelected=await client.preflight({model:'aivid_seedance_2_5',prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'720p'});
   assert.equal(alreadySelected.modelId,'aivid_seedance_2_5');

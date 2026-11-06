@@ -267,7 +267,8 @@ function selectedValueMatches(controlText, exactLabel) {
 }
 const SELECTED_MODEL = Object.freeze({
   aivid_seedance_2_0_mini: /^Seedance 2\.0 \(Mini\)(?=\s|$)/,
-  aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\(Mini\))(?=\s|$)/,
+  // Any parenthesized suffix denotes a different model (Mini, Fast, etc.).
+  aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\()(?=\s|$)/,
   aivid_seedance_2_5: /^Seedance 2\.5(?=\s|$)/,
 });
 function selectedModelMatches(controlText, modelId) {
