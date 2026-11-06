@@ -54,10 +54,12 @@ class AividQueue extends VercelQueue {
           await this.refund(job.id, 'submit_error', 'Generation stopped before submission. Credits were refunded.', null);
         } else await this.hold(db, job);
       }
-      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY updated_at LIMIT 1");
+      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY updated_at LIMIT 50");
       if (active.length) {
-        const job = active[0], op = operation(job);
-        if (op.stage === 'review_required' || !ID.test(String(job.provider_job_id || ''))) return;
+        // A held/invalid older job must not starve other accepted videos.
+        // If all rows need review, preserve the pause on new submissions.
+        const job=active.find(row=>operation(row).stage!=='review_required'&&ID.test(String(row.provider_job_id||'')));
+        if(!job)return;
         // A needs_login agent cannot claim collection commands. Waiting for
         // one here held the browser lock for 180 seconds, blocking the very
         // Admin preflight that could restore readiness. Keep the accepted ID

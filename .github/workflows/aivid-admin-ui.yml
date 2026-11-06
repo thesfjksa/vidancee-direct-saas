@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'public/admin.html'
+      - 'public/index.html'
       - 'public/aivid-admin.js'
       - 'public/provider-admin.js'
       - 'public/admin.css'
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - 'public/admin.html'
+      - 'public/index.html'
       - 'public/aivid-admin.js'
       - 'public/provider-admin.js'
       - 'public/admin.css'

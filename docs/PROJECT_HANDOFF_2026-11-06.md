@@ -232,3 +232,9 @@ for recovery, job preservation and successful collection while submissions are
 paused. Worker health adds collectionGuardRevision=1 and collectionWaitingForAgent
 for deployment verification. The Windows package is unchanged v2.1.6. Do not force
 unlock a live browser operation or resubmit the owner's completed source video.
+
+## Customer-flow audit and rejected credential recovery — server update; Agent v2.1.6 unchanged
+
+PR #156 merged server lock recovery. Live worker /health confirmed collectionGuardRevision=1, collectionWaitingForAgent=true, sourceReady=false and activeTasks=0 while owner screenshot showed Agent offline. The Agent 2.1.6 console then confirmed pairing credential rejected. server-side offline pairing recovery plus safe offline rotation with accepted IDs is required; new submissions/uncertain records and online old devices still block rotation. No live recovery success has been established.
+
+The subsequent credit-free audit and fixes are documented in AIVID_ZERO_CREDIT_AUDIT_2026-11-06.md. Keep final acceptance separate from mocks; owner must restore the Windows process and the original accepted ID must complete storage without another submission.

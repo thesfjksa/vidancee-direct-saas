@@ -301,3 +301,9 @@ test('an unready RDP collector releases the browser lock for connection recovery
   assert.deepEqual(f.stats(),{submissions:0,polls:1,refunds:0,complete:1});
   assert.equal(f.q.health().collectionWaitingForAgent,false);
 });
+test('a held older video cannot starve collection of another accepted customer video',async()=>{
+ const f=fixture({status:'submitted',op:{stage:'accepted',providerJobId}}),original=f.db.query;
+ f.db.query=async(sql,args)=>sql.startsWith('SELECT * FROM generations')&&sql.includes("status IN ('submitted','processing')")
+  ? [[{...f.job,id:'old-held',provider_operation:'{"stage":"review_required"}',provider_job_id:null},f.job]]:original(sql,args);
+ await f.q.runOnce(f.db);assert.equal(f.stats().polls,1);assert.equal(f.stats().submissions,0);assert.equal(f.stats().refunds,0);
+});

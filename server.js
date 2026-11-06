@@ -882,7 +882,8 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     const quote=await quoteAivid(config,body);
     generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),
-      costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',
+      validatePreparedReferences:({images,videos,audios})=>require('./src/provider/aivid.js').validateJob(body,[...images,...videos.map(r=>({...r,kind:'video'})),...audios.map(r=>({...r,kind:'audio'}))]),
+      costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',maxCustomerCredits:body.maxCustomerCredits,
       generationOptions:{quotedSourceCredits:quote.sourceCredits,sourceUsd:quote.sourceUsd,sourceUsdPerAividCredit:0.12,model:requestedModel}});
   }
   if(!cartoonOptions&&isApi888Model(requestedModel)){

@@ -75,3 +75,17 @@ test('website generation keeps its existing account pricing without an API reque
   reset();await createGenerationForUser(7,input,opts(null));
   assert.equal(state.credits,895);assert.equal(state.debits,1);assert.equal(state.requests.size,0);
 });
+
+test('Premium price increases and invalid limits cannot create a job or debit the wallet',async()=>{
+ for(const [limit,status]of [[104,409],[-1,400],['invalid',400]]){
+  reset();await assert.rejects(createGenerationForUser(7,input,{...opts(null),provider:'aivid',maxCustomerCredits:limit}),{statusCode:status});
+  assert.equal(state.credits,1000);assert.equal(state.jobs.size,0);assert.equal(state.debits,0);
+ }
+ reset();await createGenerationForUser(7,input,{...opts(null),provider:'aivid',maxCustomerCredits:105});assert.equal(state.credits,895);assert.equal(state.debits,1);
+});
+
+test('provider reference validation fails inside the transaction before any job or wallet write',async()=>{
+ reset();let checked=false;
+ await assert.rejects(createGenerationForUser(7,input,{...opts(null),provider:'aivid',validatePreparedReferences:refs=>{checked=true;assert.equal(refs.images.length,0);throw new Error('Reference exceeds the adapter limit');}}),/adapter limit/);
+ assert.equal(checked,true);assert.equal(state.debits,0);assert.equal(state.jobs.size,0);assert.equal(state.credits,1000);
+});
