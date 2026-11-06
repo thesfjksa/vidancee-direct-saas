@@ -157,7 +157,7 @@ healthServer.listen(port,host,()=>{
       // model it stops listing is marked unavailable (hidden) until it returns.
       const {syncProviderModels}=require('./src/provider_models.js');
       const {api888MediaModels}=require('./src/api888_models.js');
-      await syncProviderModels('api888',api888MediaModels(await client.models()));
+      await syncProviderModels('api888',api888MediaModels(await client.catalog()));
     }catch(error){console.error('[worker] 888API model health refresh failed:',error.message);}
   };
   refreshHealth();setInterval(refreshHealth,API888_HEALTH_REFRESH_MS).unref();

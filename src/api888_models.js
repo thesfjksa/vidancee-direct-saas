@@ -62,9 +62,9 @@ const SPECS = {
   'wan3.0-image':[0.22,'second',2,30,'720p',10,0,0],
   'wan3.0-image-prime':[0.25,'second',2,30,'720p',10,0,0],
   'seedance2.5-480p-value':[0.45,'second',4,15,'480p',0,0,0],
-  'seedance2.5-480p-plus':[0.6,'second',4,15,'480p',0,0,0],
+  'seedance2.5-480p-plus':[0.5,'second',4,15,'480p',0,0,0],
   'seedance2.5-480p-pro':[0.5,'second',4,15,'480p',0,0,0],
-  'seedance2.5-720p-plus':[0.9,'second',4,15,'720p',0,0,0],
+  'seedance2.5-720p-plus':[0.75,'second',4,15,'720p',0,0,0],
   'seedance2.5-720p-pro':[0.75,'second',4,15,'720p',0,0,0],
   // 888API /docs (2 Nov 2026): Plus is ¥0.90/s; Pro remains ¥1.25/s.
   'seedance2.5-1080p-plus':[0.9,'second',4,15,'1080p',0,0,0],
@@ -444,6 +444,33 @@ function describedModel(id,type) {
     },
   };
 }
+// Reviewed per-second Seedance contracts. A new upstream SKU still needs its
+// own input mapping; a price-table row alone never grants account access.
+const SEEDANCE25_DYNAMIC_IDS=Object.keys(SPECS).filter(id=>/^seedance2\.5-/.test(id)&&SPECS[id][1]==='second');
+function seedance25LiveRate(pricing,id){
+  if(pricing?.success!==true||pricing.group_ratio?.default!==1||!Array.isArray(pricing.data))return null;
+  const rows=pricing.data.filter(row=>row?.model_name===id);
+  if(rows.length!==1)return null;
+  const row=rows[0];
+  if(row.quota_type!==1||row.billing_mode!=='tiered_expr'||!Array.isArray(row.enable_groups)||!row.enable_groups.includes('default'))return null;
+  // Recognize only the observed seconds * rate expression. Never evaluate
+  // provider-supplied code or mistake a flat request price for a second rate.
+  const match=String(row.billing_expr||'').match(/^\s*tier\(\s*"base"\s*,\s*\(\s*u\(\s*"seconds"\s*\)\s*\*\s*(\d+(?:\.\d+)?)\s*\)\s*\)\s*$/);
+  const rate=Number(match?.[1]);
+  return Number.isFinite(rate)&&rate>0&&rate<=10000&&typeof row.model_price==='number'&&Math.abs(rate-row.model_price)<1e-9?rate:null;
+}
+function applySeedance25LivePrice(model,live){
+  if(!SEEDANCE25_DYNAMIC_IDS.includes(model.providerModelId)||!Object.hasOwn(live||{},'pricing'))return model;
+  const rate=seedance25LiveRate(live.pricing,model.providerModelId);
+  model.options.api888={...model.options.api888,sourceCny:rate,
+    priceSource:'888api-public-default',priceCheckedAt:live.pricingCheckedAt||null};
+  model.options.pricing.video_duration_pricing=rate===null?[]:[{resolution:model.options.defaultResolution,cost_per_second:rate}];
+  if(rate===null){
+    model.options.adapterSupported=false;
+    model.options.setupReason='A verified live Seedance 2.5 per-second price is unavailable. Import models and prices again.';
+  }
+  return model;
+}
 function api888MediaModels(live=null) {
   const available=live?.data;
   if(live!==null&&!Array.isArray(available))throw new Error('888API returned no model list; existing catalog retained.');
@@ -459,7 +486,7 @@ function api888MediaModels(live=null) {
         return {id,type};
       });
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
-  return entries.map(v=>describedModel(v.id,v.type));
+  return entries.map(v=>applySeedance25LivePrice(describedModel(v.id,v.type),live));
 }
 // 888API-only policy: 1 CNY of provider cost == 1 CMM customer credit.
 // Fixed-price SKUs are charged once per job; per-second SKUs scale with the
@@ -487,4 +514,5 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
+module.exports={SEEDANCE25_DYNAMIC_IDS,seedance25LiveRate,VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
+
