@@ -159,3 +159,27 @@ Existing core platform: account/password login, manual plans and Admin approval,
 **Acceptance for declaring customer availability:** both actual production service revisions verified; DB read/write healthy; Admin configured and customer source allowed; AIVID agent online; all 3 models visible; real non-paid preflights pass; **one authorized successful paid generation per model** with video saved/downloadable, correct wallet/ledger entries and no unexpected or duplicate AIVID charge. Record proof and timestamps without secrets.
 
 **Continuation instruction for the next developer:** read current GitHub `main` and this document, inspect outstanding issue #142 and production evidence, preserve all working providers and records, resolve deployment/visibility first, then carefully validate each AIVID model using safe read-only probes before *owner-authorized* paid tests. Keep this handoff, changelog and operator runbooks updated with new PRs, actual deploys and verification boundaries.
+
+## Reference-upload repair — agent v2.1.5 (2026-11-06)
+
+The observed AIVID References inputs accept JPEG/PNG/WebP, MP4/MOV and MP3/WAV.
+The site clears each hidden input after metadata validation and FileReader work.
+The adapter now captures and hashes selected files at change time and waits for
+rendered @imageN/@videoN/@audioN previews, rather than treating an emptied input
+as failure. Diagnostic assets meet observed minima: 640×640 PNG, 854×480 H.264
+MP4 for three seconds, three-second mono WAV.
+
+Uploads happen during Generate: presigned-url → multipart S3 POST → presigned-save;
+final generation uses imageIds/videoIds/audioIds. The mutation guard now permits
+only the matched upload pipeline and verifies saved IDs exactly. Paid reservation
+occurs after upload verification, immediately before releasing one generation POST.
+
+Admin has a synthetic reference-upload diagnostic for all three Premium models.
+It blocks /v2/generations, creates no CMMTools generation/debit or paid reservation,
+and re-reads source balance. It stores small synthetic assets in AIVID. Requires
+the full v2.1.5 agent; do not send this command to older installed agents.
+
+Mock browser coverage exercises all media, input clearing/async previews, blocked
+probes, successful request release after reservation, invalid IDs and failed storage.
+Live uploads and paid reference-based generation/collection remain unverified until
+the owner installs the new complete Windows package and runs acceptance checks.

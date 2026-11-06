@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.4
+# CMMTools AIVID RDP agent 2.1.5
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -46,8 +46,9 @@ when updating; replace only program files. Use the new Agent launcher rather
 than the older standalone Submit launcher.
 
 Only one Agent may use the profile. The server owns the job queue, price limit,
-and paid-click reservation. Before clicking Generate, the Agent writes a local
-receipt and waits for the server's saved reservation. Accepted source IDs are
+and paid-click reservation. After validating uploaded references, the Agent writes a local
+receipt and waits for the server's saved reservation immediately before releasing
+the intercepted generation request. Accepted source IDs are
 used for subsequent collection. An ambiguous click is held for review, never
 automatically submitted again. Do not delete a receipt to retry a paid job.
 
@@ -186,3 +187,29 @@ Waits for the visible model menu option before selecting it, skips reopening an 
 
 ## Prompt retention — v2.1.4
 Windows CRLF/lone-CR line endings are normalized to browser LF without collapsing spaces, blank lines, mentions or Unicode. Prompt entry commits focus and must remain exact for a short stability window. One pre-submit refill is allowed after a reset; persistent changes still stop before Generate. The outgoing request guard independently checks the same text. Upgrade the entire package after stopping the old agent, preserving pairing/profile/receipts.
+
+## Reference uploads — v2.1.5
+
+The adapter now follows AIVID's observed References controls and three-step
+presign → storage POST → saved-file-ID flow for images, video and audio.
+It waits for the reference preview labels after asynchronous metadata validation;
+AIVID clearing its hidden input is expected. The selected files are checked by
+size, type and SHA-256. Final imageIds/videoIds/audioIds must exactly match the
+verified upload responses before the paid request can be released. Any missing,
+extra, mismatched or failed upload blocks submission before the paid reservation.
+Public mode, model, prompt, duration, ratio and price checks remain required.
+
+After installing this complete package, Admin → Provider → AIVID →
+**Check reference uploads (no generation)** uploads a small synthetic image,
+three-second video and three-second tone on all three Premium models. The agent
+blocks the final generation request, never reserves a paid submission and verifies
+the source balance is unchanged. Test files are stored in the source account;
+no generated video or CMMTools debit is created. The source must have sufficient
+balance for its frontend to enter the upload flow. Old agent versions cannot run
+this diagnostic. Stop the old Agent and replace the complete program package,
+preserving the pairing file, Chrome profile and receipts, then restart Agent.
+
+Automated browser tests mock provider/storage responses. Passing them does not
+prove live uploads on your RDP or paid reference-based generation and collection.
+Run the new live diagnostic after upgrading; paid end-to-end acceptance remains
+separate and consumes source credits.

@@ -1,3 +1,10 @@
+## 2026-11-06 — Reference uploads (Agent v2.1.5)
+
+- Follow inspected image/video/audio controls, asynchronous preview readiness and expected input clearing. Capture file hashes before the input is cleared.
+- Permit and verify the source presign → S3 POST → saved-file-ID pipeline. Exact final reference IDs must match before the single paid request and durable reservation.
+- Add Admin synthetic reference-upload checks for all three Premium models. Final generation is blocked, balance must remain unchanged, and no CMMTools generation/debit is created.
+- Full Windows v2.1.5 required. Mock browser and transport tests cover all media; live uploads and paid reference generation remain separate acceptance steps after installation.
+
 ## 2026-11-06 — Windows prompt retention (Agent v2.1.4)
 
 - Normalize CRLF/lone-CR prompt line endings to browser LF while preserving other characters. Both prepared text and the guarded outgoing prompt use the same normalization; meaningful changes still fail.

@@ -8,6 +8,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  const formPage=await browser.newPage();
  await require('./aivid-rdp/fixtures/form.cjs').checkForm(formPage,AividBrowserlessClient,waitForSession);
  await formPage.close();
+ await require('./aivid-rdp/fixtures/references.cjs').checkReferenceFlows(browser,AividBrowserlessClient);
  console.log('AIVID full preflight: prompt line endings/retention, zero balance, duration, Public pricing and safe diagnostics passed; no Generate click.');
  // Exercise the login preparation against a real DOM. Only the entry button
  // is clicked; Google sign-in and paid actions must remain untouched.
@@ -37,7 +38,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   window.fixtureCopiedCode=text;
  }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[];
+ let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[],referenceChecks=[];
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
@@ -53,6 +54,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   }
   if(p.endsWith('/finish')){loginState='connected';return route.fulfill({json:{ok:true,requested:true}});}
   if(p==='/admin/aivid/login/'+loginId)return route.fulfill({json:{ok:true,login:login()}});
+  if(p==='/admin/aivid/check-references'){const body=req.postDataJSON();referenceChecks.push(body);return route.fulfill({json:{ok:true,verified:true,submitted:false,generationBlocked:true,modelId:body.model,balanceBefore:25,balanceAfter:25,uploadedCounts:{image:1,video:1,audio:1}}});}
   if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,modelVerified:true,withinLimit:true,standardCustomerCredits:1693.44}});}
   if(p.startsWith('/admin/'))return route.fulfill({json:{ok:true,settings:{},models:[],users:[],entries:[],boot:[],boots:[],pricing:[],sourceCost30d:[],providers:[],config:{},web:{uptimeSeconds:1,startedAt:new Date().toISOString(),slowRequests:[]}}});
   const file=path.join('public',p);
@@ -132,6 +134,9 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  assert.deepEqual(batch.map(v=>v.resolution),['480p','720p','480p','720p','480p','720p']);
  assert.match(await page.locator('#aividAdminMessage').innerText(),/No video was generated and no credits were charged/);
  assert.equal(await page.getByRole('button',{name:'Check all Premium models',exact:true}).isEnabled(),true);
+ await page.getByRole('button',{name:'Check reference uploads (no generation)',exact:true}).click();
+ await page.locator('#aividAdminMessage').filter({hasText:'3/3 reference checks passed'}).waitFor();
+ assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']);
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  assert.deepEqual(errors,[]);

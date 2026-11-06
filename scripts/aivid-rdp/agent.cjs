@@ -88,6 +88,7 @@ class Agent {
     const client = this.clientFactory(Number(command.payload.maxSourceCredits) || 0);
     let result;
     if (command.kind === 'preflight') result = await client.preflight(command.payload.value, references);
+    else if(command.kind==='reference_check')result=await client.checkReferences(command.payload.value,references);
     else if (command.kind === 'submit') {
       const jobId = command.payload.value.jobId;
       if (!/^[0-9a-f-]{36}$/i.test(jobId || '')) throw new Error('Invalid CMMTools job ID.');

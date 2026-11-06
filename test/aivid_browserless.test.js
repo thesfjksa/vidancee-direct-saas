@@ -138,8 +138,9 @@ test('paid request guard requires exact settings, public visibility and every re
     assert.throws(() => validateSubmission({ ...payload, ...conflict }, job), /public/);
   const refs = [{ kind: 'video', mimeType: 'video/mp4', data: Buffer.from('mp4') }];
   const withVideo = validateJob(input, refs);
-  assert.throws(() => validateSubmission(payload, withVideo), /incomplete/);
-  assert.doesNotThrow(() => validateSubmission({ ...payload, references: [{ type: 'video', id: 'uploaded-video' }] }, withVideo));
+  assert.throws(() => validateSubmission(payload, withVideo), /verified/);
+  assert.throws(() => validateSubmission({ ...payload, references: [{ type: 'video', id: 'uploaded-video' }] }, withVideo),/verified/);
+  assert.doesNotThrow(() => validateSubmission({ ...payload, videoIds:['uploaded-video-0001'] }, withVideo,[{kind:'video',id:'uploaded-video-0001'}]));
   assert.equal(providerId({ data: { id: providerJobId } }), providerJobId);
   assert.equal(providerId({ id: 'not-a-job' }), null);
 });
