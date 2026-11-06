@@ -17,7 +17,7 @@ window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privac
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private';
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
@@ -27,6 +27,12 @@ async function checkForm(page, Client, waitForSession) {
     if (privacyMode === 'inert') body = body.replace('onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"', 'onclick="event.preventDefault()"');
     if (privacyMode === 'reset_after_prompt') body = body.replace('<textarea placeholder=', '<textarea oninput="privateToggle.checked=true;window.isPublic=false;update()" placeholder=');
     if (missingModel) body = body.replace('id="mini"', 'hidden id="mini"');
+    if (modelSuffix) body = body
+      .replace("model.textContent='Seedance 2.0 (Mini)'","model.textContent='Seedance 2.0 (Mini) Fast premium model'")
+      .replace("model.textContent='Seedance 2.0'","model.textContent='Seedance 2.0 High quality'")
+      .replace("model.textContent='Seedance 2.5'","model.textContent='Seedance 2.5 Premium model'");
+    if (wrongModelAfterSelection) body = body.replace("model.textContent='Seedance 2.0 (Mini)'","model.textContent='Seedance 2.5'");
+    if (wrongResolutionAfterPrompt) body = body.replace('<textarea placeholder=', '<textarea oninput="resolution.textContent=\'720p\'" placeholder=');
     if (editorMode === 'rich') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>',
       '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" data-placeholder="Describe your video idea..."></div>');
     if (editorMode === 'renamed') body = body.replace('Describe your video idea...', 'What would you like to create?');
@@ -65,6 +71,29 @@ async function checkForm(page, Client, waitForSession) {
     assert.equal(await page.locator('#privateToggle').isChecked(),false);
     assert.equal(await page.evaluate(()=>window.generateClicks),0);
   }
+  // Current-model buttons may contain descriptions after their model name;
+  // the selected control must be validated, not an exactly named menu item.
+  modelSuffix = true;
+  for (const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']) {
+    const result = await client.preflight({ model, prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' });
+    assert.equal(result.modelId,model);
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  modelSuffix = false;
+  wrongModelAfterSelection = true;
+  await assert.rejects(client.preflight({ prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' }),error=>{
+    assert.equal(error.aividCode,'form_model');
+    assert.doesNotMatch(error.message,/Playwright|locator|https:|A quiet river/);
+    return true;
+  });
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  wrongModelAfterSelection = false;
+  wrongResolutionAfterPrompt = true;
+  await assert.rejects(client.preflight({ prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' }),error=>{
+    assert.equal(error.aividCode,'form_resolution'); return true;
+  });
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  wrongResolutionAfterPrompt = false;
   editorMode = 'textarea'; privacyMode = 'public';
   await client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' });
   assert.equal(await page.locator('#privateToggle').isChecked(), false);
@@ -83,7 +112,7 @@ async function checkForm(page, Client, waitForSession) {
   }
   privacyMode = 'reset_after_prompt';
   await assert.rejects(client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' }), error => {
-    assert.equal(error.aividCode, 'form_verification'); return true;
+    assert.equal(error.aividCode, 'form_privacy'); return true;
   });
   assert.equal(await page.evaluate(() => window.generateClicks), 0);
   privacyMode = 'private';

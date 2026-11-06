@@ -3,7 +3,7 @@
 Owner setting (6 November 2026): every preflight and generation selects Public.
 The form and outgoing request both verify public visibility. Price is read
 after the switch, then checked against the saved source-credit ceiling.
-Use the complete **agent 2.1.0 ZIP** for multi-model Premium support; older 2.0.5 packages may lack the new model registry. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for the build artifact and upgrade steps.
+Use the complete **agent 2.1.1 ZIP** for multi-model Premium support and safe current-model form verification; older 2.0.5 packages may lack the new model registry and 2.1.0 may falsely reject legitimate current button labels. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for the build artifact and upgrade steps.
 
 The RDP agent is an alternative transport for the existing AIVID browser
 adapter and queue. Select **Windows RDP agent** in Admin and save it to stop
@@ -87,3 +87,17 @@ Legacy stored AIVID rates such as 480 are ignored, and Admin displays
 this cost-based conversion as read-only. The **maximum AIVID credits per
 video** remains a separate safety ceiling; a value of 0 still blocks all
 paid AIVID jobs. No provider generation was run to validate the arithmetic.
+
+## Form verification failure (6 November 2026)
+`RDP check [form_verification]` occurs during **read-only** preflight and
+is not proof that a video was submitted. Agent 2.1.0 verified the selected
+model via an exact accessible-name button match, which could fail if AIVID
+showed additional descriptive text. Agent 2.1.1 instead validates the
+**current model trigger**, with anchored model-specific patterns; different
+models and combinations are not treated as interchangeable. The adapter
+additionally exposes redacted, per-field form mismatch codes (model,
+resolution, ratio, duration, prompt, privacy) and still fails closed.
+Rebuild/download the complete Windows agent package, do not patch individual
+files or remove RDP pairing/receipts. The updated agent must be tested
+against the current live AIVID account; fixture tests do not establish live
+API compatibility.
