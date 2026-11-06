@@ -37,7 +37,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   window.fixtureCopiedCode=text;
  }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[];
+ let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[];
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
@@ -53,7 +53,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   }
   if(p.endsWith('/finish')){loginState='connected';return route.fulfill({json:{ok:true,requested:true}});}
   if(p==='/admin/aivid/login/'+loginId)return route.fulfill({json:{ok:true,login:login()}});
-  if(p==='/admin/aivid/check')return route.fulfill({json:{ok:true,price:2,balance:25}});
+  if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,withinLimit:true,standardCustomerCredits:1693.44}});}
   if(p.startsWith('/admin/'))return route.fulfill({json:{ok:true,settings:{},models:[],users:[],entries:[],boot:[],boots:[],pricing:[],sourceCost30d:[],providers:[],config:{},web:{uptimeSeconds:1,startedAt:new Date().toISOString(),slowRequests:[]}}});
   const file=path.join('public',p);
   if(fs.existsSync(file)&&fs.statSync(file).isFile())return route.fulfill({path:file});
@@ -122,6 +122,16 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  await page.getByRole('button',{name:'Check RDP connection',exact:true}).click();
  await page.locator('#aividAdminMessage').filter({hasText:'Balance: 25 credits'}).waitFor();
  assert.equal(cloudStarts,previousCloudStarts);
+ const beforeChecks=checkRequests.length;
+ await page.getByRole('button',{name:'Check all Premium models',exact:true}).click();
+ await page.locator('#aividAdminMessage').filter({hasText:'6/6 checks passed'}).waitFor();
+ assert.equal(checkRequests.length-beforeChecks,6);
+ const batch=checkRequests.slice(beforeChecks);
+ assert.deepEqual([...new Set(batch.map(v=>v.model))],['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']);
+ assert.ok(batch.every(v=>v.duration===5&&v.aspectRatio==='16:9'));
+ assert.deepEqual(batch.map(v=>v.resolution),['480p','720p','480p','720p','480p','720p']);
+ assert.match(await page.locator('#aividAdminMessage').innerText(),/No video was generated and no credits were charged/);
+ assert.equal(await page.getByRole('button',{name:'Check all Premium models',exact:true}).isEnabled(),true);
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  assert.deepEqual(errors,[]);
