@@ -15,7 +15,7 @@ generation until the acceptance checks below pass.
   video and audio inputs. These controls were observed on the public site on
   November 5, 2026. Upload acceptance still requires an authenticated test.
 - An explicit source-credit ceiling and a separate global charge switch.
-- A CDP request guard requiring exact job settings, private visibility, and
+- A CDP request guard requiring exact job settings, public visibility, and
   the expected reference count/kinds before allowing the web-app POST.
   An unknown provider payload schema aborts before forwarding. No API access
   token extraction, CAPTCHA solving, proxy rotation or login bypass is used.
@@ -197,10 +197,10 @@ Reference trial example:
 Relative reference paths resolve against the job file. Adapter limits: 9 images,
 3 videos, 3 audio files, 15 total, 64 MiB combined; 10 MiB/image and 30 MiB/video
 or audio. AIVID additionally requires total video and audio duration ≤15 s each
-for Mini. Use short fixtures in the pilot; duration, upload completion, private
+for Mini. Use short fixtures in the pilot; duration, upload completion, public
 toggle semantics, outgoing reference fields and download streaming must all be
 confirmed in live tests. The request guard currently recognizes explicit
-`isPublic/public=false`, `isPrivate/private=true`, or `visibility=private`, and
+`isPublic/public=true`, `isPrivate/private=false`, or `visibility=public`, and
 `references` with `type/kind` values `image/video/audio`. It fails closed if the
 real schema differs. Adjust only from observed requests, without logging raw
 credentials, prompts, uploaded media or signed URLs.
@@ -247,7 +247,7 @@ Worker `/health` includes `aividPolling` timestamps/readiness, never credentials
 
 1. Manual Google login survives browser close/reconnect on the selected plan.
 2. Text-only, image-reference, video-reference and mixed-reference trials each
-   produce the requested private video with the correct settings.
+   produce the requested public video with the correct settings.
 3. The form balance/price and generated request schema match observed values;
    no reference is omitted or unfinished when the request is allowed.
 4. Completed MP4 downloads through the actual Browserless account work and

@@ -10,11 +10,11 @@ const html = `<!doctype html><html><body><header>0 credits</header><main>
 <input id="duration" type="range" min="4" max="30" value="15" oninput="update()"><span id="seconds">15s</span>
 <label>Bypass <input id="bypass" type="checkbox" checked></label>
 <div id="privacy"><span>Public</span><label style="display:inline-flex;width:36px;height:20px;cursor:pointer;position:relative">
-<input id="privateToggle" type="checkbox" checked style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" onchange="window.isPublic=!this.checked;window.privacyChanges++"><div style="width:36px;height:20px;background:gray"></div>
+<input id="privateToggle" type="checkbox" checked style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"><div style="width:36px;height:20px;background:gray"></div>
 </label><span>Private</span></div><span id="price">3 Credits / Video</span>
 <button onclick="window.generateClicks++">Generate</button></main><script>
 window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privacyChanges=0;
-function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=Math.ceil(Number(duration.value)/5)+' Credits / Video';}
+function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
   let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private';
@@ -24,7 +24,8 @@ async function checkForm(page, Client, waitForSession) {
     if (privacyMode === 'disabled') body = body.replace('id="privateToggle"', 'disabled id="privateToggle"');
     if (privacyMode === 'missing') body = body.replace('<span>Private</span>', '<span>Unknown</span>');
     if (privacyMode === 'ambiguous') body = body.replace('</main>', '<div><span>Public</span><label><input type="checkbox"></label><span>Private</span></div></main>');
-    if (privacyMode === 'inert') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('onchange="window.isPublic=!this.checked;window.privacyChanges++"', 'onclick="event.preventDefault()"');
+    if (privacyMode === 'inert') body = body.replace('onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"', 'onclick="event.preventDefault()"');
+    if (privacyMode === 'reset_after_prompt') body = body.replace('<textarea placeholder=', '<textarea oninput="privateToggle.checked=true;window.isPublic=false;update()" placeholder=');
     if (missingModel) body = body.replace('id="mini"', 'hidden id="mini"');
     if (editorMode === 'rich') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>',
       '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" data-placeholder="Describe your video idea..."></div>');
@@ -46,9 +47,9 @@ async function checkForm(page, Client, waitForSession) {
       assert.equal(result.price, Math.ceil(duration / 5));
       assert.equal(result.duration, duration); assert.equal(result.model, 'Seedance 2.0 (Mini)');
       assert.equal(await page.locator('#seconds').innerText(), duration + 's');
-      assert.equal(await page.locator('#privateToggle').isChecked(), true);
-      assert.equal(await page.evaluate(() => window.isPublic), false);
-      assert.equal(await page.evaluate(() => window.privacyChanges), 0);
+      assert.equal(await page.locator('#privateToggle').isChecked(), false);
+      assert.equal(await page.evaluate(() => window.isPublic), true);
+      assert.equal(await page.evaluate(() => window.privacyChanges), 1);
       assert.equal(await page.locator('#bypass').isChecked(), true);
       assert.equal(await page.evaluate(() => window.generateClicks), 0);
       if (mode === 'rich') assert.equal(await page.locator('main [contenteditable]').innerText(), 'A quiet river');
@@ -56,9 +57,9 @@ async function checkForm(page, Client, waitForSession) {
   }
   editorMode = 'textarea'; privacyMode = 'public';
   await client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' });
-  assert.equal(await page.locator('#privateToggle').isChecked(), true);
-  assert.equal(await page.evaluate(() => window.isPublic), false);
-  assert.equal(await page.evaluate(() => window.privacyChanges), 1);
+  assert.equal(await page.locator('#privateToggle').isChecked(), false);
+  assert.equal(await page.evaluate(() => window.isPublic), true);
+  assert.equal(await page.evaluate(() => window.privacyChanges), 0);
   assert.equal(await page.locator('#bypass').isChecked(), true);
   assert.equal(await page.evaluate(() => window.generateClicks), 0);
   page.setDefaultTimeout(250);
@@ -70,6 +71,11 @@ async function checkForm(page, Client, waitForSession) {
     assert.equal(await page.evaluate(() => window.generateClicks), 0);
     assert.equal(await page.locator('#bypass').isChecked(), true);
   }
+  privacyMode = 'reset_after_prompt';
+  await assert.rejects(client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' }), error => {
+    assert.equal(error.aividCode, 'form_verification'); return true;
+  });
+  assert.equal(await page.evaluate(() => window.generateClicks), 0);
   privacyMode = 'private';
   assert.ok(stages.includes('duration') && stages.includes('credit_reading'));
   missingModel = true; page.setDefaultTimeout(250);

@@ -10,7 +10,7 @@ const { AividQueue, reconcileAivid } = require('../src/aivid_queue.js');
 const connectUrl = 'wss://production-sfo.browserless.io/session/test?token=secret-test-token';
 const providerJobId = '6aec589f09c74e1c2ef12900';
 const input = { prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' };
-const payload = { ...input, model: 'seedance-2.0-mini', isPublic: false, references: [] };
+const payload = { ...input, model: 'seedance-2.0-mini', isPublic: true, references: [] };
 
 test('pilot defaults off and never exposes a connection credential in status', () => {
   const config = configFrom({ AIVID_BROWSERLESS_CONNECT_URL: connectUrl });
@@ -125,13 +125,17 @@ test('credit price cannot be mistaken for the account balance', () => {
   assert.throws(() => creditState('40 credits 20 credits 2 Credits / Video'), /balance/);
 });
 
-test('paid request guard requires exact settings, private visibility and every reference', () => {
+test('paid request guard requires exact settings, public visibility and every reference', () => {
   const job = validateJob(input);
   assert.doesNotThrow(() => validateSubmission(payload, job));
-  for (const change of [{ isPublic: true }, { duration: 15 }, { prompt: 'other' }, { resolution: '720p' }, { references: [{}] }])
+  for (const change of [{ isPublic: false }, { duration: 15 }, { prompt: 'other' }, { resolution: '720p' }, { references: [{}] }])
     assert.throws(() => validateSubmission({ ...payload, ...change }, job));
   const absentPrivacy = { ...payload }; delete absentPrivacy.isPublic;
-  assert.throws(() => validateSubmission(absentPrivacy, job), /private/);
+  assert.throws(() => validateSubmission(absentPrivacy, job), /public/);
+  for (const visibility of [{ public: true },{ isPrivate: false },{ private: false },{ visibility: 'public' }])
+    assert.doesNotThrow(() => validateSubmission({ ...absentPrivacy, ...visibility }, job));
+  for (const conflict of [{ isPrivate: true },{ private: true },{ public: false },{ visibility: 'private' }])
+    assert.throws(() => validateSubmission({ ...payload, ...conflict }, job), /public/);
   const refs = [{ kind: 'video', mimeType: 'video/mp4', data: Buffer.from('mp4') }];
   const withVideo = validateJob(input, refs);
   assert.throws(() => validateSubmission(payload, withVideo), /incomplete/);
@@ -140,7 +144,7 @@ test('paid request guard requires exact settings, private visibility and every r
   assert.equal(providerId({ id: 'not-a-job' }), null);
 });
 
-test('interception blocks duplicate POSTs and public or incomplete requests before forwarding', async () => {
+test('interception blocks duplicate POSTs and private or incomplete requests before forwarding', async () => {
   const cdp = new EventEmitter(), calls = [];
   cdp.send = async (method, args) => { calls.push({ method, args }); };
   cdp.detach = async () => {};
@@ -150,7 +154,7 @@ test('interception blocks duplicate POSTs and public or incomplete requests befo
   await handler({ requestId: 'too-early', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest'); assert.equal(guard.allowed, false);
   guard.arm();
-  await handler({ requestId: 'public', request: { url, method: 'POST', postData: JSON.stringify({ ...payload, isPublic: true }) } });
+  await handler({ requestId: 'private', request: { url, method: 'POST', postData: JSON.stringify({ ...payload, isPublic: false }) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
   await handler({ requestId: 'moved-endpoint', request: { url: 'https://api.aivid.dev/v3/generations', method: 'POST', postData: JSON.stringify(payload) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');

@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0.4
+# CMMTools AIVID RDP agent 2.0.5
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -54,7 +54,7 @@ automatically submitted again. Do not delete a receipt to retry a paid job.
 Finished MP4s are validated and uploaded in bounded chunks to CMMTools, which
 uses its existing video storage and completion/refund transactions. Reference
 files are fetched only for the assigned command and checked by size/hash.
-Source-private visibility and the existing submission request guard are used.
+Public visibility is selected and independently checked in the outgoing request, following the owner’s setting.
 
 Customer model activation is still a separate live-verification step. The
 packaged tests do not prove Google login, a paid AIVID generation, or 24/7
@@ -85,5 +85,18 @@ visible Public/Private switch; checked means Private. The agent identifies
 that switch by its labels, clicks its visible label only when needed, and
 verifies the checked state again before finishing preparation. An unknown,
 disabled or ambiguous switch still stops before submission. The outgoing
-request must independently contain private visibility. Update in the existing
+request in that version also required private visibility (changed to Public in 2.0.5 below). Update in the existing
 folder as above; no new login or pairing is needed.
+
+Version 2.0.5 always selects Public before every preflight or generation,
+as requested by the owner. It unchecks the hidden Private checkbox through
+the visible switch, verifies Public again after preparing the form, then reads
+the displayed public price and checks the saved credit limit and balance.
+The outgoing request guard also requires explicit public visibility and blocks
+private, missing or contradictory visibility fields. This does not click
+Generate during a connection check or authorize any paid trial.
+
+Update using this complete ZIP: stop Agent, extract the entire ZIP into the
+existing agent folder and allow overwriting, then restart AIVID-Agent.exe.
+The package includes all EXEs, Node runtime, dependencies and adapters. Saved
+profile, pairing and receipt files are not overwritten by the package.
