@@ -671,7 +671,7 @@ async function adminModelNameList(){
 // Pricing page (no sign-in needed). Cached for 10 minutes.
 // Seedance 2.5 on ArgoLink looks expensive next to the rest, so the Pricing
 // page leaves it out; Seedance Lite (Sluice) stays.
-const PRICING_PAGE_HIDDEN=['argo_seedance_2_5'];
+const PRICING_PAGE_HIDDEN=['argo_seedance_2_5','aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5'];
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
