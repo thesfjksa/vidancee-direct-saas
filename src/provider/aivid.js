@@ -92,12 +92,15 @@ async function step(code, action, onProgress) {
   }
 }
 
+// Browser text controls normalize Windows CRLF and lone CR to LF. Preserve
+// every other character, including spaces, tabs, mentions and Unicode.
+function normalizePrompt(value) { return String(value ?? '').replace(/\r\n?/g,'\n'); }
 function validateJob(value, references = []) {
   if (!value || typeof value !== 'object') throw new Error('An AIVID job is required.');
   const spec=aividModel(value.model || DEFAULT_ID);
   if(!spec)throw new Error('Unknown AIVID Premium model.');
   const job = { modelId:spec.id, modelLabel:spec.name, providerModelId:spec.providerId,
-    prompt: String(value.prompt || '').trim(), duration: Number(value.duration),
+    prompt: normalizePrompt(value.prompt).trim(), duration: Number(value.duration),
     aspectRatio: String(value.aspectRatio || value.aspect_ratio || '16:9'), resolution: String(value.resolution || '480p') };
   if (!job.prompt || job.prompt.length > 50000) throw new Error('Prompt must contain 1–50,000 characters.');
   if (!Number.isInteger(job.duration) || job.duration < 4 || job.duration > spec.maxSeconds) throw new Error(spec.id===DEFAULT_ID?'Mini supports 4–15 whole seconds.':'The selected model does not support this duration.');
@@ -149,7 +152,8 @@ function creditState(text) {
 // Fail closed on an unknown outgoing schema. UI selection alone does not
 // prove the requested public visibility or that every upload reached the paid request.
 function validateSubmission(body, job) {
-  if (!body || typeof body !== 'object' || body.model !== job.providerModelId || body.prompt !== job.prompt ||
+  if (!body || typeof body !== 'object' || body.model !== job.providerModelId ||
+    typeof body.prompt !== 'string' || normalizePrompt(body.prompt) !== job.prompt ||
     Number(body.duration) !== job.duration || body.resolution !== job.resolution ||
     (body.aspectRatio ?? body.aspect_ratio) !== job.aspectRatio)
     throw new Error('AIVID submission settings differ from the prepared job.');
@@ -193,7 +197,36 @@ async function waitForSession(page, { timeoutMs = 45000 } = {}) {
 }
 
 async function promptValue(editor) {
-  return editor.evaluate(element => element.tagName === 'TEXTAREA' ? element.value : element.innerText);
+  return normalizePrompt(await editor.evaluate(element => element.tagName === 'TEXTAREA' ? element.value : element.innerText));
+}
+
+async function fillPrompt(editor,text,{timeoutMs=2000,stableMs=400,intervalMs=100}={}) {
+  const expected=normalizePrompt(text);
+  // A visible React form can still replace/reset the editor after fill().
+  // Commit focus, check retention, and retry this harmless write at most once.
+  // Neither attempt clicks Generate or relaxes the paid-request guard.
+  for(let attempt=0;attempt<2;attempt++){
+    if(attempt===1 && await editor.evaluate(element=>element.isContentEditable===true)){
+      // Native rich-text fill can turn a blank line into div/br markup whose
+      // rendered innerText contains an extra newline. Refill literal text,
+      // without interpreting HTML, and notify the editor's input handler.
+      await editor.evaluate((element,value)=>{
+        element.focus();element.textContent=value;
+        const Input=element.ownerDocument.defaultView.InputEvent;
+        element.dispatchEvent(new Input('input',{bubbles:true,inputType:'insertText',data:value}));
+      },expected);
+    }else await editor.fill(expected);
+    await editor.press('Tab');
+    const deadline=Date.now()+timeoutMs;let stableSince=null;
+    do {
+      if(await promptValue(editor)===expected){
+        stableSince??=Date.now();
+        if(Date.now()-stableSince>=stableMs)return;
+      } else stableSince=null;
+      await new Promise(resolve=>setTimeout(resolve,intervalMs));
+    } while(Date.now()<deadline);
+  }
+  throw sessionFailure('form_prompt');
 }
 
 async function openLoginPage(page) {
@@ -357,7 +390,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     }
   }, onProgress);
   const prompt = promptEditors(page);
-  await step('prompt', () => prompt.fill(job.prompt), onProgress);
+  await step('prompt', () => fillPrompt(prompt,job.prompt), onProgress);
   await step('form_verification', async () => {
     // Each failing field has a fixed, non-sensitive code. No prompt, page text,
     // selectors, customer data or authentication details leave the RDP host.
@@ -499,4 +532,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, normalizePrompt, fillPrompt, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };

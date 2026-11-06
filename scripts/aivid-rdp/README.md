@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.3
+# CMMTools AIVID RDP agent 2.1.4
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -183,3 +183,6 @@ No private token, cookies, or prompt contents are needed.
 
 ## Model selection reliability — v2.1.3
 Waits for the visible model menu option before selecting it, skips reopening an already-selected model, and rejects ambiguous options. Public visibility, exact duration, outgoing request and durable receipt checks remain required. Upgrade the entire ZIP after stopping the old agent; preserve pairing, Chrome profile and receipts.
+
+## Prompt retention — v2.1.4
+Windows CRLF/lone-CR line endings are normalized to browser LF without collapsing spaces, blank lines, mentions or Unicode. Prompt entry commits focus and must remain exact for a short stability window. One pre-submit refill is allowed after a reset; persistent changes still stop before Generate. The outgoing request guard independently checks the same text. Upgrade the entire package after stopping the old agent, preserving pairing/profile/receipts.

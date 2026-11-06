@@ -23,7 +23,7 @@ test('real installed Chrome keeps its profile alive after CDP disconnect and dow
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 200 });
   });
-  remote = await connectNative(profile, { start: (dir, options) => startChrome(dir, { ...options, initialUrl: 'about:blank' }) });
+  remote = await connectNative(profile, { timeoutMs:60000, start: (dir, options) => startChrome(dir, { ...options, initialUrl: 'about:blank' }) });
   await remote.page.goto('chrome://version/');
   const args = await remote.page.locator('#command_line').innerText();
   assert.doesNotMatch(args, /--no-sandbox|--enable-automation|--disable-web-security|--remote-allow-origins/);
