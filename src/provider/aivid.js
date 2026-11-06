@@ -59,7 +59,7 @@ const DIAGNOSTICS = Object.freeze({
   session_form_missing: 'No visible prompt editor was found in the AIVID generation area. Check that the Generate page has finished loading.',
   session_form_ambiguous: 'More than one visible prompt editor was found. Close extra AIVID dialogs before retrying.',
   session_page_left: 'The AIVID tab left the generation site. Inspect Chrome and finish any sign-in steps before retrying.',
-  model_selection: 'Could not select Seedance 2.0 (Mini). Check that its model menu opens on the RDP.',
+  model_selection: 'Could not select the requested AIVID model. Check that its model menu opens on the RDP.',
   aspect_ratio: 'Could not select the requested AIVID aspect ratio.',
   resolution: 'Could not select the requested AIVID resolution.',
   duration: 'Could not set or verify the AIVID duration slider.',
@@ -334,18 +334,13 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   // which model is currently selected after the menu closes.
   const modelTrigger = main.getByRole('button', { name: /Seedance|MiniMax/ }).first();
   await step('model_selection', async () => {
+    if(selectedModelMatches(await modelTrigger.innerText(),job.modelId))return;
     await modelTrigger.click();
-    const pattern=job.modelId==='aivid_seedance_2_0'
-      ? /^Seedance 2\.0(?! \(Mini\))(?:\s|$)/
-      : job.modelId==='aivid_seedance_2_0_mini'
-        ? /^Seedance 2\.0 \(Mini\)(?:\s|$)/
-        : /^Seedance 2\.5(?:\s|$)/;
-    const candidate=main.getByRole('button',{name:pattern});
-    const count=await candidate.count();
-    if(count<1||count>2)throw new Error('AIVID model option was not unique.');
-    // The current-model trigger and the menu choice can share the same name.
-    // The menu choice follows the trigger in DOM order; never toggle the trigger.
-    await candidate.last().click();
+    const candidate=main.getByRole('button',{name:SELECTED_MODEL[job.modelId]}).filter({visible:true});
+    // React menus render asynchronously; count() alone does not wait.
+    await candidate.first().waitFor({state:'visible',timeout:10000});
+    if(await candidate.count()!==1)throw new Error('AIVID model option was not unique.');
+    await candidate.click();
   }, onProgress);
   const ratioControl = await step('aspect_ratio', () => choose(page, /^\d+:\d+(?:\s|$)/, job.aspectRatio), onProgress);
   const resolutionControl = await step('resolution', () => choose(page, /^\d+p(?:\s|$)/, job.resolution), onProgress);

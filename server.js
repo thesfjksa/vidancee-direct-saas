@@ -2405,6 +2405,8 @@ const server=http.createServer(async (req,res)=>{
         const {aividBaseCredits,aividSourceUsd}=require('./src/aivid_pricing.js');
         return sendJson(res,200,{ok:true,...result,model:value.model,duration:value.duration,
           resolution:value.resolution,aspectRatio:value.aspectRatio,
+          modelVerified:result.ready===true&&result.submitted===false&&result.modelId===value.model&&
+            result.duration===value.duration&&result.resolution===value.resolution&&result.aspectRatio===value.aspectRatio,
           withinLimit:Number.isFinite(sourceCredits)&&sourceCredits>0&&sourceCredits<=config.maxSourceCredits,
           sourceUsd:aividSourceUsd(sourceCredits),standardCustomerCredits:applyPriceRate(aividBaseCredits(sourceCredits),priceRate(null))});
       }

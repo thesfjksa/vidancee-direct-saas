@@ -230,6 +230,7 @@
         message(lines.concat('Checking '+label+' · '+resolution+' · 5 seconds…').join('\n'));
         try {
           const data=await api('/admin/aivid/check',{method:'POST',body:JSON.stringify({model,duration:5,resolution,aspectRatio:'16:9'})});
+          if(data.modelVerified!==true)throw new Error('Server or agent did not verify the requested model/settings. Deploy current server and use the complete current agent.');
           const limit=data.withinLimit===false?' · exceeds saved source-credit limit':'';
           lines.push(label+' · '+resolution+' · 5 seconds: '+data.price+' AIVID credits · balance '+data.balance+
             (Number.isFinite(data.standardCustomerCredits)?' · standard customer '+data.standardCustomerCredits+' credits':'')+limit);

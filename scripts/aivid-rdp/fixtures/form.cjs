@@ -18,7 +18,7 @@ window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privac
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false;
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
@@ -31,7 +31,9 @@ async function checkForm(page, Client, waitForSession) {
     if (badDurationLabel) body=body.replace("seconds.textContent=duration.value+'s'", "seconds.textContent='15s'");
     if (sliderMin!==4) body=body.replace('type="range" min="4"','type="range" min="'+sliderMin+'"');
     if (sliderStep!==1) body=body.replace('type="range" min="4" max="30"','type="range" min="4" max="30" step="'+sliderStep+'"');
-    if (shortSlider) body=body.replace('duration.max=30;update()','duration.max=15;update()');
+    if (shortSlider) body=body.replace('duration.max=30;update()','duration.max=15;update()').replace('id="duration" type="range" min="4" max="30"','id="duration" type="range" min="4" max="15"');
+    if(delayedMenu)body=body.replace("document.querySelector('#models').hidden=false","setTimeout(()=>document.querySelector('#models').hidden=false,100)");
+    if(duplicateModel)body=body.replace('id="models" hidden>','id="models" hidden><button>Seedance 2.0 High quality duplicate</button>');
     if (missingImageInput) body = body.replace('id="refImages" type="file"', 'id="refImages" type="text"');
     if (ambiguousImageInput) body=body.replace('<span id="refSelected"></span>',
       '<span id="refSelected"></span><input type="file" accept="image/*">');
@@ -72,6 +74,20 @@ async function checkForm(page, Client, waitForSession) {
   // All three models must select the right current-model button, set Public
   // and read post-switch price without ever clicking Generate.
   editorMode = 'textarea';
+  delayedMenu=true;
+  for(const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0']){
+    const result=await client.preflight({model,prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'480p'});
+    assert.equal(result.modelId,model);
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  delayedMenu=false;
+  const alreadySelected=await client.preflight({model:'aivid_seedance_2_5',prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'720p'});
+  assert.equal(alreadySelected.modelId,'aivid_seedance_2_5');
+  assert.equal(await page.locator('#models').isVisible(),false);
+  duplicateModel=true;
+  await assert.rejects(client.preflight({model:'aivid_seedance_2_0',prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'720p'}),e=>e.aividCode==='model_selection');
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  duplicateModel=false;
   for (const [model,duration] of [['aivid_seedance_2_0',15],['aivid_seedance_2_5',30]]) {
     const result=await client.preflight({model,prompt:'A quiet river',duration,aspectRatio:'16:9',resolution:'480p'});
     assert.equal(result.modelId,model);

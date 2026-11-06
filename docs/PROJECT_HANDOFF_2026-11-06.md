@@ -10,6 +10,10 @@
 
 ## 6 November live audit continuation, about 18:53 PKT
 
+**Quote verification follow-up:** the RDP bridge previously discarded the model/duration/resolution/ratio returned by the current agent. It now relays only matching sanitized fields, returns fixed form-mismatch diagnostics otherwise, and customer pricing refuses missing or mismatched metadata. The Admin batch requires modelVerified=true, so a rolling deployment or old Mini-only agent cannot falsely pass all six checks. These metadata fields are already supplied by v2.1.2.
+
+**Live six-combination probe around 19:07 PKT:** 5s/16:9 Public preflights returned Mini 480p=1 and 720p=2, Seedance 2.0 480p=2, Seedance 2.5 480p=9 and 720p=14 source credits; balance remained 50. Seedance 2.0 720p failed with model_selection before generation. These are observed quotes, not paid acceptance or permanent provider rates. Source inspection found a concrete race: candidate.count() ran immediately after opening the React model menu, with no render wait. Full Agent **v2.1.3** waits for the visible matching option, refuses duplicates and avoids reopening an already-selected model; fixtures include a delayed menu. The owner's installed RDP must be upgraded with the complete ZIP, preserving pairing/profile/receipts, before claiming the selection fix is live. Re-run verified probes after deployment and upgrade. No paid video was generated.
+
 - Live web and worker health returned HTTP 200; MySQL connected; the separate worker reported AIVID enabled and sourceReady=true with recent successful polls. The web process's own workerEnabled=false is intentional with this separate worker.
 - Live customer HTML and Admin JavaScript matched the merged v2.1.2 source. Public catalog returned all three distinct AIVID IDs with premium=true, ready=true and the Public visibility warning. This does not prove each customer's individual source grant.
 - Authenticated Admin showed persisted enabled=true, maxSourceCredits=19 and RDP ready. Its read-only Mini 480p/4s preflight succeeded with balance 50 and price 1 AIVID credit; no video or debit.

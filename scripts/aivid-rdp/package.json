@@ -1,1 +1,1 @@
-{"name":"cmmtools-aivid-rdp-agent","version":"2.1.2","private":true,"scripts":{"test":"node --test test/*.test.cjs"},"dependencies":{"playwright-core":"1.62.1"}}
+{"name":"cmmtools-aivid-rdp-agent","version":"2.1.3","private":true,"scripts":{"test":"node --test test/*.test.cjs"},"dependencies":{"playwright-core":"1.62.1"}}

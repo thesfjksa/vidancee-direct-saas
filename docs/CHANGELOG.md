@@ -1,3 +1,9 @@
+## 2026-11-06 — Verified Premium quotes and model-menu readiness (Agent v2.1.3)
+
+- The RDP bridge validates and relays the actual prepared model ID, duration, resolution and aspect ratio; customer quotes reject missing/mismatched confirmation. Admin's full model check also requires this verification.
+- Fix a model-selection race by waiting for a visible unique menu option and reusing an already-selected model. Delayed and ambiguous menu fixtures guard the change. Full Windows Agent v2.1.3 is required on the RDP for this adapter change; deployment alone cannot replace its local EXE/runtime.
+- Live no-charge probes found five successful combinations and one Seedance 2.0/720p model-selection failure. Paid outputs, references and wallet reconciliation remain unverified.
+
 ## 2026-11-06 — AIVID Premium video length accuracy (Agent v2.1.2)
 
 - Video Studio now selects the advertised **5-second** default for AIVID Premium when it is supported, rather than silently choosing maximum (15 seconds Mini / up to 30 seconds 2.5). Other providers' UI defaults are unchanged.

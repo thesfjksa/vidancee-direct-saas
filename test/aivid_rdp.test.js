@@ -140,6 +140,23 @@ test('read-only preflight works with zero balance and never requests a paid rese
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.balance, 0); assert.equal(reservations, 0);
 });
+test('Premium preflight relay preserves verified model settings and rejects wrong or missing attestations',async()=>{
+  const requested={...value,model:'aivid_seedance_2_5',duration:5,resolution:'720p'};
+  const good={ready:true,submitted:false,price:14,balance:50,modelId:requested.model,
+    duration:5,resolution:'720p',aspectRatio:'16:9'};
+  for(const [patch,code] of [[{},null],[{modelId:'aivid_seedance_2_0_mini'},'form_model'],
+    [{duration:15},'form_duration'],[{resolution:'480p'},'form_resolution'],
+    [{aspectRatio:'9:16'},'form_aspect_ratio'],[{modelId:undefined},'form_model']]){
+    const f=fixture(),id=crypto.randomUUID();
+    await f.store.insert({id,deviceId:f.device.deviceId,kind:'preflight',expiresAt:Date.now()+10000,payload:{value:requested}});
+    await f.service.poll(f.device,'ready');
+    await f.service.result(f.device,id,{...good,...patch,secret:'do-not-relay'});
+    const response=(await f.store.get(id)).response;
+    if(code)assert.deepEqual(response,{error:true,errorCode:code});
+    else assert.deepEqual(response,good);
+    assert.doesNotMatch(JSON.stringify(response),/do-not-relay/);
+  }
+});
 test('MP4 is transferred in bounded chunks and verified before the existing queue receives it', { timeout: 10000 }, async () => {
   const f = fixture(), data = Buffer.alloc(1024 * 1024 + 20); data.write('ftyp', 4, 'ascii');
   const agent = new Agent({ transport: f.transport, clientFactory: () => ({ collectVideo: async () => ({ state: 'completed', output: { data, mimeType: 'video/mp4' } }) }) });
