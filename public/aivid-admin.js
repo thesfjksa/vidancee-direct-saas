@@ -105,7 +105,7 @@
       el('aividLoginMessage').textContent = 'Status could not be refreshed. Use Refresh status to reconnect to this attempt.';
     }
   }
-  window.loadAividAdmin = async () => {
+  window.loadAividAdmin = async ({strict=false}={}) => {
     clearTimeout(timer);
     try {
       const data = await api('/admin/aivid/status');
@@ -136,7 +136,7 @@
       if (savedMode !== 'rdp' && data.sessionExpired && !active) el('aividConnectionBadge').textContent = 'Session expired';
       if (active) await pollLogin();
       return data;
-    } catch (error) { message(error.message, true); throw error; }
+    } catch (error) { message(error.message, true); if(strict)throw error; return null; }
     finally { buttons(); }
   };
   window.saveAividAdmin = async () => {
@@ -151,7 +151,7 @@
         ttlDays: Number(el('aividSessionDays').value),
       }) });
       el('aividBrowserlessKey').value = '';
-      const verified=await window.loadAividAdmin();
+      const verified=await window.loadAividAdmin({strict:true});
       if(saved.enabled!==expectedEnabled || Number(saved.maxSourceCredits)!==expectedCeiling ||
          verified.enabled!==expectedEnabled || Number(verified.maxSourceCredits)!==expectedCeiling)
         throw new Error('Saved AIVID state differs from your settings. Refresh Admin and check database write access.');
