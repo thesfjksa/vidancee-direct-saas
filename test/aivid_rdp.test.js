@@ -203,3 +203,16 @@ test('only fixed diagnostic codes reach Admin; raw browser failures stay private
   await f.service.result(f.device, next.id, { error: true, errorCode: 'SECRET cookie token' });
   await assert.rejects(second, error => { assert.doesNotMatch(error.message, /SECRET|cookie|token/); return true; });
 });
+
+test('upload rejection before reservation reports safely without a receipt or paid request',async t=>{
+  const f=fixture(),root=await fs.mkdtemp(path.join(os.tmpdir(),'aivid-no-reserve-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  let reservations=0;
+  const agent=new Agent({root,transport:f.transport,clientFactory:()=>({startVideo:async()=>({state:'rejected'})})});
+  const waiting=f.client.startVideo(value,[],{beforeClick:async()=>{reservations++}});await flush();
+  const {command}=await f.service.poll(f.device,'ready');
+  await assert.rejects(f.service.result(f.device,command.id,{state:'accepted',providerJobId}),/not reserved/);
+  await assert.rejects(f.service.result(f.device,command.id,{state:'submission_uncertain'}),/not reserved/);
+  const [,result]=await Promise.all([agent.execute(command),waiting]);
+  assert.equal(result.state,'rejected');assert.equal(reservations,0);
+  await assert.rejects(fs.stat(path.join(root,'receipts',jobId+'.json')),e=>e.code==='ENOENT');
+});

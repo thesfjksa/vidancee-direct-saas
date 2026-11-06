@@ -120,7 +120,7 @@ class AividRdpClient {
           if (!await this.store.move(command.id, 'review', 'reserved', { price })) throw failure('The RDP reservation expired.', 409);
         }
         if (current.state === 'done') {
-          if (kind === 'submit' && !reserved) throw failure('RDP submission had no server reservation.', 409);
+          if (kind === 'submit' && !reserved && current.response.state!=='rejected' && !current.response.error) throw failure('RDP submission had no server reservation.', 409);
           if (current.response.error) throw failure(current.response.errorCode
             ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
             : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503);
@@ -267,7 +267,7 @@ class AividRdpService {
       }
     }
     else if (command.kind === 'submit' && ['accepted', 'rejected', 'submission_uncertain'].includes(input.state)) {
-      if (command.state !== 'reserved') throw failure('Submission was not reserved.', 409);
+      if (command.state !== 'reserved' && !(command.state==='running' && input.state==='rejected')) throw failure('Submission was not reserved.', 409);
       if (input.state === 'accepted' && !ID.test(input.providerJobId || '')) throw failure('Invalid AIVID result.');
       result = { state: input.state, ...(input.state === 'accepted' ? { providerJobId: input.providerJobId } : {}) };
     } else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) result = { state: input.state };
