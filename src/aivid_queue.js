@@ -90,7 +90,8 @@ class AividQueue extends VercelQueue {
           if (this.stopped) throw new Error('Worker is stopping before submission.');
           const latest = await this.getSettings();
           const config = await this.getConfig();
-          if (!latest.allowProviderCharges || !config.enabled || price > config.maxSourceCredits)
+          if (!latest.allowProviderCharges || !config.enabled || price > config.maxSourceCredits ||
+              (Number.isFinite(Number(options.quotedSourceCredits)) && options.quotedSourceCredits != null && Number(options.quotedSourceCredits)!==price))
             throw new Error('New submissions are paused or the price limit changed.');
           const [reserved] = await db.execute("UPDATE generations SET provider_operation=?,provider_cost=?,provider_cost_unit='aivid_credits',updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status='submitting' AND refunded_at IS NULL",
             [JSON.stringify({ stage: 'click_reserved', price }), price, job.id]);

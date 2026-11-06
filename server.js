@@ -436,7 +436,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['api888','sluice','vidancee','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
@@ -630,12 +630,17 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('vidancee',()=>publicProviderCatalog('vidancee',{creditsPerUsd:providerSettings.vidancee.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
+  if(access.aivid){
+    const config=await require('./src/aivid_settings.js').getAividSettings().catch(()=>null);
+    video.push(...require('./src/aivid_models.js').customerCatalog(config));
+  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
 
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
+  if(require('./src/aivid_models.js').isAividModel(id))return 'AIVID';
   if(isApi888Model(id))return '888API';
   if(isArgoModel(id))return 'ArgoLink';
   if(isHiggsfieldModel(id))return 'Higgsfield';
@@ -728,6 +733,10 @@ async function quoteModelForUser(userId,body){
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
+  }
+  if(mediaType==='video'&&require('./src/aivid_models.js').isAividModel(body.model)){
+    if(!access.aivid)throw httpError(403,'Premium models are not enabled for your account.');
+    return require('./src/aivid_models.js').quoteAivid(await require('./src/aivid_settings.js').getAividSettings(),body);
   }
   if(isApi888Model(body.model)){
     if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
@@ -865,6 +874,17 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
   // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
+  if(!cartoonOptions&&require('./src/aivid_models.js').isAividModel(requestedModel)){
+    if(!customerAccess.aivid)throw httpError(403,'Premium models are not enabled for your account.');
+    const config=await require('./src/aivid_settings.js').getAividSettings();
+    const {aividModel,capabilities,quoteAivid}=require('./src/aivid_models.js');
+    const spec=aividModel(requestedModel);
+    const quote=await quoteAivid(config,body);
+    generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),
+      costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',
+      generationOptions:{quotedSourceCredits:quote.sourceCredits,model:requestedModel}});
+  }
   if(!cartoonOptions&&isApi888Model(requestedModel)){
     if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey)throw httpError(503,'888API video generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'video');

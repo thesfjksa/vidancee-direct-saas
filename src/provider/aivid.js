@@ -4,6 +4,7 @@ const { connectSession, LOGIN_VIEWPORT } = require('./browserless.js');
 const ORIGIN = 'https://aivid.dev';
 const API = 'https://api.aivid.dev';
 const MINI = 'Seedance 2.0 (Mini)';
+const { aividModel, DEFAULT_ID } = require('../aivid_models.js');
 const ID = /^[a-zA-Z0-9_-]{16,80}$/;
 const MAX_OUTPUT_BYTES = 100 * 1024 * 1024;
 const INPUTS = {
@@ -52,13 +53,16 @@ async function step(code, action, onProgress) {
 
 function validateJob(value, references = []) {
   if (!value || typeof value !== 'object') throw new Error('An AIVID job is required.');
-  const job = { prompt: String(value.prompt || '').trim(), duration: Number(value.duration),
+  const spec=aividModel(value.model || DEFAULT_ID);
+  if(!spec)throw new Error('Unknown AIVID Premium model.');
+  const job = { modelId:spec.id, modelLabel:spec.name, providerModelId:spec.providerId,
+    prompt: String(value.prompt || '').trim(), duration: Number(value.duration),
     aspectRatio: String(value.aspectRatio || value.aspect_ratio || '16:9'), resolution: String(value.resolution || '480p') };
   if (!job.prompt || job.prompt.length > 50000) throw new Error('Prompt must contain 1–50,000 characters.');
-  if (!Number.isInteger(job.duration) || job.duration < 4 || job.duration > 15) throw new Error('Mini supports 4–15 whole seconds.');
+  if (!Number.isInteger(job.duration) || job.duration < 4 || job.duration > spec.maxSeconds) throw new Error(spec.id===DEFAULT_ID?'Mini supports 4–15 whole seconds.':'The selected model does not support this duration.');
   if (!['16:9', '9:16', '1:1'].includes(job.aspectRatio)) throw new Error('Unsupported Mini aspect ratio.');
-  if (!['480p', '720p'].includes(job.resolution)) throw new Error('Unsupported Mini resolution.');
-  if (!Array.isArray(references) || references.length > 15) throw new Error('Mini supports at most 15 reference files.');
+  if (!spec.resolutions.includes(job.resolution)) throw new Error('Unsupported model resolution.');
+  if (!Array.isArray(references) || references.length > spec.refs.image+spec.refs.video+spec.refs.audio) throw new Error('Too many references for this model.');
   const counts = { image: 0, video: 0, audio: 0 }; let totalBytes = 0;
   for (const ref of references) {
     if (!MIME[ref.kind]?.includes(ref.mimeType) || !Buffer.isBuffer(ref.data) || !ref.data.length)
@@ -67,8 +71,8 @@ function validateJob(value, references = []) {
     if (ref.data.length > (ref.kind === 'image' ? 10 : 30) * 1024 * 1024)
       throw new Error('A reference exceeds the adapter file size limit.');
   }
-  if (counts.image > 9 || counts.video > 3 || counts.audio > 3 || totalBytes > 64 * 1024 * 1024)
-    throw new Error('The reference count or combined file size exceeds the Mini adapter limit.');
+  if (counts.image > spec.refs.image || counts.video > spec.refs.video || counts.audio > spec.refs.audio || totalBytes > 64 * 1024 * 1024)
+    throw new Error('The reference count or combined file size exceeds the current adapter limit.');
   return { ...job, counts };
 }
 
@@ -104,7 +108,7 @@ function creditState(text) {
 // Fail closed on an unknown outgoing schema. UI selection alone does not
 // prove the requested public visibility or that every upload reached the paid request.
 function validateSubmission(body, job) {
-  if (!body || typeof body !== 'object' || body.model !== 'seedance-2.0-mini' || body.prompt !== job.prompt ||
+  if (!body || typeof body !== 'object' || body.model !== job.providerModelId || body.prompt !== job.prompt ||
     Number(body.duration) !== job.duration || body.resolution !== job.resolution ||
     (body.aspectRatio ?? body.aspect_ratio) !== job.aspectRatio)
     throw new Error('AIVID submission settings differ from the prepared job.');
@@ -208,13 +212,23 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   const main = page.locator('main').first();
   await step('model_selection', async () => {
     await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
-    await main.getByRole('button', { name: /^Seedance 2\.0 \(Mini\) / }).click();
+    const pattern=job.modelId==='aivid_seedance_2_0'
+      ? /^Seedance 2\.0(?! \(Mini\))(?:\s|$)/
+      : job.modelId==='aivid_seedance_2_0_mini'
+        ? /^Seedance 2\.0 \(Mini\)(?:\s|$)/
+        : /^Seedance 2\.5(?:\s|$)/;
+    const candidate=main.getByRole('button',{name:pattern});
+    const count=await candidate.count();
+    if(count<1||count>2)throw new Error('AIVID model option was not unique.');
+    // The current-model trigger and the menu choice can share the same name.
+    // The menu choice follows the trigger in DOM order; never toggle the trigger.
+    await candidate.last().click();
   }, onProgress);
   await step('aspect_ratio', () => choose(page, /^\d+:\d+$/, job.aspectRatio), onProgress);
   await step('resolution', () => choose(page, /^\d+p$/, job.resolution), onProgress);
-  const slider = main.locator('input[type="range"][min="4"][max="15"]');
+  const slider = main.locator('input[type="range"][min="4"]');
   await step('duration', async () => {
-    if (await slider.count() !== 1) throw new Error();
+    if (await slider.count() !== 1 || Number(await slider.getAttribute('max'))<job.duration) throw new Error();
     // Keyboard events update the app's duration state as well as the DOM value.
     await slider.press('Home');
     for (let second = 4; second < job.duration; second++) await slider.press('ArrowRight');
@@ -236,7 +250,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   await step('prompt', () => prompt.fill(job.prompt), onProgress);
   await step('form_verification', async () => {
     if (await privacy.isChecked() || await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
-        !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
+        !await main.getByRole('button', { name: job.modelLabel, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
       throw new Error('AIVID form verification failed.');
@@ -293,7 +307,7 @@ class AividBrowserlessClient {
     return this.withPage(async page => {
       const job = await prepare(page, value, references, { onProgress: this.onProgress });
       const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
-      return { ready: true, model: MINI, duration: job.duration, resolution: job.resolution,
+      return { ready: true, model: job.modelLabel, modelId: job.modelId, duration: job.duration, resolution: job.resolution,
         aspectRatio: job.aspectRatio, referenceCounts: job.counts, ...credits, submitted: false };
     });
   }

@@ -1552,7 +1552,7 @@ async function fetchQuote(body){
   let lastError;
   for(let attempt=0;attempt<2;attempt++){
     try{
-      const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});
+      const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(String(body.model||'').startsWith('aivid_')?120000:10000)});
       const quote={cost:Number(d.cost),isEstimate:Boolean(d.isEstimate)};
       if(quoteCache.size>200)quoteCache.clear();
       quoteCache.set(key,quote);
@@ -2717,7 +2717,7 @@ function imageModelLabel(id){
   if(known)return known;
   // A model no longer offered to this account still gets a readable name, e.g.
   // gpt_image_2_5_flare_studio -> GPT Image 2.5 Flare.
-  return String(id||'').replace(/^studio_gw_[a-z]+_|^argo_|^api888_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
+  return String(id||'').replace(/^studio_gw_[a-z]+_|^argo_|^api888_|^aivid_/,'').replace(/_studio$/,'').replace(/(\d)_(?=\d)/g,'$1.')
     .split('_').filter(Boolean).map(w=>w==='gpt'?'GPT':w.charAt(0).toUpperCase()+w.slice(1)).join(' ')||String(id||'');
 }
 

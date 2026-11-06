@@ -142,8 +142,9 @@
             <div id="aividPairCopyRow" hidden style="margin-top:12px"><label for="aividPairCodeInput">One-time pairing code</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="aividPairCodeInput" readonly autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button id="aividCopyCodeButton" class="secondary" type="button" onclick="copyAividRdpCode()">Copy code</button></div></div>
             <p id="aividPairCode" class="muted" role="status" style="overflow-wrap:anywhere"></p>
             <div class="field"><label for="aividRdpCeiling">Maximum AIVID credits per video</label><input id="aividRdpCeiling" type="number" min="0" max="10000" step="0.01" value="0"></div>
+            <div class="field"><label for="aividCustomerRate">Customer credits per AIVID credit (default: 480 ≈ Rs 20)</label><input id="aividCustomerRate" type="number" min="0.01" max="10000" step="0.01" value="480"></div>
             <label><input id="aividRdpEnabled" type="checkbox" style="width:auto"> Accept queued AIVID jobs</label>
-            <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Customer models stay off until a live video test passes.</p>
+            <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Premium models are listed when this source is enabled and online. Each quote checks live Public pricing; any changed price blocks submission.</p>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin:12px 0"><button class="btn" id="aividSaveButton" onclick="saveAividAdmin()">Save Browserless key</button><button class="secondary" onclick="loadAividAdmin()">Refresh status</button></div>
           <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividConnectButton" onclick="connectAividAdmin(false)">Connect aivid</button><button class="secondary" id="aividCheckButton" onclick="checkAividAdmin()">Check connection</button></div>
@@ -156,7 +157,7 @@
           <p id="aividSessionStatus" class="muted" role="status"></p>
           <p id="aividAdminMessage" class="muted" role="status" style="white-space:pre-wrap"></p>
           <details style="margin-top:14px"><summary>Session recovery</summary><p class="muted">Connect reopens the saved session. If it has stopped working, create a new session and sign in again. Outstanding generations must be resolved before replacing their session.</p><button id="aividReplaceButton" class="secondary" onclick="connectAividAdmin(true)">Create new login session</button></details>
-          <p class="muted" style="margin-top:14px">Customer access stays off until a live video test passes.</p>
+          <p class="muted" style="margin-top:14px">Premium models appear in Video Studio for enabled customers while the RDP agent is online and ready.</p>
         </div>
         <div class="card provider-source-card" data-provider-source="argolink" hidden="hidden">
           <div class="source-head"><h3>Video Studio + image backup · ArgoLink</h3><label class="source-switch"><input id="argoEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
@@ -421,6 +422,7 @@
     </div>
     <div class="muted">Only models from enabled sources will appear in this customer's dashboard. Global provider switches still take priority.</div>
     <div class="provider-access-list">
+      <label class="provider-access-item"><div><strong>AIVID Premium</strong><span class="muted">Seedance 2.0 Mini, 2.0 and 2.5 · Video Studio</span></div><span class="source-switch"><input id="accessAivid" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>888API</strong><span class="muted">Video Studio + Image Studio</span></div><span class="source-switch"><input id="accessApi888" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -700,6 +702,7 @@ function openProviderAccess(id){
   const a=user.provider_access||{};
   $('providerAccessUser').textContent=user.email+' · User #'+user.id;
   $('accessVercel').checked=a.vercel!==false;
+  $('accessAivid').checked=a.aivid!==false;
   $('accessApi888').checked=a.api888===true;
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
@@ -718,6 +721,7 @@ async function saveProviderAccess(){
   const m=$('providerAccessMsg');m.className='muted';m.textContent='Saving access...';
   const providers={
     vercel:$('accessVercel').checked,
+    aivid:$('accessAivid').checked,
     api888:$('accessApi888').checked,
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,

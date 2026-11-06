@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0.5
+# CMMTools AIVID RDP agent 2.1.0
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -100,3 +100,26 @@ Update using this complete ZIP: stop Agent, extract the entire ZIP into the
 existing agent folder and allow overwriting, then restart AIVID-Agent.exe.
 The package includes all EXEs, Node runtime, dependencies and adapters. Saved
 profile, pairing and receipt files are not overwritten by the package.
+
+## Premium Video Studio integration (2.1.0)
+
+CMMTools lists AIVID Seedance 2.0 Mini, Seedance 2.0 and Seedance 2.5 as
+Premium video models while this agent is paired, online and enabled in Admin.
+The agent selects the model explicitly and reads Public-mode price before it
+will attempt any paid click. If AIVID has changed a model selector or payload,
+validation blocks the request; do not bypass these safety guards.
+A new pricing preflight on the server is used for each new customer job.
+The wallet reservation is released if the actual source price differs from
+that quote, so a customer is never charged an unapproved higher amount.
+
+In Admin, set the maximum AIVID credits per clip and the **customer credits
+per AIVID credit** rate; these are separate from 888API's yuan prices.
+Stop Agent, extract the complete latest ZIP over the existing agent folder,
+then run AIVID-Agent.exe. Keep the existing agent profile, pairing file and
+receipts; do not delete or reset them. Existing uncertain submissions must
+be reconciled against provider history rather than retried.
+
+For the initial customer-credit conversion, the Admin rate defaults to **480
+CMMTools credits per one AIVID source credit** (Rs 20 at the current wallet
+scale). Check the real cost per AIVID credit and adjust before enabling customer
+payments. The normal per-customer price-rate adjustment still applies.
