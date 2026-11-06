@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.2
+# CMMTools AIVID RDP agent 2.1.3
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -157,7 +157,7 @@ reference-upload behavior must be verified before promising paid image-to-video.
 If the failure says `form_model`, `form_privacy`, or `form_resolution`, it is
 not a reference upload error; this check should not spend AIVID credits.
 
-## Video length accuracy — v2.1.2
+## Video length accuracy — v2.1.3
 
 The AIVID adapter now reads the **actual current** slider min/max/step
 after selecting the model and resolution; it never assumes 4–15 or 4–30
@@ -180,3 +180,6 @@ than the API's theoretical 30 seconds. Only the actual browser control
 can authorize the requested duration. To calibrate live controls, inspect
 the slider's `outerHTML` plus nearby duration label for each model.
 No private token, cookies, or prompt contents are needed.
+
+## Model selection reliability — v2.1.3
+Waits for the visible model menu option before selecting it, skips reopening an already-selected model, and rejects ambiguous options. Public visibility, exact duration, outgoing request and durable receipt checks remain required. Upgrade the entire ZIP after stopping the old agent; preserve pairing, Chrome profile and receipts.
