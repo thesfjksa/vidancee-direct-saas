@@ -302,7 +302,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   // Both the visible form and the outgoing payload independently verify it.
   const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
   await step('reference_upload', async () => {
-    for (const kind of Object.keys(INPUTS)) {
+    for (const kind of Object.keys(FILE_ACCEPT)) {
       const refs = references.filter(ref => ref.kind === kind);
       if (!refs.length) continue;
       await attachReferences(main,kind,refs);
