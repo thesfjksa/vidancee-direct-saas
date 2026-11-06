@@ -47,7 +47,7 @@ const { chromium } = require('playwright-core');
   assert.equal(requests.some(url => url === '/admin/model-names' || url === '/admin/provider-models?provider=vercel'), false);
   await page.screenshot({ path: path.join(artifacts, 'connections-desktop.png'), fullPage: true });
 
-  await page.locator('#providerSourceSelect').selectOption('api888');
+  await page.getByRole('button', { name: /^888API Video/ }).click();
   await page.getByRole('button',{name:'Import models & prices',exact:true}).click();
   await page.locator('#api888ActionMsg').filter({hasText:'5 Seedance 2.5 models with live per-second pricing'}).waitFor();
   assert.equal(api888Imports,1);
