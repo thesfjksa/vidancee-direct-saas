@@ -65,6 +65,7 @@ const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/
 // Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
 // Playwright call logs, page text, account data or connection URLs.
 const DIAGNOSTICS = Object.freeze({
+  download_security: 'Chrome blocked the video download with a security warning. Review it manually; automatic collection is paused.',
   browser_connection: 'Could not connect to the local Chrome profile. Close the Login Chrome windows, then restart Agent.',
   page_navigation: 'AIVID did not load in time. Check its Chrome tab and the RDP internet connection.',
   session_check: 'AIVID sign-in or its generation form is not ready. Inspect the Chrome tab before retrying.',
@@ -539,7 +540,7 @@ class AividBrowserlessClient {
       } finally {
         // Stop the page before removing interception: a late web-app retry
         // must not escape the guard after our response timeout.
-        await page.close();
+        try{await page.goto('about:blank#cmmtools-worker',{timeout:10000})}catch{await page.close()}
         await guard.close();
       }
     });
@@ -563,7 +564,7 @@ class AividBrowserlessClient {
         return {ready:true,verified:true,submitted:false,generationBlocked:true,modelId:job.modelId,
           duration:job.duration,resolution:job.resolution,aspectRatio:job.aspectRatio,uploadedCounts:job.counts,
           price:before.price,balanceBefore:before.balance,balanceAfter:after.balance};
-      }finally{await page.close();await guard.close();}
+      }finally{try{await page.goto('about:blank#cmmtools-worker',{timeout:10000})}catch{await page.close()}await guard.close();}
     });
   }
   async collectVideo(id) {

@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-[assembly: AssemblyVersion("2.1.6.0")]
+[assembly: AssemblyVersion("3.0.0.0")]
 internal static class Launcher {
   [STAThread]
   public static int Main(string[] args) {
@@ -21,10 +21,10 @@ internal static class Launcher {
       bool acquired;
       using (var mutex = new Mutex(true, "Local\\CMMToolsAivid_" + tag, out acquired)) {
         if (!acquired) throw new Exception("An AIVID agent or launcher is already running. Close it before starting another.");
-        string script = login ? "login.cjs" : "agent.cjs";
+        string script = login ? "login.cjs" : "worker.cjs";
         foreach (string file in new string[] { "node.exe", script, "native.cjs", "AIVID-Protect.exe" })
           if (!File.Exists(Path.Combine(root, file))) throw new Exception("Extract the entire ZIP to one writable folder first. Missing " + file);
-        Console.WriteLine("CMMTools AIVID RDP agent 2.1.6 - " + (login ? "manual login" : "paired agent"));
+        Console.WriteLine("CMMTools AIVID RDP agent 3.0.0 - " + (login ? "manual login" : "paired agent"));
         string site = null, pairingCode = null;
         if (check) { PairingForm.SelfTest(); site = "https://cmmtools.site"; pairingCode = "AABBCCDDEEFF001122334455"; }
         else if (!login && !File.Exists(Path.Combine(root, ".aivid-agent.json"))) {
@@ -34,6 +34,7 @@ internal static class Launcher {
             site = pairing.BaseUrl; pairingCode = pairing.Code;
           }
         }
+        for (int attempt=0; attempt<2; attempt++) {
         var start = new ProcessStartInfo(Path.Combine(root, "node.exe"));
         start.WorkingDirectory = root; start.UseShellExecute = false;
         if (pairingCode != null) { start.RedirectStandardInput = true; start.EnvironmentVariables["AIVID_PAIRING_STDIN"] = "1"; }
@@ -47,6 +48,14 @@ internal static class Launcher {
             process.StandardInput.Close(); pairingCode = null;
           }
           process.WaitForExit(); code = process.ExitCode;
+        }
+          if (check || login || code != 23 || attempt == 1) break;
+          Console.WriteLine("Reconnect this worker with a fresh Admin pairing code.");
+          Application.EnableVisualStyles();
+          using (var pairing = new PairingForm()) {
+            if (pairing.ShowDialog() != DialogResult.OK) return 0;
+            site = pairing.BaseUrl; pairingCode = pairing.Code;
+          }
         }
         mutex.ReleaseMutex();
       }

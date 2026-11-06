@@ -34,7 +34,12 @@ test('real installed Chrome keeps its profile alive after CDP disconnect and dow
   await require('../fixtures/form.cjs').checkForm(remote.page, AividBrowserlessClient, waitForSession);
   await require('../fixtures/references.cjs').checkReferenceFlows(remote.context,AividBrowserlessClient);
   await require('../fixtures/collection.cjs').checkCollection(remote.context,AividBrowserlessClient);
-  await remote.page.close(); // The paid-form cleanup must not terminate Chrome.
+  const target=await remote.context.newCDPSession(remote.page);
+  const originalTarget=(await target.send('Target.getTargetInfo')).targetInfo.targetId;await target.detach();
+  await remote.close();remote=await connectNative(profile);
+  const reused=await remote.context.newCDPSession(remote.page);
+  assert.equal((await reused.send('Target.getTargetInfo')).targetInfo.targetId,originalTarget,'managed connection reuses its work tab');await reused.detach();
+  await remote.page.goto('about:blank#cmmtools-worker'); // Safe paid-form cleanup reuses its tab.
   await remote.close();
   assert.ok(await debuggerEndpoint(profile), 'Chrome must stay open after detaching');
   remote = await connectNative(profile);

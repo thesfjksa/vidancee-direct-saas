@@ -20,6 +20,16 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
       const input = await readJson(req);
       json(res, 200, { ok: true, ...await api.poll(device, input.status) }); return true;
     }
+    if(req.method==='GET'&&(path==='/api/aivid-rdp/runtime'||path==='/api/aivid-rdp/runtime/file')){
+      const {manifest,files}=require('./aivid_runtime.js').runtime();
+      if(path.endsWith('/file')){
+        const u=new URL(req.url,'https://cmmtools.invalid');
+        if(u.searchParams.get('version')!==manifest.version)throw failure('Worker release changed. Restart update.',409);
+        const data=files.get(u.searchParams.get('path'));if(!data)throw failure('Worker file not found.',404);
+        res.writeHead(200,{'content-type':'application/octet-stream','content-length':data.length,'cache-control':'no-store'});res.end(data);
+      }else json(res,200,manifest);
+      return true;
+    }
     const match = path.match(/^\/api\/aivid-rdp\/commands\/([0-9a-f-]{36})(?:\/(reserve|result|references|chunks)(?:\/(\d+))?)?$/i);
     if (!match) throw failure('RDP route not found.', 404);
     const [, id, action, position] = match;

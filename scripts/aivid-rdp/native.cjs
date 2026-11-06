@@ -52,13 +52,12 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
     browser = await chromium.connectOverCDP(endpoint, { timeout: 15000 });
     const context = browser.contexts()[0];
     if (!context) throw new Error();
-    // Closing the paid form after interception must not close Chrome's last
-    // window. Keep one blank parking tab, without any customer's data.
-    const parking = context.pages().find(p => p.url() === 'about:blank') || await context.newPage();
-    const page = await context.newPage();
+    // The managed profile owns one reusable work tab. Guarded submissions
+    // navigate it to a blank page before removing request interception.
+    const page = context.pages().find(p=>p.url()==='about:blank#cmmtools-worker'||p.url().startsWith('https://aivid.dev/')) || context.pages().find(p=>p.url()==='about:blank') || await context.newPage();
     page.setDefaultTimeout(15000);
     for (const old of context.pages()) {
-      if (old === page || old === parking) continue;
+      if (old === page) continue;
       try { if (old.url() === 'about:blank' || new URL(old.url()).origin === 'https://aivid.dev') await old.close(); } catch {}
     }
     // With connectOverCDP, close disconnects the Playwright transport. Chrome
@@ -69,12 +68,20 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
     throw new Error('The local AIVID Chrome connection failed. Inspect its window on the RDP.');
   }
 }
+function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
 async function downloadNative(page) {
-  let download;
+  let download,rejectBlocked;const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
+  const inspect=async target=>{try{
+    await target.waitForLoadState('domcontentloaded',{timeout:10000});
+    if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000})))rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));
+  }catch{}};
+  const popup=async target=>{if(await target.opener()===page)void inspect(target)};
+  const navigated=()=>{void inspect(page)};
+  page.context?.().on('page',popup);page.on?.('domcontentloaded',navigated);
   try {
     const pending = page.waitForEvent('download', { timeout: 60000 }); pending.catch(() => {});
     await page.getByRole('button', { name: 'Download Video', exact: true }).click();
-    download = await pending;
+    download = await Promise.race([pending,blocked]);
     if (await download.failure()) throw new Error();
     const file = await download.path();
     if (!file) throw new Error();
@@ -83,8 +90,8 @@ async function downloadNative(page) {
     const data = await fs.readFile(file);
     if (data.length !== size || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error();
     return { data, mimeType: 'video/mp4' };
-  } catch { throw new Error('AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.'); }
-  finally { if (download) await download.delete().catch(() => {}); }
+  } catch(error) { if(error?.aividCode==='download_security')throw error;throw new Error('AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.'); }
+  finally {page.context?.().off('page',popup);page.off?.('domcontentloaded',navigated);if (download) await download.delete().catch(() => {}); }
 }
 async function takeLock(root) {
   const file = path.join(root, '.aivid-agent.lock');
@@ -102,4 +109,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
