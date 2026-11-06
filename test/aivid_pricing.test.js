@@ -11,7 +11,7 @@ test('AIVID quote uses current Public source credits at $0.12, never the old Adm
   let requested;
   AividRdpClient.prototype.preflight=async function(data){requested=data;return {price:2,ready:true,submitted:false}};
   const db={getConnection:async()=>({query:async sql=>[[{acquired:1}]],release(){}})};
-  const config={mode:'rdp',enabled:true,maxSourceCredits:10,customerCreditsPerSourceCredit:480,
+  const config={mode:'rdp',enabled:true,maxSourceCredits:10,customerCreditsPerSourceCredit:480,store:{},
     rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready'}};
   try{
     const result=await quoteAivid(config,{model:'aivid_seedance_2_0_mini',duration:5,aspectRatio:'16:9',resolution:'480p'},{db});
