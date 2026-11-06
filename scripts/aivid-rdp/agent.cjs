@@ -146,7 +146,7 @@ class Agent {
               // only consumer able to collect it later. They never resubmit.
               const retryCollection=command.kind==='collect'&&!['session_sign_in','session_page_left'].includes(errorCode);
               this.status = error.network||retryCollection ? previous : 'needs_login';
-              console.log('Operation needs review. Check Chrome and Admin; existing paid jobs will not be submitted again.');
+              console.log(retryCollection?'Collection will retry the existing AIVID video. No new video will be submitted.':'Operation needs review. Check Chrome and Admin; existing paid jobs will not be submitted again.');
               console.log('AIVID [' + errorCode + ']: ' + adapter.diagnosticMessage(errorCode));
             } finally { clearInterval(timer); }
           }
