@@ -51,6 +51,7 @@ function fixture() {
     if (!action) return { state: (await service.command(device, id)).state };
     if (action === 'reserve') return service.reserve(device, id, options.body.price);
     if (action === 'result') return service.result(device, id, options.body);
+    if(action==='references')return (await service.reference(device,id,Number(parts[4]))).data;
     if (action === 'chunks') { await service.command(device, id); await store.chunk(id, Number(parts[4]), options.body); return {}; }
     throw new Error('Unexpected transport route');
   } };
@@ -139,6 +140,22 @@ test('read-only preflight works with zero balance and never requests a paid rese
   const waiting = f.client.preflight(value); await flush(); const { command } = await f.service.poll(f.device, 'needs_login');
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.balance, 0); assert.equal(reservations, 0);
+});
+test('synthetic reference checks transfer verified media without a generation row, receipt or reservation',async()=>{
+  const f=fixture(),refs=require('../src/aivid_probe_assets.js').diagnosticReferences();let reservations=0,checks=0;
+  f.service.reserve=async()=>{reservations++;throw new Error('A diagnostic must not reserve')};
+  const requested={...value,model:'aivid_seedance_2_0_mini',duration:5};
+  const agent=new Agent({transport:f.transport,clientFactory:()=>({checkReferences:async(v,files)=>{
+    checks++;assert.equal(files.length,3);files.forEach((r,i)=>assert.deepEqual(r.data,refs[i].data));
+    return {ready:true,verified:true,submitted:false,generationBlocked:true,modelId:v.model,duration:v.duration,
+      resolution:v.resolution,aspectRatio:v.aspectRatio,uploadedCounts:{image:1,video:1,audio:1},price:1,balanceBefore:50,balanceAfter:50,secret:'not-returned'};
+  }})});
+  const waiting=f.client.checkReferences(requested,refs);await flush();const {command}=await f.service.poll(f.device,'ready');
+  assert.equal(command.kind,'reference_check');
+  const [,result]=await Promise.all([agent.execute(command),waiting]);
+  assert.equal(checks,1);assert.equal(reservations,0);assert.equal(result.generationBlocked,true);
+  assert.equal(result.balanceAfter,50);assert.doesNotMatch(JSON.stringify(result),/not-returned/);
+  assert.equal(f.store.rows.size,0);
 });
 test('Premium preflight relay preserves verified model settings and rejects wrong or missing attestations',async()=>{
   const requested={...value,model:'aivid_seedance_2_5',duration:5,resolution:'720p'};

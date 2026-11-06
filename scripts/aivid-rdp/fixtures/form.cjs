@@ -9,12 +9,13 @@ const html = `<!doctype html><html><body><header>0 credits</header><main>
 <div id="resolutions" hidden><button onclick="resolution.textContent='480p';resolutions.hidden=true">480p</button></div>
 <input id="duration" type="range" min="4" max="30" value="15" oninput="update()"><span id="seconds">15s</span>
 <label>Bypass <input id="bypass" type="checkbox" checked></label>
-<input id="refImages" type="file" accept=" .webp, image/png , image/jpeg " multiple onchange="document.querySelector('#refSelected').textContent=Array.from(this.files).map(f=>f.name).join(',')"><span id="refSelected"></span>
+<input id="refImages" type="file" accept=" .webp, image/png , image/jpeg " multiple onchange="document.querySelector('#refSelected').textContent=Array.from(this.files).map(f=>f.name).join(',');preview(this,'image')"><span id="refSelected"></span>
 <div id="privacy"><span>Public</span><label style="display:inline-flex;width:36px;height:20px;cursor:pointer;position:relative">
 <input id="privateToggle" type="checkbox" checked style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"><div style="width:36px;height:20px;background:gray"></div>
 </label><span>Private</span></div><span id="price">3 Credits / Video</span>
 <button onclick="window.generateClicks++">Generate</button></main><script>
 window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privacyChanges=0;
+function preview(input,kind){const files=Array.from(input.files);window.selectedFiles=window.selectedFiles||{};window.selectedFiles[kind]=files;document.querySelectorAll("[data-ref-kind="+kind+"]").forEach(el=>el.remove());setTimeout(()=>files.forEach((file,i)=>{const el=document.createElement("div");el.dataset.refKind=kind;el.textContent="@"+kind+(i+1);input.after(el)}),50);input.value="";}
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
@@ -146,7 +147,7 @@ async function checkForm(page, Client, waitForSession) {
   const image={kind:'image',mimeType:'image/png',data:Buffer.from('89504e470d0a1a0a','hex')};
   const withImage=await client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]);
   assert.equal(withImage.referenceCounts.image,1);
-  assert.equal(await page.locator('#refImages').evaluate(el=>el.files.length),1);
+  assert.equal(await page.locator('#refImages').evaluate(el=>el.files.length),0);
   assert.equal(await page.locator('#refSelected').innerText(),'reference-image-1.png');
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
   missingImageInput=true;
@@ -229,4 +230,4 @@ async function checkForm(page, Client, waitForSession) {
     }
   }
 }
-module.exports = { checkForm };
+module.exports = { checkForm, html };

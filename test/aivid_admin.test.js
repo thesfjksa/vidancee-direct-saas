@@ -31,7 +31,7 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
   if (!server.listening) await once(server, 'listening');
   const origin = 'http://127.0.0.1:' + server.address().port;
   assert.equal((await fetch(origin + '/admin/aivid/status')).status, 401);
-  for (const route of ['/admin/aivid/check', '/admin/aivid/settings', '/admin/aivid/rdp/pairing', '/admin/aivid/login', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/finish', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/cancel'])
+  for (const route of ['/admin/aivid/check-references','/admin/aivid/check', '/admin/aivid/settings', '/admin/aivid/rdp/pairing', '/admin/aivid/login', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/finish', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/cancel'])
     assert.equal((await fetch(origin + route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
   const headers = { 'x-admin-token': 'aivid-test-admin', 'content-type': 'application/json' };
   const response = await fetch(origin + '/admin/aivid/status', { headers });
@@ -62,6 +62,17 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
     }
     assert.equal(seen.length,6); // Invalid options cannot reach the provider.
   } finally {AividBrowserlessClient.prototype.preflight=previousPreflight;}
+  const originalReferenceCheck=AividBrowserlessClient.prototype.checkReferences;
+  AividBrowserlessClient.prototype.checkReferences=async(v,refs)=>{
+    assert.deepEqual(refs.map(r=>r.kind),['image','video','audio']);
+    assert.equal(refs[1].data.toString('ascii',4,8),'ftyp');assert.equal(refs[2].data.toString('ascii',0,4),'RIFF');
+    return {ready:true,verified:true,submitted:false,generationBlocked:true,modelId:v.model,balanceBefore:50,balanceAfter:50,uploadedCounts:{image:1,video:1,audio:1}};
+  };
+  try{
+    const reply=await fetch(origin+'/admin/aivid/check-references',{method:'POST',headers,body:'{}'});
+    assert.equal(reply.status,200);assert.equal((await reply.json()).generationBlocked,true);
+    assert.equal((await fetch(origin+'/admin/aivid/check-references',{method:'POST',headers,body:'{"model":"unknown"}'})).status,400);
+  }finally{AividBrowserlessClient.prototype.checkReferences=originalReferenceCheck;}
   delete process.env.AIVID_BROWSERLESS_CONNECT_URL;
   const check = await fetch(origin + '/admin/aivid/check', { method: 'POST', headers, body: '{}' });
   assert.equal(check.status, 503); // No browser, Generate click or wallet debit.

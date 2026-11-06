@@ -1,6 +1,8 @@
 'use strict';
 
 const { connectSession, LOGIN_VIEWPORT } = require('./browserless.js');
+const crypto=require('node:crypto');
+const {UploadTracker,exactIds,deferred,bounded}=require('./aivid_uploads.js');
 const ORIGIN = 'https://aivid.dev';
 const API = 'https://api.aivid.dev';
 const MINI = 'Seedance 2.0 (Mini)';
@@ -37,14 +39,25 @@ async function attachReferences(main,kind,refs) {
     name:'reference-'+kind+'-'+(i+1)+'.'+(r.mimeType==='image/jpeg'?'jpg':r.mimeType==='video/quicktime'?'mov':r.mimeType==='audio/mpeg'?'mp3':r.mimeType.split('/')[1]),
     mimeType:r.mimeType,buffer:r.data
   }));
+  // Capture File objects during change, before AIVID clears its input after
+  // asynchronous metadata validation. FileList emptiness afterward is normal.
+  await input.evaluate(element=>{
+    element.__cmmSelected=new Promise(resolve=>element.addEventListener('change',()=>{
+      const selected=Array.from(element.files||[]);
+      resolve(Promise.all(selected.map(async file=>({name:file.name,type:file.type,size:file.size,
+        sha256:Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('')}))));
+    },{once:true,capture:true}));
+  });
   await input.setInputFiles(files);
-  // Verify the browser accepted each selected file. This is not proof of a
-  // successful provider-side upload; the outbound generation request guard
-  // independently checks reference counts/kinds before any paid submission.
-  const selected=await input.evaluate(element=>Array.from(element.files||[]).map(file=>({name:file.name,type:file.type,size:file.size})));
+  const selected=await input.evaluate(async element=>{try{return await element.__cmmSelected}finally{delete element.__cmmSelected}});
   if(selected.length!==files.length||selected.some((file,i)=>
-    file.name!==files[i].name||file.type!==files[i].mimeType||file.size!==files[i].buffer.length))
+    file.name!==files[i].name||file.type!==files[i].mimeType||file.size!==files[i].buffer.length||
+    file.sha256!==crypto.createHash('sha256').update(files[i].buffer).digest('hex')))
     throw new Error('AIVID did not retain the selected reference files.');
+  // These rendered labels appear only after AIVID's metadata validation and
+  // FileReader completion. A rejected or still-loading file cannot proceed.
+  for(let i=1;i<=files.length;i++)await main.getByText('@'+kind+i,{exact:true}).waitFor({state:'visible',timeout:30000});
+
 }
 
 const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/mp4', 'video/quicktime'], audio: ['audio/mpeg', 'audio/wav'] };
@@ -151,7 +164,7 @@ function creditState(text) {
 
 // Fail closed on an unknown outgoing schema. UI selection alone does not
 // prove the requested public visibility or that every upload reached the paid request.
-function validateSubmission(body, job) {
+function validateSubmission(body, job, uploaded=[]) {
   if (!body || typeof body !== 'object' || body.model !== job.providerModelId ||
     typeof body.prompt !== 'string' || normalizePrompt(body.prompt) !== job.prompt ||
     Number(body.duration) !== job.duration || body.resolution !== job.resolution ||
@@ -162,18 +175,7 @@ function validateSubmission(body, job) {
   for (const key of ['isPrivate', 'private']) if (Object.hasOwn(body, key)) publicChecks.push(body[key] === false);
   if (Object.hasOwn(body, 'visibility')) publicChecks.push(body.visibility === 'public');
   if (!publicChecks.length || publicChecks.some(ok => !ok)) throw new Error('AIVID public visibility could not be verified before submission.');
-  const wanted = job.counts.image + job.counts.video + job.counts.audio;
-  const refs = body.references || [];
-  if (!Array.isArray(refs) || refs.length !== wanted) throw new Error('AIVID reference uploads are missing or incomplete.');
-  if (wanted) {
-    const counts = { image: 0, video: 0, audio: 0 };
-    for (const ref of refs) {
-      const type = ref.type ?? ref.kind;
-      if (!Object.hasOwn(counts, type)) throw new Error('AIVID reference schema needs verification.');
-      counts[type]++;
-    }
-    if (Object.keys(counts).some(k => counts[k] !== job.counts[k])) throw new Error('AIVID reference types do not match the job.');
-  } else if (Array.isArray(body.imageIds) && body.imageIds.length) throw new Error('Unexpected AIVID image references.');
+  exactIds(body,job,uploaded);
 }
 
 function promptEditors(page) {
@@ -383,6 +385,10 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   // Both the visible form and the outgoing payload independently verify it.
   const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
   await step('reference_upload', async () => {
+    if(references.length){
+      const mode=main.getByRole('button',{name:'References',exact:true});
+      if(await mode.count()===1){await mode.click();await main.locator('input[type="file"][multiple]').first().waitFor({state:'attached',timeout:10000});}
+    }
     for (const kind of Object.keys(FILE_ACCEPT)) {
       const refs = references.filter(ref => ref.kind === kind);
       if (!refs.length) continue;
@@ -408,9 +414,14 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   return job;
 }
 
-async function installRequestGuard(page, job) {
+async function installRequestGuard(page, job, {references=[],beforeGenerate=async()=>{},probe=false}={}) {
   const cdp = await page.context().newCDPSession(page);
-  let guardError = null, allowed = false, armed = false;
+  let guardError = null, allowed = false, armed = false, claimed=false;
+  const failure=deferred(),observed=deferred();
+  const fail=error=>{guardError=error;failure.reject(error)};
+  const uploads=new UploadTracker(references,fail);
+  const onResponse=response=>{void uploads.response(response)};
+  page.on?.('response',onResponse);
   // Intercept every mutation, not just today's generation path. If the site
   // moves generation to a new path or host it must not escape this guard.
   await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
@@ -426,22 +437,40 @@ async function installRequestGuard(page, job) {
           ['www.google.com', 'www.recaptcha.net'].includes(url.hostname) && url.pathname.startsWith('/recaptcha/')) {
         await cdp.send('Fetch.continueRequest', { requestId: event.requestId }); return;
       }
+      if(await uploads.before(event.request)){
+        await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
+      }
+      if(event.request.method==='POST'&&url.origin===API&&url.pathname==='/v2/sensitive-keywords/check'&&!url.search){
+        const check=JSON.parse(event.request.postData||'{}');
+        if(normalizePrompt(check.prompt)!==job.prompt)throw new Error('Unexpected prompt validation request.');
+        await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
+      }
       if (event.request.method !== 'POST' || url.origin !== API || url.pathname !== '/v2/generations' || url.search)
         throw new Error('An unexpected AIVID mutation was blocked before submission.');
-      if (allowed) throw new Error('A second AIVID submission was blocked.');
+      if (allowed||claimed) throw new Error('A second AIVID submission was blocked.');
       const body = JSON.parse(event.request.postData || '{}');
-      validateSubmission(body, job);
+      const uploaded=await uploads.completed();
+      validateSubmission(body, job, uploaded);
+      if(claimed)throw new Error('A second AIVID submission was blocked.');
+      if(probe){
+        claimed=true;
+        await cdp.send('Fetch.failRequest',{requestId:event.requestId,errorReason:'Aborted'});
+        observed.resolve({uploaded});return;
+      }
       if (!armed) throw new Error('AIVID submission was blocked before its durable reservation.');
+      claimed=true;
+      await beforeGenerate();
       allowed = true;
       await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
     } catch (error) {
-      guardError = error instanceof SyntaxError ? new Error('AIVID submission schema needs verification.') : error;
+      fail(error instanceof SyntaxError ? new Error('AIVID submission schema needs verification.') : error);
       await cdp.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'Aborted' }).catch(() => {});
     }
   };
   cdp.on('Fetch.requestPaused', handler);
-  return { arm() { armed = true; }, get error() { return guardError; }, get allowed() { return allowed; },
-    close: async () => { await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
+  return { arm() { if(probe)throw new Error('Reference checks cannot authorize generation.');armed = true; },
+    failure:failure.promise,observed:observed.promise,get error() { return guardError; }, get allowed() { return allowed; },
+    close: async () => { page.off?.('response',onResponse);await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
 }
 
 class AividBrowserlessClient {
@@ -469,15 +498,19 @@ class AividBrowserlessClient {
       const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
       if (credits.price <= 0 || credits.price > this.maxSourceCredits || credits.balance < credits.price)
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
-      const guard = await installRequestGuard(page, job);
+      const guard = await installRequestGuard(page, job,{references,beforeGenerate:async()=>{
+        const latest=creditState(await page.locator('body').innerText());
+        if(latest.price!==credits.price||latest.price>this.maxSourceCredits)throw new Error('AIVID price changed before submission.');
+        // Uploads and final file IDs have been verified. Persist the receipt
+        // immediately before releasing the one paused paid request.
+        await beforeClick({price:latest.price});
+      }});
       try {
-        // Commit before any click, even if the process dies inside click().
-        await beforeClick({ price: credits.price });
-        const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 45000 }).catch(() => null);
+        const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 120000 }).catch(() => null);
         guard.arm();
         try { await page.locator('main').first().getByRole('button', { name: 'Generate', exact: true }).click(); }
-        catch { await page.close().catch(() => {}); return { state: 'submission_uncertain' }; }
-        const response = await responsePromise;
+        catch { return { state: guard.allowed?'submission_uncertain':'rejected' }; }
+        const response = await Promise.race([responsePromise,guard.failure.catch(()=>null)]);
         if (guard.error && !guard.allowed) return { state: 'rejected', reason: guard.error.message };
         if (!response) return { state: 'submission_uncertain' };
         let body; try { body = await response.json(); } catch {}
@@ -488,6 +521,28 @@ class AividBrowserlessClient {
         await page.close();
         await guard.close();
       }
+    });
+  }
+  async checkReferences(value,references=[]){
+    if(!references.length)throw new Error('Reference checks require test media.');
+    return this.withPage(async page=>{
+      const job=await prepare(page,value,references,{onProgress:this.onProgress});
+      const before=creditState(await page.locator('body').innerText());
+      if(before.balance<before.price)throw new Error('AIVID needs sufficient balance to open its upload flow; no video will be submitted.');
+      const guard=await installRequestGuard(page,job,{references,probe:true});
+      try{
+        const check=Promise.race([guard.observed,guard.failure]);check.catch(()=>{});
+        await page.locator('main').first().getByRole('button',{name:'Generate',exact:true}).click();
+        const result=await bounded(check,120000);
+        if(guard.allowed||result.uploaded.length!==references.length)throw new Error('Reference check did not block generation.');
+        await page.goto(ORIGIN+'/',{waitUntil:'domcontentloaded',timeout:30000});
+        await waitForSession(page);
+        const after=creditState(await page.locator('body').innerText());
+        if(after.balance!==before.balance)throw new Error('AIVID balance changed during the reference check; inspect account history.');
+        return {ready:true,verified:true,submitted:false,generationBlocked:true,modelId:job.modelId,
+          duration:job.duration,resolution:job.resolution,aspectRatio:job.aspectRatio,uploadedCounts:job.counts,
+          price:before.price,balanceBefore:before.balance,balanceAfter:after.balance};
+      }finally{await page.close();await guard.close();}
     });
   }
   async collectVideo(id) {

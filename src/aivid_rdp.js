@@ -144,6 +144,12 @@ class AividRdpClient {
     if (references.length && !UUID.test(value.jobId || '')) throw failure('A reference preflight requires a CMMTools generation ID.');
     return this.run('preflight', { value }, { references, generationId: references.length ? value.jobId : null, timeoutMs: 90000 });
   }
+  checkReferences(value,references=[]){
+    validateJob(value,references);
+    if(references.length!==3||references.reduce((sum,r)=>sum+r.data.length,0)>128*1024||
+      ['image','video','audio'].some(kind=>references.filter(r=>r.kind===kind).length!==1))throw failure('Invalid diagnostic media.');
+    return this.run('reference_check',{value,probeFiles:references.map(r=>r.data.toString('base64'))},{references,timeoutMs:180000});
+  }
   startVideo(value, references = [], hooks = {}) {
     if (!UUID.test(value.jobId || '')) throw failure('RDP jobs require a CMMTools generation ID.');
     validateJob(value, references);
@@ -234,6 +240,16 @@ class AividRdpService {
     let result;
     if (input.error === true) result = { error: true,
       ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
+    else if(command.kind==='reference_check'){
+      const expected=validateJob(command.payload.value);
+      if(input.verified!==true||input.generationBlocked!==true||input.submitted!==false||input.ready!==true||
+        input.modelId!==expected.modelId||input.duration!==expected.duration||input.resolution!==expected.resolution||input.aspectRatio!==expected.aspectRatio||
+        !Number.isFinite(input.price)||input.price<=0||!Number.isFinite(input.balanceBefore)||input.balanceBefore<0||input.balanceAfter!==input.balanceBefore||
+        ['image','video','audio'].some(kind=>input.uploadedCounts?.[kind]!==1))throw failure('Invalid reference-check result.');
+      result={ready:true,verified:true,submitted:false,generationBlocked:true,modelId:expected.modelId,
+        duration:expected.duration,resolution:expected.resolution,aspectRatio:expected.aspectRatio,
+        uploadedCounts:{image:1,video:1,audio:1},price:input.price,balanceBefore:input.balanceBefore,balanceAfter:input.balanceAfter};
+    }
     else if (command.kind === 'preflight' && input.ready === true && input.submitted === false &&
       Number.isFinite(input.price) && input.price > 0 && Number.isFinite(input.balance) && input.balance >= 0) {
       result = { ready: true, submitted: false, price: input.price, balance: input.balance };
@@ -266,6 +282,14 @@ class AividRdpService {
   async reference(device, id, index) {
     const command = await this.command(device, id);
     const wanted = command.payload.references?.[index];
+    if(command.kind==='reference_check'){
+      if(command.generation_id||command.payload.references?.length!==3||!wanted||wanted.index!==index||wanted.size>128*1024)throw failure('Reference not found.',404);
+      const encoded=command.payload.probeFiles?.[index];
+      if(typeof encoded!=='string'||encoded.length>180000)throw failure('Invalid diagnostic media.');
+      const data=Buffer.from(encoded,'base64');
+      if(data.length!==wanted.size||hash(data)!==wanted.sha256)throw failure('Diagnostic reference changed.',409);
+      return {data,mimeType:wanted.mimeType};
+    }
     if (!['submit', 'preflight'].includes(command.kind) || !command.generation_id || !wanted || wanted.index !== index) throw failure('Reference not found.', 404);
     const [rows] = await this.db().execute('SELECT media_kind,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [command.generation_id]);
     await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
