@@ -75,7 +75,7 @@ async function downloadNative(page) {
     await target.waitForLoadState('domcontentloaded',{timeout:10000});
     if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000})))rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));
   }catch{}};
-  const popup=async target=>{if(await target.opener()===page)void inspect(target)};
+  const popup=async target=>{try{if(await target.opener()===page)await inspect(target)}catch{}};
   const navigated=()=>{void inspect(page)};
   page.context?.().on('page',popup);page.on?.('domcontentloaded',navigated);
   try {

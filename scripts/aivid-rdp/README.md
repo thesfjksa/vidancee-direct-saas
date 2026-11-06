@@ -4,7 +4,8 @@
 
 Stop the old Agent. Extract this **complete ZIP into its existing folder**, keeping
 `.aivid-rdp-profile`, `.aivid-agent.json` and `receipts`. Open **AIVID-Agent.exe**.
-Use **AIVID-Login.exe** only when Google sign-in needs attention. No extra repair
+If Google sign-in needs attention, close Agent, open **AIVID-Login.exe**, finish
+sign-in, close its Chrome windows, then open Agent again. No extra repair
 or update EXE is added. Rejected pairing opens the usual pairing window: obtain
 a fresh code from Admin, paste it and Connect. An offline agent with accepted
 source IDs can be recovered without generating another video.
