@@ -227,3 +227,18 @@ Browser fixtures include the real Fast label/description, switching from both
 Stop Agent, update the whole package preserving pairing/profile/receipts, restart,
 then use Check all Premium models and Refresh status in Admin. These checks do
 not generate or spend credits; six successful checks do not prove paid outputs.
+
+## Existing-job collection recovery — v2.1.6
+
+A newly accepted Public video can temporarily show "Video not found." before
+its detail page appears. That response now remains pending, rather than marking
+the agent as needing login. Collection also waits for asynchronously rendered
+status. Temporary collection/download errors keep the agent available for the
+next poll of the same saved provider ID. Only an explicit failed/cancelled status
+can fail a source job. No collection retry generates another video or reserves
+another charge. A genuine sign-in diagnostic still pauses for login.
+
+For a job already stuck under an old agent, Check RDP connection can restore ready
+status. Upgrade the full package and leave Agent running to collect the existing
+completed job. Do not submit the prompt again. A completed source video is not a
+completed CMMTools job until download, validation and storage succeed.

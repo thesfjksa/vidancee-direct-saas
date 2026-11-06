@@ -60,3 +60,25 @@ test('native download validates the MP4 header and deletes only its temporary do
   await fs.writeFile(file, 'not a video file');
   await assert.rejects(downloadNative(page), /valid MP4/); assert.equal(deleted, 2);
 });
+
+test('temporary collection errors leave the agent available for the next collection poll',async t=>{
+  const {Agent}=require('../agent.cjs');
+  for(const kind of ['collect','preflight']){
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'aivid-collect-retry-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+    const statuses=[];let issued=false,reports=0,agent;
+    const transport={request:async(route,options)=>{
+      if(route==='/poll'){
+        const status=options.body.status;statuses.push(status);
+        if(status==='starting')return{command:null};
+        if(!issued){issued=true;return{command:{id:'fixture-command',kind,payload:{},expiresAt:Date.now()+60000}};}
+        agent.stopping=true;return{command:null};
+      }
+      if(route.endsWith('/result')){reports++;assert.equal(options.body.error,true);return{saved:true};}
+      throw new Error('Unexpected fixture request');
+    }};
+    agent=new Agent({root,transport,pause:async()=>{},clientFactory:()=>({preflight:async()=>({ready:true})})});
+    agent.execute=async()=>{throw new Error('Temporary video detail/download failure')};
+    await agent.run();assert.equal(reports,1);
+    assert.equal(statuses.at(-1),kind==='collect'?'ready':'needs_login');
+  }
+});
