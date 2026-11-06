@@ -206,7 +206,16 @@ async function fillPrompt(editor,text,{timeoutMs=2000,stableMs=400,intervalMs=10
   // Commit focus, check retention, and retry this harmless write at most once.
   // Neither attempt clicks Generate or relaxes the paid-request guard.
   for(let attempt=0;attempt<2;attempt++){
-    await editor.fill(expected);
+    if(attempt===1 && await editor.evaluate(element=>element.isContentEditable===true)){
+      // Native rich-text fill can turn a blank line into div/br markup whose
+      // rendered innerText contains an extra newline. Refill literal text,
+      // without interpreting HTML, and notify the editor's input handler.
+      await editor.evaluate((element,value)=>{
+        element.focus();element.textContent=value;
+        const Input=element.ownerDocument.defaultView.InputEvent;
+        element.dispatchEvent(new Input('input',{bubbles:true,inputType:'insertText',data:value}));
+      },expected);
+    }else await editor.fill(expected);
     await editor.press('Tab');
     const deadline=Date.now()+timeoutMs;let stableSince=null;
     do {
