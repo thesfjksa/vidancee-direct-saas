@@ -53,7 +53,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   }
   if(p.endsWith('/finish')){loginState='connected';return route.fulfill({json:{ok:true,requested:true}});}
   if(p==='/admin/aivid/login/'+loginId)return route.fulfill({json:{ok:true,login:login()}});
-  if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,withinLimit:true,standardCustomerCredits:1693.44}});}
+  if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,modelVerified:true,withinLimit:true,standardCustomerCredits:1693.44}});}
   if(p.startsWith('/admin/'))return route.fulfill({json:{ok:true,settings:{},models:[],users:[],entries:[],boot:[],boots:[],pricing:[],sourceCost30d:[],providers:[],config:{},web:{uptimeSeconds:1,startedAt:new Date().toISOString(),slowRequests:[]}}});
   const file=path.join('public',p);
   if(fs.existsSync(file)&&fs.statSync(file).isFile())return route.fulfill({path:file});

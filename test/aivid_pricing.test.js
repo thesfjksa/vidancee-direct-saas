@@ -9,7 +9,8 @@ const {applyPriceRate,priceRate}=require('../src/billing.js');
 test('AIVID quote uses current Public source credits at $0.12, never the old Admin 480 factor',async()=>{
   const original=AividRdpClient.prototype.preflight;
   let requested;
-  AividRdpClient.prototype.preflight=async function(data){requested=data;return {price:2,ready:true,submitted:false}};
+  AividRdpClient.prototype.preflight=async function(data){requested=data;return {price:2,ready:true,submitted:false,
+    modelId:data.model,duration:data.duration,resolution:data.resolution,aspectRatio:data.aspectRatio}};
   const db={getConnection:async()=>({query:async sql=>[[{acquired:1}]],release(){}})};
   const config={mode:'rdp',enabled:true,maxSourceCredits:10,customerCreditsPerSourceCredit:480,store:{},
     rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready'}};
@@ -25,5 +26,7 @@ test('AIVID quote uses current Public source credits at $0.12, never the old Adm
     assert.equal(aividBaseCredits(2),result.cost);
     assert.equal(aividSourceUsd(2),result.sourceUsd);
     await assert.rejects(quoteAivid({...config,maxSourceCredits:1},{model:'aivid_seedance_2_0_mini',duration:5,aspectRatio:'16:9',resolution:'480p'},{db}),/exceeds/);
+    AividRdpClient.prototype.preflight=async()=>({ready:true,submitted:false,price:2,balance:50});
+    await assert.rejects(quoteAivid(config,{model:'aivid_seedance_2_5',duration:5,resolution:'480p'},{db}),/did not verify/);
   }finally{AividRdpClient.prototype.preflight=original}
 });

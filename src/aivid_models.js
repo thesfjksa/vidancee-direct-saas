@@ -86,6 +86,9 @@ async function quoteAivid(config,body,{db}={}){
   const Client=config.mode==='rdp'?require('./aivid_rdp.js').AividRdpClient:require('./provider/aivid.js').AividBrowserlessClient;
   const result=await withAividLock(db||require('./db.js').getPool(),()=>new Client(config).preflight(value));
   if(!result)throw Object.assign(new Error('Premium price checking is busy; retry shortly.'),{statusCode:409});
+  if(result.ready!==true||result.submitted!==false||result.modelId!==model.id||
+     result.duration!==value.duration||result.resolution!==value.resolution||result.aspectRatio!==value.aspectRatio)
+    throw Object.assign(new Error('AIVID did not verify the requested model and settings. Use the complete current Windows agent package.'),{statusCode:503});
   const sourceCredits=Number(result.price);
   if(!Number.isFinite(sourceCredits)||sourceCredits<=0||sourceCredits>config.maxSourceCredits)
     throw Object.assign(new Error('AIVID pricing is unavailable or exceeds the configured source-credit limit.'),{statusCode:503});

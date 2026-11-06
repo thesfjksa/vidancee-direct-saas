@@ -41,7 +41,8 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
   assert.equal(body.configured, true); assert.equal(body.enabled, false); assert.equal(body.customerModelEnabled, false);
   const {AividBrowserlessClient}=require('../src/provider/aivid.js');
   const previousPreflight=AividBrowserlessClient.prototype.preflight,seen=[];
-  AividBrowserlessClient.prototype.preflight=async value=>{seen.push(value);return {ready:true,price:2,balance:50,submitted:false}};
+  AividBrowserlessClient.prototype.preflight=async value=>{seen.push(value);return {ready:true,price:2,balance:50,submitted:false,
+    modelId:value.model,duration:value.duration,resolution:value.resolution,aspectRatio:value.aspectRatio}};
   try {
     for(const model of require('../src/aivid_models.js').SPECS)for(const resolution of ['480p','720p']){
       const reply=await fetch(origin+'/admin/aivid/check',{method:'POST',headers,
@@ -50,6 +51,7 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
       const result=await reply.json();
       assert.equal(result.model,model.id);assert.equal(result.resolution,resolution);
       assert.equal(result.duration,5);assert.equal(result.submitted,false);
+      assert.equal(result.modelVerified,true);
       assert.equal(result.standardCustomerCredits,1693.44);assert.equal(result.sourceUsd,0.24);
       assert.equal(result.withinLimit,false); // A paused ceiling does not prevent read-only diagnosis.
     }

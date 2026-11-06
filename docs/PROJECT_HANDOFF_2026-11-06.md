@@ -10,6 +10,8 @@
 
 ## 6 November live audit continuation, about 18:53 PKT
 
+**Quote verification follow-up:** the RDP bridge previously discarded the model/duration/resolution/ratio returned by the current agent. It now relays only matching sanitized fields, returns fixed form-mismatch diagnostics otherwise, and customer pricing refuses missing or mismatched metadata. The Admin batch requires modelVerified=true, so a rolling deployment or old Mini-only agent cannot falsely pass all six checks. This uses fields already supplied by the full v2.1.2 agent; no new RDP install is required when that version is installed.
+
 - Live web and worker health returned HTTP 200; MySQL connected; the separate worker reported AIVID enabled and sourceReady=true with recent successful polls. The web process's own workerEnabled=false is intentional with this separate worker.
 - Live customer HTML and Admin JavaScript matched the merged v2.1.2 source. Public catalog returned all three distinct AIVID IDs with premium=true, ready=true and the Public visibility warning. This does not prove each customer's individual source grant.
 - Authenticated Admin showed persisted enabled=true, maxSourceCredits=19 and RDP ready. Its read-only Mini 480p/4s preflight succeeded with balance 50 and price 1 AIVID credit; no video or debit.

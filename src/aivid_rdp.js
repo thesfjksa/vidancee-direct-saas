@@ -235,8 +235,21 @@ class AividRdpService {
     if (input.error === true) result = { error: true,
       ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
     else if (command.kind === 'preflight' && input.ready === true && input.submitted === false &&
-      Number.isFinite(input.price) && input.price > 0 && Number.isFinite(input.balance) && input.balance >= 0)
+      Number.isFinite(input.price) && input.price > 0 && Number.isFinite(input.balance) && input.balance >= 0) {
       result = { ready: true, submitted: false, price: input.price, balance: input.balance };
+      // Premium prices must attest the actual prepared model/settings. Older
+      // agents that report only Mini's balance/price cannot quote another model.
+      const requested=command.payload.value;
+      if(requested.model || input.modelId){
+        const expected=validateJob(requested);
+        const mismatch=input.modelId!==expected.modelId?'form_model':
+          input.duration!==expected.duration?'form_duration':
+          input.resolution!==expected.resolution?'form_resolution':
+          input.aspectRatio!==expected.aspectRatio?'form_aspect_ratio':null;
+        result=mismatch?{error:true,errorCode:mismatch}:{...result,modelId:expected.modelId,
+          duration:expected.duration,resolution:expected.resolution,aspectRatio:expected.aspectRatio};
+      }
+    }
     else if (command.kind === 'submit' && ['accepted', 'rejected', 'submission_uncertain'].includes(input.state)) {
       if (command.state !== 'reserved') throw failure('Submission was not reserved.', 409);
       if (input.state === 'accepted' && !ID.test(input.providerJobId || '')) throw failure('Invalid AIVID result.');
