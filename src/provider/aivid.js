@@ -27,7 +27,7 @@ const DIAGNOSTICS = Object.freeze({
   aspect_ratio: 'Could not select the requested AIVID aspect ratio.',
   resolution: 'Could not select the requested AIVID resolution.',
   duration: 'Could not set or verify the AIVID duration slider.',
-  privacy: 'Could not set AIVID private visibility. No video was submitted.',
+  privacy: 'Could not set AIVID public visibility. No video was submitted.',
   reference_upload: 'AIVID reference upload controls did not match the requested files.',
   prompt: 'Could not fill the AIVID prompt field.',
   form_verification: 'AIVID form settings did not match after preparation. No video was submitted.',
@@ -102,17 +102,17 @@ function creditState(text) {
 }
 
 // Fail closed on an unknown outgoing schema. UI selection alone does not
-// prove privacy or that all reference uploads made it into the paid request.
+// prove the requested public visibility or that every upload reached the paid request.
 function validateSubmission(body, job) {
   if (!body || typeof body !== 'object' || body.model !== 'seedance-2.0-mini' || body.prompt !== job.prompt ||
     Number(body.duration) !== job.duration || body.resolution !== job.resolution ||
     (body.aspectRatio ?? body.aspect_ratio) !== job.aspectRatio)
     throw new Error('AIVID submission settings differ from the prepared job.');
-  const privateChecks = [];
-  for (const key of ['isPublic', 'public']) if (Object.hasOwn(body, key)) privateChecks.push(body[key] === false);
-  for (const key of ['isPrivate', 'private']) if (Object.hasOwn(body, key)) privateChecks.push(body[key] === true);
-  if (Object.hasOwn(body, 'visibility')) privateChecks.push(body.visibility === 'private');
-  if (!privateChecks.length || privateChecks.some(ok => !ok)) throw new Error('AIVID private visibility could not be verified before submission.');
+  const publicChecks = [];
+  for (const key of ['isPublic', 'public']) if (Object.hasOwn(body, key)) publicChecks.push(body[key] === true);
+  for (const key of ['isPrivate', 'private']) if (Object.hasOwn(body, key)) publicChecks.push(body[key] === false);
+  if (Object.hasOwn(body, 'visibility')) publicChecks.push(body.visibility === 'public');
+  if (!publicChecks.length || publicChecks.some(ok => !ok)) throw new Error('AIVID public visibility could not be verified before submission.');
   const wanted = job.counts.image + job.counts.video + job.counts.audio;
   const refs = body.references || [];
   if (!Array.isArray(refs) || refs.length !== wanted) throw new Error('AIVID reference uploads are missing or incomplete.');
@@ -187,17 +187,17 @@ async function choose(page, pattern, exactLabel) {
 // Observed AIVID form: Public / <label><input class="sr-only" ...></label> / Private.
 // Its checked state is !isPublic. Click the visible label, never the hidden
 // input or an unrelated checkbox (for example the reference bypass toggle).
-async function setPrivateVisibility(main) {
+async function setPublicVisibility(main) {
   const group = main.locator('div:has(> span:text-is("Public")):has(> span:text-is("Private"))');
   if (await group.count() !== 1 || !await group.isVisible()) throw new Error('Unknown AIVID privacy control.');
   const checkbox = group.locator('label input[type="checkbox"]');
   if (await checkbox.count() !== 1 || !await checkbox.isEnabled()) throw new Error('Unknown AIVID privacy switch.');
-  if (!await checkbox.isChecked()) {
+  if (await checkbox.isChecked()) {
     const label = group.locator('label:has(input[type="checkbox"])');
     if (await label.count() !== 1) throw new Error('Ambiguous AIVID privacy switch.');
     await label.click();
   }
-  if (!await checkbox.isChecked()) throw new Error('AIVID did not select private visibility.');
+  if (await checkbox.isChecked()) throw new Error('AIVID did not select public visibility.');
   return checkbox;
 }
 
@@ -220,8 +220,9 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     for (let second = 4; second < job.duration; second++) await slider.press('ArrowRight');
     if (await slider.inputValue() !== String(job.duration)) throw new Error();
   }, onProgress);
-  // UI verification and the outgoing private-payload guard must both pass.
-  const privacy = await step('privacy', () => setPrivateVisibility(main), onProgress);
+  // Owner-selected Public mode must be set before reading its price.
+  // Both the visible form and the outgoing payload independently verify it.
+  const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
   await step('reference_upload', async () => {
     for (const kind of Object.keys(INPUTS)) {
       const refs = references.filter(ref => ref.kind === kind);
@@ -234,7 +235,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   const prompt = promptEditors(page);
   await step('prompt', () => prompt.fill(job.prompt), onProgress);
   await step('form_verification', async () => {
-    if (!await privacy.isChecked() || await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
+    if (await privacy.isChecked() || await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
         !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())

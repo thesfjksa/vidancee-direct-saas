@@ -8,7 +8,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  const formPage=await browser.newPage();
  await require('./aivid-rdp/fixtures/form.cjs').checkForm(formPage,AividBrowserlessClient,waitForSession);
  await formPage.close();
- console.log('AIVID full preflight: zero balance, 4/10/15 seconds, private visibility and safe stage diagnostics passed; no Generate click.');
+ console.log('AIVID full preflight: zero balance, 4/10/15 seconds, public visibility and post-switch pricing and safe stage diagnostics passed; no Generate click.');
  // Exercise the login preparation against a real DOM. Only the entry button
  // is clicked; Google sign-in and paid actions must remain untouched.
  const loginPage=await browser.newPage();

@@ -1,5 +1,10 @@
 # AIVID on the owner's Windows RDP
 
+Owner setting (6 November 2026): every preflight and generation selects Public.
+The form and outgoing request both verify public visibility. Price is read
+after the switch, then checked against the saved source-credit ceiling.
+Use the complete agent 2.0.5 ZIP for this behavior.
+
 The RDP agent is an alternative transport for the existing AIVID browser
 adapter and queue. Select **Windows RDP agent** in Admin and save it to stop
 using Browserless for this provider. No database credentials or admin token
