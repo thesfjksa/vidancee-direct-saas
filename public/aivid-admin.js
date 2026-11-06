@@ -96,6 +96,7 @@
       const data = await api('/admin/aivid/status');
       savedMode = data.mode || 'browserless'; el('aividTransport').value = savedMode;
       el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
+      el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit || 1);
       el('aividRdpEnabled').checked = data.enabled === true;
       configured = savedMode === 'rdp' ? data.rdp?.paired === true : data.apiKeyConfigured || data.configured;
       window.updateAividTransport();
@@ -127,6 +128,7 @@
       await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
         mode: el('aividTransport').value,
         enabled: el('aividRdpEnabled').checked, maxSourceCredits: Number(el('aividRdpCeiling').value),
+        customerCreditsPerSourceCredit:Number(el('aividCustomerRate').value),
         apiKey: el('aividBrowserlessKey').value.trim(), endpoint: el('aividBrowserlessRegion').value,
         ttlDays: Number(el('aividSessionDays').value),
       }) });
