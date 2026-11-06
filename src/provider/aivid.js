@@ -7,11 +7,46 @@ const MINI = 'Seedance 2.0 (Mini)';
 const { aividModel, DEFAULT_ID } = require('../aivid_models.js');
 const ID = /^[a-zA-Z0-9_-]{16,80}$/;
 const MAX_OUTPUT_BYTES = 100 * 1024 * 1024;
-const INPUTS = {
-  image: 'input[type="file"][accept="image/jpeg,image/png,image/webp"]',
-  video: 'input[type="file"][accept="video/mp4,video/quicktime"]',
-  audio: 'input[type="file"][accept="audio/mpeg,audio/wav"]',
-};
+// File accept attribute ordering, whitespace and extension aliases are not
+// part of a provider API contract. Use semantic type matching rather than one
+// literal CSS attribute value. Reject ambiguous multi-kind inputs until their
+// actual upload schema is tested, rather than silently replacing files.
+const FILE_ACCEPT = Object.freeze({
+  image: ['image/*','image/jpeg','image/png','image/webp','.jpg','.jpeg','.png','.webp'],
+  video: ['video/*','video/mp4','video/quicktime','.mp4','.mov'],
+  audio: ['audio/*','audio/mpeg','audio/wav','audio/x-wav','.mp3','.wav'],
+});
+function fileInputKind(accept) {
+  const tokens=String(accept||'').toLowerCase().split(',').map(x=>x.trim()).filter(Boolean);
+  const matches=Object.keys(FILE_ACCEPT).filter(kind=>tokens.some(token=>FILE_ACCEPT[kind].includes(token)));
+  return matches.length===1?matches[0]:null;
+}
+async function referenceFileInput(main,kind) {
+  const inputs=main.locator('input[type="file"]');
+  const matches=[];
+  for(let i=0,n=await inputs.count();i<n;i++){
+    const input=inputs.nth(i);
+    if(fileInputKind(await input.getAttribute('accept'))===kind && await input.isEnabled())matches.push(input);
+  }
+  if(matches.length!==1)throw new Error('AIVID reference upload input is missing or ambiguous.');
+  return matches[0];
+}
+async function attachReferences(main,kind,refs) {
+  const input=await referenceFileInput(main,kind);
+  const files=refs.map((r,i)=>({
+    name:'reference-'+kind+'-'+(i+1)+'.'+(r.mimeType==='image/jpeg'?'jpg':r.mimeType==='video/quicktime'?'mov':r.mimeType==='audio/mpeg'?'mp3':r.mimeType.split('/')[1]),
+    mimeType:r.mimeType,buffer:r.data
+  }));
+  await input.setInputFiles(files);
+  // Verify the browser accepted each selected file. This is not proof of a
+  // successful provider-side upload; the outbound generation request guard
+  // independently checks reference counts/kinds before any paid submission.
+  const selected=await input.evaluate(element=>Array.from(element.files||[]).map(file=>({name:file.name,type:file.type,size:file.size})));
+  if(selected.length!==files.length||selected.some((file,i)=>
+    file.name!==files[i].name||file.type!==files[i].mimeType||file.size!==files[i].buffer.length))
+    throw new Error('AIVID did not retain the selected reference files.');
+}
+
 const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/mp4', 'video/quicktime'], audio: ['audio/mpeg', 'audio/wav'] };
 
 // Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
@@ -270,9 +305,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     for (const kind of Object.keys(INPUTS)) {
       const refs = references.filter(ref => ref.kind === kind);
       if (!refs.length) continue;
-      const input = main.locator(INPUTS[kind]);
-      if (await input.count() !== 1) throw new Error('AIVID reference upload control changed.');
-      await input.setInputFiles(refs.map((r, i) => ({ name: 'reference-' + kind + '-' + (i + 1) + '.' + r.mimeType.split('/')[1], mimeType: r.mimeType, buffer: r.data })));
+      await attachReferences(main,kind,refs);
     }
   }, onProgress);
   const prompt = promptEditors(page);
@@ -418,4 +451,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, MINI, ID };

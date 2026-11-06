@@ -142,3 +142,17 @@ complete v2.1.1 package over your existing program files **without deleting**
 `.aivid-agent.json`, `.aivid-rdp-profile/`, or `receipts/`. Keep pairing
 and receipts intact, then start Agent once and use the Admin **Check RDP
 connection** (read-only). Do not retry old uncertain paid jobs.
+
+### Image reference upload safeguards (v2.1.1)
+The reference uploader now matches media input acceptance by MIME family and
+extension (rather than strict accept-attribute text), confirms the browser's
+selected FileList, and rejects missing/ambiguous controls. In the customer
+video path, CMMTools stores references and transfers them as verified binary
+chunks with file-kind, size and SHA256 checks; the outbound paid request guard
+still rejects missing/wrong reference counts/types. A selected browser file
+is **not** proof that AIVID's server has finished receiving it; real live
+reference-upload behavior must be verified before promising paid image-to-video.
+
+**Admin Check RDP connection is text-only and never attempts a reference upload.**
+If the failure says `form_model`, `form_privacy`, or `form_resolution`, it is
+not a reference upload error; this check should not spend AIVID credits.

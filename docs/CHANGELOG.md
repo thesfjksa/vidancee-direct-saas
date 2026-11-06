@@ -1,3 +1,9 @@
+## 2026-11-06 — AIVID reference-input compatibility (Agent v2.1.1)
+
+- Identify AIVID file inputs by parsed accepted MIME/extension types instead of requiring literal attribute-order equality; fail closed on missing/ambiguous mixed-kind controls.
+- Verify the selected browser FileList and keep the outgoing generation reference count/type guard. Fixture coverage includes a reordered MIME list, image preflight without paid generation, missing input and multiple matching inputs.
+- Admin Check remains **text only**; it never tests reference uploads. Actual AIVID server-side image upload acceptance requires a separate authorized live test and must not be inferred from a fixture.
+
 ## 2026-11-06 — AIVID RDP v2.1.1 selected-form verification
 
 - Resolve false `form_verification` when AIVID's currently selected model button has additional descriptive text. Verify the selected model trigger with anchored per-model identity patterns (Mini, 2.0, 2.5), not an exact name that matches menu options. Aspect/resolution selection checks tolerate descriptive suffixes but still confirm the primary selected value.
