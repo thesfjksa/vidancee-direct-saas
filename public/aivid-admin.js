@@ -6,6 +6,21 @@
   const el = id => document.getElementById(id);
   let loginId = null, timer = null, countdownTimer = null, active = false, configured = false, busy = false, savedMode = 'browserless';
   let pairingExpiresAt = 0;
+  // A checked browser checkbox is NOT evidence of an enabled persisted source.
+  const savedState = () => el('aividSavedSettingsState');
+  function paintSavedState(data) {
+    const enabled=data.enabled===true,ceiling=Number(data.maxSourceCredits||0);
+    const agent=data.mode==='rdp'?Boolean(data.rdp?.online&&data.rdp?.status==='ready'):Boolean(data.configured&&!data.sessionExpired);
+    const ready=enabled&&ceiling>0&&agent;
+    savedState().textContent='Saved in Admin: '+(enabled?'Enabled':'Disabled')+
+      ' · Maximum '+ceiling+' AIVID credits/video · Agent '+(agent?'ready':'not ready')+
+      (ready?' · Premium submissions ready':' · Premium submissions paused');
+    savedState().className=ready?'ok': 'muted';
+  }
+  window.markAividSettingsDirty=()=>{
+    savedState().textContent='Unsaved changes — click Save RDP connection to apply these settings.';
+    savedState().className='muted';
+  };
   const states = new Set(['opening', 'waiting', 'verify_requested', 'verifying']);
   function message(text, error = false) {
     el('aividAdminMessage').textContent = text;
@@ -98,6 +113,7 @@
       el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
       el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit);
       el('aividRdpEnabled').checked = data.enabled === true;
+      paintSavedState(data);
       configured = savedMode === 'rdp' ? data.rdp?.paired === true : data.apiKeyConfigured || data.configured;
       window.updateAividTransport();
       el('aividKeyStatus').textContent = data.apiKeyConfigured ? 'Saved key: configured (encrypted)' : 'No Browserless key saved yet.';
@@ -119,20 +135,30 @@
       }
       if (savedMode !== 'rdp' && data.sessionExpired && !active) el('aividConnectionBadge').textContent = 'Session expired';
       if (active) await pollLogin();
-    } catch (error) { message(error.message, true); }
+      return data;
+    } catch (error) { message(error.message, true); throw error; }
     finally { buttons(); }
   };
   window.saveAividAdmin = async () => {
-    busy = true; buttons(); message('Saving Browserless settings…');
+    busy = true; buttons(); message('Saving AIVID settings…');
     try {
-      await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
+      const expectedEnabled=el('aividRdpEnabled').checked;
+      const expectedCeiling=Number(el('aividRdpCeiling').value);
+      const saved=await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
         mode: el('aividTransport').value,
         enabled: el('aividRdpEnabled').checked, maxSourceCredits: Number(el('aividRdpCeiling').value),
         apiKey: el('aividBrowserlessKey').value.trim(), endpoint: el('aividBrowserlessRegion').value,
         ttlDays: Number(el('aividSessionDays').value),
       }) });
       el('aividBrowserlessKey').value = '';
-      await window.loadAividAdmin(); message(savedMode === 'rdp' ? 'RDP mode saved. Generate a pairing code and enter it in AIVID-Agent.exe.' : 'Browserless settings saved. Click Connect aivid to sign in.');
+      const verified=await window.loadAividAdmin();
+      if(saved.enabled!==expectedEnabled || Number(saved.maxSourceCredits)!==expectedCeiling ||
+         verified.enabled!==expectedEnabled || Number(verified.maxSourceCredits)!==expectedCeiling)
+        throw new Error('Saved AIVID state differs from your settings. Refresh Admin and check database write access.');
+      message(savedMode === 'rdp'
+        ? 'Saved and verified: AIVID '+(expectedEnabled?'enabled':'disabled')+
+          ', maximum '+expectedCeiling+' source credits/video. '+(expectedCeiling<=0?'A credit ceiling of 0 still blocks generation.':'Refresh customer Video Studio.')
+        : 'Browserless settings saved and verified.');
     } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
   };

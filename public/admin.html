@@ -141,10 +141,11 @@
             <button id="aividPairButton" class="secondary" type="button" onclick="pairAividRdp()">Generate pairing code</button>
             <div id="aividPairCopyRow" hidden style="margin-top:12px"><label for="aividPairCodeInput">One-time pairing code</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="aividPairCodeInput" readonly autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button id="aividCopyCodeButton" class="secondary" type="button" onclick="copyAividRdpCode()">Copy code</button></div></div>
             <p id="aividPairCode" class="muted" role="status" style="overflow-wrap:anywhere"></p>
-            <div class="field"><label for="aividRdpCeiling">Maximum AIVID credits per video</label><input id="aividRdpCeiling" type="number" min="0" max="10000" step="0.01" value="0"></div>
+            <div class="field"><label for="aividRdpCeiling">Maximum AIVID credits per video</label><input id="aividRdpCeiling" type="number" min="0" max="10000" step="0.01" value="0" oninput="markAividSettingsDirty()"></div>
             <div class="field"><label for="aividCustomerRate">Customer credits per AIVID credit (fixed: $0.12 source cost × 6,720 credits/USD)</label><input id="aividCustomerRate" type="number" value="806.4" readonly title="Source-cost conversion is fixed; standard 5% and any boosted customer pricing are added automatically."></div>
             <p class="muted">Each AIVID credit costs $0.12 (Rs 33.60), equivalent to 806.40 CMMTools credits before the standard 5% increase. An ordinary customer pays 846.72 credits per AIVID credit; boosted accounts retain their existing rate.</p>
-            <label><input id="aividRdpEnabled" type="checkbox" style="width:auto"> Accept queued AIVID jobs</label>
+            <label><input id="aividRdpEnabled" type="checkbox" style="width:auto" onchange="markAividSettingsDirty()"> Accept queued AIVID jobs</label>
+            <p id="aividSavedSettingsState" class="muted" role="status">Checking saved AIVID submission settings…</p>
             <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Premium models are listed when this source is enabled and online. Each quote checks live Public pricing; any changed price blocks submission.</p>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin:12px 0"><button class="btn" id="aividSaveButton" onclick="saveAividAdmin()">Save Browserless key</button><button class="secondary" onclick="loadAividAdmin()">Refresh status</button></div>

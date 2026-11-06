@@ -64,13 +64,23 @@ function validateConfig(input, current) {
   return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits };
 }
 
-async function saveAividSettings(input, { getConfig = getAividSettings, write = setSettingValue } = {}) {
+async function saveAividSettings(input, { getConfig = getAividSettings, write = setSettingValue, read = getSettingValue } = {}) {
   const current = await getConfig();
   const saved = validateConfig(input, current);
   if (current.connectUrl && !current.session?.connect) {
     await write(SESSION_KEY, JSON.stringify({ connect: current.connectUrl, expiresAt: current.expiresAt || null }), { secret: true });
   }
   await write(CONFIG_KEY, JSON.stringify(saved), { secret: true });
+  // Return success only after reading the saved settings back from MySQL.
+  // An online RDP heartbeat cannot prove this enabled flag was persisted.
+  let persisted;
+  try { persisted = JSON.parse(await read(CONFIG_KEY, '')); }
+  catch { persisted = null; }
+  if (!persisted || persisted.enabled !== saved.enabled ||
+      Number(persisted.maxSourceCredits) !== saved.maxSourceCredits ||
+      persisted.mode !== saved.mode) {
+    throw Object.assign(new Error('AIVID settings could not be verified in MySQL after saving. Check database write permissions. No paid submissions were enabled.'),{statusCode:503});
+  }
   return publicConfig({ ...current, ...saved });
 }
 

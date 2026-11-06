@@ -41,7 +41,7 @@ function aividReady(config){
 // still refused in quoteAivid() and by the durable AIVID queue until ready.
 function unavailableReason(config) {
   if(!config)return 'AIVID connection status could not be read.';
-  if(config.enabled!==true)return 'AIVID Premium is disabled in Admin.';
+  if(config.enabled!==true)return 'AIVID Premium is disabled in saved Admin settings. Enable Accept queued AIVID jobs and click Save RDP connection.';
   if(!(config.maxSourceCredits>0))return 'AIVID source-credit limit is zero in Admin.';
   if(config.mode==='rdp')return 'The Windows RDP agent is offline or not ready.';
   return 'The AIVID browser session is missing or expired.';
