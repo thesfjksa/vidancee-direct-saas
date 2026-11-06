@@ -1,3 +1,17 @@
+## 2026-11-06 — Collect accepted AIVID jobs after transient detail errors (Agent v2.1.6)
+
+- The owner's accepted Mini ID initially showed Video not found on the Public detail route; the same URL later showed Completed, 15s and Download Video. This was collection delay, not a missing paid submission.
+- Treat the temporary not-found page as pending and wait for asynchronous Status rendering. Preserve explicit failed/cancelled handling.
+- Transient collection/download errors retain ready agent polling instead of moving every collection failure to needs_login. The saved provider ID, output validation and no-resubmission guarantee remain unchanged.
+- Real browser fixtures exercise missing → processing → completed and delayed rendering without a mutation; agent-loop tests verify collection errors do not disable the consumer. Old stuck agents can recover through Check RDP connection or a restart; full v2.1.6 includes this fix and the standard/Fast selector fix.
+
+## 2026-11-06 — Standard Seedance 2.0 selector (Agent v2.1.6)
+
+- Live model menu contains Seedance 2.0 and Seedance 2.0 (Fast). The standard matcher previously excluded only Mini, incorrectly matching both standard and Fast and stopping with model_selection.
+- Exclude every parenthesized variant from standard 2.0 selection and selected-control verification. Preserve strict duplicate refusal and exact outgoing provider ID.
+- Add browser regressions with the observed Fast label/description, both resolutions and an initially selected Fast model. Run browser CI on adapter/fixture edits.
+- Complete Windows v2.1.6 required on the owner's RDP. No paid generation is run by these checks; rerun all six preflights after updating.
+
 ## 2026-11-06 — Reference uploads (Agent v2.1.5)
 
 - Follow inspected image/video/audio controls, asynchronous preview readiness and expected input clearing. Capture file hashes before the input is cleared.

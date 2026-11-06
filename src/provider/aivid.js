@@ -267,7 +267,8 @@ function selectedValueMatches(controlText, exactLabel) {
 }
 const SELECTED_MODEL = Object.freeze({
   aivid_seedance_2_0_mini: /^Seedance 2\.0 \(Mini\)(?=\s|$)/,
-  aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\(Mini\))(?=\s|$)/,
+  // Any parenthesized suffix denotes a different model (Mini, Fast, etc.).
+  aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\()(?=\s|$)/,
   aivid_seedance_2_5: /^Seedance 2\.5(?=\s|$)/,
 });
 function selectedModelMatches(controlText, modelId) {
@@ -473,6 +474,26 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
     close: async () => { page.off?.('response',onResponse);await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
 }
 
+// Public video pages can say "Video not found." until a newly accepted job
+// becomes publishable. This is not evidence of failure or a lost login.
+async function collectionState(page,{timeoutMs=15000}={}){
+  const status=page.locator('dt').filter({hasText:/^Status$/}).locator('xpath=following-sibling::dd[1]');
+  const deadline=Date.now()+timeoutMs;
+  do{
+    if(new URL(page.url()).origin!==ORIGIN)throw new Error('AIVID collection left the expected site.');
+    if(await status.count()===1 && await status.isVisible()){
+      const text=(await status.innerText()).trim().toLowerCase();
+      if(['failed','cancelled','canceled'].includes(text))return 'failed';
+      if(['pending','queued','processing','generating','running','in progress'].includes(text))return 'pending';
+      if(text==='completed')return 'completed';
+      throw new Error('AIVID video status is not recognized.');
+    }
+    if(await page.getByText('Video not found.',{exact:true}).filter({visible:true}).count())return 'pending';
+    await new Promise(resolve=>setTimeout(resolve,200));
+  }while(Date.now()<deadline);
+  throw new Error('AIVID video detail is not ready. The existing job will be retried.');
+}
+
 class AividBrowserlessClient {
   constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, onProgress = null } = {}) {
     this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.onProgress = onProgress;
@@ -549,11 +570,8 @@ class AividBrowserlessClient {
     if (!ID.test(String(id))) throw new Error('Invalid AIVID job ID.');
     return this.withPage(async page => {
       await page.goto(ORIGIN + '/videos/' + encodeURIComponent(id), { waitUntil: 'domcontentloaded', timeout: 30000 });
-      const status = page.locator('dt').filter({ hasText: /^Status$/ }).locator('xpath=following-sibling::dd[1]');
-      const text = (await status.innerText()).trim().toLowerCase();
-      if (['failed', 'cancelled', 'canceled'].includes(text)) return { state: 'failed' };
-      if (['pending', 'queued', 'processing', 'generating', 'running', 'in progress'].includes(text)) return { state: 'pending' };
-      if (text !== 'completed') throw new Error('AIVID video status is not recognized.');
+      const state=await collectionState(page);
+      if(state!=='completed')return {state};
       if (this.download) return { state: 'completed', output: await this.download(page) };
       const cdp = await page.context().newCDPSession(page);
       let timer, listener;
@@ -587,4 +605,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, normalizePrompt, fillPrompt, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, normalizePrompt, fillPrompt, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, collectionState, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };

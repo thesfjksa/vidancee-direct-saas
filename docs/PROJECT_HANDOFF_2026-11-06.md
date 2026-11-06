@@ -183,3 +183,36 @@ Mock browser coverage exercises all media, input clearing/async previews, blocke
 probes, successful request release after reservation, invalid IDs and failed storage.
 Live uploads and paid reference-based generation/collection remain unverified until
 the owner installs the new complete Windows package and runs acceptance checks.
+
+## Follow-up screenshot: standard 2.0 fails both resolutions — v2.1.6
+
+Owner's Check all Premium models reported 4/6: Mini and 2.5 passed with balance
+50 unchanged; both standard 2.0 resolutions failed model_selection. Live DOM
+inspection confirmed distinct standard, Fast and Mini menu buttons. The previous
+standard regex excluded Mini only and matched Fast as well. Precise selection
+excluding parenthesized variants selected standard 2.0 in the public live form
+without Generate. Fix the matcher used for both candidate and selected-control
+checks; retain duplicate rejection and final provider ID verification. The browser
+fixture now includes Fast, switching from Fast/2.5 and both resolutions. Full agent
+v2.1.6 must replace the installed v2.1.5 package. The owner's six live preflights
+and paid acceptance remain outstanding after installation. No paid video generated.
+
+## Existing accepted Mini job collection failure — included in v2.1.6
+
+Owner submitted a 15s/480p Mini job; the RDP visited
+https://aivid.dev/videos/6aee0aa512e75243dfa7c7b8 and saw Video not found.
+The same exact public URL was inspected later and showed Completed, 15s and a
+Download Video button, with matching owner prompt. CMMTools still showed Submitted
+and its safe waiting-for-service message. No new generation was made by the agent.
+
+Collection previously timed out waiting for Status and the RDP run loop marked any
+non-network operation error needs_login. That state cannot claim collect commands,
+so a transient public-page delay could stall collection indefinitely. Now classify
+visible exact Video not found. as pending, wait for rendered Status, and retain
+agent readiness on transient collection/download errors (explicit auth diagnostics
+still pause). Always retry the saved ID; never refund a missing public page or
+resubmit. Native MP4 validation, chunk integrity and CMMTools storage transactions
+remain required. Browser and agent-loop regressions cover this transition. Owner
+was advised Check RDP connection then Refresh status to recover the old running
+agent while the full v2.1.6 package is built. Live transfer into CMMTools remains
+unverified until that existing job actually completes in the customer dashboard.

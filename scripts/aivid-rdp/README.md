@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.5
+# CMMTools AIVID RDP agent 2.1.6
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -213,3 +213,32 @@ Automated browser tests mock provider/storage responses. Passing them does not
 prove live uploads on your RDP or paid reference-based generation and collection.
 Run the new live diagnostic after upgrading; paid end-to-end acceptance remains
 separate and consumes source credits.
+
+## Standard Seedance 2.0 selection — v2.1.6
+
+Live inspection reproduced standard Seedance 2.0 beside Seedance 2.0 (Fast).
+The previous standard matcher excluded Mini but also matched Fast, producing an
+ambiguous menu and model_selection failures in both resolutions. It now excludes
+all parenthesized variants. A previously selected Fast model cannot be reused
+as standard 2.0. Exact outgoing provider model validation remains required.
+Browser fixtures include the real Fast label/description, switching from both
+2.5 and Fast, both resolutions, and duplicate standard options (still refused).
+
+Stop Agent, update the whole package preserving pairing/profile/receipts, restart,
+then use Check all Premium models and Refresh status in Admin. These checks do
+not generate or spend credits; six successful checks do not prove paid outputs.
+
+## Existing-job collection recovery — v2.1.6
+
+A newly accepted Public video can temporarily show "Video not found." before
+its detail page appears. That response now remains pending, rather than marking
+the agent as needing login. Collection also waits for asynchronously rendered
+status. Temporary collection/download errors keep the agent available for the
+next poll of the same saved provider ID. Only an explicit failed/cancelled status
+can fail a source job. No collection retry generates another video or reserves
+another charge. A genuine sign-in diagnostic still pauses for login.
+
+For a job already stuck under an old agent, Check RDP connection can restore ready
+status. Upgrade the full package and leave Agent running to collect the existing
+completed job. Do not submit the prompt again. A completed source video is not a
+completed CMMTools job until download, validation and storage succeed.

@@ -9,6 +9,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  await require('./aivid-rdp/fixtures/form.cjs').checkForm(formPage,AividBrowserlessClient,waitForSession);
  await formPage.close();
  await require('./aivid-rdp/fixtures/references.cjs').checkReferenceFlows(browser,AividBrowserlessClient);
+ await require('./aivid-rdp/fixtures/collection.cjs').checkCollection(browser,AividBrowserlessClient);
  console.log('AIVID full preflight: prompt line endings/retention, zero balance, duration, Public pricing and safe diagnostics passed; no Generate click.');
  // Exercise the login preparation against a real DOM. Only the entry button
  // is clicked; Google sign-in and paid actions must remain untouched.
