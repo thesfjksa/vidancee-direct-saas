@@ -62,7 +62,8 @@ actual RDP and a permitted live trial; no RDP credentials are requested in chat.
 ## Customer model visibility (November 2026)
 
 The three Premium choices (AIVID Seedance 2.0 Mini, 2.0, 2.5) stay visible
-in Video Studio for customers whose AIVID source access is allowed, even if
+in Video Studio for customers whose AIVID source access is allowed, once the
+AIVID source has been configured (paired RDP or saved browser session), even if
 the Windows agent is offline, the browser session expires, or the source-credit
 ceiling is zero. Such models display an **Unavailable** cost and a warning;
 the Generate button is disabled for the selected model. A model becomes ready

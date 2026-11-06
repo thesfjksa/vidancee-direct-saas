@@ -46,7 +46,17 @@ function unavailableReason(config) {
   if(config.mode==='rdp')return 'The Windows RDP agent is offline or not ready.';
   return 'The AIVID browser session is missing or expired.';
 }
+function aividConfigured(config){
+  if(!config)return false;
+  // Keep the selected provider's models visible after heartbeat loss,
+  // credits-ceiling pauses, or a temporary Admin disable. Do not inject
+  // AIVID into unrelated installations that never set up this provider.
+  return Boolean(config.enabled ||
+    (config.mode==='rdp' && config.rdpDevice?.tokenHash && config.rdpDevice?.deviceId) ||
+    (config.mode!=='rdp' && config.connectUrl));
+}
 function customerCatalog(config){
+  if(!aividConfigured(config))return [];
   const ready=aividReady(config);
   return SPECS.map(spec=>{
     const entry=modelEntry(spec);
@@ -85,4 +95,4 @@ async function quoteAivid(config,body,{db}={}){
   return {cost:roundCredits(sourceCredits*multiplier),isEstimate:body.previewHasReferences===true,
     sourceCredits, modelId:model.id,duration:value.duration,resolution:value.resolution,aspectRatio:value.aspectRatio};
 }
-module.exports={SPECS,DEFAULT_ID,isAividModel,aividModel,capabilities,customerCatalog,aividReady,assertOptions,quoteAivid};
+module.exports={SPECS,DEFAULT_ID,isAividModel,aividModel,capabilities,customerCatalog,aividReady,aividConfigured,assertOptions,quoteAivid};
