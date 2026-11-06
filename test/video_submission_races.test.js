@@ -9,7 +9,7 @@ function fixture(){
  const enhance=deferred(),upload=deferred(),post=deferred(),forms=[];
  const fields=Object.fromEntries(['generateBtn','genMsg','prompt','cost','model','duration','resolution','ratio','videoGenerationMode','videoGenerateAudio','resolutionControl','videoModeControl'].map(id=>[id,{value:'',textContent:'',disabled:false,setAttribute(){},removeAttribute(){},classList:{contains:()=>id==='videoModeControl'}}]));
  Object.assign(fields.model,{value:'aivid_seedance_2_0_mini'});fields.duration.value='5';fields.resolution.value='480p';fields.ratio.value='16:9';fields.prompt.value='A river';fields.cost.textContent='100';
- const ctx={console,Map,Number,JSON,FormData:class{constructor(){this.parts=[]}append(...v){this.parts.push(v)}},$:id=>fields[id],referenceItems:[],videoReferenceItems:[],audioReferenceItems:[],reusedReferenceGenerationId:null,
+ const ctx={quoteCache:new Map(),updateCost:async()=>{},console,Map,Number,JSON,FormData:class{constructor(){this.parts=[]}append(...v){this.parts.push(v)}},$:id=>fields[id],referenceItems:[],videoReferenceItems:[],audioReferenceItems:[],reusedReferenceGenerationId:null,
   validateClientReferenceSelection(){},prepareGenerationPrompt:async()=>{await enhance.promise;return fields.prompt.value},uploadReferencesDirect:async()=>upload.promise,
   postFormWithProgress:async(path,form)=>{forms.push(form);await post.promise;return{user:{},generation:{}}},currentVideoModel:()=>({unavailable:ctx.unavailable}),syncUser(){},showReferenceNotices(){},
   sameItems:(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]),clearReferenceItems(){},clearVideoReferenceItems(){},clearAudioReferenceItems(){},updatePromptCounts(){},

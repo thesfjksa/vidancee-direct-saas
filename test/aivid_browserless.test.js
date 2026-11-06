@@ -307,3 +307,14 @@ test('a held older video cannot starve collection of another accepted customer v
   ? [[{...f.job,id:'old-held',provider_operation:'{"stage":"review_required"}',provider_job_id:null},f.job]]:original(sql,args);
  await f.q.runOnce(f.db);assert.equal(f.stats().polls,1);assert.equal(f.stats().submissions,0);assert.equal(f.stats().refunds,0);
 });
+test('pending and held videos do not block new queued work; source capacity remains bounded',async()=>{
+ for(const count of [0,1,3]){
+  const f=fixture(),originalQuery=f.db.query,originalExecute=f.db.execute;
+  const rows=Array.from({length:count},(_,i)=>({...f.job,id:'active-'+i,status:'submitted',provider_job_id:providerJobId,provider_operation:'{"stage":"accepted"}'}));
+  rows.unshift({...f.job,id:'held',status:'submitted',provider_job_id:null,provider_operation:'{"stage":"review_required"}'});
+  f.db.query=async(sql,args)=>sql.startsWith('SELECT * FROM generations')&&sql.includes("status IN ('submitted','processing')")?[[...rows]]:originalQuery(sql,args);
+  f.db.execute=async(sql,args)=>sql.includes("SET status='processing'")&&args[0]!==f.job.id?[{affectedRows:1}]:originalExecute(sql,args);
+  await f.q.runOnce(f.db);
+  assert.equal(f.stats().polls,count?1:0);assert.equal(f.stats().submissions,count<3?1:0);assert.equal(f.stats().refunds,0);
+ }
+});

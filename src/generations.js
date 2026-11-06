@@ -332,13 +332,15 @@ async function createGenerationForUser(userId, input, options = {}) {
     }
 
     const planProfile = getPlanProfile(user.plan_code);
+    const aividQueue=provider==='aivid';
+    const queueLimit=aividQueue?20:planProfile.concurrency;
     const [[activeRow]] = await conn.execute(
-      "SELECT COUNT(*) AS total FROM generations WHERE user_id=? AND status IN ('queued','submitting','submitted','processing')",
+      "SELECT COUNT(*) AS total FROM generations WHERE user_id=? AND status IN ('queued','submitting','submitted','processing')"+(aividQueue?" AND provider='aivid'":''),
       [userId],
     );
-    if (Number(activeRow?.total || 0) >= planProfile.concurrency) {
+    if (Number(activeRow?.total || 0) >= queueLimit) {
       const error = new Error(
-        planProfile.code
+        aividQueue?'Your Premium queue is full (20 pending videos). Wait for one to finish.':planProfile.code
           ? planProfile.name + ' allows up to ' + planProfile.concurrency + ' simultaneous generations.'
           : 'Choose a plan to run more than one generation at a time.'
       );

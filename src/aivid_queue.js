@@ -31,8 +31,9 @@ class AividQueue extends VercelQueue {
     super({ ...options, provider: 'aivid', clientFactory });
     this.getConfig = getConfig;
     this.collectionWaitingForAgent = false;
+    this.maxSourceInflight=Math.max(1,Math.min(10,Math.floor(Number(process.env.AIVID_MAX_INFLIGHT)||3)));
   }
-  health(){return {...super.health(),collectionGuardRevision:1,collectionWaitingForAgent:this.collectionWaitingForAgent};}
+  health(){return {...super.health(),collectionGuardRevision:1,multiQueueRevision:1,maxSourceInflight:this.maxSourceInflight,collectionWaitingForAgent:this.collectionWaitingForAgent};}
   schedule(delay = 30000) { return super.schedule(delay); }
   async runOnce(db = getPool(), settings = null) {
     const config = await this.getConfig();
@@ -54,8 +55,9 @@ class AividQueue extends VercelQueue {
           await this.refund(job.id, 'submit_error', 'Generation stopped before submission. Credits were refunded.', null);
         } else await this.hold(db, job);
       }
-      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY updated_at LIMIT 50");
-      if (active.length) {
+      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY (provider_job_id IS NULL OR provider_operation LIKE '%review_required%'),updated_at LIMIT 50");
+      let inflight=active.filter(row=>operation(row).stage!=='review_required'&&ID.test(String(row.provider_job_id||''))).length;
+      if (inflight) {
         // A held/invalid older job must not starve other accepted videos.
         // If all rows need review, preserve the pause on new submissions.
         const job=active.find(row=>operation(row).stage!=='review_required'&&ID.test(String(row.provider_job_id||'')));
@@ -68,15 +70,15 @@ class AividQueue extends VercelQueue {
           this.collectionWaitingForAgent=true;return;
         }
         this.tasks.add(job.id);
-        try { await this.pollJob(db, client, job); }
+        try { const state=await this.pollJob(db, client, job);if(['completed','failed'].includes(state))inflight--; }
         catch {
           // Sign-out, missing/private detail page, source failure, download or
           // storage failures retain the accepted ID; never resubmit or refund.
           await db.execute("UPDATE generations SET error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
             ['Waiting for the video service. Your existing generation will resume automatically.', job.id]);
         } finally { this.tasks.delete(job.id); }
-        return;
       }
+      if(inflight>=this.maxSourceInflight)return;
       if (!this.sourceReady || this.stopped) return;
       const [rows] = await db.query("SELECT g.* FROM generations g JOIN users u ON u.id=g.user_id AND u.status='active' WHERE g.provider='aivid' AND g.status='queued' ORDER BY g.queue_priority DESC,g.created_at LIMIT 1");
       const job = rows[0]; if (!job) return;
@@ -130,10 +132,10 @@ class AividQueue extends VercelQueue {
   }
   async pollJob(db, client, job) {
     const result = await client.collectVideo(job.provider_job_id);
-    if (result.state === 'pending') return this.markProcessing(db, job);
-    if (result.state === 'failed') return this.refund(job.id, 'failed', 'The video could not be completed. Credits were refunded.', null);
+    if (result.state === 'pending'){await this.markProcessing(db,job);return 'pending';}
+    if (result.state === 'failed'){await this.refund(job.id, 'failed', 'The video could not be completed. Credits were refunded.', null);return 'failed';}
     if (result.state !== 'completed') throw new Error('Unknown video status.');
-    return this.complete(db, job, result.output);
+    await this.complete(db, job, result.output);return 'completed';
   }
 }
 

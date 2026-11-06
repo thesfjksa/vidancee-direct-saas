@@ -1,3 +1,10 @@
+## 2026-11-07 — Multiple Premium queue slots (server only)
+
+- Separate waiting-job admission from browser execution: up to 20 pending Premium jobs per customer, with default three source jobs in flight (AIVID_MAX_INFLIGHT accepts 1–10). Other providers retain plan limits.
+- Poll one accepted job fairly, then admit one queued job when source capacity remains. Pending, held or temporarily uncollectable videos do not exclusively occupy the submission lane. Never repeat an uncertain job.
+- Keep one browser operation under the shared lock. Offline agents still block fresh quotes/submissions. Missing-price clicks refresh the quote instead of leaving the price permanently stale.
+- An already-generated paid video is retained for collection, not silently cancelled or refunded. Tests use fake source calls only; Windows v2.1.6 remains unchanged.
+
 ## 2026-11-06 — Credit-free customer-flow audit (server update; Agent v2.1.6 unchanged)
 
 - Add a server-side offline pairing recovery and safe offline replacement for accepted jobs; preserve locks, revoked-token checks and blocks on active/uncertain submissions.
