@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.0.3
+# CMMTools AIVID RDP agent 2.0.4
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -79,3 +79,11 @@ requiring specific placeholder text. It supports textareas and rich-text
 editors, ignores hidden fallback fields, and reports separate codes for a
 visible Sign In button, a missing editor, multiple editors or a redirected tab.
 A zero credit balance is still valid for the no-charge connection check.
+
+Version 2.0.4 fixes private visibility. AIVID uses a hidden checkbox inside a
+visible Public/Private switch; checked means Private. The agent identifies
+that switch by its labels, clicks its visible label only when needed, and
+verifies the checked state again before finishing preparation. An unknown,
+disabled or ambiguous switch still stops before submission. The outgoing
+request must independently contain private visibility. Update in the existing
+folder as above; no new login or pairing is needed.

@@ -184,6 +184,23 @@ async function choose(page, pattern, exactLabel) {
   }
 }
 
+// Observed AIVID form: Public / <label><input class="sr-only" ...></label> / Private.
+// Its checked state is !isPublic. Click the visible label, never the hidden
+// input or an unrelated checkbox (for example the reference bypass toggle).
+async function setPrivateVisibility(main) {
+  const group = main.locator('div:has(> span:text-is("Public")):has(> span:text-is("Private"))');
+  if (await group.count() !== 1 || !await group.isVisible()) throw new Error('Unknown AIVID privacy control.');
+  const checkbox = group.locator('label input[type="checkbox"]');
+  if (await checkbox.count() !== 1 || !await checkbox.isEnabled()) throw new Error('Unknown AIVID privacy switch.');
+  if (!await checkbox.isChecked()) {
+    const label = group.locator('label:has(input[type="checkbox"])');
+    if (await label.count() !== 1) throw new Error('Ambiguous AIVID privacy switch.');
+    await label.click();
+  }
+  if (!await checkbox.isChecked()) throw new Error('AIVID did not select private visibility.');
+  return checkbox;
+}
+
 async function prepare(page, value, references = [], { onProgress } = {}) {
   const job = validateJob(value, references);
   await step('page_navigation', () => page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 }), onProgress);
@@ -203,9 +220,8 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     for (let second = 4; second < job.duration; second++) await slider.press('ArrowRight');
     if (await slider.inputValue() !== String(job.duration)) throw new Error();
   }, onProgress);
-  // Toggle is checked on the public default form. The request guard below
-  // also requires an explicit private field and aborts on unknown schemas.
-  await step('privacy', () => main.locator('input[type="checkbox"]').first().setChecked(false), onProgress);
+  // UI verification and the outgoing private-payload guard must both pass.
+  const privacy = await step('privacy', () => setPrivateVisibility(main), onProgress);
   await step('reference_upload', async () => {
     for (const kind of Object.keys(INPUTS)) {
       const refs = references.filter(ref => ref.kind === kind);
@@ -218,7 +234,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   const prompt = promptEditors(page);
   await step('prompt', () => prompt.fill(job.prompt), onProgress);
   await step('form_verification', async () => {
-    if (await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
+    if (!await privacy.isChecked() || await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
         !await main.getByRole('button', { name: MINI, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
         !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
