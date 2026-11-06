@@ -1,3 +1,12 @@
+## 2026-11-06 — AIVID Premium models, public mode and customer visibility (GitHub source)
+
+- PR [#141](https://github.com/thesfjksa/vidancee-direct-saas/pull/141): AIVID visibility is set to **Public** before reading its source price and independently checked in the outbound request guard.
+- PR [#143](https://github.com/thesfjksa/vidancee-direct-saas/pull/143): introduced customer-facing `aivid_seedance_2_0_mini`, `aivid_seedance_2_0` and `aivid_seedance_2_5` Premium models, with Admin per-customer grants, separate AIVID source-credit conversion (default 480 CMM credits per AIVID credit; **owner must confirm economics**), source ceiling, RDP quote and durable guarded generation queue; Windows Agent **v2.1.0** includes the standalone model registry.
+- PR [#144](https://github.com/thesfjksa/vidancee-direct-saas/pull/144): keep AIVID price checks off the public pricing examples and warn customers that Public output may be visible upstream.
+- PR [#145](https://github.com/thesfjksa/vidancee-direct-saas/pull/145): fix all three AIVID model choices disappearing from the customer's Video Studio when an already-configured source went offline, the source was disabled or source-ceiling was zero. Configured models now remain visible as **Unavailable**; Generate is disabled while not ready. A never-configured AIVID installation is not injected into the catalog. Explicit per-customer source denial still hides the choices.
+- PR #143 passed Node, browser, MySQL and Windows agent checks; PR #145 passed Node, MySQL and Windows checks. This is **source-level verification only**. No live Hostinger web/worker deployment, installed v2.1.0 agent, per-model paid generation, or output download has been confirmed. Do not equate AIVID source credits with 888API CNY; preserve all existing users, ledger, job receipts and 888API routes.
+- Read [the 6 November operational handoff](PROJECT_HANDOFF_2026-11-06.md) for source-control SHAs, exact model IDs, release/diagnostic procedures and unresolved tests. Older October handoff incidents are historical and may have changed.
+
 ## 2026-10-31 — Neutral model branding without a warning banner
 
 - Customer-facing Video Studio label is now **CMM Mini**, not "Seedance 2.0 Mini", because the actual backend is MiniMax H3 Origin Fast. Removed the prominent backend warning for the now-neutral name. Admin metadata and internal documentation keep the real provider and model identity.

@@ -1,5 +1,8 @@
 # CMM Tools Hostinger Deployment
 
+> **6 Nov 2026 current release checkpoint:** The AIVID Premium model integration (#143), Public-visibility fix (#141), public Pricing page improvement (#144) and missing customer-model visibility fix (#145) are **merged** through `7759a443`. Consult [the current operational handoff](PROJECT_HANDOFF_2026-11-06.md) before using the older October runbook below. Deploy both web and worker independently and verify their **actual Git revisions**. The merged commits and passing CI checks **do not** prove a Hostinger redeploy, current DB writes, a connected RDP agent or a successful paid AIVID clip. For the reported empty AIVID picker, verify provider configuration, per-customer AIVID source access and latest deployed revision; see the new handoff's diagnostic checklist. Older clone/quota incidents below are historical evidence awaiting recheck.
+
+
 ## Release checkpoint: 25 October 2026, after 888API PR #45
 
 **GitHub source only:** `main` includes [PR #43](https://github.com/thesfjksa/vidancee-direct-saas/pull/43), [PR #44](https://github.com/thesfjksa/vidancee-direct-saas/pull/44), [PR #45](https://github.com/thesfjksa/vidancee-direct-saas/pull/45), current application commit **`f82b02c0bd9d80672bf267f5705b294954bc1a85`**. Its [post-merge GitHub CI](https://github.com/thesfjksa/vidancee-direct-saas/actions/runs/40170975215) succeeded **281/281 tests**. **Web/worker Hostinger deployment is NOT separately verified** and must not be inferred from the repo head.
