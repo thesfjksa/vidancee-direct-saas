@@ -101,3 +101,18 @@ Rebuild/download the complete Windows agent package, do not patch individual
 files or remove RDP pairing/receipts. The updated agent must be tested
 against the current live AIVID account; fixture tests do not establish live
 API compatibility.
+
+## Length correctness (v2.1.2, 6 Nov 2026)
+
+The UI used to select the longest duration even for AIVID Premium
+model entries declaring `defaultDuration:5`; it now selects 5 seconds
+when that value is available. The RDP adapter reads the model's actual
+signed-in slider `min`, `max`, and `step`, moves it via real
+keyboard events, and verifies its numerical value, ARIA and nearby
+visible duration display, both before and after Public/prompt/media
+updates. The paid request guard checks the outgoing API duration again.
+**Do not equate the 4–30 seconds supported by some Seedance 2.5 APIs
+with the maximum supported by the current AIVID browser interface.**
+Unknown/unsupported requested lengths fail closed; no source credits
+should be spent during read-only preflights. A paid live output's exact
+MP4 running time is still unverified.

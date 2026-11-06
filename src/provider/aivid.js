@@ -265,6 +265,65 @@ async function setPublicVisibility(main) {
   return checkbox;
 }
 
+// Browser-side duration state can differ from input.value if the site has
+// a controlled React slider. Read nearby visible duration labels and ARIA
+// values as independent evidence without copying arbitrary page or prompt text.
+async function readDurationState(slider) {
+  return slider.evaluate(el=>{
+    const seconds=text=>{
+      const match=String(text||'').trim().match(/^(\d{1,3})\s*(?:s|sec|secs|second|seconds)?$/i);
+      return match?Number(match[1]):null;
+    };
+    const neighbors=[el.previousElementSibling,el.nextElementSibling];
+    // Most AIVID layouts place "15s" next to the range input in the same row.
+    if(el.parentElement){
+      for(const node of el.parentElement.children)if(node!==el)neighbors.push(node);
+    }
+    const labels=[];
+    for(const node of neighbors){
+      const text=node?.textContent?.trim();
+      const parsed=seconds(text);
+      if(parsed!==null&&node?.getClientRects?.().length)labels.push(parsed);
+    }
+    const now=el.getAttribute('aria-valuenow');
+    const ariaText=el.getAttribute('aria-valuetext');
+    return {
+      value:Number(el.value),
+      min:Number(el.min),
+      max:Number(el.max),
+      step:el.step==='any'?'any':Number(el.step||'1'),
+      ariaNow:now===null?null:Number(now),
+      ariaText:seconds(ariaText),
+      labels:[...new Set(labels)],
+    };
+  });
+}
+function durationVerified(state,desired) {
+  return Number.isInteger(desired) && state.value===desired &&
+    (state.ariaNow===null||state.ariaNow===desired) &&
+    (state.ariaText===null||state.ariaText===desired) &&
+    state.labels.every(label=>label===desired);
+}
+async function setAividDuration(slider,seconds){
+  if(await slider.count()!==1)throw new Error('Ambiguous AIVID duration control.');
+  const state=await readDurationState(slider);
+  const {min,max,step}=state;
+  if(!Number.isInteger(min)||!Number.isInteger(max)||!Number.isInteger(step)||
+    step<1||step>30||min>max||seconds<min||seconds>max||
+    (seconds-min)%step!==0)
+    throw new Error('Requested length is not available on the current AIVID slider.');
+  // Real keyboard events are required so the frontend's controlled state and
+  // its quote update, not just the native input value.
+  await slider.press('Home');
+  if(Number(await slider.inputValue())!==min)throw new Error('AIVID slider did not reset to its minimum.');
+  for(let v=min;v<seconds;v+=step){
+    await slider.press('ArrowRight');
+    if(Number(await slider.inputValue())!==v+step)throw new Error('AIVID slider rejected a duration step.');
+  }
+  if(!durationVerified(await readDurationState(slider),seconds))
+    throw new Error('AIVID duration display differs from its slider.');
+  return seconds;
+}
 async function prepare(page, value, references = [], { onProgress } = {}) {
   const job = validateJob(value, references);
   await step('page_navigation', () => page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 }), onProgress);
@@ -290,14 +349,8 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   }, onProgress);
   const ratioControl = await step('aspect_ratio', () => choose(page, /^\d+:\d+(?:\s|$)/, job.aspectRatio), onProgress);
   const resolutionControl = await step('resolution', () => choose(page, /^\d+p(?:\s|$)/, job.resolution), onProgress);
-  const slider = main.locator('input[type="range"][min="4"]');
-  await step('duration', async () => {
-    if (await slider.count() !== 1 || Number(await slider.getAttribute('max'))<job.duration) throw new Error();
-    // Keyboard events update the app's duration state as well as the DOM value.
-    await slider.press('Home');
-    for (let second = 4; second < job.duration; second++) await slider.press('ArrowRight');
-    if (await slider.inputValue() !== String(job.duration)) throw new Error();
-  }, onProgress);
+  const slider = main.locator('input[type="range"]');
+  await step('duration', () => setAividDuration(slider,job.duration), onProgress);
   // Owner-selected Public mode must be set before reading its price.
   // Both the visible form and the outgoing payload independently verify it.
   const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
@@ -314,7 +367,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     // Each failing field has a fixed, non-sensitive code. No prompt, page text,
     // selectors, customer data or authentication details leave the RDP host.
     if (await privacy.isChecked()) throw sessionFailure('form_privacy');
-    if (await slider.inputValue() !== String(job.duration)) throw sessionFailure('form_duration');
+    if (!durationVerified(await readDurationState(slider),job.duration)) throw sessionFailure('form_duration');
     if (await promptValue(prompt) !== job.prompt) throw sessionFailure('form_prompt');
     // Do not mistake a matching *menu option* for the selected model.
     if (!selectedModelMatches(await modelTrigger.innerText(), job.modelId))
@@ -451,4 +504,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };

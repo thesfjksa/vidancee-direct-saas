@@ -18,7 +18,7 @@ window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privac
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false;
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
@@ -28,6 +28,10 @@ async function checkForm(page, Client, waitForSession) {
     if (privacyMode === 'inert') body = body.replace('onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"', 'onclick="event.preventDefault()"');
     if (privacyMode === 'reset_after_prompt') body = body.replace('<textarea placeholder=', '<textarea oninput="privateToggle.checked=true;window.isPublic=false;update()" placeholder=');
     if (missingModel) body = body.replace('id="mini"', 'hidden id="mini"');
+    if (badDurationLabel) body=body.replace("seconds.textContent=duration.value+'s'", "seconds.textContent='15s'");
+    if (sliderMin!==4) body=body.replace('type="range" min="4"','type="range" min="'+sliderMin+'"');
+    if (sliderStep!==1) body=body.replace('type="range" min="4" max="30"','type="range" min="4" max="30" step="'+sliderStep+'"');
+    if (shortSlider) body=body.replace('duration.max=30;update()','duration.max=15;update()');
     if (missingImageInput) body = body.replace('id="refImages" type="file"', 'id="refImages" type="text"');
     if (ambiguousImageInput) body=body.replace('<span id="refSelected"></span>',
       '<span id="refSelected"></span><input type="file" accept="image/*">');
@@ -117,6 +121,37 @@ async function checkForm(page, Client, waitForSession) {
   });
   ambiguousImageInput=false;
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  // All requested lengths must change the actual slider AND its 15s-style
+  // displayed label; a mismatch is rejected before any paid Generate click.
+  for(const duration of [4,5,8,10,12,14,15]){
+    const result=await client.preflight({model:'aivid_seedance_2_0_mini',prompt:'A quiet river',duration,aspectRatio:'16:9',resolution:'480p'});
+    assert.equal(result.duration,duration);
+    assert.equal(await page.locator('#seconds').innerText(),duration+'s');
+    assert.equal(await page.locator('#duration').inputValue(),String(duration));
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  for(const duration of [4,5,15,16,20,25,30]){
+    const result=await client.preflight({model:'aivid_seedance_2_5',prompt:'A quiet river',duration,aspectRatio:'16:9',resolution:'480p'});
+    assert.equal(result.duration,duration);
+    assert.equal(await page.locator('#seconds').innerText(),duration+'s');
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  badDurationLabel=true;
+  await assert.rejects(client.preflight({prompt:'A quiet river',duration:6,aspectRatio:'16:9',resolution:'480p'}),err=>{
+    assert.equal(err.aividCode,'duration');return true;
+  });
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  badDurationLabel=false;
+  sliderStep=2;
+  await assert.rejects(client.preflight({prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'480p'}),err=>{
+    assert.equal(err.aividCode,'duration');return true;
+  });
+  sliderStep=1;
+  shortSlider=true;
+  await assert.rejects(client.preflight({model:'aivid_seedance_2_5',prompt:'A quiet river',duration:30,aspectRatio:'16:9',resolution:'480p'}),err=>{
+    assert.equal(err.aividCode,'duration');return true;
+  });
+  shortSlider=false;
   editorMode = 'textarea'; privacyMode = 'public';
   await client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' });
   assert.equal(await page.locator('#privateToggle').isChecked(), false);

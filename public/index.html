@@ -1521,8 +1521,15 @@ function renderDurations(resetResolution=false){
   if(!resetResolution && Number.isFinite(previousDuration) && durations.some(d=>Number(d.seconds)===previousDuration)){
     $('duration').value=String(previousDuration);
   }else if(durations.length){
-    // A newly picked model starts at its longest video length.
-    $('duration').value=String(Math.max(...durations.map(d=>Number(d.seconds)||0)));
+    // Premium AIVID models advertise a 5-second starter, but previously the
+    // picker silently selected the maximum (Mini 15s / 2.5 30s).
+    // Leave other providers' established defaults untouched.
+    const preferred=Number(m.premium?m.defaultDuration:NaN);
+    $('duration').value=String(
+      m.premium && durations.some(d=>Number(d.seconds)===preferred)
+        ? preferred
+        : Math.max(...durations.map(d=>Number(d.seconds)||0))
+    );
   }
 
   ensureCustomSelect('duration');

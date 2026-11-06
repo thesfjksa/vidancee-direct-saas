@@ -1,3 +1,10 @@
+## 2026-11-06 — AIVID Premium video length accuracy (Agent v2.1.2)
+
+- Video Studio now selects the advertised **5-second** default for AIVID Premium when it is supported, rather than silently choosing maximum (15 seconds Mini / up to 30 seconds 2.5). Other providers' UI defaults are unchanged.
+- The AIVID RDP/browser adapter now detects actual model-specific slider min/max/step, moves it using React-compatible keyboard events, cross-checks DOM value, ARIA value and local visible duration label, and re-verifies after Public visibility, references and prompt. The outbound request guard separately requires exact `duration` in the paid provider request.
+- Read-only fixture regression covers 4–15s on Mini, up to 30s if offered for 2.5, mismatched visible labels, unsupported slider step/range and no paid Generate clicks. The model's provider-level theoretical duration is **not a promise** about the currently available web UI; unsupported requests fail closed. Actual resulting video length on the live account has not yet been measured.
+- Replace the **entire Windows RDP agent ZIP v2.1.2** while preserving pairing/profile/receipts, and deploy web+worker from latest `main`.
+
 ## 2026-11-06 — AIVID reference-input compatibility (Agent v2.1.1)
 
 - Identify AIVID file inputs by parsed accepted MIME/extension types instead of requiring literal attribute-order equality; fail closed on missing/ambiguous mixed-kind controls.
