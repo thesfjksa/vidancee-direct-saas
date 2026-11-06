@@ -16,7 +16,17 @@ test('Premium models have separate IDs, public labels and guarded limits',()=>{
     assert.ok(m.capabilities.image.max>0);
     assert.ok(m.durations.length>=12);
   }
-  assert.deepEqual(customerCatalog({enabled:false,maxSourceCredits:30,mode:'rdp'}),[]);
+  const offline=customerCatalog({enabled:true,maxSourceCredits:30,mode:'rdp',
+    rdpDevice:{deviceId:'safe-device',tokenHash:'1234',seenAt:'2000-01-01T00:00:00.000Z',status:'ready'}});
+  assert.equal(offline.length,3);
+  assert.ok(offline.every(m=>m.unavailable&&m.ready===false&&/offline/i.test(m.warning)));
+  const disabled=customerCatalog({enabled:false,maxSourceCredits:30,mode:'rdp'});
+  assert.equal(disabled.length,3);
+  assert.ok(disabled.every(m=>m.unavailable&&/disabled/i.test(m.warning)));
+  const unconfigured=customerCatalog(null);
+  assert.equal(unconfigured.length,3);
+  assert.ok(unconfigured.every(m=>m.unavailable));
+  assert.equal(catalog.filter(m=>m.unavailable).length,0);
 });
 test('AIVID validates distinct backend model requests and refuses the wrong model',()=>{
   for(const spec of SPECS){

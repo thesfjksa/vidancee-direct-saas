@@ -35,7 +35,29 @@ function aividReady(config){
   }
   return Boolean(config.connectUrl && (!config.expiresAt || Date.parse(config.expiresAt)>Date.now()));
 }
-function customerCatalog(config){return aividReady(config)?SPECS.map(modelEntry):[];}
+// Visibility and execution readiness are different states. A stale RDP
+// heartbeat, a disabled source, or a zero source-credit limit must not silently
+// remove Premium choices from the customer-facing model picker. Paid work is
+// still refused in quoteAivid() and by the durable AIVID queue until ready.
+function unavailableReason(config) {
+  if(!config)return 'AIVID connection status could not be read.';
+  if(config.enabled!==true)return 'AIVID Premium is disabled in Admin.';
+  if(!(config.maxSourceCredits>0))return 'AIVID source-credit limit is zero in Admin.';
+  if(config.mode==='rdp')return 'The Windows RDP agent is offline or not ready.';
+  return 'The AIVID browser session is missing or expired.';
+}
+function customerCatalog(config){
+  const ready=aividReady(config);
+  return SPECS.map(spec=>{
+    const entry=modelEntry(spec);
+    return {
+      ...entry,ready,unavailable:!ready,
+      ...(!ready?{
+        warning:unavailableReason(config)+' The model is visible, but generation is paused. Refresh Video Studio after the connection is restored. '+entry.warning,
+      }:{})
+    };
+  });
+}
 
 function assertOptions(model,body) {
   const duration=Number(body.duration),aspectRatio=String(body.aspectRatio||body.aspect_ratio||'16:9');
