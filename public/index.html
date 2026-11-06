@@ -3079,7 +3079,7 @@ async function createGeneration(){
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-    if(/price changed/i.test(e.message)){quoteCache.clear();updateCost();}
+    if(/price changed|current Premium price/i.test(e.message)){quoteCache.clear();updateCost();}
   }finally{videoSubmissionInFlight=false;b.disabled=!currentVideoModel()||currentVideoModel().unavailable===true;b.removeAttribute('aria-busy')}
 }
 

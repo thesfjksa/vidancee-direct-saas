@@ -15,7 +15,7 @@ async function execute(sql,args=[],conn){
   if(sql.startsWith('SELECT id FROM customer_api_keys'))return [state.revoked?[]:[{id:'key'}]];
   if(sql.startsWith('SELECT request_hash'))return [state.requests.has(args[1])?[state.requests.get(args[1])]:[]];
   if(sql.startsWith('SELECT * FROM generations'))return [state.jobs.has(args[0])?[state.jobs.get(args[0])]:[]];
-  if(sql.includes('SELECT COUNT(*) AS total FROM generations'))return [[{total:0}]];
+  if(sql.includes('SELECT COUNT(*) AS total FROM generations'))return [[{total:state.activeCount||0}]];
   if(sql.includes('INSERT INTO generations')){
     const image=sql.includes("'image'");
     state.jobs.set(args[0],{id:args[0],user_id:args[1],provider:args[2],media_type:image?'image':'video',model:args[5],mode:args[4],
@@ -41,7 +41,7 @@ const {createGenerationForUser}=require('../src/generations.js');
 const {createImageGenerationForUser}=require('../src/image_generations.js');
 const input={model:'test-model',prompt:'A sunrise',duration:5,aspectRatio:'16:9'};
 const opts=context=>({provider:'api888',dynamicModel:true,costOverride:100,apiRequest:context});
-function reset(){Object.assign(state,{credits:1000,jobs:new Map(),requests:new Map(),debits:0,revoked:false,failRequestInsert:false});}
+function reset(){Object.assign(state,{activeCount:0,credits:1000,jobs:new Map(),requests:new Map(),debits:0,revoked:false,failRequestInsert:false});}
 test('concurrent video retries reserve the shared balance and debit exactly once',async()=>{
   reset();const ctx=store.requestContext('key','request-video',input,'video');
   const [a,b]=await Promise.all([createGenerationForUser(7,input,opts(ctx)),createGenerationForUser(7,input,opts(ctx))]);
@@ -88,4 +88,11 @@ test('provider reference validation fails inside the transaction before any job 
  reset();let checked=false;
  await assert.rejects(createGenerationForUser(7,input,{...opts(null),provider:'aivid',validatePreparedReferences:refs=>{checked=true;assert.equal(refs.images.length,0);throw new Error('Reference exceeds the adapter limit');}}),/adapter limit/);
  assert.equal(checked,true);assert.equal(state.debits,0);assert.equal(state.jobs.size,0);assert.equal(state.credits,1000);
+});
+
+test('Premium waiting queue admits multiple jobs but remains bounded independently of other plans',async()=>{
+ reset();state.activeCount=3;
+ await createGenerationForUser(7,input,{...opts(null),provider:'aivid'});assert.equal(state.debits,1);
+ reset();state.activeCount=20;await assert.rejects(createGenerationForUser(7,input,{...opts(null),provider:'aivid'}),{statusCode:429});assert.equal(state.debits,0);
+ reset();state.activeCount=3;await assert.rejects(createGenerationForUser(7,input,opts(null)),{statusCode:429});assert.equal(state.debits,0);
 });
