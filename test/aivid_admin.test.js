@@ -31,7 +31,7 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
   if (!server.listening) await once(server, 'listening');
   const origin = 'http://127.0.0.1:' + server.address().port;
   assert.equal((await fetch(origin + '/admin/aivid/status')).status, 401);
-  for (const route of ['/admin/aivid/check-references','/admin/aivid/check', '/admin/aivid/settings', '/admin/aivid/rdp/pairing', '/admin/aivid/login', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/finish', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/cancel'])
+  for (const route of ['/admin/aivid/generations/12345678-1234-1234-1234-123456789012/cancel','/admin/aivid/generations/12345678-1234-1234-1234-123456789012/delete','/admin/aivid/check-references','/admin/aivid/check', '/admin/aivid/settings', '/admin/aivid/rdp/pairing', '/admin/aivid/login', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/finish', '/admin/aivid/login/12345678-1234-1234-1234-123456789012/cancel'])
     assert.equal((await fetch(origin + route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
   const headers = { 'x-admin-token': 'aivid-test-admin', 'content-type': 'application/json' };
   const response = await fetch(origin + '/admin/aivid/status', { headers });

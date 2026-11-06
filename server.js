@@ -2422,6 +2422,13 @@ const server=http.createServer(async (req,res)=>{
         if(!result)throw httpError(409,'The AIVID browser is busy.');
         return sendJson(res,200,{ok:true,...result});
       }
+      const aividManage=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/(cancel|delete)$/i);
+      if(req.method==='POST'&&aividManage){
+        requireDatabase();
+        const result=await require('./src/aivid_queue.js').manageAividJob(getPool(),aividManage[1],aividManage[2].toLowerCase());
+        logActivity({category:'admin',event:'aivid.'+aividManage[2],provider:'aivid',generationId:aividManage[1],message:'Admin '+aividManage[2]+' video job.'});
+        return sendJson(res,200,{ok:true,...result});
+      }
       const aividReconcile=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/reconcile$/i);
       if(req.method==='POST'&&aividReconcile){
         requireDatabase();
