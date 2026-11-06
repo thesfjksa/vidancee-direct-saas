@@ -30,15 +30,19 @@ class AividQueue extends VercelQueue {
     ? new (require('./aivid_rdp.js').AividRdpClient)(opts) : new AividBrowserlessClient(opts), ...options } = {}) {
     super({ ...options, provider: 'aivid', clientFactory });
     this.getConfig = getConfig;
+    this.collectionWaitingForAgent = false;
   }
+  health(){return {...super.health(),collectionGuardRevision:1,collectionWaitingForAgent:this.collectionWaitingForAgent};}
   schedule(delay = 30000) { return super.schedule(delay); }
   async runOnce(db = getPool(), settings = null) {
     const config = await this.getConfig();
     this.sourceReady = false;
+    this.collectionWaitingForAgent = false;
     if (config.mode === 'rdp' ? !config.rdpDevice?.tokenHash : !config.connectUrl) return;
     const current = settings || await this.getSettings();
     this.sourceReady = Boolean(config.enabled && config.maxSourceCredits > 0 && current.allowProviderCharges);
-    if (config.mode === 'rdp' && (!require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}).online || config.rdpDevice.status !== 'ready')) this.sourceReady = false;
+    const rdp=config.mode==='rdp'?require('./aivid_rdp.js').publicDevice(config.rdpDevice||{}):null;
+    if(rdp&&(!rdp.online||rdp.status!=='ready'))this.sourceReady=false;
     const client = this.clientFactory(config);
     await withAividLock(db, async () => {
       // Holding this lock proves no other live queue operation can be clicking.
@@ -54,6 +58,13 @@ class AividQueue extends VercelQueue {
       if (active.length) {
         const job = active[0], op = operation(job);
         if (op.stage === 'review_required' || !ID.test(String(job.provider_job_id || ''))) return;
+        // A needs_login agent cannot claim collection commands. Waiting for
+        // one here held the browser lock for 180 seconds, blocking the very
+        // Admin preflight that could restore readiness. Keep the accepted ID
+        // and release the lock immediately until the live agent is ready.
+        if(rdp&&(!rdp.online||rdp.status!=='ready')){
+          this.collectionWaitingForAgent=true;return;
+        }
         this.tasks.add(job.id);
         try { await this.pollJob(db, client, job); }
         catch {

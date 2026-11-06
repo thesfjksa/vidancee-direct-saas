@@ -182,7 +182,7 @@ test('timeouts, conflicts, throttles and successful responses without IDs remain
   assert.equal(submissionResult(409, { id: providerJobId }).state, 'submission_uncertain');
 });
 
-function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pending' }, enabled = true, charges = true } = {}) {
+function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pending' }, enabled = true, charges = true, configOverrides = {} } = {}) {
   const job = { id: '12345678-1234-1234-1234-123456789012', user_id: 1, media_type: 'video',
     model: 'aivid_pilot_mini', provider: 'aivid', status, generation_options: '{}',
     prompt: input.prompt, duration: input.duration, aspect_ratio: input.aspectRatio, resolution: input.resolution,
@@ -215,7 +215,7 @@ function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pe
     throw new Error('Unexpected SQL: ' + sql);
   };
   const db = { query: execute, execute, getConnection: async () => ({ query: execute, release() {} }) };
-  const q = new AividQueue({ getConfig: async () => ({ connectUrl, maxSourceCredits: 5, enabled }),
+  const q = new AividQueue({ getConfig: async () => ({ connectUrl, maxSourceCredits: 5, enabled, ...configOverrides }),
     getSettings: async () => ({ allowProviderCharges: charges }),
     refund: async () => { refunds++; job.refunded_at = new Date(); job.status = 'failed'; },
     clientFactory: () => ({ startVideo: async (...args) => {
@@ -283,4 +283,21 @@ test('standard Seedance 2.0 rejects Fast, Mini and other parenthesized variants'
   for(const text of ['Seedance 2.0','Seedance 2.0\nMultimodal references.','Seedance 2.0 High quality'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0'),true);
   for(const text of ['Seedance 2.0 (Fast)','Seedance 2.0 (Fast)\nFaster generation with slightly reduced quality.','Seedance 2.0 (Mini)','Seedance 2.0 (Pro)','Seedance 2.0   (Fast)','Seedance 2.01','Seedance 2.5'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0'),false,text);
   assert.equal(selectedModelMatches('Seedance 2.0 (Mini) Most cost-effective, quicker results.','aivid_seedance_2_0_mini'),true);
+});
+
+test('an unready RDP collector releases the browser lock for connection recovery without changing the paid job',async()=>{
+  const {withAividLock}=require('../src/aivid_queue.js');
+  for(const [status,seenAt]of [['needs_login',new Date().toISOString()],['starting',new Date().toISOString()],['busy',new Date().toISOString()],['ready',new Date(Date.now()-60000).toISOString()]]){
+    const f=fixture({status:'submitted',op:{stage:'accepted',providerJobId},configOverrides:{mode:'rdp',rdpDevice:{deviceId:'fixture-device',tokenHash:'paired',status,seenAt}}});
+    await f.q.runOnce(f.db);
+    assert.deepEqual(f.stats(),{submissions:0,polls:0,refunds:0,complete:0});
+    assert.equal(f.job.provider_job_id,providerJobId);assert.equal(f.job.status,'submitted');
+    assert.equal(f.q.health().collectionWaitingForAgent,true);
+    assert.ok(f.queries.at(-1).includes('RELEASE_LOCK'));
+    assert.deepEqual(await withAividLock(f.db,async()=>({ready:true})),{ready:true});
+  }
+  const f=fixture({status:'submitted',enabled:false,charges:false,output:{state:'completed',output:{}},op:{stage:'accepted',providerJobId},configOverrides:{mode:'rdp',maxSourceCredits:0,rdpDevice:{deviceId:'fixture-device',tokenHash:'paired',status:'ready',seenAt:new Date().toISOString()}}});
+  await f.q.runOnce(f.db);
+  assert.deepEqual(f.stats(),{submissions:0,polls:1,refunds:0,complete:1});
+  assert.equal(f.q.health().collectionWaitingForAgent,false);
 });
