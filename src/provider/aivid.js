@@ -214,10 +214,9 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
     const pattern=job.modelId==='aivid_seedance_2_0'
       ? /^Seedance 2\.0(?! \(Mini\))(?:\s|$)/
-      : new RegExp('^'+job.modelLabel.replace(/[.*+?^${}()|[\]\\]/g,'\\  await step('model_selection', async () => {
-    await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
-    await main.getByRole('button', { name: /^Seedance 2\.0 \(Mini\) / }).click();
-  }, onProgress);')+'(?:\\s|$)');
+      : job.modelId==='aivid_seedance_2_0_mini'
+        ? /^Seedance 2\.0 \(Mini\)(?:\s|$)/
+        : /^Seedance 2\.5(?:\s|$)/;
     const candidate=main.getByRole('button',{name:pattern});
     if(await candidate.count()!==1)throw new Error('AIVID model option was not unique.');
     await candidate.click();
