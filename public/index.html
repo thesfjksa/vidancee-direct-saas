@@ -1459,7 +1459,7 @@ function renderConfig(){
   $('videoCatalogEmpty').textContent=missing?(config.catalogError
     ?'Video models could not be loaded. Please contact support or try again later.'
     :'No video models are currently available for your account. Please contact support.') : '';
-  $('generateBtn').disabled=missing;
+  $('generateBtn').disabled=missing||videoSubmissionInFlight;
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
   renderDurations(true);
@@ -1480,7 +1480,7 @@ function renderDurations(resetResolution=false){
 
   // Show unavailable Premium models in the picker, but never allow a paid
   // generation until the RDP/browser connection has passed readiness checks.
-  $('generateBtn').disabled=m.unavailable===true;
+  $('generateBtn').disabled=m.unavailable===true||videoSubmissionInFlight;
   renderGatewayVideoSettings(m);
   showModelWarning('videoModelWarning',m);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
@@ -1558,14 +1558,16 @@ const quoteCache=new Map();
 async function fetchQuote(body){
   // Gateway prices never depend on the prompt; other sources may.
   const key=JSON.stringify(/^(studio_gw_|argo_)/.test(String(body.model||''))?{...body,prompt:undefined}:body);
-  if(quoteCache.has(key))return quoteCache.get(key);
+  const cached=quoteCache.get(key);
+  if(cached&&cached.expiresAt>Date.now())return cached.quote;
+  quoteCache.delete(key);
   let lastError;
   for(let attempt=0;attempt<2;attempt++){
     try{
       const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(String(body.model||'').startsWith('aivid_')?120000:10000)});
       const quote={cost:Number(d.cost),isEstimate:Boolean(d.isEstimate)};
       if(quoteCache.size>200)quoteCache.clear();
-      quoteCache.set(key,quote);
+      quoteCache.set(key,{quote,expiresAt:Date.now()+(String(body.model||'').startsWith('aivid_')?15000:30000)});
       return quote;
     }catch(e){
       lastError=e;
@@ -2989,21 +2991,35 @@ function validateClientReferenceSelection(){
   }
 }
 
+let videoSubmissionInFlight=false;
+function videoSubmissionSelection(){
+  return JSON.stringify({model:$('model').value,duration:$('duration').value,resolution:$('resolution').value,
+    ratio:$('ratio').value,mode:$('videoGenerationMode').value,audio:$('videoGenerateAudio').value,
+    reuse:reusedReferenceGenerationId,refs:[referenceItems,videoReferenceItems,audioReferenceItems].map(items=>items.map(x=>({key:x.key,id:x.id,kind:x.kind,role:x.role})))});
+}
+function assertVideoSubmissionSelection(selection,prompt){
+  if(selection!==videoSubmissionSelection()||$('prompt').value!==prompt)throw new Error('Settings, prompt or references changed during submission. Review them and click Generate again.');
+}
 async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
-  if(b.disabled)return;
+  if(videoSubmissionInFlight||b.disabled)return;
+  videoSubmissionInFlight=true;
   // Only the button is locked: the panel stays usable while this submits.
   b.setAttribute('aria-busy','true');
   b.disabled=true;
   m.className='msg muted';
   m.textContent='Submitting generation...';
-  const sent={prompt:$('prompt').value,refs:[...referenceItems],videos:[...videoReferenceItems],audios:[...audioReferenceItems]};
+  const ceiling=Number($('cost').textContent);
+  const sent={selection:videoSubmissionSelection(),prompt:$('prompt').value,refs:[...referenceItems],videos:[...videoReferenceItems],audios:[...audioReferenceItems]};
   try{
+    if(String($('model').value).startsWith('aivid_')&&(!Number.isFinite(ceiling)||ceiling<=0))throw new Error('Wait for a current Premium price before submitting.');
     validateClientReferenceSelection();
     const prompt=await prepareGenerationPrompt('video',m);
+    assertVideoSubmissionSelection(sent.selection,prompt);
     m.textContent='Submitting generation...';
     const form=new FormData();
     form.append('prompt',prompt);
+    if(String($('model').value).startsWith('aivid_'))form.append('maxCustomerCredits',String(ceiling));
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
@@ -3035,6 +3051,7 @@ async function createGeneration(){
     const direct=await uploadReferencesDirect([
       ...videoReferenceItems.map(item=>({item,kind:'video'})),
       ...audioReferenceItems.map(item=>({item,kind:'audio'}))],m);
+    assertVideoSubmissionSelection(sent.selection,prompt);
     if(direct){
       form.append('videoUploads',JSON.stringify(direct.filter(d=>d.kind==='video').map(d=>d.upload)));
       form.append('audioUploads',JSON.stringify(direct.filter(d=>d.kind==='audio').map(d=>d.upload)));
@@ -3058,12 +3075,12 @@ async function createGeneration(){
     if(sameItems(audioReferenceItems,sent.audios))clearAudioReferenceItems();
     m.className='msg ok';
     m.textContent='Generation queued.';
-    b.disabled=false;b.removeAttribute('aria-busy');
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-  }finally{b.disabled=false;b.removeAttribute('aria-busy')}
+    if(/price changed/i.test(e.message)){quoteCache.clear();updateCost();}
+  }finally{videoSubmissionInFlight=false;b.disabled=!currentVideoModel()||currentVideoModel().unavailable===true;b.removeAttribute('aria-busy')}
 }
 
 function aspectValue(ratio){

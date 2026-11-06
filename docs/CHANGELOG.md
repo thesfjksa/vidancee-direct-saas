@@ -1,3 +1,10 @@
+## 2026-11-06 — Credit-free customer-flow audit (server update; Agent v2.1.6 unchanged)
+
+- Add a server-side offline pairing recovery and safe offline replacement for accepted jobs; preserve locks, revoked-token checks and blocks on active/uncertain submissions.
+- Guard repeat clicks independently of button rendering, stop changed settings/reference selections before job creation, expire quotes and enforce the customer price ceiling before wallet writes.
+- Validate AIVID references before debit, align 2.5 video/audio limits to the observed form, and collect other accepted videos behind held rows.
+- See AIVID_ZERO_CREDIT_AUDIT_2026-11-06.md for evidence, retained safeguards and unverified live acceptance. No new source credit was spent.
+
 ## 2026-11-06 — Release the browser lock when the RDP collector cannot run
 
 - An accepted video plus a needs_login/offline/starting/busy agent caused the worker to wait for an unclaimable collect command under the shared browser lock. Admin recovery then returned browser busy.

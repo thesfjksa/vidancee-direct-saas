@@ -47,3 +47,8 @@ test('bad premium settings, durations and reference limits fail before submissio
   assert.throws(()=>validateJob({model:'aivid_seedance_2_5',prompt:'ok',duration:5,resolution:'4K'}),/resolution/);
   assert.equal(capabilities(SPECS[2]).image.max,30);
 });
+
+test('Premium 2.5 does not advertise more video/audio previews than the observed form retains',()=>{
+ const m=aividModel('aivid_seedance_2_5');assert.equal(m.refs.video,3);assert.equal(m.refs.audio,3);
+ for(const kind of ['video','audio'])assert.throws(()=>validateJob({model:m.id,prompt:'A river',duration:5,resolution:'480p'},Array.from({length:4},()=>({kind,mimeType:kind==='video'?'video/mp4':'audio/wav',data:Buffer.from('media')}))),/reference/);
+});

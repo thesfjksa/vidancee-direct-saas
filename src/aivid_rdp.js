@@ -167,10 +167,18 @@ class AividRdpService {
     this.getConfig = getConfig || require('./aivid_settings.js').getAividSettings;
     this.store = store || new RdpStore(db());
   }
+  async assertPairingSafe(){
+    const [[row]]=await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL");
+    if(!Number(row?.total||0))return;
+    if(publicDevice(await readDevice(this.read),this.now()).online)throw failure('Stop the existing RDP agent before pairing a replacement while videos are outstanding.',409);
+    const [[unsafe]]=await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL AND (status='submitting' OR provider_job_id IS NULL OR provider_job_id NOT REGEXP '^[a-zA-Z0-9_-]{16,80}$' OR provider_operation LIKE '%review_required%')");
+    if(Number(unsafe?.total||0))throw failure('Resolve outstanding AIVID jobs with an uncertain submission before replacing the RDP agent.',409);
+    // All remaining jobs have accepted IDs and can only be collected. The
+    // browser lock excludes active operations; new credentials revoke the old.
+  }
   async createPairing() {
     await ensureRdpTables(this.db());
-    const [[row]] = await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL");
-    if (Number(row?.total || 0)) throw failure('Resolve outstanding AIVID jobs before replacing an RDP agent.', 409);
+    await this.assertPairingSafe();
     const code = crypto.randomBytes(12).toString('hex').toUpperCase();
     const expiresAt = new Date(this.now() + 10 * 60000).toISOString();
     await this.write(PAIR_KEY, JSON.stringify({ codeHash: hash(code), expiresAt }), { secret: true });
@@ -190,8 +198,7 @@ class AividRdpService {
       const saved = parse(await this.read(PAIR_KEY, ''));
       if (typeof code !== 'string' || !/^[A-F0-9]{24}$/i.test(code) || !Number.isFinite(Date.parse(saved.expiresAt)) || Date.parse(saved.expiresAt) <= this.now() ||
           !matches(saved.codeHash, hash(code.toUpperCase()))) throw failure('Invalid or expired pairing code.', 401);
-      const [[outstanding]] = await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL");
-      if (Number(outstanding?.total || 0)) throw failure('Resolve outstanding AIVID jobs before replacing an RDP agent.', 409);
+      await this.assertPairingSafe();
       const token = crypto.randomBytes(32).toString('hex'), deviceId = crypto.randomUUID();
       await this.write(PAIR_KEY, '', { secret: true });
       await this.write(DEVICE_KEY, JSON.stringify({ deviceId, tokenHash: hash(token), pairedAt: new Date(this.now()).toISOString() }), { secret: true });

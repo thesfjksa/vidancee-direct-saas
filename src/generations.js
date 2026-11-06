@@ -319,6 +319,12 @@ async function createGenerationForUser(userId, input, options = {}) {
       return serializeGeneration(apiReplay);
     }
     cost = applyPriceRate(cost, priceRate(user));
+    if(options.maxCustomerCredits!=null){
+      const ceiling=Number(options.maxCustomerCredits);
+      if(!Number.isFinite(ceiling)||ceiling<=0)throw Object.assign(new Error('Invalid customer price limit.'),{statusCode:400});
+      if(cost>ceiling)throw Object.assign(new Error('The price changed. Refresh the price and review it before generating.'),{statusCode:409});
+    }
+
     if (Number(user.credits) < cost) {
       const error = new Error('Not enough credits.');
       error.statusCode = 402;
@@ -445,6 +451,9 @@ async function createGenerationForUser(userId, input, options = {}) {
       }
     }
 
+    if(typeof options.validatePreparedReferences==='function'){
+      options.validatePreparedReferences({images:orderedImages.map(entry=>({kind:'image',mimeType:entry.kind==='reused'?entry.image.mime_type:entry.image.mimeType,data:entry.kind==='reused'?entry.image.image_data:entry.image.data})),videos:freshVideos,audios:freshAudios});
+    }
     const allImageCount = orderedImages.length;
     const hasReferences = allImageCount > 0 || freshVideos.length > 0 || freshAudios.length > 0;
     const mode = hasReferences
@@ -771,3 +780,4 @@ module.exports = {
   deleteUserGeneration,
   refundGeneration,
 };
+

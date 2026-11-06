@@ -6,7 +6,7 @@
 const SPECS = Object.freeze([
   { id:'aivid_seedance_2_0_mini', providerId:'seedance-2.0-mini', name:'Seedance 2.0 (Mini)', maxSeconds:15, resolutions:['480p','720p'], refs:{image:9,video:3,audio:3} },
   { id:'aivid_seedance_2_0', providerId:'seedance-2.0', name:'Seedance 2.0', maxSeconds:15, resolutions:['480p','720p'], refs:{image:9,video:3,audio:3} },
-  { id:'aivid_seedance_2_5', providerId:'seedance-2.5', name:'Seedance 2.5', maxSeconds:30, resolutions:['480p','720p'], refs:{image:30,video:10,audio:10} },
+  { id:'aivid_seedance_2_5', providerId:'seedance-2.5', name:'Seedance 2.5', maxSeconds:30, resolutions:['480p','720p'], refs:{image:30,video:3,audio:3} },
 ]);
 const byId=new Map(SPECS.map(m=>[m.id,m]));
 const isAividModel = id => byId.has(String(id||''));

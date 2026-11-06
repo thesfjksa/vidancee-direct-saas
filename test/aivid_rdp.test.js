@@ -216,3 +216,15 @@ test('upload rejection before reservation reports safely without a receipt or pa
   assert.equal(result.state,'rejected');assert.equal(reservations,0);
   await assert.rejects(fs.stat(path.join(root,'receipts',jobId+'.json')),e=>e.code==='ENOENT');
 });
+
+test('offline pairing recovers accepted videos while live agents and uncertain charges remain protected',async()=>{
+ const f=fixture();let uncertain=false;
+ f.db.execute=async sql=>[[{total:sql.includes("status='submitting' OR")?(uncertain?1:0):1}]];
+ const code=await f.service.createPairing();
+ const paired=await f.service.pair(code.code);assert.notEqual(paired.deviceId,f.device.deviceId);
+ await assert.rejects(f.service.authorize('Bearer '+f.token),/authentication/);
+ f.records.set(HEARTBEAT_KEY,JSON.stringify({deviceId:paired.deviceId,status:'ready',seenAt:new Date().toISOString()}));
+ await assert.rejects(f.service.createPairing(),/Stop the existing/);
+ f.records.delete(HEARTBEAT_KEY);uncertain=true;
+ await assert.rejects(f.service.createPairing(),/uncertain submission/);
+});
