@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.1
+# CMMTools AIVID RDP agent 2.1.2
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -156,3 +156,27 @@ reference-upload behavior must be verified before promising paid image-to-video.
 **Admin Check RDP connection is text-only and never attempts a reference upload.**
 If the failure says `form_model`, `form_privacy`, or `form_resolution`, it is
 not a reference upload error; this check should not spend AIVID credits.
+
+## Video length accuracy — v2.1.2
+
+The AIVID adapter now reads the **actual current** slider min/max/step
+after selecting the model and resolution; it never assumes 4–15 or 4–30
+is available on the signed-in site. It drives each permitted step with
+real keyboard events to update the React form and live quote, then checks
+the slider value, ARIA state (when present), and nearby visible duration
+label (e.g., `15s`). The same checks run again *after* setting Public,
+uploading references and filling the prompt. The outbound paid request
+guard still requires `body.duration === requested duration`. If the
+browser's duration limit or step is different, preflight fails **without
+submitting or charging**. Do not change the slider by JavaScript DOM
+assignment or override this safety check.
+
+Video Studio now selects the configured default (5 seconds) for Premium
+models instead of automatically choosing the longest length. Existing
+other providers keep their original selection behavior.
+
+The maximum shown by AIVID's signed-in web slider for 2.5 may be less
+than the API's theoretical 30 seconds. Only the actual browser control
+can authorize the requested duration. To calibrate live controls, inspect
+the slider's `outerHTML` plus nearby duration label for each model.
+No private token, cookies, or prompt contents are needed.

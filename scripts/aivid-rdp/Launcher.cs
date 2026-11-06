@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-[assembly: AssemblyVersion("2.1.1.0")]
+[assembly: AssemblyVersion("2.1.2.0")]
 internal static class Launcher {
   [STAThread]
   public static int Main(string[] args) {
@@ -24,7 +24,7 @@ internal static class Launcher {
         string script = login ? "login.cjs" : "agent.cjs";
         foreach (string file in new string[] { "node.exe", script, "native.cjs", "AIVID-Protect.exe" })
           if (!File.Exists(Path.Combine(root, file))) throw new Exception("Extract the entire ZIP to one writable folder first. Missing " + file);
-        Console.WriteLine("CMMTools AIVID RDP agent 2.1.1 - " + (login ? "manual login" : "paired agent"));
+        Console.WriteLine("CMMTools AIVID RDP agent 2.1.2 - " + (login ? "manual login" : "paired agent"));
         string site = null, pairingCode = null;
         if (check) { PairingForm.SelfTest(); site = "https://cmmtools.site"; pairingCode = "AABBCCDDEEFF001122334455"; }
         else if (!login && !File.Exists(Path.Combine(root, ".aivid-agent.json"))) {
