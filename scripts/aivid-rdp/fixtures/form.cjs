@@ -9,6 +9,7 @@ const html = `<!doctype html><html><body><header>0 credits</header><main>
 <div id="resolutions" hidden><button onclick="resolution.textContent='480p';resolutions.hidden=true">480p</button></div>
 <input id="duration" type="range" min="4" max="30" value="15" oninput="update()"><span id="seconds">15s</span>
 <label>Bypass <input id="bypass" type="checkbox" checked></label>
+<input id="refImages" type="file" accept=" .webp, image/png , image/jpeg " multiple onchange="document.querySelector('#refSelected').textContent=Array.from(this.files).map(f=>f.name).join(',')"><span id="refSelected"></span>
 <div id="privacy"><span>Public</span><label style="display:inline-flex;width:36px;height:20px;cursor:pointer;position:relative">
 <input id="privateToggle" type="checkbox" checked style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"><div style="width:36px;height:20px;background:gray"></div>
 </label><span>Private</span></div><span id="price">3 Credits / Video</span>
@@ -17,7 +18,7 @@ window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privac
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private';
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
@@ -27,6 +28,15 @@ async function checkForm(page, Client, waitForSession) {
     if (privacyMode === 'inert') body = body.replace('onchange="window.isPublic=!this.checked;window.privacyChanges++;update()"', 'onclick="event.preventDefault()"');
     if (privacyMode === 'reset_after_prompt') body = body.replace('<textarea placeholder=', '<textarea oninput="privateToggle.checked=true;window.isPublic=false;update()" placeholder=');
     if (missingModel) body = body.replace('id="mini"', 'hidden id="mini"');
+    if (missingImageInput) body = body.replace('id="refImages" type="file"', 'id="refImages" type="text"');
+    if (ambiguousImageInput) body=body.replace('<span id="refSelected"></span>',
+      '<span id="refSelected"></span><input type="file" accept="image/*">');
+    if (modelSuffix) body = body
+      .replace("model.textContent='Seedance 2.0 (Mini)'","model.textContent='Seedance 2.0 (Mini) Fast premium model'")
+      .replace("model.textContent='Seedance 2.0'","model.textContent='Seedance 2.0 High quality'")
+      .replace("model.textContent='Seedance 2.5'","model.textContent='Seedance 2.5 Premium model'");
+    if (wrongModelAfterSelection) body = body.replace("model.textContent='Seedance 2.0 (Mini)'","model.textContent='Seedance 2.5'");
+    if (wrongResolutionAfterPrompt) body = body.replace('<textarea placeholder=', '<textarea oninput="resolution.textContent=\'720p\'" placeholder=');
     if (editorMode === 'rich') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>',
       '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" data-placeholder="Describe your video idea..."></div>');
     if (editorMode === 'renamed') body = body.replace('Describe your video idea...', 'What would you like to create?');
@@ -65,6 +75,48 @@ async function checkForm(page, Client, waitForSession) {
     assert.equal(await page.locator('#privateToggle').isChecked(),false);
     assert.equal(await page.evaluate(()=>window.generateClicks),0);
   }
+  // Current-model buttons may contain descriptions after their model name;
+  // the selected control must be validated, not an exactly named menu item.
+  modelSuffix = true;
+  for (const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']) {
+    const result = await client.preflight({ model, prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' });
+    assert.equal(result.modelId,model);
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  modelSuffix = false;
+  wrongModelAfterSelection = true;
+  await assert.rejects(client.preflight({ prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' }),error=>{
+    assert.equal(error.aividCode,'form_model');
+    assert.doesNotMatch(error.message,/Playwright|locator|https:|A quiet river/);
+    return true;
+  });
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  wrongModelAfterSelection = false;
+  wrongResolutionAfterPrompt = true;
+  await assert.rejects(client.preflight({ prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' }),error=>{
+    assert.equal(error.aividCode,'form_resolution'); return true;
+  });
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  wrongResolutionAfterPrompt = false;
+  // Upload preflight must attach files even when accept attribute order varies.
+  // It is read-only, checks browser FileList, and never clicks Generate.
+  editorMode='textarea';privacyMode='private';
+  const image={kind:'image',mimeType:'image/png',data:Buffer.from('89504e470d0a1a0a','hex')};
+  const withImage=await client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]);
+  assert.equal(withImage.referenceCounts.image,1);
+  assert.equal(await page.locator('#refImages').evaluate(el=>el.files.length),1);
+  assert.equal(await page.locator('#refSelected').innerText(),'reference-image-1.png');
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  missingImageInput=true;
+  await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
+    assert.equal(error.aividCode,'reference_upload');return true;
+  });
+  missingImageInput=false;ambiguousImageInput=true;
+  await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
+    assert.equal(error.aividCode,'reference_upload');return true;
+  });
+  ambiguousImageInput=false;
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
   editorMode = 'textarea'; privacyMode = 'public';
   await client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' });
   assert.equal(await page.locator('#privateToggle').isChecked(), false);
@@ -83,7 +135,7 @@ async function checkForm(page, Client, waitForSession) {
   }
   privacyMode = 'reset_after_prompt';
   await assert.rejects(client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' }), error => {
-    assert.equal(error.aividCode, 'form_verification'); return true;
+    assert.equal(error.aividCode, 'form_privacy'); return true;
   });
   assert.equal(await page.evaluate(() => window.generateClicks), 0);
   privacyMode = 'private';

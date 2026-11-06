@@ -1,3 +1,15 @@
+## 2026-11-06 — AIVID reference-input compatibility (Agent v2.1.1)
+
+- Identify AIVID file inputs by parsed accepted MIME/extension types instead of requiring literal attribute-order equality; fail closed on missing/ambiguous mixed-kind controls.
+- Verify the selected browser FileList and keep the outgoing generation reference count/type guard. Fixture coverage includes a reordered MIME list, image preflight without paid generation, missing input and multiple matching inputs.
+- Admin Check remains **text only**; it never tests reference uploads. Actual AIVID server-side image upload acceptance requires a separate authorized live test and must not be inferred from a fixture.
+
+## 2026-11-06 — AIVID RDP v2.1.1 selected-form verification
+
+- Resolve false `form_verification` when AIVID's currently selected model button has additional descriptive text. Verify the selected model trigger with anchored per-model identity patterns (Mini, 2.0, 2.5), not an exact name that matches menu options. Aspect/resolution selection checks tolerate descriptive suffixes but still confirm the primary selected value.
+- Final preflight checks exact duration/prompt, Public privacy, current model, aspect and resolution independently; failed fields yield fixed, privacy-safe `form_*` diagnostics. No unknown values, prompt text or provider cookies cross the RDP bridge; never click Generate after uncertainty.
+- Add positive/negative fixture tests including annotated button labels, incorrect selected model, changed resolution after prompt, and privacy reset. Ship the complete **Windows RDP Agent 2.1.1 ZIP**; the installed RDP runtime must be replaced while retaining pairing, profile and receipts. Paid live generation remains unverified.
+
 ## 2026-11-06 — AIVID Admin saved-state verification
 
 - Admin now distinguishes *online RDP agent* from *persisted paid source enabled and credit ceiling*. The page explicitly shows saved enabled/disabled status and warns of unsaved checkbox/ceiling edits. Save performs a server-side write/read-back verification and a fresh Admin status fetch, only reports success when both match the intended values. A DB write/verification failure leaves the source paused and displays a diagnostic error, not a misleading success message.

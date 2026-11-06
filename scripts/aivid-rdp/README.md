@@ -1,4 +1,4 @@
-# CMMTools AIVID RDP agent 2.1.0
+# CMMTools AIVID RDP agent 2.1.1
 
 Use Windows 10/11 x64 and the Google Chrome already installed on your RDP.
 Extract the **entire ZIP** into a writable folder. Node.js and Playwright are
@@ -125,3 +125,34 @@ CMMTools credits per AIVID credit**, then standard 5% and any customer boost.
 The Admin rate is now read-only and ignores old saved 480 values. The AIVID
 source-credit ceiling is a separate per-video safety limit. Update both web
 and worker; the agent code does not need a new package for this pricing change.
+
+## Form verification improvement (v2.1.1)
+
+Agent v2.1.1 verifies the **selected current model button**, not a menu option,
+and tolerates AIVID adding descriptive text after the primary model/resolution
+labels. It still validates the exact model identity, prompt, duration, ratio,
+resolution, and **Public** visibility separately before any paid Generate click.
+New safe error codes `form_model`, `form_resolution`, `form_aspect_ratio`,
+`form_duration`, `form_prompt`, and `form_privacy` identify which value
+mismatched without leaking your prompt, page text or login information.
+
+This adapter change **requires replacing the entire Windows Agent ZIP**. To
+upgrade, first stop Agent and close its Chrome profile windows; extract the
+complete v2.1.1 package over your existing program files **without deleting**
+`.aivid-agent.json`, `.aivid-rdp-profile/`, or `receipts/`. Keep pairing
+and receipts intact, then start Agent once and use the Admin **Check RDP
+connection** (read-only). Do not retry old uncertain paid jobs.
+
+### Image reference upload safeguards (v2.1.1)
+The reference uploader now matches media input acceptance by MIME family and
+extension (rather than strict accept-attribute text), confirms the browser's
+selected FileList, and rejects missing/ambiguous controls. In the customer
+video path, CMMTools stores references and transfers them as verified binary
+chunks with file-kind, size and SHA256 checks; the outbound paid request guard
+still rejects missing/wrong reference counts/types. A selected browser file
+is **not** proof that AIVID's server has finished receiving it; real live
+reference-upload behavior must be verified before promising paid image-to-video.
+
+**Admin Check RDP connection is text-only and never attempts a reference upload.**
+If the failure says `form_model`, `form_privacy`, or `form_resolution`, it is
+not a reference upload error; this check should not spend AIVID credits.

@@ -7,11 +7,46 @@ const MINI = 'Seedance 2.0 (Mini)';
 const { aividModel, DEFAULT_ID } = require('../aivid_models.js');
 const ID = /^[a-zA-Z0-9_-]{16,80}$/;
 const MAX_OUTPUT_BYTES = 100 * 1024 * 1024;
-const INPUTS = {
-  image: 'input[type="file"][accept="image/jpeg,image/png,image/webp"]',
-  video: 'input[type="file"][accept="video/mp4,video/quicktime"]',
-  audio: 'input[type="file"][accept="audio/mpeg,audio/wav"]',
-};
+// File accept attribute ordering, whitespace and extension aliases are not
+// part of a provider API contract. Use semantic type matching rather than one
+// literal CSS attribute value. Reject ambiguous multi-kind inputs until their
+// actual upload schema is tested, rather than silently replacing files.
+const FILE_ACCEPT = Object.freeze({
+  image: ['image/*','image/jpeg','image/png','image/webp','.jpg','.jpeg','.png','.webp'],
+  video: ['video/*','video/mp4','video/quicktime','.mp4','.mov'],
+  audio: ['audio/*','audio/mpeg','audio/wav','audio/x-wav','.mp3','.wav'],
+});
+function fileInputKind(accept) {
+  const tokens=String(accept||'').toLowerCase().split(',').map(x=>x.trim()).filter(Boolean);
+  const matches=Object.keys(FILE_ACCEPT).filter(kind=>tokens.some(token=>FILE_ACCEPT[kind].includes(token)));
+  return matches.length===1?matches[0]:null;
+}
+async function referenceFileInput(main,kind) {
+  const inputs=main.locator('input[type="file"]');
+  const matches=[];
+  for(let i=0,n=await inputs.count();i<n;i++){
+    const input=inputs.nth(i);
+    if(fileInputKind(await input.getAttribute('accept'))===kind && await input.isEnabled())matches.push(input);
+  }
+  if(matches.length!==1)throw new Error('AIVID reference upload input is missing or ambiguous.');
+  return matches[0];
+}
+async function attachReferences(main,kind,refs) {
+  const input=await referenceFileInput(main,kind);
+  const files=refs.map((r,i)=>({
+    name:'reference-'+kind+'-'+(i+1)+'.'+(r.mimeType==='image/jpeg'?'jpg':r.mimeType==='video/quicktime'?'mov':r.mimeType==='audio/mpeg'?'mp3':r.mimeType.split('/')[1]),
+    mimeType:r.mimeType,buffer:r.data
+  }));
+  await input.setInputFiles(files);
+  // Verify the browser accepted each selected file. This is not proof of a
+  // successful provider-side upload; the outbound generation request guard
+  // independently checks reference counts/kinds before any paid submission.
+  const selected=await input.evaluate(element=>Array.from(element.files||[]).map(file=>({name:file.name,type:file.type,size:file.size})));
+  if(selected.length!==files.length||selected.some((file,i)=>
+    file.name!==files[i].name||file.type!==files[i].mimeType||file.size!==files[i].buffer.length))
+    throw new Error('AIVID did not retain the selected reference files.');
+}
+
 const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/mp4', 'video/quicktime'], audio: ['audio/mpeg', 'audio/wav'] };
 
 // Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
@@ -32,6 +67,12 @@ const DIAGNOSTICS = Object.freeze({
   reference_upload: 'AIVID reference upload controls did not match the requested files.',
   prompt: 'Could not fill the AIVID prompt field.',
   form_verification: 'AIVID form settings did not match after preparation. No video was submitted.',
+  form_model: 'AIVID changed or did not confirm the selected video model after preparation. No video was submitted.',
+  form_aspect_ratio: 'AIVID changed the selected aspect ratio after preparation. No video was submitted.',
+  form_resolution: 'AIVID changed the selected resolution after preparation. No video was submitted.',
+  form_duration: 'AIVID changed the selected video duration after preparation. No video was submitted.',
+  form_privacy: 'AIVID reverted to Private visibility after preparing the prompt. No video was submitted.',
+  form_prompt: 'AIVID changed or did not retain the prepared prompt. No video was submitted.',
   credit_reading: 'Could not identify the AIVID account balance and video price. A zero balance is allowed for this check.',
   browser_check: 'The AIVID operation failed. Inspect Chrome and the Agent window; no automatic resubmission is allowed.',
 });
@@ -179,13 +220,32 @@ async function openLoginPage(page) {
     { statusCode: 502, aividSafe: true });
 }
 
+// AIVID may include a description inside the current-value button (for
+// example "480p Recommended"). Verify the primary value at the start of
+// the CURRENT control, not the menu option or an unrelated button.
+function normalizedControlText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+function selectedValueMatches(controlText, exactLabel) {
+  const text = normalizedControlText(controlText);
+  return text === exactLabel || text.startsWith(exactLabel + ' ');
+}
+const SELECTED_MODEL = Object.freeze({
+  aivid_seedance_2_0_mini: /^Seedance 2\.0 \(Mini\)(?=\s|$)/,
+  aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\(Mini\))(?=\s|$)/,
+  aivid_seedance_2_5: /^Seedance 2\.5(?=\s|$)/,
+});
+function selectedModelMatches(controlText, modelId) {
+  return Boolean(SELECTED_MODEL[modelId]?.test(normalizedControlText(controlText)));
+}
 async function choose(page, pattern, exactLabel) {
   const main = page.locator('main').first();
   const current = main.getByRole('button', { name: pattern }).first();
-  if ((await current.innerText()).trim() !== exactLabel) {
+  if (!selectedValueMatches(await current.innerText(), exactLabel)) {
     await current.click();
     await main.getByRole('button', { name: exactLabel, exact: true }).click();
   }
+  return current;
 }
 
 // Observed AIVID form: Public / <label><input class="sr-only" ...></label> / Private.
@@ -210,8 +270,12 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   await step('page_navigation', () => page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded', timeout: 30000 }), onProgress);
   await step('session_check', () => waitForSession(page), onProgress);
   const main = page.locator('main').first();
+  // Capture the current-model trigger: the model menu can contain an option
+  // whose accessible name matches the same label. Only this trigger proves
+  // which model is currently selected after the menu closes.
+  const modelTrigger = main.getByRole('button', { name: /Seedance|MiniMax/ }).first();
   await step('model_selection', async () => {
-    await main.getByRole('button', { name: /Seedance|MiniMax/ }).first().click();
+    await modelTrigger.click();
     const pattern=job.modelId==='aivid_seedance_2_0'
       ? /^Seedance 2\.0(?! \(Mini\))(?:\s|$)/
       : job.modelId==='aivid_seedance_2_0_mini'
@@ -224,8 +288,8 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     // The menu choice follows the trigger in DOM order; never toggle the trigger.
     await candidate.last().click();
   }, onProgress);
-  await step('aspect_ratio', () => choose(page, /^\d+:\d+$/, job.aspectRatio), onProgress);
-  await step('resolution', () => choose(page, /^\d+p$/, job.resolution), onProgress);
+  const ratioControl = await step('aspect_ratio', () => choose(page, /^\d+:\d+(?:\s|$)/, job.aspectRatio), onProgress);
+  const resolutionControl = await step('resolution', () => choose(page, /^\d+p(?:\s|$)/, job.resolution), onProgress);
   const slider = main.locator('input[type="range"][min="4"]');
   await step('duration', async () => {
     if (await slider.count() !== 1 || Number(await slider.getAttribute('max'))<job.duration) throw new Error();
@@ -238,22 +302,27 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   // Both the visible form and the outgoing payload independently verify it.
   const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
   await step('reference_upload', async () => {
-    for (const kind of Object.keys(INPUTS)) {
+    for (const kind of Object.keys(FILE_ACCEPT)) {
       const refs = references.filter(ref => ref.kind === kind);
       if (!refs.length) continue;
-      const input = main.locator(INPUTS[kind]);
-      if (await input.count() !== 1) throw new Error('AIVID reference upload control changed.');
-      await input.setInputFiles(refs.map((r, i) => ({ name: 'reference-' + kind + '-' + (i + 1) + '.' + r.mimeType.split('/')[1], mimeType: r.mimeType, buffer: r.data })));
+      await attachReferences(main,kind,refs);
     }
   }, onProgress);
   const prompt = promptEditors(page);
   await step('prompt', () => prompt.fill(job.prompt), onProgress);
   await step('form_verification', async () => {
-    if (await privacy.isChecked() || await slider.inputValue() !== String(job.duration) || await promptValue(prompt) !== job.prompt ||
-        !await main.getByRole('button', { name: job.modelLabel, exact: true }).isVisible() ||
-        !await main.getByRole('button', { name: job.aspectRatio, exact: true }).isVisible() ||
-        !await main.getByRole('button', { name: job.resolution, exact: true }).isVisible())
-      throw new Error('AIVID form verification failed.');
+    // Each failing field has a fixed, non-sensitive code. No prompt, page text,
+    // selectors, customer data or authentication details leave the RDP host.
+    if (await privacy.isChecked()) throw sessionFailure('form_privacy');
+    if (await slider.inputValue() !== String(job.duration)) throw sessionFailure('form_duration');
+    if (await promptValue(prompt) !== job.prompt) throw sessionFailure('form_prompt');
+    // Do not mistake a matching *menu option* for the selected model.
+    if (!selectedModelMatches(await modelTrigger.innerText(), job.modelId))
+      throw sessionFailure('form_model');
+    if (!selectedValueMatches(await ratioControl.innerText(), job.aspectRatio))
+      throw sessionFailure('form_aspect_ratio');
+    if (!selectedValueMatches(await resolutionControl.innerText(), job.resolution))
+      throw sessionFailure('form_resolution');
   }, onProgress);
   return job;
 }
@@ -382,4 +451,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, MINI, ID };
+  isGenerationResponse, waitForSession, promptEditors, promptValue, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, fileInputKind, MINI, ID };
