@@ -167,4 +167,47 @@ async function reconcileAivid(db, id, input, refund = require('./generations.js'
   return result;
 }
 
-module.exports = { AividQueue, withAividLock, reconcileAivid, operation };
+// Admin actions share the submission/collection lock. Stopping local work
+// cannot cancel a paid source request, and must never trigger a replacement.
+async function manageAividJob(db, id, action, {
+  refund = require('./generations.js').refundGeneration,
+  remove = require('./generations.js').deleteUserGeneration,
+} = {}) {
+  if (!['cancel','delete'].includes(action)) throw Object.assign(new Error('Invalid job action.'), {statusCode:400});
+  const result = await withAividLock(db, async () => {
+    const [[job]] = await db.execute("SELECT * FROM generations WHERE id=? AND provider='aivid' AND media_type='video'", [id]);
+    if (!job) throw Object.assign(new Error('Generation not found.'), {statusCode:404});
+    const op=operation(job), terminal=['completed','failed','submit_error'].includes(job.status);
+    if (action==='delete') {
+      if (!terminal) throw Object.assign(new Error('Cancel this job before deleting it.'), {statusCode:409});
+      // Preserve the source receipt before deleting the generation. The normal
+      // removal also retains credit transactions while clearing their job FK.
+      await db.execute(`INSERT INTO activity_log (service,level,category,event,user_id,generation_id,provider,message,details,host)
+        VALUES ('web','info','admin','aivid.delete_receipt',?,?, 'aivid', 'Admin requested deletion of stopped video.',?, 'admin')`,
+        [job.user_id,id,JSON.stringify({providerJobId:job.provider_job_id||null,status:job.status,creditsCost:job.credits_cost,
+          providerCost:job.provider_cost,refundedAt:job.refunded_at||null,stage:op.stage||null})]);
+      await remove(job.user_id,id);
+      return {deleted:true};
+    }
+    if (terminal) {
+      if (op.adminCancelled) return {cancelled:true,refunded:Boolean(job.refunded_at)};
+      throw Object.assign(new Error('This job has already finished.'), {statusCode:409});
+    }
+    if (!['queued','submitting','submitted','processing'].includes(job.status))
+      throw Object.assign(new Error('This job cannot be cancelled in its current state.'), {statusCode:409});
+    const safeToRefund=!job.provider_job_id && (job.status==='queued'||(job.status==='submitting'&&op.stage==='preparing'));
+    const next={...op,adminCancelled:true,collectionPaused:true,cancelledAt:new Date().toISOString()};
+    if (safeToRefund) {
+      await refund(id,'failed','Cancelled by an administrator before submission. Credits were refunded.',null);
+      await db.execute("UPDATE generations SET provider_operation=? WHERE id=? AND provider='aivid' AND status='failed'",[JSON.stringify(next),id]);
+    } else {
+      await db.execute("UPDATE generations SET status='failed',provider_operation=?,error_message=?,completed_at=COALESCE(completed_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('queued','submitting','submitted','processing')",
+        [JSON.stringify(next),'Stopped by an administrator. A submitted video may still complete at the video service; credits were not automatically refunded.',id]);
+    }
+    return {cancelled:true,refunded:safeToRefund||Boolean(job.refunded_at)};
+  });
+  if (!result) throw Object.assign(new Error('A video operation is currently running. Try again when it finishes.'),{statusCode:409});
+  return result;
+}
+
+module.exports = { AividQueue, withAividLock, reconcileAivid, manageAividJob, operation };

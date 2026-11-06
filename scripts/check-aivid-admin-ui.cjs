@@ -40,6 +40,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[],referenceChecks=[];
+ const jobActions=[];let managedStatus='submitted',managedDeleted=false;
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
@@ -57,6 +58,9 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   if(p==='/admin/aivid/login/'+loginId)return route.fulfill({json:{ok:true,login:login()}});
   if(p==='/admin/aivid/check-references'){const body=req.postDataJSON();referenceChecks.push(body);return route.fulfill({json:{ok:true,verified:true,submitted:false,generationBlocked:true,modelId:body.model,balanceBefore:25,balanceAfter:25,uploadedCounts:{image:1,video:1,audio:1}}});}
   if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,modelVerified:true,withinLimit:true,standardCustomerCredits:1693.44}});}
+  if(p==='/admin/generations')return route.fulfill({json:{ok:true,generations:managedDeleted?[]:[{id:loginId,user_id:1,user_email:'fixture@example.test',media_type:'video',provider:'aivid',status:managedStatus,model:'aivid_seedance_2_0_mini',duration:15,resolution:'480p',credits_cost:846.72,provider_job_id:'6aee0aa512e75243dfa7c7b8',collectionPaused:true,created_at:new Date().toISOString()}]}});
+  if(p==='/admin/aivid/generations/'+loginId+'/cancel'){jobActions.push('cancel');managedStatus='failed';return route.fulfill({json:{ok:true,cancelled:true,refunded:false}});}
+  if(p==='/admin/aivid/generations/'+loginId+'/delete'){jobActions.push('delete');managedDeleted=true;return route.fulfill({json:{ok:true,deleted:true}});}
   if(p.startsWith('/admin/'))return route.fulfill({json:{ok:true,settings:{},models:[],users:[],entries:[],boot:[],boots:[],pricing:[],sourceCost30d:[],providers:[],config:{},web:{uptimeSeconds:1,startedAt:new Date().toISOString(),slowRequests:[]}}});
   const file=path.join('public',p);
   if(fs.existsSync(file)&&fs.statSync(file).isFile())return route.fulfill({path:file});
@@ -140,6 +144,18 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']);
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
+ // Exercise actual rendered Admin buttons, confirmation dismissal and refresh.
+ await page.getByRole('button',{name:'Generations',exact:true}).click();
+ await page.evaluate(()=>loadGenerations());
+ const cancelJob=page.getByRole('button',{name:'Cancel job',exact:true});
+ page.once('dialog',dialog=>dialog.dismiss());await cancelJob.click();assert.deepEqual(jobActions,[]);
+ const accept=dialog=>dialog.accept();page.on('dialog',accept);
+ await cancelJob.click();
+ await page.getByRole('button',{name:'Delete',exact:true}).waitFor({state:'visible'});
+ assert.equal(await page.getByRole('button',{name:'Retry collection',exact:true}).count(),0);
+ await page.getByRole('button',{name:'Delete',exact:true}).click();
+ await page.locator('#generationRows').filter({hasText:'No generations found.'}).waitFor();
+ assert.deepEqual(jobActions,['cancel','delete']);page.off('dialog',accept);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({rdpCopyCode:true,clipboardFallback:true,rdpMode:true,rdpPairing:true,rdpCheckWithoutBrowserless:true,loginDialogPrepared:true,googleLeftForOwner:true,existingSignInReused:true,keySave:true,setupFailureShown:true,retryAfterFailure:true,loginLink:true,verification:true,checkConnection:true,countdown:true,expiredLinkRemoved:true,mobileCardFits:true,pageErrors:errors}));
  await browser.close();
