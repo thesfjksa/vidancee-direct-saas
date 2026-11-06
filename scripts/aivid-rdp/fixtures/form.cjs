@@ -81,7 +81,11 @@ async function checkForm(page, Client, waitForSession) {
   for(const mode of ['textarea','rich']){
     editorMode=mode;
     console.log('AIVID fixture multiline prompt editor: '+mode);
-    const result=await client.preflight({prompt:'Scene 1:\r\n  A river\r\n\r\n@image1\tاردو 🌅',duration:5,aspectRatio:'16:9',resolution:'480p'});
+    const result=await client.preflight({prompt:'Scene 1:\r\n  A river\r\n\r\n@image1\tاردو 🌅',duration:5,aspectRatio:'16:9',resolution:'480p'}).catch(async error=>{
+      // Synthetic fixture text only; never used against an account.
+      console.log('Fixture prompt DOM: '+JSON.stringify(await page.locator('main '+(mode==='textarea'?'textarea':'[contenteditable]')).evaluate(el=>({value:el.value,text:el.innerText,content:el.textContent,html:el.innerHTML}))));
+      throw error;
+    });
     assert.equal(result.submitted,false);
     const text=await page.locator('main '+(mode==='textarea'?'textarea':'[contenteditable]')).evaluate(el=>el.tagName==='TEXTAREA'?el.value:el.innerText);
     assert.equal(text,'Scene 1:\n  A river\n\n@image1\tاردو 🌅');
