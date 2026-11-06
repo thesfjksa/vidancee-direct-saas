@@ -54,7 +54,7 @@ async function quoteAivid(config,body,{db}={}){
   const result=await withAividLock(db||require('./db.js').getPool(),()=>new Client(config).preflight(value));
   if(!result)throw Object.assign(new Error('Premium price checking is busy; retry shortly.'),{statusCode:409});
   const sourceCredits=Number(result.price);
-  const multiplier=Number(config.customerCreditsPerSourceCredit||1);
+  const multiplier=Number(config.customerCreditsPerSourceCredit||480);
   if(!Number.isFinite(sourceCredits)||sourceCredits<=0||sourceCredits>config.maxSourceCredits ||
     !Number.isFinite(multiplier)||multiplier<=0)
     throw Object.assign(new Error('AIVID pricing is unavailable or exceeds the configured source-credit limit.'),{statusCode:503});

@@ -17,7 +17,7 @@ function configFrom(env, session = {}, saved = null) {
   return { connectUrl, maxSourceCredits, enabled: saved ? saved.enabled === true : env.AIVID_ENABLED === 'true',
     apiKey: String(saved ? saved.apiKey || '' : env.BROWSERLESS_API_TOKEN || '').trim(),
     endpoint: saved?.endpoint || env.BROWSERLESS_ENDPOINT || ENDPOINTS[0],
-    customerCreditsPerSourceCredit: Number(saved?.customerCreditsPerSourceCredit || 1),
+    customerCreditsPerSourceCredit: Number(saved?.customerCreditsPerSourceCredit || 480),
     ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
 }
 
@@ -34,7 +34,7 @@ function publicConfig(config) {
   return { configured: config.mode === 'rdp' ? Boolean(config.rdpDevice?.tokenHash) : Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
     mode: config.mode || 'browserless', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
     endpoint: config.endpoint, ttlDays: config.ttlDays || 1, enabled: config.enabled,
-    maxSourceCredits: config.maxSourceCredits, customerCreditsPerSourceCredit: config.customerCreditsPerSourceCredit || 1, expiresAt: config.expiresAt,
+    maxSourceCredits: config.maxSourceCredits, customerCreditsPerSourceCredit: config.customerCreditsPerSourceCredit || 480, expiresAt: config.expiresAt,
     sessionExpired: Boolean(config.expiresAt && Date.parse(config.expiresAt) <= Date.now()),
     customerModelEnabled: require('./aivid_models.js').aividReady(config) };
 }
@@ -56,7 +56,7 @@ function validateConfig(input, current) {
   const maxSourceCredits = Number(input.maxSourceCredits ?? current.maxSourceCredits ?? 0);
   if (!Number.isFinite(maxSourceCredits) || maxSourceCredits < 0 || maxSourceCredits > 10000)
     throw Object.assign(new Error('The source credit limit must be between 0 and 10000.'), { statusCode: 400 });
-  const customerCreditsPerSourceCredit=Number(input.customerCreditsPerSourceCredit ?? current.customerCreditsPerSourceCredit ?? 1);
+  const customerCreditsPerSourceCredit=Number(input.customerCreditsPerSourceCredit ?? current.customerCreditsPerSourceCredit ?? 480);
   if(!Number.isFinite(customerCreditsPerSourceCredit)||customerCreditsPerSourceCredit<0.01||customerCreditsPerSourceCredit>10000)
     throw Object.assign(new Error('AIVID customer credits per source credit must be between 0.01 and 10000.'),{statusCode:400});
   return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits,customerCreditsPerSourceCredit };

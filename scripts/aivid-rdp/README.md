@@ -118,3 +118,8 @@ Stop Agent, extract the complete latest ZIP over the existing agent folder,
 then run AIVID-Agent.exe. Keep the existing agent profile, pairing file and
 receipts; do not delete or reset them. Existing uncertain submissions must
 be reconciled against provider history rather than retried.
+
+For the initial customer-credit conversion, the Admin rate defaults to **480
+CMMTools credits per one AIVID source credit** (Rs 20 at the current wallet
+scale). Check the real cost per AIVID credit and adjust before enabling customer
+payments. The normal per-customer price-rate adjustment still applies.

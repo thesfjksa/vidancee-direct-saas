@@ -142,7 +142,7 @@
             <div id="aividPairCopyRow" hidden style="margin-top:12px"><label for="aividPairCodeInput">One-time pairing code</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="aividPairCodeInput" readonly autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button id="aividCopyCodeButton" class="secondary" type="button" onclick="copyAividRdpCode()">Copy code</button></div></div>
             <p id="aividPairCode" class="muted" role="status" style="overflow-wrap:anywhere"></p>
             <div class="field"><label for="aividRdpCeiling">Maximum AIVID credits per video</label><input id="aividRdpCeiling" type="number" min="0" max="10000" step="0.01" value="0"></div>
-            <div class="field"><label for="aividCustomerRate">Customer credits charged per AIVID source credit</label><input id="aividCustomerRate" type="number" min="0.01" max="10000" step="0.01" value="1"></div>
+            <div class="field"><label for="aividCustomerRate">Customer credits per AIVID credit (default: 480 ≈ Rs 20)</label><input id="aividCustomerRate" type="number" min="0.01" max="10000" step="0.01" value="480"></div>
             <label><input id="aividRdpEnabled" type="checkbox" style="width:auto"> Accept queued AIVID jobs</label>
             <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Premium models are listed when this source is enabled and online. Each quote checks live Public pricing; any changed price blocks submission.</p>
           </div>

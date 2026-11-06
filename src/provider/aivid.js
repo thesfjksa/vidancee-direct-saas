@@ -59,7 +59,7 @@ function validateJob(value, references = []) {
     prompt: String(value.prompt || '').trim(), duration: Number(value.duration),
     aspectRatio: String(value.aspectRatio || value.aspect_ratio || '16:9'), resolution: String(value.resolution || '480p') };
   if (!job.prompt || job.prompt.length > 50000) throw new Error('Prompt must contain 1–50,000 characters.');
-  if (!Number.isInteger(job.duration) || job.duration < 4 || job.duration > spec.maxSeconds) throw new Error('The selected model does not support this duration.');
+  if (!Number.isInteger(job.duration) || job.duration < 4 || job.duration > spec.maxSeconds) throw new Error(spec.id===DEFAULT_ID?'Mini supports 4–15 whole seconds.':'The selected model does not support this duration.');
   if (!['16:9', '9:16', '1:1'].includes(job.aspectRatio)) throw new Error('Unsupported Mini aspect ratio.');
   if (!spec.resolutions.includes(job.resolution)) throw new Error('Unsupported model resolution.');
   if (!Array.isArray(references) || references.length > spec.refs.image+spec.refs.video+spec.refs.audio) throw new Error('Too many references for this model.');
@@ -218,8 +218,11 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
         ? /^Seedance 2\.0 \(Mini\)(?:\s|$)/
         : /^Seedance 2\.5(?:\s|$)/;
     const candidate=main.getByRole('button',{name:pattern});
-    if(await candidate.count()!==1)throw new Error('AIVID model option was not unique.');
-    await candidate.click();
+    const count=await candidate.count();
+    if(count<1||count>2)throw new Error('AIVID model option was not unique.');
+    // The current-model trigger and the menu choice can share the same name.
+    // The menu choice follows the trigger in DOM order; never toggle the trigger.
+    await candidate.last().click();
   }, onProgress);
   await step('aspect_ratio', () => choose(page, /^\d+:\d+$/, job.aspectRatio), onProgress);
   await step('resolution', () => choose(page, /^\d+p$/, job.resolution), onProgress);

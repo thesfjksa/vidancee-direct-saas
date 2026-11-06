@@ -96,7 +96,7 @@
       const data = await api('/admin/aivid/status');
       savedMode = data.mode || 'browserless'; el('aividTransport').value = savedMode;
       el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
-      el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit || 1);
+      el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit || 480);
       el('aividRdpEnabled').checked = data.enabled === true;
       configured = savedMode === 'rdp' ? data.rdp?.paired === true : data.apiKeyConfigured || data.configured;
       window.updateAividTransport();

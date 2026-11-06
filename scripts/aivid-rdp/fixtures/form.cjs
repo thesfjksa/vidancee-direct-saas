@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const html = `<!doctype html><html><body><header>0 credits</header><main>
 <textarea placeholder="Describe your video idea..."></textarea>
 <button id="model" onclick="document.querySelector('#models').hidden=false">Seedance 2.5</button>
-<div id="models" hidden><button id="mini" onclick="model.textContent='Seedance 2.0 (Mini)';models.hidden=true;duration.max=15;update()">Seedance 2.0 (Mini) Most cost-effective, quicker results.</button></div>
+<div id="models" hidden><button id="mini" onclick="model.textContent='Seedance 2.0 (Mini)';models.hidden=true;duration.max=15;update()">Seedance 2.0 (Mini) Most cost-effective, quicker results.</button><button id="full" onclick="model.textContent='Seedance 2.0';models.hidden=true;duration.max=15;update()">Seedance 2.0 High quality</button><button id="v25" onclick="model.textContent='Seedance 2.5';models.hidden=true;duration.max=30;update()">Seedance 2.5 Premium</button></div>
 <button>16:9</button><button id="resolution" onclick="resolutions.hidden=false">720p</button>
 <div id="resolutions" hidden><button onclick="resolution.textContent='480p';resolutions.hidden=true">480p</button></div>
 <input id="duration" type="range" min="4" max="30" value="15" oninput="update()"><span id="seconds">15s</span>
@@ -54,6 +54,16 @@ async function checkForm(page, Client, waitForSession) {
       assert.equal(await page.evaluate(() => window.generateClicks), 0);
       if (mode === 'rich') assert.equal(await page.locator('main [contenteditable]').innerText(), 'A quiet river');
     }
+  }
+  // All three models must select the right current-model button, set Public
+  // and read post-switch price without ever clicking Generate.
+  editorMode = 'textarea';
+  for (const [model,duration] of [['aivid_seedance_2_0',15],['aivid_seedance_2_5',30]]) {
+    const result=await client.preflight({model,prompt:'A quiet river',duration,aspectRatio:'16:9',resolution:'480p'});
+    assert.equal(result.modelId,model);
+    assert.equal(result.duration,duration);
+    assert.equal(await page.locator('#privateToggle').isChecked(),false);
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
   }
   editorMode = 'textarea'; privacyMode = 'public';
   await client.preflight({ prompt: 'A quiet river', duration: 4, aspectRatio: '16:9', resolution: '480p' });
