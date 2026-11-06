@@ -1,3 +1,8 @@
+## 2026-11-06 — AIVID Admin saved-state verification
+
+- Admin now distinguishes *online RDP agent* from *persisted paid source enabled and credit ceiling*. The page explicitly shows saved enabled/disabled status and warns of unsaved checkbox/ceiling edits. Save performs a server-side write/read-back verification and a fresh Admin status fetch, only reports success when both match the intended values. A DB write/verification failure leaves the source paused and displays a diagnostic error, not a misleading success message.
+- Video Studio's disabled warning now says this refers to **saved Admin settings** and directs operators to enable and save. Existing source-credit ceiling, source access, AIVID pricing and Public visibility safety are unchanged; no automatic bypass or paid generation was performed.
+
 ## 2026-11-06 — AIVID priced using owner's $0.12 source-credit cost
 
 - Owner confirms **each AIVID source credit costs USD $0.12**. AIVID now shares the existing `src/billing.js` 6,720-CMM-credits/USD conversion: **806.40 base CMM credits per AIVID credit**. Existing customer pricing adds the standard 5% and any boosted rate: **846.72 credits per source credit** for an ordinary customer; 2 source credits = 1,693.44 customer credits. The actual AIVID **Public-mode live quote** determines how many AIVID credits a job consumes.
