@@ -18,7 +18,7 @@ window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privac
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false;
+  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false, promptResetMode='none';
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if (privacyMode === 'public') body = body.replace('id="privateToggle" type="checkbox" checked', 'id="privateToggle" type="checkbox"').replace('window.isPublic=false', 'window.isPublic=true');
@@ -43,6 +43,10 @@ async function checkForm(page, Client, waitForSession) {
       .replace("model.textContent='Seedance 2.5'","model.textContent='Seedance 2.5 Premium model'");
     if (wrongModelAfterSelection) body = body.replace("model.textContent='Seedance 2.0 (Mini)'","model.textContent='Seedance 2.5'");
     if (wrongResolutionAfterPrompt) body = body.replace('<textarea placeholder=', '<textarea oninput="resolution.textContent=\'720p\'" placeholder=');
+    if(promptResetMode!=='none')body=body.replace('<textarea placeholder=',
+      '<textarea oninput="window.promptInputs=(window.promptInputs||0)+1;'+
+      (promptResetMode==='once'?'if(window.promptInputs===1)':'')+
+      'setTimeout(()=>{this.value=\'\'},50)" placeholder=');
     if (editorMode === 'rich') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>',
       '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" data-placeholder="Describe your video idea..."></div>');
     if (editorMode === 'renamed') body = body.replace('Describe your video idea...', 'What would you like to create?');
@@ -74,6 +78,22 @@ async function checkForm(page, Client, waitForSession) {
   // All three models must select the right current-model button, set Public
   // and read post-switch price without ever clicking Generate.
   editorMode = 'textarea';
+  for(const mode of ['textarea','rich']){
+    editorMode=mode;
+    const result=await client.preflight({prompt:'Scene 1:\r\n  A river\r\n\r\n@image1\tاردو 🌅',duration:5,aspectRatio:'16:9',resolution:'480p'});
+    assert.equal(result.submitted,false);
+    const text=await page.locator('main '+(mode==='textarea'?'textarea':'[contenteditable]')).evaluate(el=>el.tagName==='TEXTAREA'?el.value:el.innerText);
+    assert.equal(text,'Scene 1:\n  A river\n\n@image1\tاردو 🌅');
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  editorMode='textarea';promptResetMode='once';
+  await client.preflight({prompt:'A river after one form reset',duration:5,aspectRatio:'16:9',resolution:'480p'});
+  assert.equal(await page.evaluate(()=>window.promptInputs),2);
+  promptResetMode='always';
+  await assert.rejects(client.preflight({prompt:'A river that the form loses',duration:5,aspectRatio:'16:9',resolution:'480p'}),e=>e.aividCode==='form_prompt');
+  assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  assert.equal(await page.evaluate(()=>window.promptInputs),2);
+  promptResetMode='none';
   delayedMenu=true;
   for(const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0']){
     const result=await client.preflight({model,prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'480p'});

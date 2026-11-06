@@ -1,3 +1,9 @@
+## 2026-11-06 — Windows prompt retention (Agent v2.1.4)
+
+- Normalize CRLF/lone-CR prompt line endings to browser LF while preserving other characters. Both prepared text and the guarded outgoing prompt use the same normalization; meaningful changes still fail.
+- Commit prompt focus and verify stable retention, with at most one harmless refill before submission. Persistent rewrites/clears stop with form_prompt and no Generate click. Browser fixtures cover multiline textarea/rich text, Unicode, a one-time reset and persistent resets.
+- Full Windows Agent v2.1.4 is required for the installed RDP adapter. The reported failure is not proof that any video was generated; no paid video was submitted during these fixes.
+
 ## 2026-11-06 — Verified Premium quotes and model-menu readiness (Agent v2.1.3)
 
 - The RDP bridge validates and relays the actual prepared model ID, duration, resolution and aspect ratio; customer quotes reject missing/mismatched confirmation. Admin's full model check also requires this verification.
