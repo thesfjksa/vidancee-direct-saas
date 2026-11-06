@@ -23,7 +23,13 @@ test('agent routes require dedicated authentication and do not expose infrastruc
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
   const base = 'http://127.0.0.1:' + server.address().port;
-  for (const route of ['/poll', '/commands/12345678-1234-4234-9234-123456789012/result', '/commands/12345678-1234-4234-9234-123456789012/chunks/0']) {
+  assert.equal((await fetch(base+'/api/aivid-rdp/runtime')).status,401);
+  const manifestResponse=await fetch(base+'/api/aivid-rdp/runtime',{headers:{authorization:'Bearer fixture-agent'}});
+  assert.equal(manifestResponse.status,200);const manifest=await manifestResponse.json();assert.equal(manifest.protocol,1);
+  const file=manifest.files[0];const content=await fetch(base+'/api/aivid-rdp/runtime/file?version='+manifest.version+'&path='+encodeURIComponent(file.path),{headers:{authorization:'Bearer fixture-agent'}});
+  assert.equal(content.status,200);assert.equal((await content.arrayBuffer()).byteLength,file.bytes);
+  assert.equal((await fetch(base+'/api/aivid-rdp/runtime/file?version=wrong&path=agent.cjs',{headers:{authorization:'Bearer fixture-agent'}})).status,409);
+  for (const route of ['/runtime','/runtime/file','/poll', '/commands/12345678-1234-4234-9234-123456789012/result', '/commands/12345678-1234-4234-9234-123456789012/chunks/0']) {
     assert.equal((await fetch(base + '/api/aivid-rdp' + route, { method: 'POST', body: '{}' })).status, 401);
   }
   assert.equal(writes, 0);

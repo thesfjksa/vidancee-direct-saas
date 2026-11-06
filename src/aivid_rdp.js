@@ -121,9 +121,9 @@ class AividRdpClient {
         }
         if (current.state === 'done') {
           if (kind === 'submit' && !reserved && current.response.state!=='rejected' && !current.response.error) throw failure('RDP submission had no server reservation.', 409);
-          if (current.response.error) throw failure(current.response.errorCode
+          if (current.response.error) throw Object.assign(failure(current.response.errorCode
             ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
-            : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503);
+            : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503),{aividCode:current.response.errorCode});
           const result = current.response;
           if (kind === 'collect' && result.state === 'completed') result.output = await this.store.output(command.id, result);
           return result;

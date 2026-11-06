@@ -318,3 +318,18 @@ test('pending and held videos do not block new queued work; source capacity rema
   assert.equal(f.stats().polls,count?1:0);assert.equal(f.stats().submissions,count<3?1:0);assert.equal(f.stats().refunds,0);
  }
 });
+
+test('collection errors back off and pause instead of creating unlimited browser attempts',async()=>{
+ const f=fixture({status:'submitted',op:{stage:'accepted',providerJobId}}),original=f.db.execute;let attempts=0;
+ f.q.clientFactory=()=>({collectVideo:async()=>{attempts++;throw new Error('Blocked transfer');}});
+ f.db.execute=async(sql,args)=>{if(sql.includes('SET provider_operation=?,error_message='))f.job.provider_operation=args[0];return original(sql,args)};
+ for(let i=1;i<=3;i++){
+  await f.q.runOnce(f.db);assert.equal(attempts,i);
+  const op=JSON.parse(f.job.provider_operation);assert.equal(op.collectionFailures,i);assert.equal(op.collectionPaused,i===3);
+  await f.q.runOnce(f.db);assert.equal(attempts,i,'delay/paused job must not be retried immediately');
+  if(i<3)f.job.provider_operation=JSON.stringify({...op,collectionNextAt:0});
+ }
+ assert.equal(f.job.provider_job_id,providerJobId);assert.equal(f.stats().refunds,0);assert.equal(f.stats().submissions,0);
+ await reconcileAivid(f.db,f.job.id,{action:'retry_collection'});
+ assert.equal(JSON.parse(f.job.provider_operation).collectionPaused,undefined);
+});

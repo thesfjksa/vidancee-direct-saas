@@ -238,3 +238,22 @@ unlock a live browser operation or resubmit the owner's completed source video.
 PR #156 merged server lock recovery. Live worker /health confirmed collectionGuardRevision=1, collectionWaitingForAgent=true, sourceReady=false and activeTasks=0 while owner screenshot showed Agent offline. The Agent 2.1.6 console then confirmed pairing credential rejected. server-side offline pairing recovery plus safe offline rotation with accepted IDs is required; new submissions/uncertain records and online old devices still block rotation. No live recovery success has been established.
 
 The subsequent credit-free audit and fixes are documented in AIVID_ZERO_CREDIT_AUDIT_2026-11-06.md. Keep final acceptance separate from mocks; owner must restore the Windows process and the original accepted ID must complete storage without another submission.
+
+## Managed browser architecture — 3.0.0 migration
+
+Owner explicitly selected managed browser automation after the lookalike-warning
+and tab storm, while retaining normal Google authentication. A one-time stable
+worker bootstrap is required because v2.1.6 cannot fetch centrally deployed code.
+No extra user-facing executable is added. The managed worker authenticates to
+/runtime, downloads six strictly allowlisted files into an immutable hash release,
+verifies sizes/hashes/manifest identity and activates atomically. Child runtime
+uses the original profile/DPAPI/receipts root via AIVID_AGENT_ROOT. Ordinary native,
+adapter and command-handler updates activate between jobs, with no repeated ZIP
+installation. Core dependencies/bootstrap protocol can still require maintenance.
+
+Native connection reuses the work tab, and guarded paid forms reset by navigating
+away before interception is removed. Security warnings are observed, never ignored
+or bypassed, and the server pauses collection immediately for download_security.
+Generic collection failures back off and pause after three errors. Owner-reviewed
+retry_collection resumes only the original source ID. No new live generation was
+submitted, and the owner's original CMMTools transfer remains unverified.

@@ -2879,7 +2879,7 @@ const server=http.createServer(async (req,res)=>{
           `SELECT
              g.id,g.user_id,g.provider,g.media_type,g.provider_job_id,g.mode,g.model,g.duration,g.resolution,g.aspect_ratio,
              g.prompt,g.status,g.credits_cost,g.provider_cost,g.provider_cost_unit,g.output_url,g.poster_url,
-             g.error_message,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,g.generation_options,
+             g.error_message,g.provider_operation,g.submitted_at,g.started_at,g.completed_at,g.refunded_at,g.created_at,g.updated_at,g.generation_options,
              u.email
            FROM generations g
            JOIN users u ON u.id=g.user_id`+where+`
@@ -2897,6 +2897,7 @@ const server=http.createServer(async (req,res)=>{
           provider:row.provider,
           media_type:row.media_type || 'video',
           provider_job_id:row.provider_job_id,
+          collectionPaused:row.provider==='aivid'&&require('./src/aivid_queue.js').operation(row).collectionPaused===true,
         }))});
       }
 

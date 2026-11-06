@@ -82,3 +82,14 @@ test('temporary collection errors leave the agent available for the next collect
     assert.equal(statuses.at(-1),kind==='collect'?'ready':'needs_login');
   }
 });
+test('download security warnings stop collection without clicking through the warning',async()=>{
+ const {EventEmitter}=require('node:events');const {securityWarning}=require('../native.cjs');
+ assert.equal(securityWarning('Safety warning','Did you mean aivid.dev? The site looks fake.'),true);
+ assert.equal(securityWarning('Video Detail','The prompt says did you mean'),false);
+ const context=new EventEmitter(),page=new EventEmitter();let clicks=0;
+ page.context=()=>context;page.waitForEvent=()=>new Promise(()=>{});
+ const popup={opener:async()=>page,waitForLoadState:async()=>{},title:async()=> 'Safety warning',locator:()=>({innerText:async()=> 'Did you mean aivid.dev? The site looks fake.'})};
+ page.getByRole=()=>({click:async()=>{clicks++;context.emit('page',popup)}});
+ await assert.rejects(downloadNative(page),e=>e.aividCode==='download_security');
+ assert.equal(clicks,1);assert.equal(context.listenerCount('page'),0);
+});

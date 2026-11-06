@@ -15,5 +15,7 @@ foreach ($name in @('AIVID-Login.exe','AIVID-Agent.exe')) {
 $env:AIVID_PACKAGE_ROOT=$Target
 node -e "const a=require(process.env.AIVID_PACKAGE_ROOT+'/agent.cjs');(async()=>{const s='package-test-secret';const e=await a.protect('protect',s);if(e===s||await a.protect('unprotect',e)!==s)throw Error('DPAPI failed');console.log('DPAPI check passed')})().catch(()=>process.exit(1))"
 if ($LASTEXITCODE -ne 0) { throw 'DPAPI runtime check failed.' }
+node (Join-Path $PSScriptRoot 'check-managed.cjs')
+if ($LASTEXITCODE -ne 0) { throw 'Managed worker release check failed.' }
 Remove-Item Env:AIVID_PACKAGE_ROOT
 Get-ChildItem $Target -Filter '*.exe' | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content (Join-Path $Target 'SHA256SUMS.txt')

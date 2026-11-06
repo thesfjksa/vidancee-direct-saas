@@ -1,3 +1,18 @@
+## 2026-11-07 — Managed browser worker 3.0.0
+
+- One-time migration to a stable bootstrap, authenticated server releases, SHA-256/size/allowlist verification and atomic activation between jobs. Preserve the existing DPAPI credential, Chrome profile and receipts.
+- Reuse one work tab; reset guarded forms by navigation before disabling interception. Chrome security/lookalike warnings pause collection and are never bypassed.
+- Keep ordinary browser adapter/native/command-handler updates centrally managed. Existing queues, reservations, wallet and MP4 integrity checks remain required. No extra user-facing EXE.
+- Bound generic collection retries, and provide collection-only resume after review. Bootstrap waits for server recovery and never runs a partial/unauthorized update.
+- This is an architectural migration, not proof of live paid reliability. See the full package README and managed runtime tests.
+
+## 2026-11-07 — Stop repeated blocked-download retries (server only)
+
+- Owner screenshot shows a Chrome lookalike-domain warning on the source's signed storage URL. No warning is bypassed and no safety protection is disabled.
+- Persist collection failures, back off between attempts, and pause the individual transfer after three failures. Preserve the source ID and wallet; other jobs continue under the multiple-queue limit.
+- Admin reconciliation supports retry_collection for a paused transfer after its cause is reviewed. Retrying collection never generates a replacement video.
+- Installed Agent v2.1.6 creates fresh work tabs and leaves storage-origin tabs; a server patch cannot rewrite that local implementation. This fix bounds retry-driven tab growth but does not claim to fix tab reuse or verify the warning URL safe.
+
 ## 2026-11-07 — Multiple Premium queue slots (server only)
 
 - Separate waiting-job admission from browser execution: up to 20 pending Premium jobs per customer, with default three source jobs in flight (AIVID_MAX_INFLIGHT accepts 1–10). Other providers retain plan limits.

@@ -33,7 +33,7 @@ class AividQueue extends VercelQueue {
     this.collectionWaitingForAgent = false;
     this.maxSourceInflight=Math.max(1,Math.min(10,Math.floor(Number(process.env.AIVID_MAX_INFLIGHT)||3)));
   }
-  health(){return {...super.health(),collectionGuardRevision:1,multiQueueRevision:1,maxSourceInflight:this.maxSourceInflight,collectionWaitingForAgent:this.collectionWaitingForAgent};}
+  health(){return {...super.health(),collectionGuardRevision:1,collectionRetryRevision:1,multiQueueRevision:1,maxSourceInflight:this.maxSourceInflight,collectionWaitingForAgent:this.collectionWaitingForAgent};}
   schedule(delay = 30000) { return super.schedule(delay); }
   async runOnce(db = getPool(), settings = null) {
     const config = await this.getConfig();
@@ -56,12 +56,12 @@ class AividQueue extends VercelQueue {
         } else await this.hold(db, job);
       }
       const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY (provider_job_id IS NULL OR provider_operation LIKE '%review_required%'),updated_at LIMIT 50");
-      let inflight=active.filter(row=>operation(row).stage!=='review_required'&&ID.test(String(row.provider_job_id||''))).length;
+      let inflight=active.filter(row=>operation(row).stage!=='review_required'&&!operation(row).collectionPaused&&ID.test(String(row.provider_job_id||''))).length;
       if (inflight) {
         // A held/invalid older job must not starve other accepted videos.
         // If all rows need review, preserve the pause on new submissions.
-        const job=active.find(row=>operation(row).stage!=='review_required'&&ID.test(String(row.provider_job_id||'')));
-        if(!job)return;
+        const job=active.find(row=>operation(row).stage!=='review_required'&&!operation(row).collectionPaused&&!(Number(operation(row).collectionNextAt)>Date.now())&&ID.test(String(row.provider_job_id||'')));
+        if(job){
         // A needs_login agent cannot claim collection commands. Waiting for
         // one here held the browser lock for 180 seconds, blocking the very
         // Admin preflight that could restore readiness. Keep the accepted ID
@@ -71,12 +71,17 @@ class AividQueue extends VercelQueue {
         }
         this.tasks.add(job.id);
         try { const state=await this.pollJob(db, client, job);if(['completed','failed'].includes(state))inflight--; }
-        catch {
+        catch(error) {
           // Sign-out, missing/private detail page, source failure, download or
           // storage failures retain the accepted ID; never resubmit or refund.
-          await db.execute("UPDATE generations SET error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
-            ['Waiting for the video service. Your existing generation will resume automatically.', job.id]);
+          const op=operation(job),attempts=(Number(op.collectionFailures)||0)+1,paused=attempts>=3||error?.aividCode==='download_security';
+          await db.execute("UPDATE generations SET provider_operation=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
+            [JSON.stringify({...op,collectionFailures:attempts,collectionPaused:paused,collectionNextAt:Date.now()+Math.min(900000,60000*2**(attempts-1))}),
+            paused?(error?.aividCode==='download_security'?'Chrome blocked the download with a security warning. Collection is paused for review; the existing video is preserved.':'Automatic collection paused after repeated transfer errors. Support must review the existing video; it will not be generated again.'):'Video transfer is temporarily unavailable. The existing video will be checked again after a delay.',job.id]);
+          if(paused)inflight--;
+
         } finally { this.tasks.delete(job.id); }
+        }
       }
       if(inflight>=this.maxSourceInflight)return;
       if (!this.sourceReady || this.stopped) return;
@@ -145,9 +150,12 @@ class AividQueue extends VercelQueue {
 async function reconcileAivid(db, id, input, refund = require('./generations.js').refundGeneration) {
   const result = await withAividLock(db, async () => {
     const [[job]] = await db.execute("SELECT * FROM generations WHERE id=? AND provider='aivid'", [id]);
-    if (!job || job.refunded_at || !['submitted', 'submitting'].includes(job.status) || operation(job).stage !== 'review_required')
+    if (!job || job.refunded_at || !['submitted', 'submitting','processing'].includes(job.status) || (operation(job).stage !== 'review_required' && !(input.action==='retry_collection'&&operation(job).collectionPaused&&ID.test(String(job.provider_job_id||'')))))
       throw Object.assign(new Error('Only a held AIVID submission can be reconciled.'), { statusCode: 409 });
-    if (input.action === 'attach' && ID.test(String(input.providerJobId || ''))) {
+    if(input.action==='retry_collection'&&operation(job).collectionPaused){
+      const {collectionFailures,collectionNextAt,collectionPaused,...op}=operation(job);
+      await db.execute("UPDATE generations SET provider_operation=?,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND refunded_at IS NULL",[JSON.stringify(op),id]);
+    } else if (input.action === 'attach' && ID.test(String(input.providerJobId || ''))) {
       await db.execute("UPDATE generations SET status='submitted',provider_job_id=?,provider_operation=?,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND refunded_at IS NULL",
         [input.providerJobId, JSON.stringify({ stage: 'accepted', providerJobId: input.providerJobId }), id]);
     } else if (input.action === 'refund' && input.confirmedNotSubmitted === true) {

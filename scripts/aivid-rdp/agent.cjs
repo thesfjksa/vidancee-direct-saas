@@ -38,7 +38,7 @@ class Transport {
   }
 }
 async function protect(mode, value) {
-  const helper = path.join(__dirname, 'AIVID-Protect.exe');
+  const helper = path.join(process.env.AIVID_AGENT_ROOT || __dirname, 'AIVID-Protect.exe');
   // Send secrets through stdin, never command-line arguments or shell code.
   return new Promise((resolve, reject) => {
     const child = execFile(helper, [mode], { windowsHide: true, maxBuffer: 65536 }, (error, stdout) => {
@@ -131,7 +131,12 @@ class Agent {
       await this.transport.request('/poll', { body: { status: 'starting' } });
       const startupBeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
       try { await this.check(); } finally { clearInterval(startupBeat); }
+      let releaseCheckedAt=0,initialRelease=process.env.AIVID_RUNTIME_VERSION||null;
       while (!this.stopping) {
+        if(process.env.AIVID_AGENT_ROOT&&Date.now()-releaseCheckedAt>60000){
+          const release=await this.transport.request('/runtime',{method:'GET'});releaseCheckedAt=Date.now();
+          if(initialRelease&&initialRelease!==release.version){process.exitCode=42;return;}initialRelease=release.version;
+        }
         try {
           const { command } = await this.transport.request('/poll', { body: { status: this.status } });
           if (command) {
@@ -172,7 +177,7 @@ async function readPairingInput(input = process.stdin) {
 }
 async function main() {
   if (process.platform !== 'win32') throw new Error('Run AIVID-Agent.exe on your Windows RDP.');
-  const root = __dirname;
+  const root = process.env.AIVID_AGENT_ROOT || __dirname;
   let config;
   try { config = await loadConfig(root); }
   catch (error) {

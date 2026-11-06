@@ -9,6 +9,8 @@ on:
       - 'src/provider/aivid_uploads.js'
       - 'src/aivid_probe_assets.js'
       - 'src/aivid_models.js'
+      - 'src/aivid_runtime.js'
+      - 'src/aivid_rdp_http.js'
       - 'src/provider/browserless.js'
       - '.github/workflows/aivid-rdp-runner.yml'
   workflow_dispatch:
@@ -65,7 +67,7 @@ jobs:
           $source='scripts/aivid-rdp'
           $target=Join-Path $env:RUNNER_TEMP 'aivid-rdp-agent'
           New-Item -ItemType Directory -Path $target -Force | Out-Null
-          foreach($name in @('agent.cjs','native.cjs','login.cjs','README.md')) { Copy-Item (Join-Path $source $name) $target }
+          foreach($name in @('agent.cjs','worker.cjs','native.cjs','login.cjs','README.md')) { Copy-Item (Join-Path $source $name) $target }
           Copy-Item (Join-Path $source 'node_modules') (Join-Path $target 'node_modules') -Recurse
           Copy-Item (Get-Command node).Source (Join-Path $target 'node.exe')
           New-Item -ItemType Directory -Path (Join-Path $target 'provider') -Force | Out-Null
