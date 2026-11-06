@@ -2,6 +2,7 @@
 
 const { getSettingValue, setSettingValue } = require('./settings.js');
 const { browserlessUrl } = require('./provider/browserless.js');
+const { AIVID_USD_PER_CREDIT,AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT }=require('./aivid_pricing.js');
 const SESSION_KEY = 'aivid_browserless_session';
 const CONFIG_KEY = 'aivid_browserless_config';
 const ENDPOINTS = ['https://production-sfo.browserless.io', 'https://production-lon.browserless.io', 'https://production-ams.browserless.io'];
@@ -17,7 +18,8 @@ function configFrom(env, session = {}, saved = null) {
   return { connectUrl, maxSourceCredits, enabled: saved ? saved.enabled === true : env.AIVID_ENABLED === 'true',
     apiKey: String(saved ? saved.apiKey || '' : env.BROWSERLESS_API_TOKEN || '').trim(),
     endpoint: saved?.endpoint || env.BROWSERLESS_ENDPOINT || ENDPOINTS[0],
-    customerCreditsPerSourceCredit: Number(saved?.customerCreditsPerSourceCredit || 480),
+    // Ignore legacy saved 480/custom rates: AIVID now uses its verified USD source cost.
+    customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
     ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
 }
 
@@ -34,7 +36,8 @@ function publicConfig(config) {
   return { configured: config.mode === 'rdp' ? Boolean(config.rdpDevice?.tokenHash) : Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
     mode: config.mode || 'browserless', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
     endpoint: config.endpoint, ttlDays: config.ttlDays || 1, enabled: config.enabled,
-    maxSourceCredits: config.maxSourceCredits, customerCreditsPerSourceCredit: config.customerCreditsPerSourceCredit || 480, expiresAt: config.expiresAt,
+    maxSourceCredits:config.maxSourceCredits,customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
+    sourceUsdPerCredit:AIVID_USD_PER_CREDIT,pricingPolicy:'usd_source_cost',expiresAt:config.expiresAt,
     sessionExpired: Boolean(config.expiresAt && Date.parse(config.expiresAt) <= Date.now()),
     customerModelEnabled: require('./aivid_models.js').aividReady(config) };
 }
@@ -56,10 +59,9 @@ function validateConfig(input, current) {
   const maxSourceCredits = Number(input.maxSourceCredits ?? current.maxSourceCredits ?? 0);
   if (!Number.isFinite(maxSourceCredits) || maxSourceCredits < 0 || maxSourceCredits > 10000)
     throw Object.assign(new Error('The source credit limit must be between 0 and 10000.'), { statusCode: 400 });
-  const customerCreditsPerSourceCredit=Number(input.customerCreditsPerSourceCredit ?? current.customerCreditsPerSourceCredit ?? 480);
-  if(!Number.isFinite(customerCreditsPerSourceCredit)||customerCreditsPerSourceCredit<0.01||customerCreditsPerSourceCredit>10000)
-    throw Object.assign(new Error('AIVID customer credits per source credit must be between 0.01 and 10000.'),{statusCode:400});
-  return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits,customerCreditsPerSourceCredit };
+  // Legacy browser clients might still POST the old editable rate; do not let
+  // that override the owner's confirmed USD-at-cost conversion.
+  return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits };
 }
 
 async function saveAividSettings(input, { getConfig = getAividSettings, write = setSettingValue } = {}) {

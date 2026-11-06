@@ -166,3 +166,22 @@ test('connection errors cannot leak tokens and wrong-attempt actions are refused
   const expired = publicLogin({ id: 'test', state: 'waiting', expiresAt: new Date(0).toISOString(), liveURL }, { includeLink: true });
   assert.equal(expired.state, 'expired'); assert.equal(expired.liveURL, undefined);
 });
+
+
+test('AIVID source USD pricing overrides the legacy persisted 480 rate',()=>{
+  const {AIVID_USD_PER_CREDIT,AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,aividBaseCredits,aividSourceUsd}=require('../src/aivid_pricing.js');
+  const {usdToCredits,applyPriceRate,priceRate}=require('../src/billing.js');
+  assert.equal(AIVID_USD_PER_CREDIT,0.12);
+  assert.equal(AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,usdToCredits(0.12));
+  assert.equal(AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,806.4);
+  for(const [source,base,charged,usd] of [[1,806.4,846.72,0.12],[2,1612.8,1693.44,0.24],[3,2419.2,2540.16,0.36],[5,4032,4233.6,0.60],[10,8064,8467.2,1.2]]){
+    assert.equal(aividBaseCredits(source),base);
+    assert.equal(aividSourceUsd(source),usd);
+    assert.equal(applyPriceRate(base,priceRate(null)),charged);
+  }
+  const saved={mode:'rdp',apiKey:'',enabled:true,maxSourceCredits:10,customerCreditsPerSourceCredit:480};
+  const current=configFrom({}, {}, saved);
+  assert.equal(current.customerCreditsPerSourceCredit,806.4);
+  assert.equal(validateConfig({customerCreditsPerSourceCredit:1},current).customerCreditsPerSourceCredit,undefined);
+  assert.equal(require('../src/aivid_settings.js').publicConfig({...current,rdpDevice:{}}).customerCreditsPerSourceCredit,806.4);
+});
