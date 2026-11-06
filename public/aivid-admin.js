@@ -32,6 +32,7 @@
     el('aividConnectButton').disabled = busy || active || !configured || mode !== savedMode;
     el('aividReplaceButton').disabled = busy || active || !configured;
     el('aividCheckButton').disabled = busy || active || !configured;
+    el('aividCheckModelsButton').disabled = busy || active || !configured;
     el('aividPairButton').disabled = busy || active || mode !== 'rdp' || savedMode !== 'rdp';
   }
   window.updateAividTransport = () => {
@@ -218,5 +219,24 @@
       message('Connected to AIVID. Balance: ' + data.balance + ' credits. Mini test price: ' + data.price + ' credits. No video was generated.');
     } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
+  };
+  window.checkAividModels = async () => {
+    if(busy||active)return;
+    busy=true;buttons();
+    const models=[['aivid_seedance_2_0_mini','Seedance 2.0 Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_5','Seedance 2.5']];
+    const lines=[],total=models.length*2;let passed=0;
+    try {
+      for(const [model,label] of models)for(const resolution of ['480p','720p']){
+        message(lines.concat('Checking '+label+' · '+resolution+' · 5 seconds…').join('\n'));
+        try {
+          const data=await api('/admin/aivid/check',{method:'POST',body:JSON.stringify({model,duration:5,resolution,aspectRatio:'16:9'})});
+          const limit=data.withinLimit===false?' · exceeds saved source-credit limit':'';
+          lines.push(label+' · '+resolution+' · 5 seconds: '+data.price+' AIVID credits · balance '+data.balance+
+            (Number.isFinite(data.standardCustomerCredits)?' · standard customer '+data.standardCustomerCredits+' credits':'')+limit);
+          if(!limit)passed++;
+        } catch(error){lines.push(label+' · '+resolution+' · 5 seconds: FAILED — '+error.message);}
+      }
+      message(lines.concat(passed+'/'+total+' checks passed. No video was generated and no credits were charged. These checks do not verify completed videos or reference uploads.').join('\n'),passed!==total);
+    } finally {busy=false;buttons();}
   };
 })();

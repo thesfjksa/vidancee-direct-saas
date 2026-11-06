@@ -8,6 +8,15 @@
 
 > **6 November 2026 pricing continuation (after initial handoff):** AIVID source credits cost the owner **USD $0.12 each**. Current conversion is fixed to **806.40 base / 846.72 standard customer CMM credits per source credit** using existing USD-to-wallet and 5% customer pricing. Historic Admin value 480 is ignored and the Admin conversion is read-only; source ceiling, customer grants and Public-only generation safety remain unchanged. See `src/aivid_pricing.js` and current changelog. This does not prove production deployment or paid AIVID success.
 
+## 6 November live audit continuation, about 18:53 PKT
+
+- Live web and worker health returned HTTP 200; MySQL connected; the separate worker reported AIVID enabled and sourceReady=true with recent successful polls. The web process's own workerEnabled=false is intentional with this separate worker.
+- Live customer HTML and Admin JavaScript matched the merged v2.1.2 source. Public catalog returned all three distinct AIVID IDs with premium=true, ready=true and the Public visibility warning. This does not prove each customer's individual source grant.
+- Authenticated Admin showed persisted enabled=true, maxSourceCredits=19 and RDP ready. Its read-only Mini 480p/4s preflight succeeded with balance 50 and price 1 AIVID credit; no video or debit.
+- The previous connection check only exercised Mini. The new **Check all Premium models** action sequentially preflights all three models at 480p and 720p, 5s/16:9, reports exact Public quotes, standard customer credits and ceiling violations, and never calls startVideo. Failures are reported per combination and do not authorize a paid retry. POST /admin/aivid/check now validates optional model/duration/resolution/aspectRatio while preserving the existing Mini check defaults.
+- Paid acceptance remains outstanding: one controlled generation per model, then references, saved MP4 duration/playback/download, exact wallet/source delta, outage recovery and no duplicate submission. No paid video was generated during this audit.
+- Initial local broad tests: 443 passed, 2 failed, 2 skipped. One failure was a missing local copy of the already-tracked 40s MP4 fixture (restored from GitHub and hash verified); the other was the local HTTPS image-download fixture. Local Chromium cannot start because this executor denies its socket operation; use GitHub browser CI rather than weakening runtime protections. Do not label these local limitations as observed production failures.
+
 # CMM Tools — current project / AIVID Premium handoff
 **Checkpoint:** 6 November 2026 (Asia/Karachi)  
 **Repository:** [thesfjksa/vidancee-direct-saas](https://github.com/thesfjksa/vidancee-direct-saas), private, default branch `main`  

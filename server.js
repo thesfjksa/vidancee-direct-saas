@@ -2388,15 +2388,25 @@ const server=http.createServer(async (req,res)=>{
       }
       if(req.method==='POST'&&routePath==='/admin/aivid/check'){
         requireDatabase();
+        const body=await readJson(req);
+        const {DEFAULT_ID,aividModel,assertOptions}=require('./src/aivid_models.js');
+        const value=assertOptions(aividModel(body.model||DEFAULT_ID),{
+          prompt:'A quiet river at dawn',duration:body.duration??4,
+          aspectRatio:body.aspectRatio||'16:9',resolution:body.resolution||'480p'});
         const config=await require('./src/aivid_settings.js').getAividSettings();
         if(config.mode==='rdp'?!config.rdpDevice?.tokenHash:!config.connectUrl)return sendJson(res,503,{ok:false,error:'Configure the AIVID browser connection first.'});
         const {withAividLock}=require('./src/aivid_queue.js');
         // Read-only: no Generate click, wallet debit or provider catalog sync.
         const Client=config.mode==='rdp'?require('./src/aivid_rdp.js').AividRdpClient:require('./src/provider/aivid.js').AividBrowserlessClient;
         const result=await withAividLock(getPool(),()=>new Client(config)
-          .preflight({prompt:'A quiet river at dawn',duration:4,aspectRatio:'16:9',resolution:'480p'}));
+          .preflight(value));
         if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy.'});
-        return sendJson(res,200,{ok:true,...result});
+        const sourceCredits=Number(result.price);
+        const {aividBaseCredits,aividSourceUsd}=require('./src/aivid_pricing.js');
+        return sendJson(res,200,{ok:true,...result,model:value.model,duration:value.duration,
+          resolution:value.resolution,aspectRatio:value.aspectRatio,
+          withinLimit:Number.isFinite(sourceCredits)&&sourceCredits>0&&sourceCredits<=config.maxSourceCredits,
+          sourceUsd:aividSourceUsd(sourceCredits),standardCustomerCredits:applyPriceRate(aividBaseCredits(sourceCredits),priceRate(null))});
       }
       const aividReconcile=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/reconcile$/i);
       if(req.method==='POST'&&aividReconcile){

@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 2026-11-06 — Read-only Premium model audit
+- Admin can check all three AIVID Premium models at 480p/720p with 5s/16:9 preparation, Public prices, source-credit limits and standard customer credit conversion, without generating or charging.
+- The authenticated check route validates requested model/settings before contacting the browser; its existing Mini check remains compatible. Browser and route regression checks cover all six combinations.
+
 ## 2026-10-29 — Omni Flash (Vidancee) priced at cost
 
 - Omni Flash charged customers one CMM credit per Vidancee credit (30/40/50/60 for 4/6/8/10 s), but Vidancee credits cost $1 per 900, so each clip sold at about 1/7.5 of its cost. It is now sold at cost like every model: 224/299/374/448 credits before the 5% increase (236/314/393/471 after it). `VIDANCEE_CREDITS_PER_USD` in `src/vidancee_models.js`.
