@@ -48,7 +48,7 @@ async function checkForm(page, Client, waitForSession) {
       (promptResetMode==='once'?'if(window.promptInputs===1)':'')+
       'setTimeout(()=>{this.value=\'\'},50)" placeholder=');
     if (editorMode === 'rich') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>',
-      '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" data-placeholder="Describe your video idea..."></div>');
+      '<textarea hidden placeholder="Describe your video idea..."></textarea><div role="textbox" contenteditable="true" style="white-space:pre-wrap" data-placeholder="Describe your video idea..."></div>');
     if (editorMode === 'renamed') body = body.replace('Describe your video idea...', 'What would you like to create?');
     if (editorMode === 'missing') body = body.replace('<textarea placeholder="Describe your video idea..."></textarea>', '');
     if (editorMode === 'ambiguous') body = body.replace('</main>', '<textarea placeholder="A second editor"></textarea></main>');
@@ -80,6 +80,7 @@ async function checkForm(page, Client, waitForSession) {
   editorMode = 'textarea';
   for(const mode of ['textarea','rich']){
     editorMode=mode;
+    console.log('AIVID fixture multiline prompt editor: '+mode);
     const result=await client.preflight({prompt:'Scene 1:\r\n  A river\r\n\r\n@image1\tاردو 🌅',duration:5,aspectRatio:'16:9',resolution:'480p'});
     assert.equal(result.submitted,false);
     const text=await page.locator('main '+(mode==='textarea'?'textarea':'[contenteditable]')).evaluate(el=>el.tagName==='TEXTAREA'?el.value:el.innerText);
