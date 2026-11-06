@@ -182,10 +182,10 @@
           <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Inspect all imported 888API models</summary>
             <div id="api888ModelAudit" class="muted" style="max-height:320px;overflow-y:auto;margin-top:8px">Loading inventory…</div>
           </details>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check login email</button><button class="secondary" onclick="syncApi888Models()">Import all accessible models</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check login email</button><button class="secondary" onclick="syncApi888Models()">Import models &amp; prices</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
            <div id="api888LiveAudit" class="muted" role="status" style="margin:10px 0;white-space:pre-wrap"></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
-        <details class="provider-notes"><summary>Setup notes &amp; pricing</summary><div class="muted" style="margin-top:12px"><strong>888API billing: 1 yuan = 1 CMM credit.</strong> Fixed-price models charge once per request; dynamic models charge their yuan-per-second rate × selected duration. Previous USD conversion and 3.5× markup are disabled for 888API only.</div>
+        <details class="provider-notes"><summary>Setup notes &amp; pricing</summary><div class="muted" style="margin-top:12px"><strong>Duration-based billing.</strong> Seedance 2.5 dynamic models use the live yuan-per-second rate × selected duration, then the existing CMMTOOLS credit conversion. Import refreshes model availability and these rates; the worker refreshes them every 10 minutes. Fixed-price models retain per-request billing.</div>
           <div class="muted" style="margin:10px 0">After you save a valid key, supported models are imported automatically. Turn on the provider to show those models in Video and Image Studio. Unpriced or incompatible models remain Admin-only.</div>
           </details></div>
         <div class="card provider-source-card" data-provider-source="higgsfield" hidden="hidden">
@@ -946,7 +946,7 @@ async function loadApi888ModelSummary(){
         return '<div style="padding:5px 0;border-bottom:1px solid var(--border,#ddd)"><strong>'+
           esc(x.providerModelId||x.publicModelId)+'</strong> · '+esc(x.mediaType||'unknown')+
           ' · '+esc(state+price+reason)+'</div>';
-      }).join(''):'No 888API models have been imported yet. Save the key and use Import all accessible models.';
+      }).join(''):'No 888API models have been imported yet. Save the key and use Import models &amp; prices.';
     }
   }catch(e){m.textContent='888API model status unavailable: '+e.message;
     if(audit)audit.textContent='Unable to load model inventory.';}
@@ -1004,8 +1004,8 @@ async function checkApi888(){
   catch(e){m.className='err';m.textContent=e.message;}
 }
 async function syncApi888Models(){
-  const m=$('api888ActionMsg');m.textContent='Importing catalog...';
-  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported ('+d.adapterSupported+' supported adapters). Enable 888API after verifying pricing and access.';await loadApi888ModelSummary();}
+  const m=$('api888ActionMsg');m.textContent='Importing models and live prices...';
+  try{const d=await api('/admin/api888/sync',{method:'POST'});m.className='ok';m.textContent=d.total+' models imported ('+d.adapterSupported+' supported adapters; '+(d.dynamicSeedanceModels||0)+' Seedance 2.5 models with live per-second pricing).';await loadApi888ModelSummary();}
   catch(e){m.className='err';m.textContent=e.message;}
 }
 async function loadProviderSettings(){try{

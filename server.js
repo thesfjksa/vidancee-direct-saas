@@ -2309,10 +2309,11 @@ const server=http.createServer(async (req,res)=>{
       }
       if(req.method==='POST'&&routePath==='/admin/api888/sync'){
         requireDatabase();const s=await getProviderSettings();
-        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
+        const catalog=await new Api888Client({apiKey:s.api888ApiKey}).catalog();
         const models=await syncProviderModels('api888',api888MediaModels(catalog));
         return sendJson(res,200,{ok:true,total:models.length,adapterSupported:models.filter(m=>m.adapterSupported).length,
-          note:'Live models imported. 888API credits equal source CNY without FX conversion. Newly supported models require model-level Admin enable, and global and customer source access still apply.'});
+          dynamicSeedanceModels:models.filter(m=>m.available&&m.ready&&require('./src/api888_models.js').SEEDANCE25_DYNAMIC_IDS.includes(m.providerModelId)).length,
+          note:'Account-visible models and live Seedance 2.5 per-second prices imported. Existing credit conversion, model switches and customer access still apply.'});
       }
       if(req.method==='POST'&&routePath==='/admin/argolink/check'){
         requireDatabase();const s=await getProviderSettings();
@@ -2487,7 +2488,7 @@ const server=http.createServer(async (req,res)=>{
           const latest=await getProviderSettings();
           if(latest.api888ApiKey){
             try {
-              const live=await new Api888Client({apiKey:latest.api888ApiKey}).models();
+              const live=await new Api888Client({apiKey:latest.api888ApiKey}).catalog();
               const models=await syncProviderModels('api888',api888MediaModels(live));
               api888Sync={ok:true,total:models.length,
                 ready:models.filter(m=>m.ready&&m.enabled&&m.available).length};

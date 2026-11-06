@@ -9,6 +9,7 @@ const { chromium } = require('playwright-core');
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const artifacts = 'artifacts/provider-admin-ui'; fs.mkdirSync(artifacts, { recursive: true });
   const errors = [], requests = [], writes = [];
+  let api888Imports=0;
   page.on('pageerror', error => errors.push(error.message));
   const names = Array.from({ length: 35 }, (_, i) => ({ key: 'video:example_' + i, id: 'example_' + i,
     studio: 'video', vendor: 'Example provider', defaultName: 'Example model ' + i, name: '', hdEnhance: true }));
@@ -25,6 +26,7 @@ const { chromium } = require('playwright-core');
     if (pathname === '/admin/aivid/status') return json({ configured: false, apiKeyConfigured: false, endpoint: 'https://production-sfo.browserless.io', ttlDays: 1, login: { state: 'idle' } });
     if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, allowProviderCharges: false } });
     if (pathname === '/admin/model-names') return json({ models: names });
+    if (pathname === '/admin/api888/sync') { api888Imports++; assert.equal(request.method(),'POST'); return json({total:50,adapterSupported:14,dynamicSeedanceModels:5}); }
     if (pathname === '/admin/provider-models') return json({ models: url.searchParams.get('provider') === 'vercel' ? vercel : argo });
     if (pathname === '/admin/vercel/models/0/price') {
       const body = request.postDataJSON(); writes.push(body); vercel[0].priceOverride = body.price; return json({});
@@ -45,6 +47,11 @@ const { chromium } = require('playwright-core');
   assert.equal(requests.some(url => url === '/admin/model-names' || url === '/admin/provider-models?provider=vercel'), false);
   await page.screenshot({ path: path.join(artifacts, 'connections-desktop.png'), fullPage: true });
 
+  await page.getByRole('button', { name: /^888API Video/ }).click();
+  await page.getByRole('button',{name:'Import models & prices',exact:true}).click();
+  await page.locator('#api888ActionMsg').filter({hasText:'5 Seedance 2.5 models with live per-second pricing'}).waitFor();
+  assert.equal(api888Imports,1);
+  assert.equal(requests.some(url=>url.includes('/v1/videos')),false);
   await page.getByRole('button', { name: /^ArgoLink Video/ }).click();
   await page.locator('#argoApiKey').fill('private-unsaved-fixture');
   await page.getByRole('button', { name: /^SmartAIPI Image/ }).click();

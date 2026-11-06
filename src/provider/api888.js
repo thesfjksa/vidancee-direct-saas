@@ -15,6 +15,26 @@ class Api888Client {
     if(!Array.isArray(body?.data)||!body.data.length)throw Object.assign(new Error('888API model catalog was empty. Existing models were preserved.'),{statusCode:502});
     return body;
   }
+  // Import availability from the saved token and rates from the public price
+  // table. A failed price fetch aborts the import, preserving saved models.
+  async catalog(){
+    const catalog=await this.models();
+    const {SEEDANCE25_DYNAMIC_IDS}=require('../api888_models.js');
+    if(!catalog.data.some(model=>SEEDANCE25_DYNAMIC_IDS.includes(model.id)))return catalog;
+    return {...catalog,pricing:await this.pricing(),pricingCheckedAt:new Date().toISOString()};
+  }
+  async pricing(){
+    let response;
+    try{response=await this.fetch(ORIGIN+'/api/pricing',{method:'GET',headers:{accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(25000)});}
+    catch{throw Object.assign(new Error('Could not read 888API prices. Existing models were preserved.'),{statusCode:502});}
+    if(!response.ok){await response.body?.cancel?.().catch(()=>{});throw Object.assign(new Error('888API pricing is unavailable (HTTP '+response.status+'). Existing models were preserved.'),{statusCode:502});}
+    let body;
+    try{body=JSON.parse((await readBounded(response,API888_JSON_LIMIT)).toString('utf8'));}
+    catch{throw Object.assign(new Error('888API returned invalid pricing. Existing models were preserved.'),{statusCode:502});}
+    if(body?.success!==true||!Array.isArray(body.data)||!body.data.length)
+      throw Object.assign(new Error('888API pricing was empty or unsuccessful. Existing models were preserved.'),{statusCode:502});
+    return body;
+  }
   // Public endpoint behind 888API's pricing-page status labels; needs no key.
   async modelHealth(){
     let response;
@@ -397,5 +417,6 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   return {data,mimeType};
 };
 module.exports={Api888Client,ORIGIN,publicMediaUrl,api888Mentions,traceShape};
+
 
 

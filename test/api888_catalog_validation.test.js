@@ -23,9 +23,9 @@ const reference=(type,n=0)=>({
 test('priced Seedance 2.5 per-second SKUs use exact published rates and string seconds',()=>{
   const expected=[
     ['seedance2.5-480p-value',0.45,'480p'],
-    ['seedance2.5-480p-plus',0.6,'480p'],
+    ['seedance2.5-480p-plus',0.5,'480p'],
     ['seedance2.5-480p-pro',0.5,'480p'],
-    ['seedance2.5-720p-plus',0.9,'720p'],
+    ['seedance2.5-720p-plus',0.75,'720p'],
     ['seedance2.5-720p-pro',0.75,'720p'],
     ['seedance2.5-1080p-plus',0.9,'1080p'],
     ['seedance2.5-1080p-pro',1.25,'1080p'],
@@ -240,3 +240,4 @@ test('888API labels name resolution and reference limits; image models offer thr
   assert.equal(sent.size,'2160x3840');
   await assert.rejects(client.generateImage(model,{prompt:'P',aspectRatio:'4:3'}),/Unsupported aspect ratio/);
 });
+
