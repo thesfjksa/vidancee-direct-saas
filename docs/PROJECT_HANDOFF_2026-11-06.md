@@ -216,3 +216,19 @@ remain required. Browser and agent-loop regressions cover this transition. Owner
 was advised Check RDP connection then Refresh status to recover the old running
 agent while the full v2.1.6 package is built. Live transfer into CMMTools remains
 unverified until that existing job actually completes in the customer dashboard.
+
+## Busy recovery deadlock — server/worker follow-up
+
+Owner's Check RDP connection returned The AIVID browser is busy while saved
+settings showed Agent not ready. The worker unconditionally created collection
+commands for accepted videos even when the RDP heartbeat was needs_login, offline,
+starting or busy. Such commands cannot be claimed, and runOnce held the shared
+browser lock during the 180s client wait, preventing recovery preflights.
+
+Skip collection when the live device cannot claim it, release the lock and retain
+the accepted ID/wallet unchanged. Continue collecting with a ready agent even if
+new charges are paused. Regression covers four unavailable states, lock release
+for recovery, job preservation and successful collection while submissions are
+paused. Worker health adds collectionGuardRevision=1 and collectionWaitingForAgent
+for deployment verification. The Windows package is unchanged v2.1.6. Do not force
+unlock a live browser operation or resubmit the owner's completed source video.

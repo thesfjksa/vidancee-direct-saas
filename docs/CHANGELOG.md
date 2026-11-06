@@ -1,3 +1,10 @@
+## 2026-11-06 — Release the browser lock when the RDP collector cannot run
+
+- An accepted video plus a needs_login/offline/starting/busy agent caused the worker to wait for an unclaimable collect command under the shared browser lock. Admin recovery then returned browser busy.
+- Retain the original paid job and release the lock immediately while collection is unavailable. Ready agents still collect accepted videos when new submissions are disabled or the credit ceiling is zero.
+- Worker health exposes collectionGuardRevision=1 and collectionWaitingForAgent, allowing the deployed worker to be verified without source charges. Browser operations still share the same lock; none are force-unlocked.
+- Windows runtime is unchanged: use the complete Agent v2.1.6 package. This fix must deploy to the server/worker.
+
 ## 2026-11-06 — Collect accepted AIVID jobs after transient detail errors (Agent v2.1.6)
 
 - The owner's accepted Mini ID initially showed Video not found on the Public detail route; the same URL later showed Completed, 15s and Download Video. This was collection delay, not a missing paid submission.

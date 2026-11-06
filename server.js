@@ -2400,7 +2400,7 @@ const server=http.createServer(async (req,res)=>{
         const Client=config.mode==='rdp'?require('./src/aivid_rdp.js').AividRdpClient:require('./src/provider/aivid.js').AividBrowserlessClient;
         const result=await withAividLock(getPool(),()=>new Client(config)
           .preflight(value));
-        if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy.'});
+        if(!result)return sendJson(res,409,{ok:false,error:'The AIVID browser is busy with another operation. Keep AIVID-Agent.exe running and retry shortly; your existing video is preserved.'});
         const sourceCredits=Number(result.price);
         const {aividBaseCredits,aividSourceUsd}=require('./src/aivid_pricing.js');
         return sendJson(res,200,{ok:true,...result,model:value.model,duration:value.duration,
