@@ -411,6 +411,10 @@
         <select id="udGenStatus" onchange="udLoadGens()"><option value="">All statuses</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="processing">Processing</option><option value="queued">Queued</option><option value="submit_error">Submit error</option></select>
         <input id="udGenSearch" placeholder="Search prompt" onkeydown="if(event.key==='Enter')udLoadGens()" style="flex:1;min-width:140px">
       </div>
+      <div class="row" style="align-items:center;margin:12px 0;gap:12px">
+        <button id="udCleanGens" class="danger" onclick="udDeleteFinishedGenerations()">Delete finished generations</button>
+        <span id="udCleanGensMsg" class="muted" role="status">Only finished/failed jobs; active paid jobs and credit history remain.</span>
+      </div>
       <div id="udGenGrid" class="gen-grid"></div>
       <div style="text-align:center;margin-top:14px"><button id="udMore" class="secondary hide" onclick="udLoadGens(true)">Load more</button></div>
     </div>
@@ -698,6 +702,32 @@ async function udLoadGens(more=false){
     else $('udGenGrid').innerHTML=html||'<div class="muted" style="grid-column:1/-1;padding:30px;text-align:center">No generations match.</div>';
     udGenOffset+=d.generations.length;$('udMore').classList.toggle('hide',!d.hasMore);}
   catch(e){$('udGenGrid').innerHTML='<div class="err">'+esc(e.message)+'</div>'}
+}
+let udCleanupRunning=false;
+async function udDeleteFinishedGenerations(){
+  if(udCleanupRunning||!udUser)return;
+  const id=Number(udUser.id),email=String(udUser.email),status=$('udCleanGensMsg'),btn=$('udCleanGens');
+  try{
+    const preview=await api('/admin/users/'+id+'/cleanup-generations');
+    if(preview.email!==email)throw new Error('Customer changed. Close and reopen this panel.');
+    if(!preview.deletable){status.textContent='No finished jobs to delete. '+preview.protected+' active or uncertain jobs were preserved.';return;}
+    const entered=prompt('Permanently delete '+preview.deletable+' finished/failed generation(s) and their stored media for '+email+'?\n\nType the EXACT email to continue:', '');
+    if(entered!==email){status.textContent='Cancelled. The email did not match.';return;}
+    if(!confirm('Delete '+preview.deletable+' completed or failed generations belonging ONLY to '+email+'?\nThis cannot be undone. Active jobs and billing history will remain.'))return;
+    udCleanupRunning=true;btn.disabled=true;
+    let total=0;
+    while(true){
+      const result=await api('/admin/users/'+id+'/cleanup-generations',{method:'POST',body:JSON.stringify({confirmEmail:email})});
+      total+=result.deleted;
+      status.textContent='Deleted '+total+' generation(s). '+result.remaining+' remaining; '+result.protected+' active or uncertain jobs preserved.';
+      if(!result.ok)throw new Error(result.error||'Deletion stopped.');
+      if(!result.remaining)break;
+      if(!result.deleted)throw new Error('No progress. Cleanup stopped.');
+    }
+    toast('Deleted '+total+' finished generations for '+email);
+    if(udUser?.id===id){await udRefresh();await udLoadGens();}
+  }catch(error){status.textContent='Cleanup stopped: '+error.message+' Review Activity before retrying.';}
+  finally{udCleanupRunning=false;btn.disabled=false;}
 }
 function openProviderAccess(id){
   const user=adminUsersById.get(Number(id));if(!user)return;

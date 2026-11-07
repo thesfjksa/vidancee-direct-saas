@@ -673,6 +673,12 @@ async function deleteUserGeneration(userId, generationId) {
       'DELETE FROM generation_media WHERE generation_id = ?',
       [generationId],
     );
+    // Old databases can lack ON DELETE CASCADE; remove the large media
+    // children explicitly before deleting the parent generation.
+    await conn.execute('DELETE FROM generation_video_chunks WHERE generation_id=?',[generationId]);
+    await conn.execute('DELETE FROM generation_video_outputs WHERE generation_id=?',[generationId]);
+    await conn.execute('DELETE FROM generation_image_thumbnails WHERE generation_id=?',[generationId]);
+    await conn.execute('DELETE FROM generation_image_outputs WHERE generation_id=?',[generationId]);
 
     const [deleted] = await conn.execute(
       'DELETE FROM generations WHERE id = ? AND user_id = ?',
