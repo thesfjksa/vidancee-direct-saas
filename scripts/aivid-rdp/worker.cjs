@@ -30,15 +30,19 @@ async function main(){
   config={origin:p.origin,token:paired.token};await saveConfig(root,config);
  }else config=await loadConfig(root);
  const transport=new Transport(config.origin,config.token);
+ process.exitCode=await supervise({root,transport});
+}
+async function supervise({root,transport,installRelease=install,start=spawn,pause=ms=>new Promise(r=>setTimeout(r,ms))}){
+ let crashes=0;
  for(;;){
   // Failed/unauthorized releases never execute partially downloaded code.
-  let release;try{release=await install(root,transport)}catch(e){if(e.statusCode===401)throw e;console.log('Waiting for a verified server worker release…');await new Promise(r=>setTimeout(r,30000));continue;}
+  let release;try{release=await installRelease(root,transport)}catch(e){if(e.statusCode===401)throw e;console.log('Waiting for a verified server worker release…');await pause(30000);continue;}
   const {target,version}=release;
-  const code=await new Promise((resolve,reject)=>{const env={...process.env,AIVID_AGENT_ROOT:root,AIVID_RUNTIME_VERSION:version};delete env.AIVID_PAIRING_STDIN;const child=spawn(process.execPath,[path.join(target,'agent.cjs')],{cwd:root,env,stdio:'inherit',shell:false});child.once('error',reject);child.once('exit',resolve)});
+  const code=await new Promise((resolve,reject)=>{const env={...process.env,AIVID_AGENT_ROOT:root,AIVID_RUNTIME_VERSION:version};delete env.AIVID_PAIRING_STDIN;const child=start(process.execPath,[path.join(target,'agent.cjs')],{cwd:root,env,stdio:'inherit',shell:false});child.once('error',reject);child.once('exit',code=>resolve(code===null?1:code))});
   if(code===42){crashes=0;continue;}
-  if(code&&code!==23&&crashes++<3){await new Promise(r=>setTimeout(r,5000));continue;}
-  process.exitCode=code||0;return;
+  if(code&&code!==23&&crashes++<3){await pause(5000);continue;}
+  return code||0;
  }
 }
 if(require.main===module)main().catch(e=>{console.error(e.statusCode===401?'Saved pairing rejected. Reconnect this worker in Admin.':'Managed worker could not start. Check the server connection or worker release.');process.exitCode=e.statusCode===401?23:1});
-module.exports={validateManifest,verify,install,main,FILES};
+module.exports={validateManifest,verify,install,supervise,main,FILES};
