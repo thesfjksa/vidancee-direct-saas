@@ -130,3 +130,35 @@ test('a warning or unrelated popup never triggers an inline HTTP request',async(
   assert.equal(fetches,0);assert.equal(closed,0);
  }
 });
+
+test('connection and update outages reconnect without repeating an accepted operation',async t=>{
+ const {Agent}=require('../agent.cjs');
+ const oldRoot=process.env.AIVID_AGENT_ROOT,oldVersion=process.env.AIVID_RUNTIME_VERSION;
+ process.env.AIVID_AGENT_ROOT='fixture';process.env.AIVID_RUNTIME_VERSION='fixture-version';
+ t.after(()=>{for(const [k,v] of [['AIVID_AGENT_ROOT',oldRoot],['AIVID_RUNTIME_VERSION',oldVersion]])if(v===undefined)delete process.env[k];else process.env[k]=v;});
+ for(const failure of ['startup','update','poll','unauthorized-update']){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'aivid-reconnect-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  let agent,failed=false,checks=0,executions=0,pauses=0,updates=0,readyPolls=0;
+  const transport={request:async(route,options)=>{
+   if(route==='/runtime'){
+    updates++;
+    if(failure==='unauthorized-update')throw Object.assign(Error('rejected'),{statusCode:401});
+    if(failure==='update')throw Object.assign(Error('offline'),{network:true});
+    return{version:'fixture-version'};
+   }
+   assert.equal(route,'/poll');
+   const status=options.body.status;
+   if(!failed&&((failure==='startup'&&status==='starting')||(failure==='poll'&&status==='ready'))){failed=true;throw Object.assign(Error('offline'),{network:true});}
+   if(status==='starting')return{command:null};
+   readyPolls++;
+   if(readyPolls===1)return{command:{id:'existing-result',kind:'collect',payload:{providerJobId:'existing-video'}}};
+   agent.stopping=true;return{command:null};
+  }};
+  agent=new Agent({root,transport,pause:async()=>{pauses++;assert.ok(pauses<5,'reconnect loop must make progress');},clientFactory:()=>({preflight:async()=>{checks++;return{};}})});
+  agent.execute=async command=>{assert.equal(command.payload.providerJobId,'existing-video');executions++;};
+  if(failure==='unauthorized-update'){await assert.rejects(agent.run(),{statusCode:401});assert.equal(executions,0);}
+  else{await agent.run();assert.equal(executions,1);assert.equal(agent.status,'ready');assert.ok(pauses>=1);}
+  assert.equal(checks,1);assert.equal(updates,1);
+  assert.equal(await fs.stat(path.join(root,'.aivid-agent.lock')).then(()=>true,()=>false),false);
+ }
+});
