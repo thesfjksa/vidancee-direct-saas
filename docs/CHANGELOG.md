@@ -1,3 +1,10 @@
+## AIVID inline MP4 collection
+
+- Handle Download Video opening a playable media tab instead of emitting a file download. Only the source button's popup (including noopener) or work-tab navigation is eligible, pinned to the observed storage hostname and the exact accepted source ID.
+- Fetch the observed media with normal TLS, no copied authentication or cookies, no redirects, a bounded streaming size, complete-length validation and an MP4 header check. Expired links, HTML/error pages and partial responses remain retryable collection failures. Owned media popups close only after success.
+- Genuine Chrome security warnings still stop collection without any click-through or security override. The centrally served native module updates managed workers between jobs; no Windows reinstall is needed. Existing paused jobs require reviewed Admin Retry collection, never regeneration.
+- Tests cover inline/noopener popups, real-browser event wiring, file downloads, wrong job/host, content/size/truncation validation, unrelated tabs and security warnings. No new paid generation is run.
+
 ## Admin stop and delete for stuck AIVID videos
 
 - Admin Generations now offers Cancel job for waiting/submitted/processing AIVID video jobs, and Delete after a terminal state. Both require confirmation and Admin authentication; no Windows update is needed.

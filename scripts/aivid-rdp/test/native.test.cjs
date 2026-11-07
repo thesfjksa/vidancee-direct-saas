@@ -93,3 +93,40 @@ test('download security warnings stop collection without clicking through the wa
  await assert.rejects(downloadNative(page),e=>e.aividCode==='download_security');
  assert.equal(clicks,1);assert.equal(context.listenerCount('page'),0);
 });
+
+test('inline media URL is pinned to the observed source storage host and exact job',()=>{
+ const {inlineVideoUrl}=require('../native.cjs'),id='6aee348c6467353c0fd7ded1';
+ const good='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-123-'+id+'.mp4?X-Amz-Signature=fixture';
+ assert.equal(inlineVideoUrl(good,id),good);
+ for(const bad of [good.replace('https:','http:'),good.replace('/generating/','/other/'),good.replace(id,'other-job-id'),good.replace('.com/','.com.evil.test/'),good.replace('https://','https://user:pass@'),good+'#fragment',good.replace('.com/','.com:444/')])assert.equal(inlineVideoUrl(bad,id),null);
+ assert.equal(inlineVideoUrl(good,null),null);
+});
+test('inline transfer enforces status, type, complete bounded body and MP4 signature',async()=>{
+ const {readInlineVideo}=require('../native.cjs'),clip=Buffer.from('0000ftypisom0000');let options;
+ assert.deepEqual((await readInlineVideo('https://fixture.test/clip',{fetchImpl:async(url,opts)=>{options=opts;return new Response(clip,{headers:{'content-type':'video/mp4','content-length':String(clip.length)}})}})).data,clip);
+ assert.equal(options.redirect,'error');assert.equal(options.credentials,'omit');assert.equal(options.headers,undefined);
+ for(const response of [new Response(clip,{status:403}),new Response(clip,{status:206,headers:{'content-type':'video/mp4'}}),new Response('<html>Sign in</html>',{headers:{'content-type':'text/html'}}),new Response('not valid video',{headers:{'content-type':'video/mp4'}}),new Response(clip,{headers:{'content-type':'video/mp4','content-length':'200'}}),new Response(clip,{headers:{'content-type':'video/mp4','content-length':String(100*1024*1024+1)}})])await assert.rejects(readInlineVideo('https://fixture.test/clip',{fetchImpl:async()=>response}));
+});
+test('inline popup completes without a download event and closes only the owned media tab',async()=>{
+ const {EventEmitter}=require('node:events'),context=new EventEmitter(),page=new EventEmitter(),popup=new EventEmitter();
+ const id='6aee348c6467353c0fd7ded1',url='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-'+id+'.mp4?X-Amz-Signature=fixture',clip=Buffer.from('0000ftypisom0000');let closed=0,fetches=0;
+ page.url=()=> 'https://aivid.dev/videos/'+id;page.context=()=>context;
+ popup.opener=async()=>page;popup.waitForLoadState=async()=>{};popup.title=async()=>'';popup.url=()=>url;popup.close=async()=>{closed++};
+ popup.locator=selector=>selector==='body'?{innerText:async()=>''}:{first:()=>({evaluate:async()=>url})};
+ page.getByRole=()=>({click:async()=>{context.emit('page',popup)}});
+ const output=await downloadNative(page,{timeoutMs:1000,fetchImpl:async u=>{assert.equal(u,url);fetches++;return new Response(clip,{headers:{'content-type':'video/mp4'}})}});
+ assert.deepEqual(output.data,clip);assert.equal(fetches,1);assert.equal(closed,1);
+ assert.equal(context.listenerCount('page'),0);assert.equal(page.listenerCount('download'),0);assert.equal(popup.listenerCount('domcontentloaded'),0);
+});
+test('a warning or unrelated popup never triggers an inline HTTP request',async()=>{
+ const {EventEmitter}=require('node:events');
+ for(const warning of [true,false]){
+  const context=new EventEmitter(),page=new EventEmitter(),popup=new EventEmitter();let fetches=0,closed=0;
+  page.url=()=> 'https://aivid.dev/videos/6aee348c6467353c0fd7ded1';page.context=()=>context;
+  popup.opener=async()=>warning?page:null;popup.waitForLoadState=async()=>{};popup.title=async()=> 'Safety warning';popup.url=()=> 'https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-6aee348c6467353c0fd7ded1.mp4';
+  popup.locator=()=>({innerText:async()=> 'Did you mean aivid.dev? The site looks fake.'});popup.close=async()=>{closed++};
+  page.getByRole=()=>({click:async()=>context.emit('page',popup)});
+  await assert.rejects(downloadNative(page,{timeoutMs:25,fetchImpl:async()=>{fetches++;throw Error('must not fetch')}}),warning?e=>e.aividCode==='download_security':/valid MP4/);
+  assert.equal(fetches,0);assert.equal(closed,0);
+ }
+});

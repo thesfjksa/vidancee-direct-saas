@@ -69,30 +69,92 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
   }
 }
 function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
-async function downloadNative(page) {
-  let download,rejectBlocked;const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
+const MEDIA_HOST='aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com';
+const MAX_VIDEO_BYTES=100*1024*1024;
+function inlineVideoUrl(value,jobId) {
+  try {
+    const url=new URL(value);
+    if(!/^[a-z0-9_-]{8,100}$/i.test(String(jobId))||url.protocol!=='https:'||url.hostname!==MEDIA_HOST||url.port||url.username||url.password||url.hash||
+      !url.pathname.startsWith('/generating/')||!/^\/generating\/[a-z0-9_-]+\.mp4$/i.test(url.pathname)||!url.pathname.endsWith('-'+jobId+'.mp4'))return null;
+    return url.href;
+  }catch{return null;}
+}
+function mp4Output(data) {
+  if(data.length<12||data.length>MAX_VIDEO_BYTES||data.toString('ascii',4,8)!=='ftyp')throw new Error('Invalid MP4.');
+  return {data,mimeType:'video/mp4'};
+}
+// Only retrieve media already opened by the source Download button and shown
+// by Chrome's video player. No cookies/tokens are copied, no redirects followed,
+// and no security interstitial is clicked or bypassed.
+async function readInlineVideo(url,{fetchImpl=fetch,signal}={}) {
+  const response=await fetchImpl(url,{method:'GET',redirect:'error',credentials:'omit',signal});
+  try {
+    if(response.status!==200||!/^video\/mp4(?:;|$)/i.test(response.headers.get('content-type')||''))throw new Error('Unsupported media response.');
+    const length=response.headers.get('content-length');
+    if(length!==null&&(!/^\d+$/.test(length)||Number(length)<12||Number(length)>MAX_VIDEO_BYTES))throw new Error('Unsupported media size.');
+    let size=0;const chunks=[];
+    if(!response.body)throw new Error('Missing media body.');
+    for await(const chunk of response.body){size+=chunk.length;if(size>MAX_VIDEO_BYTES)throw new Error('Media size limit.');chunks.push(Buffer.from(chunk));}
+    if(length!==null&&Number(length)!==size)throw new Error('Incomplete media body.');
+    return mp4Output(Buffer.concat(chunks,size));
+  }catch(error){await response.body?.cancel?.().catch(()=>{});throw error;}
+}
+async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000}={}) {
+  let download,resolveInline,rejectInline,rejectBlocked,success=false,mediaStarted=false,timer,nativeListener;
+  const owned=new Map(),controller=new AbortController();
+  const jobId=(()=>{try{const u=new URL(page.url());return u.origin==='https://aivid.dev'?u.pathname.match(/^\/videos\/([a-z0-9_-]+)$/i)?.[1]:null;}catch{return null;}})();
+  const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
+  const inline=new Promise((resolve,reject)=>{resolveInline=resolve;rejectInline=reject});inline.catch(()=>{});
+  const timed=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Download timed out.'));},timeoutMs)});timed.catch(()=>{});
   const inspect=async target=>{try{
     await target.waitForLoadState('domcontentloaded',{timeout:10000});
-    if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000})))rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));
+    if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000}))){
+      rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));controller.abort();return;
+    }
+    const media=inlineVideoUrl(target.url(),jobId);
+    if(!media||mediaStarted)return;
+    const src=await target.locator('video').first().evaluate(video=>video.currentSrc||video.src,undefined,{timeout:10000});
+    if(inlineVideoUrl(src,jobId)!==media||mediaStarted)return;
+    mediaStarted=true;
+    try{resolveInline(await readInlineVideo(media,{fetchImpl,signal:controller.signal}));}catch(error){rejectInline(error);}
   }catch{}};
-  const popup=async target=>{try{if(await target.opener()===page)await inspect(target)}catch{}};
+  const registerPopup=async target=>{try{
+    if(owned.has(target))return;
+    const loaded=()=>{void inspect(target)};owned.set(target,loaded);target.on?.('domcontentloaded',loaded);
+    // Some source versions start a file download on the popup instead.
+    target.on?.('download',popupDownload);
+    await inspect(target);
+  }catch{}};
+  const popup=async target=>{try{if(await target.opener()===page)await registerPopup(target)}catch{}};
+  const directPopup=target=>{void registerPopup(target)};
+  let resolvePopup;
+  const popupFile=new Promise(resolve=>{resolvePopup=resolve});
+  const popupDownload=value=>resolvePopup(value);
   const navigated=()=>{void inspect(page)};
-  page.context?.().on('page',popup);page.on?.('domcontentloaded',navigated);
+  page.context?.().on('page',popup);page.on?.('popup',directPopup);page.on?.('domcontentloaded',navigated);
   try {
-    const pending = page.waitForEvent('download', { timeout: 60000 }); pending.catch(() => {});
+    const pending=page.on?new Promise(resolve=>{nativeListener=resolve;page.on('download',nativeListener)}):page.waitForEvent('download',{timeout:timeoutMs});pending.catch(()=>{});
     await page.getByRole('button', { name: 'Download Video', exact: true }).click();
-    download = await Promise.race([pending,blocked]);
+    const result=await Promise.race([pending,popupFile,inline,blocked,timed]);
+    if(result?.mimeType==='video/mp4'){success=true;return result;}
+    download=result;
     if (await download.failure()) throw new Error();
     const file = await download.path();
     if (!file) throw new Error();
     const size = (await fs.stat(file)).size;
-    if (size < 12 || size > 100 * 1024 * 1024) throw new Error();
+    if (size < 12 || size > MAX_VIDEO_BYTES) throw new Error();
     const data = await fs.readFile(file);
-    if (data.length !== size || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error();
-    return { data, mimeType: 'video/mp4' };
+    if (data.length !== size) throw new Error();
+    const output=mp4Output(data);success=true;return output;
   } catch(error) { if(error?.aividCode==='download_security')throw error;throw new Error('AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.'); }
-  finally {page.context?.().off('page',popup);page.off?.('domcontentloaded',navigated);if (download) await download.delete().catch(() => {}); }
+  finally {
+    clearTimeout(timer);controller.abort();if(nativeListener)page.off('download',nativeListener);page.context?.().off('page',popup);page.off?.('popup',directPopup);page.off?.('domcontentloaded',navigated);
+    for(const [target,loaded]of owned){target.off?.('domcontentloaded',loaded);target.off?.('download',popupDownload);if(success)await target.close?.().catch(()=>{});}
+    if(success&&inlineVideoUrl(page.url?.(),jobId))await page.goto('about:blank#cmmtools-worker',{timeout:10000}).catch(()=>{});
+    if(download)await download.delete().catch(()=>{});
+  }
 }
+
 async function takeLock(root) {
   const file = path.join(root, '.aivid-agent.lock');
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -109,4 +171,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
