@@ -34,30 +34,26 @@ async function referenceFileInput(main,kind) {
   return matches[0];
 }
 async function attachReferences(main,kind,refs) {
-  const input=await referenceFileInput(main,kind);
-  const files=refs.map((r,i)=>({
-    name:referenceName(kind,r.mimeType,i),
-    mimeType:r.mimeType,buffer:r.data
-  }));
-  // Capture File objects during change, before AIVID clears its input after
-  // asynchronous metadata validation. FileList emptiness afterward is normal.
-  await input.evaluate(element=>{
-    element.__cmmSelected=new Promise(resolve=>element.addEventListener('change',()=>{
-      const selected=Array.from(element.files||[]);
-      resolve(Promise.all(selected.map(async file=>({name:file.name,type:file.type,size:file.size,
-        sha256:Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('')}))));
-    },{once:true,capture:true}));
-  });
-  await input.setInputFiles(files);
-  const selected=await input.evaluate(async element=>{try{return await element.__cmmSelected}finally{delete element.__cmmSelected}});
-  if(selected.length!==files.length||selected.some((file,i)=>
-    file.name!==files[i].name||file.type!==files[i].mimeType||file.size!==files[i].buffer.length||
-    file.sha256!==crypto.createHash('sha256').update(files[i].buffer).digest('hex')))
-    throw new Error('AIVID did not retain the selected reference files.');
-  // These rendered labels appear only after AIVID's metadata validation and
-  // FileReader completion. A rejected or still-loading file cannot proceed.
-  for(let i=1;i<=files.length;i++)await main.getByText('@'+kind+i,{exact:true}).waitFor({state:'visible',timeout:30000});
-
+  // AIVID appends previews in FileReader completion order. Select one at a
+  // time so each numbered preview matches the order requested by the customer.
+  for(const [index,ref] of refs.entries()){
+    const input=await referenceFileInput(main,kind);
+    const name=referenceName(kind,ref.mimeType,index);
+    await input.evaluate(element=>{
+      element.__cmmSelected=new Promise(resolve=>element.addEventListener('change',()=>{
+        const selected=Array.from(element.files||[]);
+        resolve(Promise.all(selected.map(async file=>({name:file.name,type:file.type,size:file.size,
+          sha256:Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('')}))));
+      },{once:true,capture:true}));
+    });
+    await input.setInputFiles({name,mimeType:ref.mimeType,buffer:ref.data});
+    const selected=await input.evaluate(async element=>{try{return await element.__cmmSelected}finally{delete element.__cmmSelected}});
+    const [file]=selected;
+    if(selected.length!==1||file.name!==name||file.type!==ref.mimeType||file.size!==ref.data.length||
+      file.sha256!==crypto.createHash('sha256').update(ref.data).digest('hex'))
+      throw new Error('AIVID did not retain the selected reference file.');
+    await main.getByText('@'+kind+(index+1),{exact:true}).waitFor({state:'visible',timeout:30000});
+  }
 }
 
 const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/mp4', 'video/quicktime'], audio: ['audio/mpeg', 'audio/wav'] };

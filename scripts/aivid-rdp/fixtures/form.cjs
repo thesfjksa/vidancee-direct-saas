@@ -15,7 +15,15 @@ const html = `<!doctype html><html><body><header>0 credits</header><main>
 </label><span>Private</span></div><span id="price">3 Credits / Video</span>
 <button onclick="window.generateClicks++">Generate</button></main><script>
 window.generateClicks=0;window.inputEvents=0;window.isPublic=false;window.privacyChanges=0;
-function preview(input,kind){const files=Array.from(input.files);window.selectedFiles=window.selectedFiles||{};window.selectedFiles[kind]=files;document.querySelectorAll("[data-ref-kind="+kind+"]").forEach(el=>el.remove());setTimeout(()=>files.forEach((file,i)=>{const el=document.createElement("div");el.dataset.refKind=kind;el.textContent="@"+kind+(i+1);input.after(el)}),50);input.value="";}
+function preview(input,kind){
+  const files=Array.from(input.files);window.selectedFiles=window.selectedFiles||{};
+  const selected=window.selectedFiles[kind] ||= [];
+  files.forEach((file,i)=>setTimeout(()=>{
+    selected.push(file);const el=document.createElement("div");el.dataset.refKind=kind;
+    el.textContent="@"+kind+selected.length;input.after(el);
+  },50*(files.length-i)));
+  input.value="";
+}
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {

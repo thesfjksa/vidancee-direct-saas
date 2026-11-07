@@ -11,9 +11,16 @@ function referenceName(kind, mimeType, index) {
   const extensions = {'image/jpeg':'jpg','video/quicktime':'mov','audio/mpeg':'mp3'};
   return 'reference-'+kind+'-'+(index+1)+'.'+(extensions[mimeType]||mimeType.split('/')[1]);
 }
+function providerReferenceName(kind, mimeType, index) {
+  // The Generate form rebuilds Files from its previews before uploading.
+  if(kind==='image')return 'image-'+index+'.png';
+  if(kind==='video')return 'image-'+index+(mimeType==='video/mp4'?'.mp4':'.mov');
+  return 'audio-'+index+(mimeType==='audio/mpeg'?'.mp3':'.wav');
+}
 function manifests(references) {
   return TYPES.flatMap(kind => references.filter(ref => ref.kind===kind).map((ref,index) => ({
     kind, mimeType:ref.mimeType, size:ref.data.length, name:referenceName(kind,ref.mimeType,index),
+    providerName:providerReferenceName(kind,ref.mimeType,index),
     sha256:crypto.createHash('sha256').update(ref.data).digest('hex'),
   })));
 }
@@ -55,8 +62,9 @@ class UploadTracker {
     if(url.origin===API&&url.pathname==='/v2/uploads/presigned-url'&&!url.search){
       const body=JSON.parse(request.postData||'{}');
       if(typeof body.fileName!=='string'||!body.fileName||body.fileName.length>255||/[\\/\x00]/.test(body.fileName))throw fail();
+      const named=this.expected.find(ref=>ref.name===body.fileName||ref.providerName===body.fileName);
       const matches=this.expected.filter(ref=>!this.records.has(ref.name)&&ref.mimeType===body.fileType&&ref.size===body.fileSize);
-      const expected=matches.find(ref=>ref.name===body.fileName)||(matches.length===1?matches[0]:null);
+      const expected=named?(matches.includes(named)?named:null):(matches.length===1?matches[0]:null);
       if(!expected||[...this.records.values()].some(record=>record.requestedName===body.fileName))throw fail();
       this.records.set(expected.name,{...expected,requestedName:body.fileName,presigned:deferred(),stored:deferred(),done:deferred(),phase:'presign'});
       return true;

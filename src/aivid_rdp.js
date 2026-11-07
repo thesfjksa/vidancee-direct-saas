@@ -152,7 +152,7 @@ class AividRdpClient {
   checkReferences(value,references=[]){
     validateJob(value,references);
     if(references.length!==3||references.reduce((sum,r)=>sum+r.data.length,0)>128*1024||
-      ['image','video','audio'].some(kind=>references.filter(r=>r.kind===kind).length!==1))throw failure('Invalid diagnostic media.');
+      !(references.every(r=>r.kind==='image')||new Set(references.map(r=>r.kind)).size===3))throw failure('Invalid diagnostic media.');
     return this.run('reference_check',{value,probeFiles:references.map(r=>r.data.toString('base64'))},{references,timeoutMs:180000});
   }
   startVideo(value, references = [], hooks = {}) {
@@ -254,13 +254,15 @@ class AividRdpService {
       ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
     else if(command.kind==='reference_check'){
       const expected=validateJob(command.payload.value);
+      const refs=command.payload.references;
+      const counts={image:refs.filter(r=>r.kind==='image').length,video:refs.filter(r=>r.kind==='video').length,audio:refs.filter(r=>r.kind==='audio').length};
       if(input.verified!==true||input.generationBlocked!==true||input.submitted!==false||input.ready!==true||
         input.modelId!==expected.modelId||input.duration!==expected.duration||input.resolution!==expected.resolution||input.aspectRatio!==expected.aspectRatio||
         !Number.isFinite(input.price)||input.price<=0||!Number.isFinite(input.balanceBefore)||input.balanceBefore<0||input.balanceAfter!==input.balanceBefore||
-        ['image','video','audio'].some(kind=>input.uploadedCounts?.[kind]!==1))throw failure('Invalid reference-check result.');
+        Object.entries(counts).some(([kind,count])=>input.uploadedCounts?.[kind]!==count))throw failure('Invalid reference-check result.');
       result={ready:true,verified:true,submitted:false,generationBlocked:true,modelId:expected.modelId,
         duration:expected.duration,resolution:expected.resolution,aspectRatio:expected.aspectRatio,
-        uploadedCounts:{image:1,video:1,audio:1},price:input.price,balanceBefore:input.balanceBefore,balanceAfter:input.balanceAfter};
+        uploadedCounts:counts,price:input.price,balanceBefore:input.balanceBefore,balanceAfter:input.balanceAfter};
     }
     else if (command.kind === 'preflight' && input.ready === true && input.submitted === false &&
       Number.isFinite(input.price) && input.price > 0 && Number.isFinite(input.balance) && input.balance >= 0) {

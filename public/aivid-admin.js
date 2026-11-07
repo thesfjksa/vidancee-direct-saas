@@ -244,17 +244,20 @@
   window.checkAividReferences=async()=>{
     if(busy||active)return;busy=true;buttons();
     const lines=[],models=[['aivid_seedance_2_0_mini','Seedance Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_0_fast','Seedance 2.0 Fast'],['aivid_seedance_2_5','Seedance 2.5']];let passed=0;
+    const checks=[['aivid_seedance_2_0_mini','Seedance Mini',true],...models];
     try{
-      for(const [model,label] of models){
-        message(lines.concat('Checking '+label+' image, video and audio uploads…').join('\n'));
+      for(const [model,label,imageOnly=false] of checks){
+        const media=imageOnly?'three images':'image, video and audio';
+        const expected=imageOnly?{image:3,video:0,audio:0}:{image:1,video:1,audio:1};
+        message(lines.concat('Checking '+label+' · '+media+'…').join('\n'));
         try{
-          const data=await api('/admin/aivid/check-references',{method:'POST',body:JSON.stringify({model})});
+          const data=await api('/admin/aivid/check-references',{method:'POST',body:JSON.stringify({model,imageOnly})});
           if(data.verified!==true||data.submitted!==false||data.generationBlocked!==true||data.modelId!==model||
-            data.balanceBefore!==data.balanceAfter||['image','video','audio'].some(k=>data.uploadedCounts?.[k]!==1))throw new Error('Reference upload verification was incomplete.');
-          lines.push(label+': image, video and audio uploaded; video submission blocked; balance '+data.balanceAfter+' unchanged.');passed++;
-        }catch(error){lines.push(label+': FAILED — '+error.message);}
+            data.balanceBefore!==data.balanceAfter||Object.entries(expected).some(([kind,count])=>data.uploadedCounts?.[kind]!==count))throw new Error('Reference upload verification was incomplete.');
+          lines.push(label+': '+media+' uploaded; video submission blocked; balance '+data.balanceAfter+' unchanged.');passed++;
+        }catch(error){lines.push(label+' · '+media+': FAILED — '+error.message);}
       }
-      message(lines.concat(passed+'/'+models.length+' reference checks passed. Only synthetic test media is uploaded. No video is submitted or customer wallet charged. Completed reference-based videos still need a paid acceptance test.').join('\n'),passed!==models.length);
+      message(lines.concat(passed+'/'+checks.length+' reference checks passed. Only synthetic test media is uploaded. No video is submitted or customer wallet charged. Completed reference-based videos still need a paid acceptance test.').join('\n'),passed!==checks.length);
     }finally{busy=false;buttons();}
   };
 })();
