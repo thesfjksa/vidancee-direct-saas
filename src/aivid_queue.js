@@ -226,12 +226,19 @@ class AividQueue extends VercelQueue {
 async function reconcileAivid(db, id, input, refund = require('./generations.js').refundGeneration) {
   const result = await withAividLock(db, async () => {
     const [[job]] = await db.execute("SELECT * FROM generations WHERE id=? AND provider='aivid'", [id]);
-    if (!job || job.refunded_at || !['submitted', 'submitting','processing'].includes(job.status) || (operation(job).stage !== 'review_required' && !(input.action==='retry_collection'&&operation(job).collectionPaused&&ID.test(String(job.provider_job_id||'')))))
+    const op=operation(job);
+    if(input.action==='retry_collection'){
+      if(!job||job.refunded_at||!['submitted','processing'].includes(job.status)||
+         op.stage==='review_required'||op.collectionPaused!==true||!ID.test(String(job.provider_job_id||'')))
+        throw Object.assign(new Error('Only a paused AIVID collection with a verified provider job can be retried.'),{statusCode:409});
+      const {collectionFailures,collectionNextAt,collectionPaused,...resumed}=op;
+      const [updated]=await db.execute("UPDATE generations SET provider_operation=?,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",[JSON.stringify(resumed),id]);
+      if(!updated.affectedRows)throw Object.assign(new Error('AIVID job status changed. Refresh Generations.'),{statusCode:409});
+      return {reconciled:true,collectionQueued:true,providerJobId:job.provider_job_id};
+    }
+    if (!job || job.refunded_at || !['submitted', 'submitting','processing'].includes(job.status) || op.stage !== 'review_required')
       throw Object.assign(new Error('Only a held AIVID submission can be reconciled.'), { statusCode: 409 });
-    if(input.action==='retry_collection'&&operation(job).collectionPaused){
-      const {collectionFailures,collectionNextAt,collectionPaused,...op}=operation(job);
-      await db.execute("UPDATE generations SET provider_operation=?,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND refunded_at IS NULL",[JSON.stringify(op),id]);
-    } else if (input.action === 'attach' && ID.test(String(input.providerJobId || ''))) {
+    if (input.action === 'attach' && ID.test(String(input.providerJobId || ''))) {
       await db.execute("UPDATE generations SET status='submitted',provider_job_id=?,provider_operation=?,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND refunded_at IS NULL",
         [input.providerJobId, JSON.stringify({ stage: 'accepted', providerJobId: input.providerJobId }), id]);
     } else if (input.action === 'refund' && input.confirmedNotSubmitted === true) {

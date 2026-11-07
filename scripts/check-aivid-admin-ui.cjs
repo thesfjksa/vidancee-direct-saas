@@ -42,7 +42,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[],referenceChecks=[];
- const activityRequests=[];const jobActions=[];let managedStatus='submitted',managedDeleted=false;
+ const activityRequests=[];const jobActions=[];let managedStatus='submitted',managedDeleted=false,collectionPaused=true;
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
@@ -69,7 +69,12 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
    }]:[];
    return route.fulfill({json:{ok:true,entries}});
   }
-  if(p==='/admin/generations')return route.fulfill({json:{ok:true,generations:managedDeleted?[]:[{id:loginId,user_id:1,user_email:'fixture@example.test',media_type:'video',provider:'aivid',status:managedStatus,model:'aivid_seedance_2_0_mini',duration:15,resolution:'480p',credits_cost:846.72,provider_job_id:'6aee0aa512e75243dfa7c7b8',collectionPaused:true,created_at:new Date().toISOString()}]}});
+  if(p==='/admin/generations')return route.fulfill({json:{ok:true,generations:managedDeleted?[]:[{id:loginId,user_id:1,user_email:'fixture@example.test',media_type:'video',provider:'aivid',status:managedStatus,model:'aivid_seedance_2_0_mini',duration:15,resolution:'480p',credits_cost:846.72,provider_job_id:'6aee0aa512e75243dfa7c7b8',collectionPaused,created_at:new Date().toISOString()}]}});
+  if(p==='/admin/aivid/generations/'+loginId+'/reconcile'){
+   assert.deepEqual(req.postDataJSON(),{action:'retry_collection'});
+   collectionPaused=false;
+   return route.fulfill({json:{ok:true,collectionQueued:true,providerJobId:'6aee0aa512e75243dfa7c7b8'}});
+  }
   if(p==='/admin/aivid/generations/'+loginId+'/cancel'){jobActions.push('cancel');managedStatus='failed';return route.fulfill({json:{ok:true,cancelled:true,refunded:false}});}
   if(p==='/admin/aivid/generations/'+loginId+'/delete'){jobActions.push('delete');managedDeleted=true;return route.fulfill({json:{ok:true,deleted:true}});}
   if(p.startsWith('/admin/'))return route.fulfill({json:{ok:true,settings:{},models:[],users:[],entries:[],boot:[],boots:[],pricing:[],sourceCost30d:[],providers:[],config:{},web:{uptimeSeconds:1,startedAt:new Date().toISOString(),slowRequests:[]}}});
@@ -177,6 +182,10 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  // Exercise actual rendered Admin buttons, confirmation dismissal and refresh.
  await page.getByRole('button',{name:'Generations',exact:true}).click();
  await page.evaluate(()=>loadGenerations());
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Retry collection',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'Collection retry queued.'}).waitFor();
+ await page.getByRole('button',{name:'Retry collection',exact:true}).waitFor({state:'hidden'});
  const cancelJob=page.getByRole('button',{name:'Cancel job',exact:true});
  page.once('dialog',dialog=>dialog.dismiss());await cancelJob.click();assert.deepEqual(jobActions,[]);
  const accept=dialog=>dialog.accept();page.on('dialog',accept);

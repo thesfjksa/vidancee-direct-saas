@@ -89,7 +89,7 @@
     </div>
   </section>
 
-  <section id="generations" class="section"><div class="card"><div class="top"><h2>Generations</h2><button class="secondary" onclick="loadGenerations()">Refresh</button></div><div class="row"><input id="genSearch" placeholder="Email, local ID, or provider job ID"><select id="genStatus"><option value="">All statuses</option><option>queued</option><option>submitting</option><option>submitted</option><option>processing</option><option>completed</option><option>failed</option><option>submit_error</option></select><select id="genType"><option value="">All types</option><option value="video">Video</option><option value="image">Image</option><option value="audio">Audio</option></select><button class="btn" onclick="loadGenerations()">Filter</button></div><div class="tablewrap"><table><thead><tr><th>Preview</th><th>User</th><th>Type</th><th>Status</th><th>Provider</th><th>Model</th><th>Duration</th><th>Resolution</th><th>Credits</th><th>Provider job</th><th>Created</th><th>Prompt/Error</th></tr></thead><tbody id="generationRows"></tbody></table></div></div></section>
+  <section id="generations" class="section"><div class="card"><div class="top"><h2>Generations</h2><button class="secondary" onclick="loadGenerations()">Refresh</button></div><div class="row"><input id="genSearch" placeholder="Email, local ID, or provider job ID"><select id="genStatus"><option value="">All statuses</option><option>queued</option><option>submitting</option><option>submitted</option><option>processing</option><option>completed</option><option>failed</option><option>submit_error</option></select><select id="genType"><option value="">All types</option><option value="video">Video</option><option value="image">Image</option><option value="audio">Audio</option></select><button class="btn" onclick="loadGenerations()">Filter</button></div><p id="generationActionStatus" class="muted" role="status"></p><div class="tablewrap"><table><thead><tr><th>Preview</th><th>User</th><th>Type</th><th>Status</th><th>Provider</th><th>Model</th><th>Duration</th><th>Resolution</th><th>Credits</th><th>Provider job</th><th>Created</th><th>Prompt/Error</th></tr></thead><tbody id="generationRows"></tbody></table></div></div></section>
 
   <section id="credits" class="section"><div class="card"><div class="top"><h2>Credit ledger</h2><button class="secondary" onclick="loadCredits()">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>User</th><th>Generation</th><th>Type</th><th>Note</th><th>Amount</th></tr></thead><tbody id="creditRows"></tbody></table></div></div></section>
 
@@ -844,10 +844,19 @@ async function manageAividGeneration(button,id,action){
   }catch(error){alert(error.message);button.disabled=false;}
 }
 async function resumeAividCollection(button,id){
-  if(button.disabled||!confirm('Review the Chrome security/download error first. Retry collection of the existing video only? This creates no new video or charge.'))return;
-  button.disabled=true;
-  try{await api('/admin/aivid/generations/'+encodeURIComponent(id)+'/reconcile',{method:'POST',body:JSON.stringify({action:'retry_collection'})});await loadGenerations();}
-  catch(error){alert(error.message);button.disabled=false;}
+  if(button.disabled||!confirm('Queue collection of the existing AIVID video? This creates no new video or charge.'))return;
+  const status=$('generationActionStatus'),label=button.textContent;
+  button.disabled=true;button.textContent='Queuing…';
+  status.className='muted';status.textContent='Queuing collection retry…';
+  try{
+    const result=await api('/admin/aivid/generations/'+encodeURIComponent(id)+'/reconcile',{method:'POST',body:JSON.stringify({action:'retry_collection'})});
+    if(result.collectionQueued!==true)throw new Error('The server did not confirm the retry. Refresh Generations and check this job.');
+    status.className='ok';status.textContent='Collection retry queued. The worker will check the existing video on its next poll. Follow the result in Job history.';
+    await loadGenerations();
+  }catch(error){
+    status.className='err';status.textContent=error.message;
+    button.textContent=label;button.disabled=false;
+  }
 }
 async function checkApi888Task(button,generationId){
   if(button.disabled)return;

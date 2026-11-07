@@ -2436,7 +2436,13 @@ const server=http.createServer(async (req,res)=>{
       if(req.method==='POST'&&aividReconcile){
         requireDatabase();
         const result=await require('./src/aivid_queue.js').reconcileAivid(getPool(),aividReconcile[1],await readJson(req));
-        logActivity({category:'admin',event:'aivid.reconciled',provider:'aivid',generationId:aividReconcile[1],message:'Owner reconciled held submission against account history.'});
+        if(result.collectionQueued){
+          wakeGenerationWorker(req);
+          logActivity({category:'aivid',event:'aivid.collection_retry_queued',provider:'aivid',generationId:aividReconcile[1],
+            message:'Collection retry queued for the existing video.',details:{providerJobId:result.providerJobId}});
+        }else{
+          logActivity({category:'admin',event:'aivid.reconciled',provider:'aivid',generationId:aividReconcile[1],message:'Owner reconciled held submission against account history.'});
+        }
         return sendJson(res,200,{ok:true,...result});
       }
       if(req.method==='POST'&&routePath==='/admin/sluice/sync'){
