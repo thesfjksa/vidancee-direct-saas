@@ -15,6 +15,12 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 - To activate the catalog changes, verify that both Hostinger services are running the merged revision, then run **Admin → Provider → fal.ai → Sync fal.ai image models**, or wait for the worker's scheduled sync. Refresh Image Studio and confirm the reference control appears on the named GPT models and compatible Edit variants. Production deployment and catalog sync remain unverified.
 - [#188](https://github.com/thesfjksa/vidancee-direct-saas/pull/188) merged at `123b6ea`. The signed-in Library's **Download backup** action exports the customer's complete video history for completed jobs and the corresponding prompts in one ZIP. GitHub's Node and browser checks passed. Production deployment remains unverified.
 
+### GPT reference rollout after the catalog sync timeout
+
+- The production Image Studio HTML matched the version merged in #189, and the standalone worker reported fal.ai ready. The Admin sync hit Hostinger's request timeout. The public catalog still listed 139 fal.ai models and no reference options at the time of the check.
+- Existing enabled, available catalog rows for the five verified fal.ai GPT Image endpoints now load the checked edit contract and estimated edit price directly when they predate edit discovery. A full import with a complete live schema takes precedence. A full import that cannot retrieve the schema for a listed GPT pair keeps the saved catalog.
+- After deploying this revision, verify that all five models in `/api/config` report one optional reference and an edit price. Use a signed-in test account to time one paid reference render and compare queue wait, provider render, and delivery. Record any benchmark and deployment evidence separately.
+
 ## Executive status — distinguish code from live service
 
 - **Merged on GitHub:** PRs #175–#186, including documentation-only #181, are merged into `main`. Latest inspected AIVID code checkpoint: PR #186 merge `6aa2ccb9437562fc8c94c2eb3330b4fe78036376` (7 November 2026, 13:17 UTC).
