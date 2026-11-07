@@ -467,6 +467,11 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
       if(await uploads.before(event.request)){
         await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
       }
+      // The generation page refreshes card likes while the submission guard is active.
+      if (event.request.method === 'POST' && url.origin === API &&
+          url.pathname === '/v2/interactions/likes/bulk' && !url.search && !url.username && !url.password) {
+        await cdp.send('Fetch.continueRequest', { requestId: event.requestId }); return;
+      }
       if(event.request.method==='POST'&&url.origin===API&&url.pathname==='/v2/sensitive-keywords/check'&&!url.search){
         const check=JSON.parse(event.request.postData||'{}');
         if(normalizePrompt(check.prompt)!==job.prompt)throw sessionFailure('submission_prompt');
