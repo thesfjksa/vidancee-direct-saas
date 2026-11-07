@@ -413,7 +413,10 @@
       <div class="page">
         <div class="page-head">
           <div><h1>Library</h1><p>Everything you have generated, in one visual archive.</p></div>
-          <button class="btn secondary" onclick="loadGenerations()">Refresh</button>
+          <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+            <button type="button" class="btn secondary" onclick="loadGenerations()">Refresh</button>
+            <a class="btn primary" href="/api/generations/backup" download title="Download completed videos and their prompts as a ZIP">Download backup</a>
+          </div>
         </div>
         <div id="libraryGallery" class="gallery"></div>
       </div>

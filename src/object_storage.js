@@ -57,7 +57,7 @@ class ObjectStore{
     return {amzDate,date:amzDate.slice(0,8)};
   }
   // Header-signed request for PUT/GET/HEAD/DELETE.
-  async request(method,key,{body=null,headers={},query={}}={}){
+  async request(method,key,{body=null,headers={},query={},signal}={}){
     const {amzDate,date}=this.stamp(),path=this.path(key);
     const payloadHash=body?sha256(body):sha256('');
     const signed={host:this.host,'x-amz-content-sha256':payloadHash,'x-amz-date':amzDate,...headers};
@@ -67,9 +67,10 @@ class ObjectStore{
       ', SignedHeaders='+c.signedHeaders+', Signature='+this.signature(date,sts);
     const {host,...sent}=signed;
     let response;
+    const timeout=AbortSignal.timeout(method==='PUT'?300000:60000);
     try{
       response=await this.fetch(this.origin+path+(c.query?'?'+c.query:''),{method,body:body||undefined,
-        headers:{...sent,authorization},redirect:'error',signal:AbortSignal.timeout(method==='PUT'?300000:60000)});
+        headers:{...sent,authorization},redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
     }catch(error){throw storageError('Could not connect to cloud storage.',null,{code:error.name});}
     return response;
   }
@@ -102,8 +103,8 @@ class ObjectStore{
     return {size:Number(response.headers.get('content-length')),etag:String(response.headers.get('etag')||'').replace(/"/g,''),
       contentType:response.headers.get('content-type')||''};
   }
-  async get(key,{range=null}={}){
-    const response=await this.request('GET',key,{headers:range?{range}:{}});
+  async get(key,{range=null,signal}={}){
+    const response=await this.request('GET',key,{headers:range?{range}:{},signal});
     if(![200,206].includes(response.status)){
       await response.body?.cancel?.().catch(()=>{});
       throw storageError('Cloud storage download failed (HTTP '+response.status+').',response.status);

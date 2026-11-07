@@ -204,6 +204,7 @@ const { submissionFailover, isOutOfCredits } = require('./src/image_failover.js'
 const { argoVideoView, wanVideoView, quoteArgoVideo, falReady } = require('./src/argo_hd.js');
 const { isGatewayModel, mediaModels, quoteGateway, validateReferences, mp4Seconds } = require('./src/vercel_models.js');
 const { serveVideoOutput } = require('./src/video_outputs.js');
+const { sendVideoBackup } = require('./src/video_backup.js');
 const { configuredStorage, keyFromMarker, redirectToObject, storageConfiguration, saveStorageSettings, SETTINGS: STORAGE_SETTINGS } = require('./src/object_storage.js');
 const {GoogleDriveStore,configuredDrive,driveConfiguration,driveIdFromMarker,authUrl,exchangeCode,oauthConfig,validateOAuthClient,OAUTH_ID_SETTING,OAUTH_SECRET_SETTING}=require('./src/google_drive.js');
 const {videoMigrationStats}=require('./src/google_drive_migration.js');
@@ -1841,6 +1842,12 @@ const server=http.createServer(async (req,res)=>{
       const generations=await listUserGenerations(user.id,50);
       if(generations.some(row=>['queued','submitting','submitted','processing'].includes(row.status)))wakeGenerationWorker(req);
       return sendJson(res,200,{ok:true,generations});
+    }
+
+    if (req.method==='GET' && routePath==='/api/generations/backup') {
+      requireDatabase();
+      const user=await requireUser(req);
+      return await sendVideoBackup(getPool(),res,user.id);
     }
 
     // A presigned link for the browser to upload a reference video or sound

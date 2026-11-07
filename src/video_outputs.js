@@ -37,8 +37,27 @@ async function saveVideoOutput(conn,id,output) {
   return 'db:video';
 }
 
-async function serveVideoOutput(db,req,res,id) {
+async function getVideoOutput(db,id) {
   const [[output]]=await db.execute('SELECT mime_type,byte_length FROM generation_video_outputs WHERE generation_id=?',[id]);
+  return output;
+}
+
+async function getVideoChunk(db,id,index) {
+  const [[chunk]]=await db.execute('SELECT video_data FROM generation_video_chunks WHERE generation_id=? AND chunk_index=?',[id,index]);
+  return chunk?.video_data;
+}
+
+async function* readVideoChunks(db,id,total,signal) {
+  for(let offset=0,index=0;offset<total;offset+=CHUNK_SIZE,index++) {
+    signal.throwIfAborted();
+    const chunk=await getVideoChunk(db,id,index);
+    if(chunk?.length!==Math.min(CHUNK_SIZE,total-offset))throw new Error('Stored video chunk is incomplete.');
+    yield chunk;
+  }
+}
+
+async function serveVideoOutput(db,req,res,id) {
+  const output=await getVideoOutput(db,id);
   if(!output) {res.writeHead(404,{'content-type':'application/json'});res.end('{"ok":false,"error":"Video is unavailable."}');return;}
   const total=Number(output.byte_length),range=byteRange(req.headers.range,total);
   if(!range) {res.writeHead(416,{'content-range':'bytes */'+total,'accept-ranges':'bytes'});res.end();return;}
@@ -48,10 +67,10 @@ async function serveVideoOutput(db,req,res,id) {
   res.writeHead(range.partial?206:200,headers);
   for(let index=Math.floor(range.start/CHUNK_SIZE);index<=Math.floor(range.end/CHUNK_SIZE);index++) {
     if(res.destroyed)return;
-    const [[chunk]]=await db.execute('SELECT video_data FROM generation_video_chunks WHERE generation_id=? AND chunk_index=?',[id,index]);
+    const chunk=await getVideoChunk(db,id,index);
     if(!chunk){res.destroy();return;}
-    const lo=Math.max(0,range.start-index*CHUNK_SIZE),hi=Math.min(chunk.video_data.length,range.end-index*CHUNK_SIZE+1);
-    if(!res.write(chunk.video_data.subarray(lo,hi)))await new Promise(resolve=>{
+    const lo=Math.max(0,range.start-index*CHUNK_SIZE),hi=Math.min(chunk.length,range.end-index*CHUNK_SIZE+1);
+    if(!res.write(chunk.subarray(lo,hi)))await new Promise(resolve=>{
       const done=()=>{res.removeListener('drain',done);res.removeListener('close',done);resolve();};
       res.once('drain',done);res.once('close',done);
     });
@@ -59,4 +78,4 @@ async function serveVideoOutput(db,req,res,id) {
   res.end();
 }
 
-module.exports={CHUNK_SIZE,byteRange,saveVideoOutput,serveVideoOutput};
+module.exports={CHUNK_SIZE,byteRange,saveVideoOutput,serveVideoOutput,getVideoOutput,readVideoChunks};

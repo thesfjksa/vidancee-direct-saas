@@ -200,16 +200,21 @@ class GoogleDriveStore{
     return this.uploadVideo({generationId:id,size:data.length,md5Checksum:md5,
       readChunk:async(offset,length)=>data.subarray(offset,offset+length)});
   }
-  async streamVideo(fileId,req,res){
+  async getVideo(fileId,{range,signal}={}){
     if(!FILE_ID.test(String(fileId)))throw new Error('Invalid Google Drive file ID.');
     const headers={authorization:'Bearer '+await this.token()};
-    if(req.headers.range)headers.range=String(req.headers.range);
+    if(range)headers.range=String(range);
+    const timeout=AbortSignal.timeout(120000);
     const upstream=await this.fetch(DRIVE_ORIGIN+'/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',
-      {headers,redirect:'error',signal:AbortSignal.timeout(120000)});
+      {headers,redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
     if(![200,206,416].includes(upstream.status)){
       await upstream.body?.cancel?.().catch(()=>{});
       throw new Error('Google Drive video playback failed (HTTP '+upstream.status+').');
     }
+    return upstream;
+  }
+  async streamVideo(fileId,req,res){
+    const upstream=await this.getVideo(fileId,{range:req.headers.range});
     const h={'content-type':'video/mp4','cache-control':'private, no-store',
       'accept-ranges':'bytes','x-content-type-options':'nosniff'};
     for(const [from,to] of [['content-length','content-length'],['content-range','content-range']]){
