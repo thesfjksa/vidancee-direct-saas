@@ -439,6 +439,25 @@ test('paused new jobs still collect accepted jobs; download failures retain the 
   assert.equal(done.job.provider_job_id, providerJobId); assert.equal(done.stats().refunds, 0);
 });
 
+test('refund shows the approved source failure reason and keeps other provider details private', async () => {
+  for (const [errorCode, message] of [
+    ['source_sensitive_content', /input or output video may contain sensitive information\. Credits were refunded\./],
+    ['private provider diagnostic', /^The video could not be completed\. Credits were refunded\.$/],
+  ]) {
+    const f = fixture({ status: 'submitted', op: { stage: 'accepted', providerJobId },
+      output: { state: 'failed', errorCode } });
+    const refund = f.q.refund;
+    f.q.refund = async (id, status, reason, cost) => {
+      assert.match(reason, message);
+      assert.doesNotMatch(reason, /private provider diagnostic/);
+      return refund(id, status, reason, cost);
+    };
+    await f.q.runOnce(f.db);
+    assert.equal(f.stats().refunds, 1);
+    assert.equal(f.stats().submissions, 0);
+    assert.equal(f.job.provider_job_id, providerJobId);
+  }
+});
 test('reconciliation only accepts held jobs and explicit account-history confirmation', async () => {
   const held = fixture({ status: 'submitted', op: { stage: 'review_required' } });
   await assert.rejects(reconcileAivid(held.db, held.job.id, { action: 'refund' }), /confirm/);

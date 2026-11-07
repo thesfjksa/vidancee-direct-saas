@@ -58,6 +58,12 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 - A separate two-video run at 7:34 PM PKT was accepted by AIVID. CMMTools saved the second job at 7:42:05 PM and the first at 7:46:26 PM on its third automatic check after two `collection_download` events. This confirms delivery recovered on the original job. The earlier generic code does not identify the exact CDN response. The RDP collector now distinguishes temporary MP4 delivery from a validation rejection. The queue keeps checking the same completed source job with bounded backoff for roughly 24 hours, frees the source generation slot, and logs attempts in Admin without showing a temporary transfer error in the customer card. Existing origin, MP4 and browser security checks still apply.
 - Focused local verification passed 110 tests with two environment-dependent skips. It covers metadata and trim boundaries, incomplete delivery, preservation of the accepted job, retry limits, and queue capacity. The browser fixture covers exact provider-alert classification without reaching Generate. The first Windows CI run reached its previous three-minute suite deadline after the reference-flow assertions passed. The added coverage uses a four-minute suite budget; production timeouts are unchanged. The production preflight above ran on the existing deployment. Verify this change's web, standalone worker and managed RDP rollout independently before calling the fix live. A customer-specific paid acceptance test remains outstanding.
 
+### AIVID sensitive-information rejection in CMMTools (8 November PKT)
+
+- The owner reported that AIVID said the input or output video may contain sensitive information. CMMTools displayed only a generic completion failure and refund. The RDP collector was returning just the terminal state and dropping the provider history's error field.
+- The collector recognizes that exact message on the matched failed provider job and relays an allowlisted code. CMMTools uses fixed customer-facing wording with the usual refund confirmation. Unknown reasons and older agents still get the generic message. Raw provider diagnostics are not relayed.
+- Focused local tests passed (108 passing, two environment-dependent skips) for the relay, refund wording, and surrounding flow. The Chrome fixture covers the history response. Managed RDP rollout and a matching live rejection remain unverified. The change does not rewrite previous job messages.
+
 ## Merged change index and purpose
 
 | PR | Description | Merge commit | Verified boundary |

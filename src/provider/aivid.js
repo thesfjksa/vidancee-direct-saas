@@ -87,6 +87,7 @@ const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/
 // Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
 // Playwright call logs, page text, account data or connection URLs.
 const DIAGNOSTICS = Object.freeze({
+  source_sensitive_content: 'The video service rejected the request because the input or output video may contain sensitive information.',
   collection_history: 'The worker could not read AIVID generation history.',
   collection_media_url: 'AIVID history did not provide a verified video link for this job.',
   collection_media_pending: 'AIVID finished the video. CMMTools is waiting for the full video file.',

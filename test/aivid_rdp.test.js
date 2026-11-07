@@ -196,6 +196,23 @@ test('MP4 is transferred in bounded chunks and verified before the existing queu
   assert.equal(chunkAttempts, 3);
   assert.equal(f.store.rows.size, 0); assert.equal(f.store.chunks.size, 0);
 });
+test('collection relay preserves only the approved reason on a failed video', async () => {
+  for (const [state, errorCode, expected] of [
+    ['failed', 'source_sensitive_content', { state: 'failed', errorCode: 'source_sensitive_content' }],
+    ['failed', 'private provider diagnostic', { state: 'failed' }],
+    ['pending', 'source_sensitive_content', { state: 'pending' }],
+  ]) {
+    const f = fixture();
+    const agent = new Agent({ transport: f.transport, clientFactory: () => ({
+      collectVideo: async () => ({ state, errorCode, message: 'private provider message' }),
+    }) });
+    const waiting = f.client.collectVideo(providerJobId);
+    await flush();
+    const { command } = await f.service.poll(f.device, 'ready');
+    const [, result] = await Promise.all([agent.execute(command), waiting]);
+    assert.deepEqual(result, expected);
+  }
+});
 test('invalid, missing or out-of-order MP4 chunks cannot complete an output', async () => {
   const f = fixture(), data = Buffer.from('0000ftypisom0000');
   await f.store.chunk(jobId, 1, data);

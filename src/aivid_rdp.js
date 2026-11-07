@@ -289,7 +289,10 @@ class AividRdpService {
         if(input.errorCode==='source_rejected'&&Number.isInteger(input.httpStatus)&&input.httpStatus>=400&&input.httpStatus<500)
           result.httpStatus=input.httpStatus;
       }
-    } else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) result = { state: input.state };
+    } else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) {
+      result = { state: input.state };
+      if (input.state === 'failed' && input.errorCode === 'source_sensitive_content') result.errorCode = input.errorCode;
+    }
     else if (command.kind === 'collect' && input.state === 'completed' && Number.isSafeInteger(input.size) && input.size >= 12 && input.size <= MAX_OUTPUT &&
       Number.isSafeInteger(input.chunks) && input.chunks === Math.ceil(input.size / CHUNK) && /^[a-f0-9]{64}$/.test(input.sha256 || '')) {
       result = { state: 'completed', size: input.size, chunks: input.chunks, sha256: input.sha256 };
