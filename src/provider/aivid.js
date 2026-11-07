@@ -420,13 +420,22 @@ async function setAividDuration(slider,seconds){
     step<1||step>30||min>max||seconds<min||seconds>max||
     (seconds-min)%step!==0)
     throw new Error('Requested length is not available on the current AIVID slider.');
-  // Real keyboard events are required so the frontend's controlled state and
-  // its quote update, not just the native input value.
-  await slider.press('Home');
-  if(Number(await slider.inputValue())!==min)throw new Error('AIVID slider did not reset to its minimum.');
-  for(let v=min;v<seconds;v+=step){
-    await slider.press('ArrowRight');
-    if(Number(await slider.inputValue())!==v+step)throw new Error('AIVID slider rejected a duration step.');
+  if(durationVerified(state,seconds))return seconds;
+  // Use the closest verified position. Real keyboard events update the
+  // frontend's controlled state and quote.
+  const last=min+Math.floor((max-min)/step)*step;
+  let position=durationVerified(state,state.value)&&state.value>=min&&state.value<=last&&(state.value-min)%step===0?state.value:null;
+  const boundary=seconds-min<=last-seconds?min:last;
+  if(position===null||Math.abs(position-seconds)>Math.abs(boundary-seconds)+step){
+    await slider.press(boundary===min?'Home':'End');
+    if(Number(await slider.inputValue())!==boundary)throw new Error('AIVID slider did not reach the expected limit.');
+    position=boundary;
+  }
+  while(position!==seconds){
+    const direction=position<seconds?1:-1;
+    await slider.press(direction===1?'ArrowRight':'ArrowLeft');
+    position+=direction*step;
+    if(Number(await slider.inputValue())!==position)throw new Error('AIVID slider rejected a duration step.');
   }
   if(!durationVerified(await readDurationState(slider),seconds))
     throw new Error('AIVID duration display differs from its slider.');

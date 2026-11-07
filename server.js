@@ -740,7 +740,7 @@ async function quoteModelForUser(userId,body){
   }
   if(mediaType==='video'&&require('./src/aivid_models.js').isAividModel(body.model)){
     if(!access.aivid)throw httpError(403,'Premium models are not enabled for your account.');
-    return require('./src/aivid_models.js').quoteAivid(await require('./src/aivid_settings.js').getAividSettings(),body);
+    return require('./src/aivid_models.js').quoteAivid(await require('./src/aivid_settings.js').getAividSettings(),body,{preview:true});
   }
   if(isApi888Model(body.model)){
     if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
