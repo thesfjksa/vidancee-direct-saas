@@ -9,7 +9,7 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-13">
+<link rel="stylesheet" href="/studio.css?v=cmm-14">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
 </head>
 <body>
@@ -832,9 +832,22 @@ function filterCustomSelectOptions(wrap,query){
   const q=String(query||'').trim().toLowerCase();
   let visible=0;
   wrap.querySelectorAll('.custom-select-option').forEach(option=>{
-    const match=!q||String(option.textContent||'').toLowerCase().includes(q);
+    const group=option.closest('.model-picker-group');
+    const label=group?.querySelector('summary').textContent||'';
+    const match=!q||(label+' '+option.textContent).toLowerCase().includes(q);
     option.style.display=match?'':'none';
     if(match)visible+=1;
+  });
+  wrap.querySelectorAll('.model-picker-group').forEach(group=>{
+    if(q){
+      if(group.dataset.wasOpen===undefined)group.dataset.wasOpen=String(group.open);
+      group.hidden=![...group.querySelectorAll('.custom-select-option')].some(option=>option.style.display!=='none');
+      group.open=!group.hidden;
+    }else if(group.dataset.wasOpen!==undefined){
+      group.hidden=false;
+      group.open=group.dataset.wasOpen==='true';
+      delete group.dataset.wasOpen;
+    }
   });
   const empty=wrap.querySelector('.custom-select-empty');
   if(empty)empty.classList.toggle('show',visible===0);
@@ -1046,7 +1059,10 @@ function ensureCustomSelect(id){
     menu.addEventListener('keydown',e=>{
       if(!(isRatio?['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End']:['ArrowDown','ArrowUp','Home','End']).includes(e.key))return;
       if(e.target.matches('input') && ['Home','End'].includes(e.key))return;
-      const options=[...menu.querySelectorAll('.custom-select-option')].filter(el=>el.style.display!=='none');
+      const options=[...menu.querySelectorAll('.custom-select-option,.model-picker-group > summary')].filter(el=>{
+        const group=el.closest('.model-picker-group');
+        return el.style.display!=='none'&&(!group||(!group.hidden&&(group.open||el.matches('summary'))));
+      });
       if(!options.length)return;
       e.preventDefault();
       const index=options.indexOf(document.activeElement);
@@ -1080,6 +1096,33 @@ function ensureCustomSelect(id){
   rebuildCustomSelect(id);
 }
 
+function videoModelGroup(value){
+  if(/^minimax_h3(?:_|$)/.test(value))return 'MiniMax · vgenv';
+  if(!value.startsWith('api888_'))return null;
+  const family=value.slice('api888_'.length).toLowerCase().match(/(?:seedance_?|sd_?|^ss_|^s2_)2_([05])(?:_|$)/);
+  return family?'Seedance 2.'+family[1]+' · 888API':null;
+}
+
+function videoModelOptionsHtml(select){
+  const entries=[];
+  const groups=new Map();
+  [...select.options].forEach((option,index)=>{
+    const html=modelPickerOptionHtml('model',option,index,index===select.selectedIndex);
+    const label=videoModelGroup(option.value);
+    if(!label){entries.push(html);return;}
+    if(!groups.has(label)){
+      const group={label,options:[]};
+      groups.set(label,group);
+      entries.push(group);
+    }
+    groups.get(label).options.push(html);
+  });
+  return entries.map(entry=>typeof entry==='string'?entry:
+    '<details class="model-picker-group"><summary>'+escapeHtml(entry.label)+
+    ' <span class="model-picker-count">'+entry.options.length+'</span></summary>'+
+    entry.options.join('')+'</details>').join('');
+}
+
 function rebuildCustomSelect(id){
   const select=$(id);
   if(!select)return;
@@ -1089,8 +1132,8 @@ function rebuildCustomSelect(id){
   const searchWrap=menu.querySelector('.custom-select-search');
   const optionsRoot=menu.querySelector('.model-picker-options,.ratio-picker-options')||menu;
   const empty=optionsRoot.querySelector('.custom-select-empty');
-  optionsRoot.querySelectorAll('.custom-select-option').forEach(node=>node.remove());
-  const optionsHtml=[...select.options].map((o,i)=>
+  optionsRoot.querySelectorAll('.model-picker-group,.custom-select-option').forEach(node=>node.remove());
+  const optionsHtml=id==='model'?videoModelOptionsHtml(select):[...select.options].map((o,i)=>
     customSelectSearchable(id)
       ?modelPickerOptionHtml(id,o,i,i===select.selectedIndex)
       :customSelectRatioPicker(id)?ratioPickerOptionHtml(o,i,i===select.selectedIndex)
@@ -1123,8 +1166,8 @@ function syncCustomSelect(id){
   if(customSelectRatioPicker(id)&&selected){
     value.innerHTML=ratioShapeSvg(selected.value)+'<span>'+escapeHtml(selected.textContent)+'</span>';
   }else value.textContent=selected?selected.textContent:'Select';
-  wrap.querySelectorAll('.custom-select-option').forEach((opt,i)=>{
-    const active=i===select.selectedIndex;
+  wrap.querySelectorAll('.custom-select-option').forEach(opt=>{
+    const active=Number(opt.dataset.index)===select.selectedIndex;
     opt.classList.toggle('selected',active);
     opt.setAttribute('aria-selected',active?'true':'false');
   });
