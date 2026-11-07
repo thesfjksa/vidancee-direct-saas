@@ -11,7 +11,7 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 ## Recent changes in Image Studio and Library
 
 - [#189](https://github.com/thesfjksa/vidancee-direct-saas/pull/189) adds reference uploads for compatible fal.ai Image Edit variants. The existing fal.ai GPT Image 2, GPT Image 2.5 Flare and Sunburst, GPT Image 1.5, and GPT Image 1 Mini selections each accept one optional reference. Attaching an image selects the matching edit endpoint and uses the same estimated edit price for the preview and the credit reservation.
-- The ready fal.ai image worker checks for queued jobs every two seconds instead of five. This reduces pickup delay when a slot is free. The 512 passing local tests cover catalog pairing, reference validation, quote and charge agreement, signed asset delivery, and pickup timing. Provider rendering time still needs a live benchmark.
+- The ready fal.ai image worker checks for queued jobs every two seconds instead of five. This reduces pickup delay when a slot is free. The 512 passing local tests cover catalog pairing, reference validation, quote and charge agreement, signed asset delivery, and pickup timing. The production benchmark below measures the time to a visible image.
 - For future catalog refreshes, use **Admin → Provider → fal.ai → Sync fal.ai image models** or the worker's scheduled sync. Confirm the customer options in the live catalog. The rollout result is recorded below.
 - [#188](https://github.com/thesfjksa/vidancee-direct-saas/pull/188) merged at `123b6ea`. The signed-in Library's **Download backup** action exports the customer's complete video history for completed jobs and the corresponding prompts in one ZIP. GitHub's Node and browser checks passed. Production deployment remains unverified.
 
@@ -20,7 +20,12 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 - The production Image Studio HTML matched the version merged in #189, and the standalone worker reported fal.ai ready. The Admin sync hit Hostinger's request timeout. The public catalog still listed 139 fal.ai models and no reference options at the time of the check.
 - [#190](https://github.com/thesfjksa/vidancee-direct-saas/pull/190) merged at `f717f53`. Existing enabled, available catalog rows for the five verified fal.ai GPT Image endpoints load the checked edit contract and estimated edit price directly when they predate edit discovery. A complete live import takes precedence. A full import that cannot retrieve the schema for a listed GPT pair keeps the saved catalog.
 - **Production verified at 10:26 PM PKT on 7 November.** Admin Activity recorded successful worker catalog syncs at 10:23:24 and 10:24:37 PM PKT. [The live catalog](https://cmmtools.site/api/config) then listed 185 fal.ai models, 62 with reference support. All five named GPT models reported one optional reference and an estimated edit price.
-- The owner authorized one paid speed test. The browser had an Admin session and the customer Studio required a separate sign-in, so the paid render remains pending. Use a signed-in test account and record queue wait, provider render, and delivery separately. The worker's configured pickup interval is two seconds.
+
+### Paid production image benchmark
+
+- One customer Studio request completed on 7 November at 11:04 PM PKT. The fal.ai GPT Image 2.5 Flare request used one synthetic reference, a 1:1 canvas, Low quality, and the prompt enhancer switched off. The 1,024 × 1,024 image appeared in Studio and the credit debit matched the 148.05-credit estimate.
+- From the Generate click, Studio first showed Queued at 2.2 seconds, Processing at 3.5 seconds, and a loaded result at 28.9 seconds. These are browser observations. Provider queue wait, inference, storage, and delivery were not timed separately. Studio checks active status every five seconds, which can add up to five seconds before it notices a completed job. This run establishes a baseline for one request.
+- The completed preview showed Default quality because the fal.ai route stored the Low selection in the provider quote without setting the history column. The worker uses the saved quote to build the fal.ai request. The accompanying change persists the quality for new jobs and reads it from saved quotes for older fal.ai jobs. The focused fal.ai tests cover the provider payload and older history rows. Production verification of the history fix is pending.
 
 ## Executive status — distinguish code from live service
 

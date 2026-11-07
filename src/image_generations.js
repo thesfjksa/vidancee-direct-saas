@@ -10,14 +10,21 @@ const { THUMB_WIDTH } = require('./image_thumbnails.js');
 const { configuredStorage, offloadBlob, removeBlobs } = require('./object_storage.js');
 
 function serializeImageGeneration(row) {
+  let savedOptions;
+  try { savedOptions = JSON.parse(row.generation_options || '{}'); } catch {}
+  let quality = null;
+  if (row.provider === 'smartaipi') quality = row.image_quality || 'medium';
+  if (['vercel', 'argolink', 'api888', 'falimg'].includes(row.provider)) quality = row.image_quality || null;
+  // Older fal image jobs saved the selected quality only in the provider quote.
+  if (row.provider === 'falimg' && !quality) quality = savedOptions?.quality || null;
   return {
     id: row.id,
     media_type: 'image',
     mode: row.mode,
     model: row.model,
     aspect_ratio: row.aspect_ratio,
-    imageSize: (()=>{try{return JSON.parse(row.generation_options||'{}').imageSize||null;}catch{return null;}})(),
-    quality: row.provider==='smartaipi' ? row.image_quality || 'medium' : ['vercel','argolink','api888','falimg'].includes(row.provider) ? row.image_quality || null : null,
+    imageSize: savedOptions?.imageSize || null,
+    quality,
     prompt: row.prompt,
     status: row.status,
     credits_cost: Number(row.credits_cost),
