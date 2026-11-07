@@ -2,7 +2,7 @@
 
 const { connectSession, LOGIN_VIEWPORT } = require('./browserless.js');
 const crypto=require('node:crypto');
-const {UploadTracker,exactIds,deferred,bounded}=require('./aivid_uploads.js');
+const {UploadTracker,exactIds,referenceName,deferred,bounded}=require('./aivid_uploads.js');
 const ORIGIN = 'https://aivid.dev';
 const API = 'https://api.aivid.dev';
 const MINI = 'Seedance 2.0 (Mini)';
@@ -36,7 +36,7 @@ async function referenceFileInput(main,kind) {
 async function attachReferences(main,kind,refs) {
   const input=await referenceFileInput(main,kind);
   const files=refs.map((r,i)=>({
-    name:'reference-'+kind+'-'+(i+1)+'.'+(r.mimeType==='image/jpeg'?'jpg':r.mimeType==='video/quicktime'?'mov':r.mimeType==='audio/mpeg'?'mp3':r.mimeType.split('/')[1]),
+    name:referenceName(kind,r.mimeType,i),
     mimeType:r.mimeType,buffer:r.data
   }));
   // Capture File objects during change, before AIVID clears its input after
