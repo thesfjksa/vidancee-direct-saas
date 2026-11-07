@@ -456,22 +456,25 @@ function publicImageModel(model) {
 
 // Every AI Gateway image price is computed locally, so the page receives the
 // full table up front and shows the cost instantly instead of asking the
-// server on each change. Keys are "ratio|quality|size"; anything missing
+// server on each change. Edit estimates add a "|reference" suffix. A missing key
 // falls back to the /api/model-cost request.
 function imageCostTable(model,creditsPerUsd) {
   const table={},estimates=[];
+  const referencePricing=Boolean(model.pricing?.reference_image_dimension_quality_pricing?.length);
   for (const aspectRatio of model.aspectRatios||[]) {
     for (const quality of model.qualities?.length?model.qualities:['']) {
       for (const imageSize of model.imageSizes?.length?model.imageSizes:['']) {
-        try {
-          const quote=quoteGateway(model,{aspectRatio,quality:quality||undefined,imageSize:imageSize||undefined},creditsPerUsd);
-          const key=aspectRatio+'|'+quality+'|'+imageSize;
-          if (Number.isFinite(Number(quote.cost))) {table[key]=Number(quote.cost);if(quote.isEstimate)estimates.push(key);}
-        } catch {}
+        for (const previewHasReferences of referencePricing?[false,true]:[false]) {
+          try {
+            const quote=quoteGateway(model,{aspectRatio,quality:quality||undefined,imageSize:imageSize||undefined,previewHasReferences},creditsPerUsd);
+            const key=aspectRatio+'|'+quality+'|'+imageSize+(previewHasReferences?'|reference':'');
+            if (Number.isFinite(Number(quote.cost))) {table[key]=Number(quote.cost);if(quote.isEstimate)estimates.push(key);}
+          } catch {}
+        }
       }
     }
   }
-  return {costTable:table,costEstimates:estimates};
+  return {costTable:table,costEstimates:estimates,...(referencePricing?{referencePricing}: {})};
 }
 
 // One entry per model: models already in the list keep their place and later

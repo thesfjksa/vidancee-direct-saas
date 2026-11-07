@@ -1984,8 +1984,9 @@ async function updateImageCost(){
 
   const quality=model.qualities?.length?$('imageQuality').value:'';
   const imageSize=model.imageSizes?.length?$('imageSize').value:'';
+  const previewHasReferences=Boolean(model.referencePricing&&imageReferenceItems.length);
   // Gateway models ship their full price table with the page: no request needed.
-  const tableKey=$('imageRatio').value+'|'+quality+'|'+imageSize;
+  const tableKey=$('imageRatio').value+'|'+quality+'|'+imageSize+(previewHasReferences?'|reference':'');
   if(model.costTable&&Object.hasOwn(model.costTable,tableKey)){
     ++imageCostRequestSeq;
     $('imageCost').textContent=Number(model.costTable[tableKey]);
@@ -2002,6 +2003,7 @@ async function updateImageCost(){
       aspectRatio:$('imageRatio').value,
       quality:quality||undefined,
       imageSize:imageSize||undefined,
+      ...(previewHasReferences?{previewHasReferences}:{}),
     });
     if(seq===imageCostRequestSeq){$('imageCost').textContent=Number(d.cost);$('imagePriceNote').classList.toggle('hide',!d.isEstimate);}
   }catch(e){
@@ -2482,6 +2484,7 @@ function removeImageReference(key,event){
   renumberMentions('image',mentionsBefore);
   if(item.kind!=='reused'&&item.url)URL.revokeObjectURL(item.url);
   renderImageReferencePreview();
+  if(currentImageModel()?.referencePricing)updateImageCost();
 }
 
 function moveImageReference(sourceKey,targetKey,after=false){
@@ -2666,7 +2669,10 @@ async function createImageGeneration(){
     me=d.user;syncUser();
     // Clear only what was sent; keep anything typed or added meanwhile.
     if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;updatePromptCounts();}
-    if(sameItems(imageReferenceItems,sentRefs))clearImageReferenceItems();
+    if(sameItems(imageReferenceItems,sentRefs)){
+      clearImageReferenceItems();
+      if(currentImageModel()?.referencePricing)updateImageCost();
+    }
     m.className='msg ok';m.textContent='Image generation queued.';
     b.disabled=false;b.removeAttribute('aria-busy');
     await Promise.all([loadImageGenerations(),loadDashboard(),loadCredits()]);

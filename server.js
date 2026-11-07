@@ -138,7 +138,7 @@ const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = requi
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
-const { isFalImageModel, fetchFalImageCatalog, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
+const { isFalImageModel, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
 const {
@@ -574,7 +574,7 @@ async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
 
 async function sourceMediaCatalog(access,adminSettings=null){
   const providerSettings=adminSettings||await getAdminProviderSettings();
-  let video=[],image=[];
+  let video=[],image=[],falReferenceModels=[];
   const safeCatalog=async(source,load)=>{
     try{return await load();}
     catch(error){
@@ -597,7 +597,10 @@ async function sourceMediaCatalog(access,adminSettings=null){
   // fal.ai image models: same customer switch and credit rate as the fal source.
   if(access.fal && providerSettings.fal.active){
     const catalog=await safeCatalog(FAL_IMAGE_PROVIDER,()=>publicProviderCatalog(FAL_IMAGE_PROVIDER,{creditsPerUsd:providerSettings.fal.customerCreditsPerUsd}));
-    image=addMissingImageModels(image,catalog.image);
+    // Keep the reference variants even when another provider already has
+    // the same model family in the picker.
+    falReferenceModels=catalog.image.filter(model=>model.capabilities?.image?.supported);
+    image=addMissingImageModels(image,catalog.image.filter(model=>!model.capabilities?.image?.supported));
   }
   if(access.argolink && providerSettings.argolink.active){
     const hd=falReady(await getProviderSettings());
@@ -636,7 +639,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video.push(...require('./src/aivid_models.js').customerCatalog(config));
   }
   video=[...video,...directVideoModels(access,providerSettings)];
-  return {video,image,upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
+  return {video,image:[...image,...falReferenceModels],upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
 }
 
 // The API vendor behind a model id, for the admin.
@@ -1015,11 +1018,13 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
     if(!customerAccess.fal||!providerSettings.falEnabled||!providerSettings.falApiKey)throw httpError(503,'This image model is currently unavailable.');
     const model=await getProviderModelByPublicId(FAL_IMAGE_PROVIDER,requestedModel,'image');
     if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
-    if((body.images||[]).length||body.reuseImageIds?.length)throw httpError(400,'This model creates images from text only.');
-    const quote=quoteGateway(model,body,providerSettings.falCustomerCreditsPerUsd);
-    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    // Only the uploaded and restored files determine the charged price.
+    const input={...body,previewHasReferences:false,reuseImageIds:undefined};
+    validateReferences(model,input);
+    const quote=quoteGateway(model,input,providerSettings.falCustomerCreditsPerUsd);
+    generation=await createImage(user.id,{...input,aspectRatio:quote.aspectRatio},{
       provider:FAL_IMAGE_PROVIDER,dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:quote.isEstimate?'usd-estimate':'usd',
       generationOptions:{...quote,model},
     });
   }

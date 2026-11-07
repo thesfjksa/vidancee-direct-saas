@@ -8,8 +8,9 @@ class FalImageQueue extends VercelQueue{
   apiKey(s){return s.falApiKey||'';}
   sourceEnabled(s){return Boolean(s.falEnabled);}
   maxInflight(s){return s.falMaxInflight||3;}
+  schedule(delay=this.sourceReady?2000:5000){super.schedule(delay);}
 }
-// Imports fal's current text-to-image catalog and prices (no generation is
+// Imports fal's current image generation/edit catalog and prices (no generation is
 // started). Runs from Admin and once a day in the worker.
 async function syncFalImageModels({getSettings=require('./settings.js').getProviderSettings}={}){
   const {fetchFalImageCatalog}=require('./fal_images.js');
