@@ -2416,8 +2416,8 @@ const server=http.createServer(async (req,res)=>{
         const body=await readJson(req),{DEFAULT_ID,aividModel,assertOptions}=require('./src/aivid_models.js');
         const {diagnosticReferences,diagnosticImageReferences}=require('./src/aivid_probe_assets.js');
         const imageOnly=body.imageOnly===true;
-        const prompt=imageOnly?'Show @image1, then @image2, then @image3.':'A blue square moves slowly. Use @image1, @video1 and the tone in @audio1.';
-        const value=assertOptions(aividModel(body.model||DEFAULT_ID),{prompt,duration:5,resolution:'480p',aspectRatio:'16:9'});
+        const prompt=imageOnly?'Create an ad using these three images.':'A blue square moves slowly. Use @image1, @video1 and the tone in @audio1.';
+        const value=assertOptions(aividModel(body.model||DEFAULT_ID),{prompt,duration:imageOnly?15:5,resolution:'480p',aspectRatio:'16:9'});
         const config=await require('./src/aivid_settings.js').getAividSettings();
         if(config.mode==='rdp'?!config.rdpDevice?.tokenHash:!config.connectUrl)throw httpError(503,'Configure the AIVID browser connection first.');
         const Client=config.mode==='rdp'?require('./src/aivid_rdp.js').AividRdpClient:require('./src/provider/aivid.js').AividBrowserlessClient;

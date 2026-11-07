@@ -10,7 +10,7 @@ test('Windows and browser line endings agree without changing meaningful prompt 
   assert.doesNotThrow(()=>validateSubmission(body,job));
   assert.doesNotThrow(()=>validateSubmission({...body,prompt:job.prompt},job));
   for(const changed of [job.prompt.replace('  A',' A'),job.prompt.replace('\n\n','\n'),job.prompt.replace('@image1','@image2'),job.prompt+' changed'])
-    assert.throws(()=>validateSubmission({...body,prompt:changed},job),/differ/);
+    assert.throws(()=>validateSubmission({...body,prompt:changed},job),{aividCode:'submission_prompt'});
   assert.equal(normalizePrompt('a\u200db\u00a0c\td'),'a\u200db\u00a0c\td');
 });
 function editor({resetOnce=false,rewrite=false,rich=false}={}){
