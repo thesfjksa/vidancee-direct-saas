@@ -54,3 +54,27 @@ test('a blocked probe cannot arm or forward generation, and concurrent submissio
   assert.equal(reservations,1);release();await first;
   assert.equal(calls.filter(c=>c.method==='Fetch.continueRequest').length,1);await guard.close();
 });
+
+test('three images can request links as a batch and finish out of order',async()=>{
+  const images=Array.from({length:3},(_,i)=>({kind:'image',mimeType:'image/png',data:Buffer.from(String(i))}));
+  const errors=[],tracker=new UploadTracker(images,e=>errors.push(e));
+  const uploads=images.map((_,i)=>({fileName:'reference-image-'+(i+1)+'.png',fileType:'image/png',fileSize:1}));
+  const reply=(path,data,body)=>({...response(path,data),request:()=>({method:()=> 'POST',postData:()=>JSON.stringify(body)})});
+  await Promise.all(uploads.map(body=>tracker.before(request('/v2/uploads/presigned-url',body))));
+  for(const i of [2,0,1]){
+    const key='test/'+i;
+    await tracker.response(reply('/v2/uploads/presigned-url',{data:{url:S3,key,fields:{key},fileName:'saved-'+i,folderPath:'test'}},uploads[i]));
+  }
+  for(const i of [1,2,0]){
+    const key='test/'+i;
+    const data={...uploads[i],fileName:'saved-'+i,filePath:key,folderPath:'test'};
+    const postData='--boundary\r\nContent-Disposition: form-data; name="key"\r\n\r\n'+key+'\r\n--boundary';
+    assert.equal(await tracker.before({url:S3,method:'POST',postData}),true);
+    await tracker.response(response(S3,null));
+    await tracker.before(request('/v2/uploads/presigned-save',data));
+    await tracker.response(reply('/v2/uploads/presigned-save',{data:{id:'uploaded-reference-000'+i}},data));
+  }
+  const results=await tracker.completed();
+  assert.deepEqual(results.map(item=>item.id),[0,1,2].map(i=>'uploaded-reference-000'+i));
+  assert.equal(errors.length,0);
+});
