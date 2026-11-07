@@ -98,6 +98,11 @@ const DIAGNOSTICS = Object.freeze({
   form_privacy: 'AIVID reverted to Private visibility after preparing the prompt. No video was submitted.',
   form_prompt: 'AIVID changed or did not retain the prepared prompt. No video was submitted.',
   credit_reading: 'Could not identify the AIVID account balance and video price. A zero balance is allowed for this check.',
+  reference_database: 'CMMTools could not load the saved reference file records. Check MySQL health in Admin.',
+  reference_storage: 'CMMTools could not read saved references from cloud storage. Check Admin Storage and the stored files.',
+  queue_setup: 'CMMTools could not prepare this generation\'s saved options. Review the job and worker configuration.',
+  rdp_dispatch: 'CMMTools could not dispatch the generation to the RDP Agent. Check the agent heartbeat, worker and command service.',
+  reservation_precheck: 'CMMTools could not validate or reserve the source price before submission. No automatic resubmission is allowed.',
   browser_check: 'The AIVID operation failed. Inspect Chrome and the Agent window; no automatic resubmission is allowed.',
 });
 function diagnosticCode(error) {

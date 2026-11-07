@@ -361,6 +361,52 @@ test('pre-click failures refund once; uncertain post-click failures hold across 
   assert.deepEqual(uncertain.stats(), { submissions: 1, polls: 0, refunds: 0, complete: 0 });
 });
 
+test('unclassified RDP dispatch error reports a safe stage and never leaks raw errors',async()=>{
+  const secret='https://private.example/?token=do-not-log-this';
+  const f=fixture({startVideo:async()=>{throw new Error(secret)}});
+  const original=f.q.refund;
+  let message='';
+  f.q.refund=async(...args)=>{message=args[2];return original(...args)};
+  await f.q.runOnce(f.db);
+  assert.match(message,/\[rdp_dispatch\]/);
+  assert.doesNotMatch(message,/private\\.example|do-not-log-this/);
+  assert.equal(f.stats().refunds,1);
+  assert.equal(f.job.status,'failed');
+});
+
+test('reference retrieval and pre-reservation errors show distinct codes without a new paid click',async()=>{
+  const refs=fixture();
+  refs.q.filesFor=async()=>{throw Object.assign(new Error('cloud storage credentials'),{
+    aividCode:'reference_storage',storageStatus:500})};
+  let refMessage='';
+  const originalRefund=refs.q.refund;
+  refs.q.refund=async(...args)=>{refMessage=args[2];return originalRefund(...args)};
+  await refs.q.runOnce(refs.db);
+  assert.match(refMessage,/\[reference_storage\]/);
+  assert.doesNotMatch(refMessage,/credentials|HTTP 500/);
+  assert.equal(refs.stats().submissions,0);
+  assert.equal(refs.stats().refunds,1);
+
+  const reservation=fixture();
+  const getSettings=reservation.q.getSettings;
+  let checks=0,reservationMessage='';
+  reservation.q.getSettings=async()=>++checks>1?Promise.reject(new Error('internal MySQL error')):getSettings();
+  const refund=reservation.q.refund;
+  reservation.q.refund=async(...args)=>{reservationMessage=args[2];return refund(...args)};
+  await reservation.q.runOnce(reservation.db);
+  assert.match(reservationMessage,/\[reservation_precheck\]/);
+  assert.doesNotMatch(reservationMessage,/MySQL error/);
+  assert.equal(reservation.stats().refunds,1);
+  assert.equal(reservation.stats().submissions,1);
+  assert.equal(reservation.job.provider_job_id,null);
+});
+
+test('unavailable reference DB reports a safe code before dispatch',async()=>{
+  const f=fixture();
+  await assert.rejects(f.q.filesFor({execute:async()=>{throw Error('raw database error')}},f.job),
+    error=>error.aividCode==='reference_database'&&!error.message.includes('raw database error'));
+});
+
 test('crash recovery holds reserved clicks and safely refunds interrupted preparation', async () => {
   const uncertain = fixture({ status: 'submitting', op: { stage: 'click_reserved', price: 2 } });
   await uncertain.q.runOnce(uncertain.db);

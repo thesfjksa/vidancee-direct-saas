@@ -2,6 +2,7 @@
 
 const { VercelQueue } = require('./vercel_queue.js');
 const { getPool } = require('./db.js');
+const { logActivity } = require('./activity_log.js');
 const { getProviderSettings } = require('./settings.js');
 const { getAividSettings } = require('./aivid_settings.js');
 const { AividBrowserlessClient, ID, DIAGNOSTICS, diagnosticMessage } = require('./provider/aivid.js');
@@ -114,17 +115,35 @@ class AividQueue extends VercelQueue {
     });
   }
   async filesFor(db, job) {
-    const [rows] = await db.execute('SELECT media_kind,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
-    await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
+    let rows;
+    try {
+      [rows] = await db.execute('SELECT media_kind,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index', [job.id]);
+    } catch {
+      throw Object.assign(new Error('Could not read saved reference records.'), {aividCode:'reference_database'});
+    }
+    try {
+      await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
+    } catch (error) {
+      // Never disclose signed storage URLs, bucket names or API keys in jobs.
+      // Keep a bounded provider status to distinguish an R2 500 from bad media.
+      const storageStatus=Number(error?.storageStatus);
+      throw Object.assign(new Error('Could not fetch the saved reference media.'), {
+        aividCode:'reference_storage',
+        ...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})
+      });
+    }
     return rows.map(r => ({ kind: r.media_kind, mimeType: r.mime_type, data: r.media_data }));
   }
   async submit(db, job, client, lockConnection) {
-    let clicked = false;
+    let clicked = false, stage = 'options';
     try {
       const options = JSON.parse(job.generation_options || '{}');
+      stage = 'references';
       const references = await this.filesFor(db, job);
+      stage = 'rdp_dispatch';
       const result = await client.startVideo({ ...options, jobId: job.id, prompt: job.prompt, duration: job.duration,
         aspectRatio: job.aspect_ratio, resolution: job.resolution }, references, { beforeClick: async ({ price }) => {
+          stage = 'reservation_precheck';
           if (this.stopped) throw new Error('Worker is stopping before submission.');
           const latest = await this.getSettings();
           const config = await this.getConfig();
@@ -136,6 +155,7 @@ class AividQueue extends VercelQueue {
           if (!reserved.affectedRows) throw new Error('The submission reservation is unavailable.');
           clicked = true;
         } });
+      stage = 'source_result';
       if (result.state === 'accepted') {
         if (!ID.test(result.providerJobId)) throw new Error('Invalid accepted job ID.');
         const [saved] = await db.execute("UPDATE generations SET status='submitted',provider_job_id=?,provider_operation=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND provider='aivid' AND status='submitting' AND refunded_at IS NULL",
@@ -151,9 +171,23 @@ class AividQueue extends VercelQueue {
     } catch(error) {
       if (clicked) await this.hold(db, job);
       else {
-        const code=error?.aividCode;
-        const detail=Object.hasOwn(DIAGNOSTICS,code)?'['+code+'] '+diagnosticMessage(code):'The video request could not be prepared.';
-        await this.refund(job.id, 'submit_error', detail+' Credits were refunded.', null);
+        // The old generic message obscured whether the failure came from R2,
+        // a MySQL read, the RDP command bridge or the pre-click reservation.
+        // Only fixed diagnostic codes are exposed; raw exception messages can
+        // contain SQL text, provider responses, keys or signed URLs.
+        const fallback={
+          options:'queue_setup',references:'reference_database',
+          rdp_dispatch:'rdp_dispatch',reservation_precheck:'reservation_precheck'
+        };
+        const code=Object.hasOwn(DIAGNOSTICS,error?.aividCode)?error.aividCode:(fallback[stage]||'queue_setup');
+        const storageStatus=Number(error?.storageStatus);
+        logActivity({
+          level:'warn',category:'aivid',event:'aivid.preparation_failed',
+          provider:'aivid',userId:job.user_id,generationId:job.id,
+          message:'AIVID preparation stopped before the paid submission reservation.',
+          details:{stage,code,...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})}
+        });
+        await this.refund(job.id, 'submit_error', '['+code+'] '+diagnosticMessage(code)+' Credits were refunded.', null);
       }
     }
   }
