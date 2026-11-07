@@ -128,16 +128,31 @@ class Agent {
   async run() {
     const release = await takeLock(this.root);
     try {
-      await this.transport.request('/poll', { body: { status: 'starting' } });
+      while (!this.stopping) {
+        try { await this.transport.request('/poll', { body: { status: 'starting' } }); break; }
+        catch (error) {
+          if (error.statusCode === 401) throw error;
+          console.log('Waiting for the CMMTools connection...');
+          await this.pause(2000);
+        }
+      }
+      if (this.stopping) return;
       const startupBeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
       try { await this.check(); } finally { clearInterval(startupBeat); }
       let releaseCheckedAt=0,initialRelease=process.env.AIVID_RUNTIME_VERSION||null;
       while (!this.stopping) {
-        if(process.env.AIVID_AGENT_ROOT&&Date.now()-releaseCheckedAt>60000){
-          const release=await this.transport.request('/runtime',{method:'GET'});releaseCheckedAt=Date.now();
-          if(initialRelease&&initialRelease!==release.version){process.exitCode=42;return;}initialRelease=release.version;
-        }
         try {
+          if(process.env.AIVID_AGENT_ROOT&&Date.now()-releaseCheckedAt>60000){
+            // An update outage must not terminate collection or prevent polling.
+            releaseCheckedAt=Date.now();
+            try {
+              const release=await this.transport.request('/runtime',{method:'GET'});
+              if(initialRelease&&initialRelease!==release.version){process.exitCode=42;return;}initialRelease=release.version;
+            } catch (error) {
+              if(error.statusCode===401)throw error;
+              console.log('Worker update check unavailable; keeping the current verified worker.');
+            }
+          }
           const { command } = await this.transport.request('/poll', { body: { status: this.status } });
           if (command) {
             const previous = this.status;
