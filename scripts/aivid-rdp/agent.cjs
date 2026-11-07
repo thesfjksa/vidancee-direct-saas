@@ -125,10 +125,14 @@ class Agent {
     } else if (command.kind === 'collect') {
       result = await client.collectVideo(command.payload.providerJobId);
       if (result.state === 'completed') {
-        const data = result.output.data;
-        if (!Buffer.isBuffer(data) || data.length < 12 || data.length > MAX_OUTPUT || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error('Unsupported output.');
-        for (let i = 0; i < Math.ceil(data.length / CHUNK); i++) await this.report(route + '/chunks/' + i, data.subarray(i * CHUNK, (i + 1) * CHUNK));
-        result = { state: 'completed', size: data.length, chunks: Math.ceil(data.length / CHUNK), sha256: hash(data) };
+        try {
+          const data = result.output.data;
+          if (!Buffer.isBuffer(data) || data.length < 12 || data.length > MAX_OUTPUT || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error('Unsupported output.');
+          for (let i = 0; i < Math.ceil(data.length / CHUNK); i++) await this.report(route + '/chunks/' + i, data.subarray(i * CHUNK, (i + 1) * CHUNK));
+          result = { state: 'completed', size: data.length, chunks: Math.ceil(data.length / CHUNK), sha256: hash(data) };
+        } catch (error) {
+          throw Object.assign(error,{aividCode:'collection_relay'});
+        }
       }
     } else throw new Error('Unknown RDP command.');
     // These writes are idempotent. A transfer retry never repeats Generate.

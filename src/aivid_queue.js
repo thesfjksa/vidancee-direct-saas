@@ -93,10 +93,19 @@ class AividQueue extends VercelQueue {
         catch(error) {
           // Sign-out, missing/private detail page, source failure, download or
           // storage failures retain the accepted ID; never resubmit or refund.
-          const op=operation(job),attempts=(Number(op.collectionFailures)||0)+1,paused=attempts>=3||error?.aividCode==='download_security';
+          const op=operation(job),attempts=(Number(op.collectionFailures)||0)+1;
+          const code=Object.hasOwn(DIAGNOSTICS,error?.aividCode)?error.aividCode:(rdp?'collection_relay':'collection_download');
+          const paused=attempts>=3||code==='download_security';
+          const storageStatus=Number(error?.storageStatus);
+          logActivity({
+            level:'warn',category:'aivid',event:'aivid.collection_failed',provider:'aivid',
+            userId:job.user_id,generationId:job.id,message:diagnosticMessage(code),
+            details:{code,attempts,paused,...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})}
+          });
+          const next=paused?'Collection is paused. The existing video is preserved.':'The existing video will be checked again after a delay.';
           await db.execute("UPDATE generations SET provider_operation=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
             [JSON.stringify({...op,collectionFailures:attempts,collectionPaused:paused,collectionNextAt:Date.now()+Math.min(900000,60000*2**(attempts-1))}),
-            paused?(error?.aividCode==='download_security'?'Chrome blocked the download with a security warning. Collection is paused for review; the existing video is preserved.':'Automatic collection paused after repeated transfer errors. Support must review the existing video; it will not be generated again.'):'Video transfer is temporarily unavailable. The existing video will be checked again after a delay.',job.id]);
+            '['+code+'] '+diagnosticMessage(code)+' '+next,job.id]);
           if(paused)inflight--;
 
         } finally { this.tasks.delete(job.id); }
@@ -200,7 +209,13 @@ class AividQueue extends VercelQueue {
     if (result.state === 'pending'){await this.markProcessing(db,job);return 'pending';}
     if (result.state === 'failed'){await this.refund(job.id, 'failed', 'The video could not be completed. Credits were refunded.', null);return 'failed';}
     if (result.state !== 'completed') throw new Error('Unknown video status.');
-    await this.complete(db, job, result.output);return 'completed';
+    try { await this.complete(db, job, result.output); }
+    catch (error) {
+      throw Object.assign(new Error('Could not save collected AIVID video.'),{
+        aividCode:'collection_storage',storageStatus:error?.storageStatus
+      });
+    }
+    return 'completed';
   }
 }
 

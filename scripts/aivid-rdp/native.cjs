@@ -157,6 +157,10 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   }
 }
 
+function collectionFailure(code,message){
+  return Object.assign(new Error(message),{aividCode:code});
+}
+
 // Observe the account history GET that the Generate page already makes.
 // Match the provider ID and its MP4 independently before reading the media.
 async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
@@ -170,32 +174,38 @@ async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
         Number(url.searchParams.get('pageSize'))>1;
     },{timeout:15000});
     response.catch(()=>{});
-    await action();
-    const result=await response;
-    if(page.url()!==generateUrl||!result.ok())throw new Error('AIVID generation history is unavailable.');
-    const history=await result.json();
-    if(!Array.isArray(history?.data))throw new Error('AIVID generation history is invalid.');
-    return history;
+    try {
+      await action();
+      const result=await response;
+      if(page.url()!==generateUrl||!result.ok())throw new Error('Unavailable history.');
+      const history=await result.json();
+      if(!Array.isArray(history?.data))throw new Error('Invalid history.');
+      return history;
+    }catch{
+      throw collectionFailure('collection_history','AIVID generation history is unavailable.');
+    }
   };
   let history=await readHistory(1,()=>page.goto(generateUrl,{waitUntil:'domcontentloaded',timeout:30000}));
   for(let number=1;number<=3;number++){
     const matches=history.data.filter(row=>row?._id===id);
-    if(matches.length>1)throw new Error('AIVID generation history contains an ambiguous job ID.');
+    if(matches.length>1)throw collectionFailure('collection_history','AIVID generation history contains an ambiguous job ID.');
     const job=matches[0];
     if(job){
       if(['failed','cancelled','canceled'].includes(job.status))return {state:'failed'};
       if(job.status!=='completed')return {state:'pending'};
       const url=inlineVideoUrl(job.video,id);
-      if(!url)throw new Error('AIVID did not provide a verified MP4 for this job.');
+      if(!url)throw collectionFailure('collection_media_url','AIVID did not provide a verified MP4 for this job.');
       try{
         const output=await readInlineVideo(url,{fetchImpl,signal:AbortSignal.timeout(timeoutMs)});
         return {state:'completed',output};
-      }catch{throw new Error('AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.');}
+      }catch{throw collectionFailure('collection_download','AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.');}
     }
     if(number===3||!(Number(history.metadata?.totalPages)>number))break;
     const more=page.getByRole('button',{name:'Load More',exact:true});
-    await more.waitFor({state:'visible',timeout:5000});
-    history=await readHistory(number+1,()=>more.click({timeout:5000}));
+    history=await readHistory(number+1,async()=>{
+      await more.waitFor({state:'visible',timeout:5000});
+      await more.click({timeout:5000});
+    });
   }
   return {state:'pending'};
 }
