@@ -4,7 +4,7 @@ const { VercelQueue } = require('./vercel_queue.js');
 const { getPool } = require('./db.js');
 const { getProviderSettings } = require('./settings.js');
 const { getAividSettings } = require('./aivid_settings.js');
-const { AividBrowserlessClient, ID } = require('./provider/aivid.js');
+const { AividBrowserlessClient, ID, DIAGNOSTICS, diagnosticMessage } = require('./provider/aivid.js');
 
 function operation(job) {
   try { return JSON.parse(job.provider_operation || '{}') || {}; } catch { return {}; }
@@ -124,11 +124,19 @@ class AividQueue extends VercelQueue {
           [result.providerJobId, JSON.stringify({ stage: 'accepted', providerJobId: result.providerJobId }), job.id]);
         if (!saved.affectedRows) throw new Error('Accepted job could not be persisted.');
       } else if (result.state === 'rejected') {
-        await this.refund(job.id, 'failed', 'The video request was rejected before acceptance. Credits were refunded.', null);
+        const code=result.errorCode;
+        const detail=Object.hasOwn(DIAGNOSTICS,code)
+          ? '['+code+'] '+diagnosticMessage(code)+(code==='source_rejected'&&Number.isInteger(result.httpStatus)?' (HTTP '+result.httpStatus+')':'')
+          : 'The video request was rejected before acceptance.';
+        await this.refund(job.id, 'failed', detail+' Credits were refunded.', null);
       } else await this.hold(db, job);
-    } catch {
+    } catch(error) {
       if (clicked) await this.hold(db, job);
-      else await this.refund(job.id, 'submit_error', 'The video request could not be prepared. Credits were refunded.', null);
+      else {
+        const code=error?.aividCode;
+        const detail=Object.hasOwn(DIAGNOSTICS,code)?'['+code+'] '+diagnosticMessage(code):'The video request could not be prepared.';
+        await this.refund(job.id, 'submit_error', detail+' Credits were refunded.', null);
+      }
     }
   }
   async hold(db, job) {

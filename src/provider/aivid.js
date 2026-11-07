@@ -78,7 +78,12 @@ const DIAGNOSTICS = Object.freeze({
   resolution: 'Could not select the requested AIVID resolution.',
   duration: 'Could not set or verify the AIVID duration slider.',
   privacy: 'Could not set AIVID public visibility. No video was submitted.',
-  reference_upload: 'AIVID reference upload controls did not match the requested files.',
+  reference_upload: 'AIVID could not verify the reference files or their upload IDs.',
+  submission_price_changed: 'AIVID changed the source price while preparing the request.',
+  submission_reservation: 'CMM Tools could not confirm the submission reservation.',
+  submission_payload: 'AIVID sent a request that did not match the prepared video settings.',
+  submission_click: 'The AIVID Generate button did not complete the submission.',
+  source_rejected: 'AIVID rejected the video request.',
   prompt: 'Could not fill the AIVID prompt field.',
   form_verification: 'AIVID form settings did not match after preparation. No video was submitted.',
   form_model: 'AIVID changed or did not confirm the selected video model after preparation. No video was submitted.',
@@ -151,7 +156,7 @@ function submissionResult(status, body) {
   // A returned ID, timeout, conflict or throttle can describe an existing or
   // still-running operation. Keep those for history reconciliation as well.
   if (!id && [400, 401, 402, 403, 404, 405, 413, 415, 422].includes(status))
-    return { state: 'rejected', httpStatus: status };
+    return { state: 'rejected', errorCode: 'source_rejected', httpStatus: status };
   return { state: 'submission_uncertain' };
 }
 
@@ -466,7 +471,7 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
       allowed = true;
       await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
     } catch (error) {
-      fail(error instanceof SyntaxError ? new Error('AIVID submission schema needs verification.') : error);
+      fail(error?.aividCode ? error : sessionFailure('submission_payload'));
       await cdp.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'Aborted' }).catch(() => {});
     }
   };
@@ -523,18 +528,18 @@ class AividBrowserlessClient {
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
       const guard = await installRequestGuard(page, job,{references,beforeGenerate:async()=>{
         const latest=creditState(await page.locator('body').innerText());
-        if(latest.price!==credits.price||latest.price>this.maxSourceCredits)throw new Error('AIVID price changed before submission.');
+        if(latest.price!==credits.price||latest.price>this.maxSourceCredits)throw sessionFailure('submission_price_changed');
         // Uploads and final file IDs have been verified. Persist the receipt
         // immediately before releasing the one paused paid request.
-        await beforeClick({price:latest.price});
+        await step('submission_reservation',()=>beforeClick({price:latest.price}));
       }});
       try {
         const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 120000 }).catch(() => null);
         guard.arm();
         try { await page.locator('main').first().getByRole('button', { name: 'Generate', exact: true }).click(); }
-        catch { return { state: guard.allowed?'submission_uncertain':'rejected' }; }
+        catch { return guard.allowed ? {state:'submission_uncertain'} : {state:'rejected',errorCode:guard.error?diagnosticCode(guard.error):'submission_click'}; }
         const response = await Promise.race([responsePromise,guard.failure.catch(()=>null)]);
-        if (guard.error && !guard.allowed) return { state: 'rejected', reason: guard.error.message };
+        if (guard.error && !guard.allowed) return { state: 'rejected', errorCode: diagnosticCode(guard.error) };
         if (!response) return { state: 'submission_uncertain' };
         let body; try { body = await response.json(); } catch {}
         return { ...submissionResult(response.status(), body), price: credits.price };
