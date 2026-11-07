@@ -1,5 +1,5 @@
 'use strict';
-// fal.ai text-to-image models as a priced image source ('falimg'; the 'fal'
+// fal.ai image generation and editing ('falimg'; the 'fal'
 // provider is the video upscaler). The catalog and each model's request schema
 // come from fal's public Platform API; prices need the saved fal.ai key.
 // Customers pay the USD source price x fal_customer_credits_per_usd.
@@ -11,8 +11,15 @@ const API = 'https://api.fal.ai/v1';
 const PROVIDER = 'falimg';
 const RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9', '4:5', '5:4'];
 const PRESETS = { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_16_9', '4:3': 'landscape_4_3', '3:4': 'portrait_4_3' };
-// Inputs that need a file or account-specific value: not a plain text-to-image model.
-const EXTRA_INPUTS = /image|mask|control|finetune|model_name|lora_path|reference/i;
+const REFERENCE_FIELDS = ['image_urls', 'input_image_urls', 'reference_image_urls', 'image_url', 'input_image_url'];
+const REFERENCE_LIMIT = 10;
+const REFERENCE_BYTES = 10 * 1024 * 1024;
+// These schemas omit maxItems. fal documents the limits on the model pages.
+const DOCUMENTED_REFERENCE_LIMITS = {
+  'fal-ai/nano-banana-pro/edit': 14,
+  'fal-ai/nano-banana-2/edit': 14,
+  'fal-ai/bytedance/seedream/v4.5/edit': 10,
+};
 
 // fal bills OpenAI's GPT image models by tokens, which its pricing API does
 // not express per image. Prices per image by quality, from each model's fal
@@ -54,19 +61,46 @@ async function platform(path, { apiKey = '', fetchImpl = fetch, attempts = 6 } =
 function inputSchema(entry) {
   const o = entry?.openapi, schemas = o?.components?.schemas || {};
   const post = o?.paths && Object.values(o.paths).find(p => p?.post)?.post;
-  const ref = post?.requestBody?.content?.['application/json']?.schema?.$ref;
-  const schema = schemas[String(ref || '').split('/').pop()] || {};
+  const body = post?.requestBody?.content?.['application/json']?.schema || {};
+  const schema = schemas[String(body.$ref || '').split('/').pop()] || body;
   return { props: schema.properties || {}, required: schema.required || [] };
 }
 const enumOf = prop => prop?.enum || (prop?.anyOf || []).flatMap(x => x?.enum || []);
+
+function referenceInput(endpoint, props, required, edit) {
+  const fields = REFERENCE_FIELDS.map(field => {
+    const prop = props[field];
+    const variants = [prop, ...(prop?.anyOf || [])];
+    const array = variants.find(v => v?.type === 'array' && v.items?.type === 'string');
+    if (array) {
+      const max = Math.min(REFERENCE_LIMIT, array.maxItems ?? prop.maxItems ?? DOCUMENTED_REFERENCE_LIMITS[endpoint] ?? 1);
+      const minItems = Math.max(1, array.minItems ?? prop.minItems ?? 1);
+      const mustSupply = edit || required.includes(field);
+      if (!mustSupply && minItems > 1) return null;
+      const min = mustSupply ? minItems : 0;
+      return max > 0 && min <= max ? { field, array: true, min, max } : null;
+    }
+    if (variants.some(v => v?.type === 'string')) return { field, array: false, min: edit || required.includes(field) ? 1 : 0, max: 1 };
+    return null;
+  }).filter(Boolean);
+  return fields.find(ref => required.includes(ref.field)) || fields[0] || null;
+}
 
 // One catalog entry plus its price ({unit_price, unit}) as a provider model.
 function describeFalImageModel(entry, price = null) {
   const endpoint = entry.endpoint_id;
   const { props, required } = inputSchema(entry);
   const name = entry.metadata?.display_name || endpoint;
+  const edit = entry.metadata?.category === 'image-to-image' || /\/(edit|image-to-image)$/.test(endpoint);
+  const unit = String(price?.unit || '').toLowerCase(), rate = Number(price?.unit_price);
+  const fixedImagePrice = /^(images?|generations?)$/.test(unit) && Number.isFinite(rate) && rate > 0 &&
+    String(price?.currency || 'USD').toUpperCase() === 'USD' && !props.quality;
+  const candidate = referenceInput(endpoint, props, required, edit);
+  // Optional reference fields must not disable an existing text-only model
+  // when we cannot safely quote the edit.
+  const reference = fixedImagePrice || edit || candidate?.min ? candidate : null;
   let setupReason = '';
-  const fal = { endpoint, sizeParam: null, values: {} };
+  const fal = { endpoint, sizeParam: null, values: {}, ...(reference ? { reference } : {}) };
   if (props.image_size) {
     fal.sizeParam = 'image_size';
     const presets = enumOf(props.image_size);
@@ -83,9 +117,11 @@ function describeFalImageModel(entry, price = null) {
   // GPT 1.x takes a fixed list of WxH sizes rather than presets.
   const gpt = GPT_IMAGE[endpoint];
   if (gpt?.values && props.image_size) fal.values = { ...gpt.values };
-  const extra = required.filter(r => r !== 'prompt');
+  const extra = required.filter(r => !['prompt', reference?.field].includes(r));
   if (!props.prompt) setupReason = 'This fal.ai model has no text prompt.';
-  else if (extra.length || Object.keys(props).some(k => required.includes(k) && EXTRA_INPUTS.test(k))) setupReason = 'This fal.ai model needs extra inputs (' + extra.join(', ') + ').';
+  else if (extra.length) setupReason = 'This fal.ai model needs extra inputs (' + extra.join(', ') + ').';
+  else if (edit && !reference) setupReason = 'No supported reference image input.';
+  else if (reference && !fixedImagePrice) setupReason = 'Reference generation requires a verified fixed USD price per image.';
   else if (/vector/i.test(endpoint)) setupReason = 'Vector (SVG) output is not supported.';
   else if (!fal.sizeParam) setupReason = 'This fal.ai model has no size or aspect-ratio setting.';
   // Sizes as the app computes them, so quotes and requests agree.
@@ -99,26 +135,32 @@ function describeFalImageModel(entry, price = null) {
   if (!setupReason && !aspectRatios.length) setupReason = 'No supported aspect ratio.';
   // Price per image: per-image units directly; per-megapixel units by the
   // output area in fal's megapixels (1024 x 1024 px), rounded up.
-  const unit = String(price?.unit || '').toLowerCase(), rate = Number(price?.unit_price);
   const tiers = [];
   if (gpt) { for (const quality of GPT_QUALITIES) tiers.push({ quality, cost: gptCost(gpt, quality) }); }
   else if (!(rate > 0) || String(price?.currency || 'USD').toUpperCase() !== 'USD') { if (!setupReason) setupReason = 'No published USD price for this fal.ai model.'; }
   else if (/^(images?|generations?)$/.test(unit)) for (const ratio of aspectRatios) tiers.push({ size: sizes[ratio], cost: rate });
-  else if (/megapixel/.test(unit)) for (const ratio of aspectRatios) {
+  // Some edit endpoints also bill for input pixels. Do not reuse the output-only quote.
+  else if (!reference && /megapixel/.test(unit)) for (const ratio of aspectRatios) {
     const [w, h] = sizes[ratio].split('x').map(Number);
     tiers.push({ size: sizes[ratio], cost: Math.round(rate * Math.max(1, Math.ceil(w * h / (1024 * 1024) - 1e-9)) * 1e6) / 1e6 });
   } else if (!setupReason) setupReason = 'fal.ai bills this model per ' + unit + ', which is not supported.';
   const promptMax = Number(props.prompt?.maxLength) || 4000;
+  const label = gpt ? gpt.label : name.replace(/\s+(Text to Image|Text-to-Image|API)$/i, '').slice(0, 120);
+  const image = reference
+    ? { supported: true, max: reference.max, min: reference.min, roles: ['image_references'], maxBytes: REFERENCE_BYTES, formats: ['jpeg', 'png', 'webp'] }
+    : { supported: false, max: 0, min: 0, roles: [] };
   return {
-    providerModelId: endpoint, publicModelId: publicId(endpoint), label: gpt ? gpt.label : name.replace(/\s+(Text to Image|Text-to-Image|API)$/i, '').slice(0, 120), mediaType: 'image',
+    providerModelId: endpoint, publicModelId: publicId(endpoint),
+    label: edit ? label + ' · Image Edit' : reference ? label + ' · References' : label, mediaType: 'image',
     options: {
       catalogVerified: true, adapterSupported: !setupReason, setupReason, gatewayType: 'image',
       pricing: tiers.length ? { image_dimension_quality_pricing: tiers } : {},
       aspectRatios, defaultAspectRatio: aspectRatios.includes('1:1') ? '1:1' : aspectRatios[0] || null,
-      falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images), hasQuality: Boolean(gpt && props.quality) },
-      supportedOperations: ['text-to-image'], imageSizes: [],
+      falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images), hasMaxImages: Boolean(reference && props.max_images?.type === 'integer'),
+        hasQuality: Boolean(gpt && props.quality) },
+      supportedOperations: [...(!reference?.min ? ['text-to-image'] : []), ...(reference ? ['image-to-image'] : [])], imageSizes: [],
       qualities: gpt && props.quality ? GPT_QUALITIES : [], defaultQuality: gpt && props.quality ? 'high' : undefined,
-      referenceCapabilities: { textOnly: true, totalMax: 0, image: { supported: false, max: 0, min: 0, roles: [] }, video: { supported: false, max: 0 }, audio: { supported: false, max: 0 } },
+      referenceCapabilities: { textOnly: !reference, totalMax: image.max, image, video: { supported: false, max: 0 }, audio: { supported: false, max: 0 } },
       inputLimits: { text: { max_chars: Math.min(promptMax, 8000) } },
     },
   };
@@ -144,7 +186,9 @@ function distinctLabels(models) {
       const tokens = new Set(endpointTokens(m.providerModelId)), price = JSON.stringify(m.options.pricing);
       const alias = kept.find(k => { const other = new Set(endpointTokens(k.providerModelId));
         const diff = [...tokens].filter(t => !other.has(t)).concat([...other].filter(t => !tokens.has(t)));
-        return JSON.stringify(k.options.pricing) === price && diff.every(t => /^\d$/.test(t)); });
+        return JSON.stringify(k.options.pricing) === price &&
+          JSON.stringify(k.options.referenceCapabilities) === JSON.stringify(m.options.referenceCapabilities) &&
+          diff.every(t => /^\d$/.test(t)); });
       if (alias) Object.assign(m.options, { adapterSupported: false, setupReason: 'Same model as ' + alias.providerModelId + '.' });
       else kept.push(m);
     }
@@ -155,17 +199,26 @@ function distinctLabels(models) {
   return models;
 }
 
-// Every text-to-image model fal lists, with its schema and price.
+// Both fal image categories, with the schema and price of the exact endpoint.
 async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
   if (!apiKey) throw Object.assign(new Error('Save a fal.ai API key in Admin first.'), { statusCode: 400 });
-  const ids = [];
-  let cursor = '';
-  for (let page = 0; page < 30; page++) {
-    const r = await platform('/models?category=text-to-image&status=active&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { apiKey, fetchImpl });
-    for (const m of r?.models || []) if (m?.endpoint_id && m.metadata?.status !== 'deprecated') ids.push(m.endpoint_id);
-    if (!r?.has_more || !r.next_cursor) break;
-    cursor = r.next_cursor;
-  }
+  const list = async category => {
+    const models = [];
+    let cursor = '';
+    for (let page = 0; page < 30; page++) {
+      const r = await platform('/models?category=' + category + '&status=active&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { apiKey, fetchImpl });
+      for (const m of r?.models || []) if (m?.endpoint_id && m.metadata?.status !== 'deprecated') {
+        models.push([m.endpoint_id, { ...m.metadata, category }]);
+      }
+      if (!r?.has_more || !r.next_cursor) break;
+      cursor = r.next_cursor;
+    }
+    return models;
+  };
+  const [textModels, editModels] = await Promise.all([list('text-to-image'), list('image-to-image')]);
+  const metadata = new Map(textModels);
+  for (const [id, info] of editModels) if (!metadata.has(id)) metadata.set(id, info);
+  const ids = [...metadata.keys()];
   const entries = [], prices = new Map();
   // Schemas: the expanded listing is requested without the key (with the key
   // fal answered without the OpenAPI document, so every model looked like it
@@ -197,7 +250,10 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
     if (!(await loadPrices(batch)) && batch.length > 1) for (const id of batch) await loadPrices([id]);
   }
   if (!entries.length) throw Object.assign(new Error('fal.ai returned no image models.'), { statusCode: 502 });
-  const models = distinctLabels(entries.map(entry => describeFalImageModel(entry, prices.get(entry.endpoint_id))));
+  const models = distinctLabels(ids.filter(id => byId.has(id)).map(id => {
+    const entry = byId.get(id);
+    return describeFalImageModel({ ...entry, metadata: { ...entry.metadata, ...metadata.get(id) } }, prices.get(id));
+  }));
   // Why models were left off, for the sync log and Admin.
   const reasons = {}, units = {};
   for (const m of models) if (!m.options.adapterSupported) { const r = m.options.setupReason.replace(/\(.*\)/, '(…)'); reasons[r] = (reasons[r] || 0) + 1; }
@@ -211,7 +267,7 @@ class FalImageClient {
   constructor({ apiKey = '', fetchImpl = fetch, pollMs = 1500, timeoutMs = 240000 } = {}) {
     this.fal = new FalClient({ apiKey, fetchImpl }); this.fetch = fetchImpl; this.pollMs = pollMs; this.timeoutMs = timeoutMs;
   }
-  input(model, options) {
+  input(model, options, references = []) {
     const fal = model.falImage || {};
     const ratio = String(options.aspectRatio || model.defaultAspectRatio || '1:1');
     const value = fal.values?.[ratio];
@@ -222,11 +278,21 @@ class FalImageClient {
       else input.image_size = value;
     } else input.aspect_ratio = value;
     if (fal.hasNumImages) input.num_images = 1;
+    if (fal.hasMaxImages) input.max_images = 1;
     if (fal.hasQuality && options.quality) input.quality = String(options.quality);
+    const ref = fal.reference;
+    if (references.length < (ref?.min || 0) || references.length > (ref?.max || 0)) {
+      throw new Error('Invalid reference image count for this model.');
+    }
+    if (references.length) {
+      const urls = references.map(image => image.url);
+      if (urls.some(url => typeof url !== 'string' || !url)) throw new Error('A reference image is unavailable.');
+      input[ref.field] = ref.array ? urls : urls[0];
+    }
     return input;
   }
-  async generateImage(model, options) {
-    const op = await this.fal.submit(model.falImage.endpoint, this.input(model, options));
+  async generateImage(model, options, references) {
+    const op = await this.fal.submit(model.falImage.endpoint, this.input(model, options, references));
     const deadline = Date.now() + this.timeoutMs;
     for (;;) {
       const st = await this.fal.status(op);

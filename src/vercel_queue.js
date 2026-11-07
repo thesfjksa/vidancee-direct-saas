@@ -113,9 +113,11 @@ class VercelQueue {
     return error.message||'Generation failed. Credits were refunded.';
   }
   async references(db,job) {
-    const [images]=await db.execute('SELECT position_index,mime_type FROM generation_images WHERE generation_id=? ORDER BY position_index',[job.id]);
+    if(job.media_type==='image'){
+      const [images]=await db.execute('SELECT position_index,mime_type FROM generation_images WHERE generation_id=? ORDER BY position_index',[job.id]);
+      return images.map(i=>({url:providerAssetUrl(job.id,i.position_index),mimeType:i.mime_type}));
+    }
     const [media]=await db.execute('SELECT position_index,media_kind,media_role,mime_type FROM generation_media WHERE generation_id=? ORDER BY position_index',[job.id]);
-    if(job.media_type==='image')return images.map(i=>({url:providerAssetUrl(job.id,i.position_index),mimeType:i.mime_type}));
     return media.map(m=>({url:providerAssetUrl(job.id,m.position_index).replace('/provider-assets/','/provider-media/'),
       mimeType:m.mime_type,role:m.media_role}));
   }

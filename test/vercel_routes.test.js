@@ -3,13 +3,24 @@ const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {mediaModels}=require('../src/vercel_models.js');
 const source=require('../src/provider/vercel_catalog.json');
+const {describeFalImageModel}=require('../src/fal_images.js');
 
-test('real gateway HTTP routes encrypt credentials, enforce account/model controls, reserve quoted credits and protect playback',async t=>{
+test('priced provider HTTP routes enforce account/model controls, reserve quoted credits and protect media',async t=>{
   process.env.PORT='0';process.env.HOST='127.0.0.1';process.env.WORKER_ENABLED='false';process.env.ADMIN_TOKEN='admin-test-only';process.env.WORKER_WAKE_URL='';
+  process.env.APP_URL='https://studio.example.com';
   const users=new Map([1,2].map(id=>[id,{id,email:'user'+id+'@example.com',credits:50000,status:'active',plan_code:'pro',role:'user'}]));
-  const values=new Map(),jobs=new Map(),outputs=new Map(),access=new Map(),transactions=[];
+  const values=new Map(),jobs=new Map(),outputs=new Map(),access=new Map(),transactions=[],references=[];
   const chosen=['google/gemini-nano-banana-2.1','google/veo-3.0-fast-generate-001','openai/gpt-image-2'];
   const modelRows=mediaModels(source).filter(m=>chosen.includes(m.providerModelId)).map((m,i)=>({id:i+1,provider:'vercel',provider_model_id:m.providerModelId,public_model_id:m.publicModelId,label:m.label,media_type:m.mediaType,options_json:JSON.stringify(m.options),enabled:1,available:1}));
+  const editSchema={required:['prompt'],properties:{
+    prompt:{type:'string'},aspect_ratio:{enum:['1:1','16:9']},image_urls:{type:'array',items:{type:'string'}},
+  }};
+  const falEdit=describeFalImageModel({
+    endpoint_id:'fal-ai/nano-banana-2/edit',metadata:{display_name:'Nano Banana 2'},
+    openapi:{paths:{'/':{post:{requestBody:{content:{'application/json':{schema:editSchema}}}}}}},
+  },{unit_price:0.08,unit:'image',currency:'USD'});
+  modelRows.push({id:4,provider:'falimg',provider_model_id:falEdit.providerModelId,public_model_id:falEdit.publicModelId,
+    label:falEdit.label,media_type:'image',options_json:JSON.stringify(falEdit.options),enabled:1,available:1});
   async function execute(sql,args=[]){
     sql=sql.replace(/ = \?/g,'=?').replace(/credits = credits - \?/g,'credits=credits-?');
     if(sql.startsWith('CREATE'))return [[]];
@@ -45,7 +56,11 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
     if(sql.includes('FROM generations WHERE id=')){const row=jobs.get(args[0]);return [[row].filter(r=>r&&(args.length<2||r.user_id===args[1]))];}
     if(sql.includes('FROM generation_video_outputs'))return [[outputs.get(args[0])].filter(Boolean)];
     if(sql.includes('FROM generation_video_chunks'))return [[{video_data:outputs.get(args[0]).bytes}]];
-    if(sql.includes('FROM generation_images'))return [[]];
+    if(sql.includes('INSERT INTO generation_images')){
+      const [generation_id,position_index,filename,mime_type,image_data]=args;
+      references.push({generation_id,position_index,filename,mime_type,image_data});return [{affectedRows:1}];
+    }
+    if(sql.includes('FROM generation_images'))return [references.filter(r=>r.generation_id===args[0]&&(args.length<2||r.position_index===args[1]))];
     throw new Error('Unexpected test SQL: '+sql);
   }
   const db={execute,query:execute,getConnection:async()=>({execute,query:execute,beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}})};
@@ -108,4 +123,32 @@ test('real gateway HTTP routes encrypt credentials, enforce account/model contro
   assert.equal((await request('/admin/vercel/check',{admin:true,method:'POST'})).data.balance,'12.00');
   const invalid=await request('/admin/provider-settings',{admin:true,method:'POST',body:{vercelApiKey:'replacement-secret',vercelCustomerCreditsPerUsd:0}});assert.equal(invalid.status,400);
   saved=await request('/admin/provider-settings',{admin:true,method:'POST',body:{clearVercelApiKey:true}});assert.equal(saved.data.settings.vercel.apiKeyConfigured,false);assert.equal(values.has('vercel_api_key'),false);
+
+  const falSettings=await request('/admin/provider-settings',{admin:true,method:'POST',body:{falApiKey:'fal-test-only',falEnabled:true}});
+  assert.equal(falSettings.status,200);
+  const editConfig=(await request('/api/config')).data.imagePricing.find(m=>m.id===falEdit.publicModelId);
+  assert.equal(editConfig.capabilities.image.supported,true);
+  assert.equal(editConfig.capabilities.image.min,1);
+  const editInput={model:falEdit.publicModelId,prompt:'Change the background',aspectRatio:'16:9'};
+  const editQuote=await request('/api/model-cost',{method:'POST',body:{...editInput,mediaType:'image'}});
+  assert.equal(editQuote.status,200);
+  assert.equal((await request('/api/image-generations',{method:'POST',body:editInput})).status,400);
+  assert.equal(transactions.length,1);
+
+  const form=new FormData();
+  for(const [key,value] of Object.entries(editInput))form.append(key,value);
+  const refBytes=Buffer.from('89504e470d0a1a0a','hex');
+  form.append('images',new Blob([refBytes],{type:'image/png'}),'reference.png');
+  const editResponse=await fetch(origin+'/api/image-generations',{method:'POST',headers:{'x-test-user':'1'},body:form});
+  assert.equal(editResponse.status,201);
+  const savedEdit=(await editResponse.json()).generation;
+  assert.equal(savedEdit.mode,'reference-to-image');
+  assert.equal(savedEdit.credits_cost,editQuote.data.cost);
+  assert.equal(transactions.length,2);
+  const {FalImageQueue}=require('../src/fal_image_queue.js');
+  const [reference]=await new FalImageQueue().references(db,jobs.get(savedEdit.id));
+  const url=new URL(reference.url);
+  const refResponse=await fetch(origin+url.pathname+url.search);
+  assert.equal(refResponse.status,200);
+  assert.deepEqual(Buffer.from(await refResponse.arrayBuffer()),refBytes);
 });

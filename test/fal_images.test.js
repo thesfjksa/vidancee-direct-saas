@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {describeFalImageModel,FalImageClient,publicId,isFalImageModel}=require('../src/fal_images.js');
-const {quoteGateway}=require('../src/vercel_models.js');
+const {quoteGateway,validateReferences}=require('../src/vercel_models.js');
 
 const entry=(endpoint,props,required=['prompt'])=>({endpoint_id:endpoint,metadata:{display_name:'Test Model Text to Image',status:'active'},openapi:{
   paths:{['/'+endpoint]:{post:{requestBody:{content:{'application/json':{schema:{$ref:'#/components/schemas/Input'}}}}}}},
@@ -36,11 +36,45 @@ test('aspect-ratio models offer only listed ratios; extra inputs, vectors and un
   assert.equal(isFalImageModel(publicId('fal-ai/sana')),true);
 });
 
-test('generation submits to the fal queue, polls, and downloads the image',async()=>{
+test('reference capability follows the endpoint schema, and requires a safe quote',()=>{
+  const price={unit_price:0.08,unit:'images',currency:'USD'};
+  const props={aspect_ratio:{enum:['1:1','16:9']},image_urls:{type:'array',items:{type:'string'},minItems:1,maxItems:3}};
+  const edit=describeFalImageModel(entry('fal-ai/sample/edit',props),price);
+  const model={...edit.options,providerModelId:edit.providerModelId,mediaType:'image'};
+  assert.equal(model.adapterSupported,true);
+  assert.match(edit.label,/Image Edit$/);
+  assert.deepEqual(model.supportedOperations,['image-to-image']);
+  assert.equal(model.referenceCapabilities.image.min,1);
+  assert.equal(model.referenceCapabilities.image.max,3);
+  assert.equal(quoteGateway(model,{aspectRatio:'1:1'},1000).cost,80);
+  assert.throws(()=>validateReferences(model,{}),/requires a reference image/);
+  assert.throws(()=>validateReferences(model,{images:[{data:Buffer.from('image'),mimeType:'image/gif'}]}),/format/);
+  const refs=[{url:'https://example.com/first.png'},{url:'https://example.com/second.png'}];
+  const client=new FalImageClient();
+  assert.deepEqual(client.input(model,{prompt:'Edit',aspectRatio:'16:9'},refs),{
+    prompt:'Edit',aspect_ratio:'16:9',image_urls:refs.map(ref=>ref.url),
+  });
+  assert.throws(()=>client.input(model,{prompt:'Edit'}),/reference image count/);
+  assert.throws(()=>client.input(model,{prompt:'Edit'},[...refs,...refs]),/reference image count/);
+
+  const optional=describeFalImageModel(entry('fal-ai/sample',props),price);
+  assert.equal(optional.options.referenceCapabilities.image.min,0);
+  assert.doesNotThrow(()=>validateReferences({...optional.options,mediaType:'image'},{}));
+  const variable=describeFalImageModel(entry('fal-ai/sample',props),{...price,unit:'megapixels'});
+  assert.equal(variable.options.adapterSupported,true);
+  assert.equal(variable.options.referenceCapabilities.image.supported,false);
+  assert.equal(describeFalImageModel(entry('fal-ai/sample/edit',props),{...price,unit:'megapixels'}).options.adapterSupported,false);
+  assert.equal(describeFalImageModel(entry('fal-ai/sample/edit',props,['prompt','image_urls','mask_url']),price).options.adapterSupported,false);
+
+  const single=describeFalImageModel(entry('fal-ai/single/image-to-image',{...imageSize,image_url:{type:'string'}},['prompt','image_url']),price);
+  assert.equal(client.input(single.options,{prompt:'Edit'},[refs[0]]).image_url,refs[0].url);
+});
+
+test('generation submits reference URLs to the edit endpoint, polls, and downloads the image',async()=>{
   const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),Buffer.alloc(32)]);
   const calls=[];let polls=0;
   const fetchImpl=async(url,init={})=>{
-    calls.push([init.method||'GET',String(url)]);
+    calls.push([init.method||'GET',String(url),init.body]);
     if(String(url).startsWith('https://queue.fal.run/fal-ai/flux/dev')&&init.method==='POST')
       return Response.json({request_id:'r1',status_url:'https://queue.fal.run/fal-ai/flux/requests/r1/status',response_url:'https://queue.fal.run/fal-ai/flux/requests/r1'});
     if(String(url).endsWith('/status'))return Response.json({status:++polls<2?'IN_PROGRESS':'COMPLETED'});
@@ -48,30 +82,53 @@ test('generation submits to the fal queue, polls, and downloads the image',async
     if(String(url).startsWith('https://v3b.fal.media/'))return new Response(png,{status:200});
     return new Response('',{status:404});
   };
-  const m=describeFalImageModel(entry('fal-ai/flux/dev',imageSize),{unit_price:0.025,unit:'megapixels',currency:'USD'});
+  const m=describeFalImageModel(entry('fal-ai/flux/dev/edit',{...imageSize,image_urls:{type:'array',items:{type:'string'}}}),
+    {unit_price:0.025,unit:'image',currency:'USD'});
   const client=new FalImageClient({apiKey:'k',fetchImpl,pollMs:1});
-  const out=await client.generateImage({...m.options,providerModelId:m.providerModelId},{prompt:'cat',aspectRatio:'1:1'});
+  const reference='https://example.com/reference.png';
+  const out=await client.generateImage({...m.options,providerModelId:m.providerModelId},{prompt:'cat',aspectRatio:'1:1'},[{url:reference}]);
   assert.equal(out.mimeType,'image/png');
-  assert.equal(calls[0][0],'POST');
+  assert.deepEqual(calls[0].slice(0,2),['POST','https://queue.fal.run/fal-ai/flux/dev/edit']);
+  assert.deepEqual(JSON.parse(calls[0][2]).image_urls,[reference]);
   assert.equal(polls,2);
 });
 
-test('catalog sync reads schemas without the key and falls back to the per-model OpenAPI file',async()=>{
+test('catalog sync reads generation and edit schemas without the key and falls back to the per-model OpenAPI file',async()=>{
   const {fetchFalImageCatalog}=require('../src/fal_images.js');
-  const schema=entry('fal-ai/flux/dev',imageSize).openapi;
+  const textId='fal-ai/flux/dev', editId='fal-ai/nano-banana-2/edit';
+  const text=entry(textId,imageSize);
+  const edit=entry(editId,{aspect_ratio:{enum:['1:1','16:9']},image_urls:{type:'array',items:{type:'string'}}});
   const seen=[];
   const fetchImpl=async(url,init={})=>{
     const u=String(url);seen.push([u,Boolean(init.headers?.authorization)]);
-    if(u.includes('/models?category='))return Response.json({models:[{endpoint_id:'fal-ai/flux/dev',metadata:{status:'active'}}],has_more:false});
-    if(u.includes('expand=openapi'))return Response.json({models:[{endpoint_id:'fal-ai/flux/dev',metadata:{display_name:'FLUX.1 [dev]'}}]});
-    if(u.startsWith('https://fal.ai/api/openapi/'))return Response.json(schema);
-    if(u.includes('/models/pricing'))return Response.json({prices:[{endpoint_id:'fal-ai/flux/dev',unit_price:0.025,unit:'megapixels',currency:'USD'}]});
+    if(u.includes('/models?category='))return Response.json({models:[{endpoint_id:u.includes('category=image-to-image')?editId:textId,metadata:{status:'active'}}],has_more:false});
+    if(u.includes('expand=openapi'))return Response.json({models:[edit,{endpoint_id:textId,metadata:{display_name:'FLUX.1 [dev]'}}]});
+    if(u.startsWith('https://fal.ai/api/openapi/'))return Response.json(text.openapi);
+    if(u.includes('/models/pricing'))return Response.json({prices:[
+      {endpoint_id:textId,unit_price:0.025,unit:'megapixels',currency:'USD'},
+      {endpoint_id:editId,unit_price:0.08,unit:'images',currency:'USD'},
+    ]});
     return new Response('',{status:404});
   };
   const models=await fetchFalImageCatalog({apiKey:'k',fetchImpl});
-  assert.equal(models[0].options.adapterSupported,true);
+  assert.deepEqual(models.map(model=>model.options.adapterSupported),[true,true]);
+  assert.deepEqual(models.map(model=>model.options.referenceCapabilities.image.min),[0,1]);
+  assert.equal(models[1].options.referenceCapabilities.image.max,10);
   assert.equal(seen.find(([u])=>u.includes('expand=openapi'))[1],false);
   assert.equal(seen.find(([u])=>u.includes('/models/pricing'))[1],true);
+});
+
+test('the fal image worker picks up ready jobs on a shorter interval', t=>{
+  const {FalImageQueue}=require('../src/fal_image_queue.js');
+  const {VercelQueue}=require('../src/vercel_queue.js');
+  const schedule=t.mock.method(VercelQueue.prototype,'schedule',()=>{});
+  const queue=new FalImageQueue();
+  queue.start();
+  queue.schedule();
+  queue.sourceReady=true;
+  queue.schedule();
+  assert.deepEqual(schedule.mock.calls.map(call=>call.arguments),[[700],[5000],[2000]]);
+  queue.stop();
 });
 
 test('fal labels: raw names readable, variants told apart, aliases kept once', () => {
