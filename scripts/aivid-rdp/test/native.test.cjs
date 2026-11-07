@@ -110,7 +110,7 @@ test('inline transfer enforces status, type, complete bounded body and MP4 signa
 test('inline popup completes without a download event and closes only the owned media tab',async()=>{
  const {EventEmitter}=require('node:events'),context=new EventEmitter(),page=new EventEmitter(),popup=new EventEmitter();
  const id='6aee348c6467353c0fd7ded1',url='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-'+id+'.mp4?X-Amz-Signature=fixture',clip=Buffer.from('0000ftypisom0000');let closed=0,fetches=0;
- page.url=()=> 'https://aivid.dev/videos/'+id;page.context=()=>context;
+ page.url=()=> 'https://aivid.dev/videos/another-accepted-job';page.context=()=>context;
  popup.opener=async()=>page;popup.waitForLoadState=async()=>{};popup.title=async()=>'';popup.url=()=>url;popup.close=async()=>{closed++};
  popup.locator=selector=>selector==='body'?{innerText:async()=>''}:{first:()=>({evaluate:async()=>url})};
  page.getByRole=()=>({click:async()=>{context.emit('page',popup)}});

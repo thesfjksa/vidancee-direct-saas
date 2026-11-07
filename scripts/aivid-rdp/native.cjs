@@ -71,11 +71,11 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
 function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
 const MEDIA_HOST='aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com';
 const MAX_VIDEO_BYTES=100*1024*1024;
-function inlineVideoUrl(value,jobId) {
+function inlineVideoUrl(value,jobId,{relatedToDetail=false}={}) {
   try {
     const url=new URL(value);
     if(!/^[a-z0-9_-]{8,100}$/i.test(String(jobId))||url.protocol!=='https:'||url.hostname!==MEDIA_HOST||url.port||url.username||url.password||url.hash||
-      !url.pathname.startsWith('/generating/')||!/^\/generating\/[a-z0-9_-]+\.mp4$/i.test(url.pathname)||!url.pathname.endsWith('-'+jobId+'.mp4'))return null;
+      !url.pathname.startsWith('/generating/')||!/^\/generating\/[a-z0-9_-]+\.mp4$/i.test(url.pathname)||(!relatedToDetail&&!url.pathname.endsWith('-'+jobId+'.mp4')))return null;
     return url.href;
   }catch{return null;}
 }
@@ -103,6 +103,8 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   let download,resolveInline,rejectInline,rejectBlocked,success=false,mediaStarted=false,timer,nativeListener;
   const owned=new Map(),controller=new AbortController();
   const jobId=(()=>{try{const u=new URL(page.url());return u.origin==='https://aivid.dev'?(requestedId||u.pathname.match(/^\/videos\/([a-z0-9_-]+)$/i)?.[1]):null;}catch{return null;}})();
+  const relatedToDetail=(()=>{try{return new URL(page.url()).origin==='https://aivid.dev'&&new URL(page.url()).pathname==='/videos/'+jobId;}catch{return false;}})();
+  const mediaUrl=value=>inlineVideoUrl(value,jobId,{relatedToDetail});
   const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
   const inline=new Promise((resolve,reject)=>{resolveInline=resolve;rejectInline=reject});inline.catch(()=>{});
   const timed=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Download timed out.'));},timeoutMs)});timed.catch(()=>{});
@@ -111,10 +113,10 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
     if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000}))){
       rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));controller.abort();return;
     }
-    const media=inlineVideoUrl(target.url(),jobId);
+    const media=mediaUrl(target.url());
     if(!media||mediaStarted)return;
     const src=await target.locator('video').first().evaluate(video=>video.currentSrc||video.src,undefined,{timeout:10000});
-    if(inlineVideoUrl(src,jobId)!==media||mediaStarted)return;
+    if(mediaUrl(src)!==media||mediaStarted)return;
     mediaStarted=true;
     try{resolveInline(await readInlineVideo(media,{fetchImpl,signal:controller.signal}));}catch(error){rejectInline(error);}
   }catch{}};
@@ -150,7 +152,7 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   finally {
     clearTimeout(timer);controller.abort();if(nativeListener)page.off('download',nativeListener);page.context?.().off('page',popup);page.off?.('popup',directPopup);page.off?.('domcontentloaded',navigated);
     for(const [target,loaded]of owned){target.off?.('domcontentloaded',loaded);target.off?.('download',popupDownload);if(success)await target.close?.().catch(()=>{});}
-    if(success&&inlineVideoUrl(page.url?.(),jobId))await page.goto('about:blank#cmmtools-worker',{timeout:10000}).catch(()=>{});
+    if(success&&mediaUrl(page.url?.()))await page.goto('about:blank#cmmtools-worker',{timeout:10000}).catch(()=>{});
     if(download)await download.delete().catch(()=>{});
   }
 }
