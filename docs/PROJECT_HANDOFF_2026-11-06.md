@@ -273,3 +273,7 @@ reservation even if click handling rejects, and tests that only one paid
 POST and one reservation can proceed. This remains a GitHub-level change;
 live Hostinger revision, managed agent delivery, source acceptance and video
 completion have not been verified. Do not replay existing uncertain jobs.
+
+## 7 November: second F12-dependent AIVID investigation
+
+PR #179 addresses a startup race in the request guard: Chrome may emit Fetch.requestPaused immediately after Fetch.enable, but the old code registered its listener only after the enable command returned. Such an event could be stranded until DevTools changed the interception state. The handler is now registered before enabling Fetch. Setup failures are classified as request_guard_setup, and a regression test emits an event during enable. Node tests and MySQL integration checks pass; Windows real Chrome and Admin browser checks are pending at handoff. This has not yet been merged or tested on the owner's live RDP.
