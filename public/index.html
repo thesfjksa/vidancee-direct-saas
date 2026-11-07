@@ -1097,10 +1097,10 @@ function ensureCustomSelect(id){
 }
 
 function videoModelGroup(value){
-  if(/^minimax_h3(?:_|$)/.test(value))return 'MiniMax · vgenv';
+  if(/^minimax_h3(?:_|$)/.test(value))return 'MiniMax';
   if(!value.startsWith('api888_'))return null;
   const family=value.slice('api888_'.length).toLowerCase().match(/(?:seedance_?|sd_?|^ss_|^s2_)2_([05])(?:_|$)/);
-  return family?'Seedance 2.'+family[1]+' · 888API':null;
+  return family?'Seedance 2.'+family[1]:null;
 }
 
 function videoModelOptionsHtml(select){
