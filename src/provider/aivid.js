@@ -48,11 +48,10 @@ async function attachReferences(page,main,kind,refs) {
     const name=referenceName(kind,ref.mimeType,index);
     const rejected=deferred();
     const handleDialog=async dialog=>{
-      if(dialog.type()==='alert'&&dialog.message().includes(name)){
-        rejected.reject(sessionFailure(referenceAlertCode(dialog.message())));
-      }
+      const message=dialog.type()==='alert'?dialog.message():'';
       // Match Playwright's default dismissal. Never approve a dialog.
       await dialog.dismiss().catch(()=>{});
+      if(message.includes(name))rejected.reject(sessionFailure(referenceAlertCode(message)));
     };
     page.on('dialog',handleDialog);
     try {

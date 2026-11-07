@@ -8,8 +8,8 @@ const path = require('node:path');
 const os = require('node:os');
 const { connectNative, debuggerEndpoint, downloadNative, startChrome } = require('../native.cjs');
 // The shared form suite includes deliberate missing-menu waits and delayed
-// renders in addition to native download/profile checks on Windows Chrome.
-test('real installed Chrome keeps its profile alive after CDP disconnect and downloads natively', { skip: process.platform !== 'win32', timeout: 180000 }, async t => {
+// renders, provider alert checks and native download/profile checks on Windows.
+test('real installed Chrome keeps its profile alive after CDP disconnect and downloads natively', { skip: process.platform !== 'win32', timeout: 240000 }, async t => {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'CMM AIVID 测试-'));
   const clip = Buffer.from('0000ftypisom0000');
   const server = http.createServer((req, res) => {
