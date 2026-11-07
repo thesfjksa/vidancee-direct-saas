@@ -570,8 +570,8 @@ async function collectionState(page,{timeoutMs=15000}={}){
 }
 
 class AividBrowserlessClient {
-  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, historyDownload = null, onProgress = null, onBlockedRequest = null } = {}) {
-    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.historyDownload = historyDownload; this.onProgress = onProgress;
+  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, collectFromHistory = null, onProgress = null, onBlockedRequest = null } = {}) {
+    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.collectFromHistory = collectFromHistory; this.onProgress = onProgress;
     this.onBlockedRequest = onBlockedRequest;
   }
   async withPage(fn) {
@@ -651,17 +651,10 @@ class AividBrowserlessClient {
   async collectVideo(id) {
     if (!ID.test(String(id))) throw new Error('Invalid AIVID job ID.');
     return this.withPage(async page => {
+      if(this.collectFromHistory)return this.collectFromHistory(page,id);
       await page.goto(ORIGIN + '/videos/' + encodeURIComponent(id), { waitUntil: 'domcontentloaded', timeout: 30000 });
-      let state,detailError;
-      try{state=await collectionState(page);}catch(error){if(!this.historyDownload)throw error;detailError=error;}
-      if(state==='failed')return {state};
+      const state=await collectionState(page);
       if(state==='completed'&&this.download)return {state:'completed',output:await this.download(page)};
-      if(state!=='completed'&&this.historyDownload){
-        await page.goto(ORIGIN+'/generate',{waitUntil:'domcontentloaded',timeout:30000});
-        const output=await this.historyDownload(page,id);
-        if(output)return {state:'completed',output};
-      }
-      if(detailError)throw detailError;
       if(state!=='completed')return {state};
       const cdp = await page.context().newCDPSession(page);
       let timer, listener;
