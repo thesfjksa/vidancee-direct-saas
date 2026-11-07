@@ -22,7 +22,6 @@ function capabilities(spec) {
 function modelEntry(m){
   const durations=Array.from({length:m.maxSeconds-3},(_,i)=>({seconds:i+4,label:(i+4)+' sec',cost:null}));
   return { id:m.id,label:m.name+' · Premium',premium:true, dynamicCost:true,
-    warning:'Public generation: results may be visible to other users of the upstream video service.',
     durations,resolutions:m.resolutions.map(id=>({id,label:id,durations})),
     defaultDuration:m.maxSeconds,defaultResolution:'480p',aspectRatios:['16:9','9:16','1:1'],
     defaultAspectRatio:'16:9',promptMaxChars:50000,capabilities:capabilities(m) };
@@ -64,7 +63,7 @@ function customerCatalog(config){
     return {
       ...entry,ready,unavailable:!ready,
       ...(!ready?{
-        warning:unavailableReason(config)+' The model is visible, but generation is paused. Refresh Video Studio after the connection is restored. '+entry.warning,
+        warning:unavailableReason(config)+' The model is visible, but generation is paused. Refresh Video Studio after the connection is restored.',
       }:{})
     };
   });
