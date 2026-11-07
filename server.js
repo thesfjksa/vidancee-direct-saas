@@ -2722,6 +2722,21 @@ const server=http.createServer(async (req,res)=>{
 
       if (req.method==='GET' && routePath==='/admin/plans') return sendJson(res,200,{ok:true,plans:adminPlanOptions()});
 
+      const userGenerationCleanupMatch=routePath.match(/^\/admin\/users\/(\d+)\/cleanup-generations$/);
+      if(userGenerationCleanupMatch&&(req.method==='GET'||req.method==='POST')){
+        requireDatabase();
+        const userId=Number(userGenerationCleanupMatch[1]);
+        const cleanup=require('./src/admin_generation_cleanup.js');
+        if(req.method==='GET')
+          return sendJson(res,200,{ok:true,...await cleanup.userGenerationCleanupPreview(userId)});
+        const body=await readJson(req);
+        const result=await cleanup.deleteFinishedUserGenerations(userId,body.confirmEmail);
+        logActivity({category:'admin',event:'user.generations_cleaned',userId,
+          message:'Finished generation cleanup batch for an explicitly confirmed customer.',
+          details:{deleted:result.deleted,remaining:result.remaining,protected:result.protected,stopped:!result.ok}});
+        return sendJson(res,200,result);
+      }
+
       const userDetailMatch=routePath.match(/^\/admin\/users\/(\d+)$/);
       if (req.method==='GET' && userDetailMatch) {
         requireDatabase();
