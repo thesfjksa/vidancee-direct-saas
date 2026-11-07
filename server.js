@@ -2414,11 +2414,14 @@ const server=http.createServer(async (req,res)=>{
       if(req.method==='POST'&&routePath==='/admin/aivid/check-references'){
         requireDatabase();
         const body=await readJson(req),{DEFAULT_ID,aividModel,assertOptions}=require('./src/aivid_models.js');
-        const value=assertOptions(aividModel(body.model||DEFAULT_ID),{prompt:'A blue square moves slowly. Use @image1, @video1 and the tone in @audio1.',duration:5,resolution:'480p',aspectRatio:'16:9'});
+        const {diagnosticReferences,diagnosticImageReferences}=require('./src/aivid_probe_assets.js');
+        const imageOnly=body.imageOnly===true;
+        const prompt=imageOnly?'Show @image1, then @image2, then @image3.':'A blue square moves slowly. Use @image1, @video1 and the tone in @audio1.';
+        const value=assertOptions(aividModel(body.model||DEFAULT_ID),{prompt,duration:5,resolution:'480p',aspectRatio:'16:9'});
         const config=await require('./src/aivid_settings.js').getAividSettings();
         if(config.mode==='rdp'?!config.rdpDevice?.tokenHash:!config.connectUrl)throw httpError(503,'Configure the AIVID browser connection first.');
         const Client=config.mode==='rdp'?require('./src/aivid_rdp.js').AividRdpClient:require('./src/provider/aivid.js').AividBrowserlessClient;
-        const result=await require('./src/aivid_queue.js').withAividLock(getPool(),()=>new Client(config).checkReferences(value,require('./src/aivid_probe_assets.js').diagnosticReferences()));
+        const result=await require('./src/aivid_queue.js').withAividLock(getPool(),()=>new Client(config).checkReferences(value,imageOnly?diagnosticImageReferences():diagnosticReferences()));
         if(!result)throw httpError(409,'The AIVID browser is busy.');
         return sendJson(res,200,{ok:true,...result});
       }

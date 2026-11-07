@@ -58,7 +58,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   }
   if(p.endsWith('/finish')){loginState='connected';return route.fulfill({json:{ok:true,requested:true}});}
   if(p==='/admin/aivid/login/'+loginId)return route.fulfill({json:{ok:true,login:login()}});
-  if(p==='/admin/aivid/check-references'){const body=req.postDataJSON();referenceChecks.push(body);return route.fulfill({json:{ok:true,verified:true,submitted:false,generationBlocked:true,modelId:body.model,balanceBefore:25,balanceAfter:25,uploadedCounts:{image:1,video:1,audio:1}}});}
+  if(p==='/admin/aivid/check-references'){const body=req.postDataJSON();referenceChecks.push(body);return route.fulfill({json:{ok:true,verified:true,submitted:false,generationBlocked:true,modelId:body.model,balanceBefore:25,balanceAfter:25,uploadedCounts:body.imageOnly?{image:3,video:0,audio:0}:{image:1,video:1,audio:1}}});}
   if(p==='/admin/aivid/check'){checkRequests.push(req.postDataJSON());return route.fulfill({json:{ok:true,price:2,balance:25,modelVerified:true,withinLimit:true,standardCustomerCredits:1693.44}});}
   if(p==='/admin/generations')return route.fulfill({json:{ok:true,generations:managedDeleted?[]:[{id:loginId,user_id:1,user_email:'fixture@example.test',media_type:'video',provider:'aivid',status:managedStatus,model:'aivid_seedance_2_0_mini',duration:15,resolution:'480p',credits_cost:846.72,provider_job_id:'6aee0aa512e75243dfa7c7b8',collectionPaused:true,created_at:new Date().toISOString()}]}});
   if(p==='/admin/aivid/generations/'+loginId+'/cancel'){jobActions.push('cancel');managedStatus='failed';return route.fulfill({json:{ok:true,cancelled:true,refunded:false}});}
@@ -142,8 +142,9 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  assert.match(await page.locator('#aividAdminMessage').innerText(),/No video was generated and no credits were charged/);
  assert.equal(await page.getByRole('button',{name:'Check all Premium models',exact:true}).isEnabled(),true);
  await page.getByRole('button',{name:'Check reference uploads (no generation)',exact:true}).click();
- await page.locator('#aividAdminMessage').filter({hasText:'4/4 reference checks passed'}).waitFor();
- assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']);
+ await page.locator('#aividAdminMessage').filter({hasText:'5/5 reference checks passed'}).waitFor();
+ assert.deepEqual(referenceChecks.map(v=>v.imageOnly),[true,false,false,false,false]);
+ assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']);
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  // Exercise actual rendered Admin buttons, confirmation dismissal and refresh.

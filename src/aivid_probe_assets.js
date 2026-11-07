@@ -8,4 +8,13 @@ function diagnosticReferences(){
  for(let i=0;i<samples;i++)audio.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*440/rate)*3000),44+i*2);
  return [{kind:'image',mimeType:'image/png',data:Buffer.from(image)},{kind:'video',mimeType:'video/mp4',data:Buffer.from(video)},{kind:'audio',mimeType:'audio/wav',data:audio}];
 }
-module.exports={diagnosticReferences};
+// Three distinct PNGs with identical MIME type and size.
+const imageFixtures=[
+  'iVBORw0KGgoAAAANSUhEUgAAAUAAAAFAAQMAAAD3XjfpAAAAA1BMVEXyMiIpKo/xAAAAI0lEQVR4nO3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAPwaM0AAASn9scsAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAUAAAAFAAQMAAAD3XjfpAAAAA1BMVEUiyjJlccEQAAAAI0lEQVR4nO3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAPwaM0AAASn9scsAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAUAAAAFAAQMAAAD3XjfpAAAAA1BMVEUiMvIicGgVAAAAI0lEQVR4nO3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAPwaM0AAASn9scsAAAAASUVORK5CYII='
+];
+function diagnosticImageReferences(){
+  return imageFixtures.map(value=>({kind:'image',mimeType:'image/png',data:Buffer.from(value,'base64')}));
+}
+module.exports={diagnosticReferences,diagnosticImageReferences};

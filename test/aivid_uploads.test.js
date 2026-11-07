@@ -58,7 +58,7 @@ test('a blocked probe cannot arm or forward generation, and concurrent submissio
 test('three images can request links as a batch and finish out of order',async()=>{
   const images=Array.from({length:3},(_,i)=>({kind:'image',mimeType:'image/png',data:Buffer.from(String(i))}));
   const errors=[],tracker=new UploadTracker(images,e=>errors.push(e));
-  const uploads=images.map((_,i)=>({fileName:'reference-image-'+(i+1)+'.png',fileType:'image/png',fileSize:1}));
+  const uploads=images.map((_,i)=>({fileName:'image-'+i+'.png',fileType:'image/png',fileSize:1}));
   const reply=(path,data,body)=>({...response(path,data),request:()=>({method:()=> 'POST',postData:()=>JSON.stringify(body)})});
   await Promise.all(uploads.map(body=>tracker.before(request('/v2/uploads/presigned-url',body))));
   for(const i of [2,0,1]){

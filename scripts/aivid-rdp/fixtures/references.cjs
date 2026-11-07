@@ -13,7 +13,7 @@ async function checkReferenceFlows(context,Client){
       .replace('</main>','<input id="refVideos" onchange="preview(this,&quot;video&quot;)" type="file" accept="video/quicktime,video/mp4" multiple><input id="refAudio" onchange="preview(this,&quot;audio&quot;)" type="file" accept="audio/wav,audio/mpeg" multiple><span id="uploadError"></span></main>')+
       '<script>async function post(path,body){const r=await fetch("'+API+'"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!r.ok)throw Error("upload failed");return r.json()};'+
       'const presign=file=>post("/v2/uploads/presigned-url",{fileName:file.name,fileType:file.type,fileSize:file.size});'+
-      'async function uploadAndPrepare(){try{const batch='+ (mode==='batch_images'?'await Promise.all(window.selectedFiles.image.map(presign))':'[]') +';const ids={image:[],video:[],audio:[]};for(const [kind,id] of [["image","refImages"],["video","refVideos"],["audio","refAudio"]])for(const file of (window.selectedFiles[kind]||[])){'+
+      'async function uploadAndPrepare(){try{const batch='+ (mode==='batch_images'?'await Promise.all(window.selectedFiles.image.map(async(file,i)=>{if(new Uint8Array(await file.arrayBuffer()).at(-1)!==i+1)throw Error("Reference order changed");return presign(new File([file],"image-"+i+".png",{type:file.type}));}))':'[]') +';const ids={image:[],video:[],audio:[]};for(const [kind,id] of [["image","refImages"],["video","refVideos"],["audio","refAudio"]])for(const file of (window.selectedFiles[kind]||[])){'+
       'const p=(batch.shift()||await presign(file)).data;const form=new FormData();for(const [k,v]of Object.entries(p.fields))form.append(k,v);form.append("file",file);'+
       'const uploaded=await fetch(p.url,{method:"POST",body:form});if(!uploaded.ok)throw Error("storage failed");const saved=(await post("/v2/uploads/presigned-save",{fileName:p.fileName,fileSize:file.size,fileType:file.type,filePath:p.key,folderPath:p.folderPath})).data;ids[kind].push(saved.id);}'+
       'const model={"Seedance 2.0 (Mini)":"seedance-2.0-mini","Seedance 2.0":"seedance-2.0","Seedance 2.0 (Fast)":"seedance-2.0-fast","Seedance 2.5":"seedance-2.5"}[document.getElementById("model").textContent];'+
@@ -23,6 +23,8 @@ async function checkReferenceFlows(context,Client){
       const r=route.request(),path=new URL(r.url()).pathname;
       if(r.method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
       const body=r.postDataJSON();
+      if(mode==='batch_images'&&path==='/v2/uploads/presigned-url')
+        assert.match(body.fileName,/^image-[0-2]\.png$/);
       if(path==='/v2/uploads/presigned-url'){
         events.push('presign');const key='probe/'+events.length;
         return route.fulfill({headers:cors,json:{data:{url:S3,fields:{key},key,fileName:body.fileName,folderPath:'probe'}}});
@@ -58,7 +60,8 @@ async function checkReferenceFlows(context,Client){
   }
   mode='batch_images';events.length=0;
   const [image]=diagnosticReferences();
-  const batch=await client.checkReferences({...value,model:'aivid_seedance_2_5',prompt:'Use @image1 @image2 @image3.'},[image,image,image]);
+  const batch=await client.checkReferences({...value,model:'aivid_seedance_2_5',prompt:'Use @image1 @image2 @image3.'},
+    [1,2,3].map(byte=>({...image,data:Buffer.concat([image.data,Buffer.from([byte])])})));
   assert.deepEqual(batch.uploadedCounts,{image:3,video:0,audio:0});
   assert.deepEqual(events,['presign','presign','presign','storage','save','storage','save','storage','save']);
   assert.equal(generationRequests,1);
