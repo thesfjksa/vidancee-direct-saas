@@ -496,8 +496,8 @@ async function collectionState(page,{timeoutMs=15000}={}){
 }
 
 class AividBrowserlessClient {
-  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, onProgress = null } = {}) {
-    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.onProgress = onProgress;
+  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, historyDownload = null, onProgress = null } = {}) {
+    this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.historyDownload = historyDownload; this.onProgress = onProgress;
   }
   async withPage(fn) {
     const session = await step('browser_connection', () => this.connect(this.connectUrl), this.onProgress);
@@ -571,9 +571,17 @@ class AividBrowserlessClient {
     if (!ID.test(String(id))) throw new Error('Invalid AIVID job ID.');
     return this.withPage(async page => {
       await page.goto(ORIGIN + '/videos/' + encodeURIComponent(id), { waitUntil: 'domcontentloaded', timeout: 30000 });
-      const state=await collectionState(page);
+      let state,detailError;
+      try{state=await collectionState(page);}catch(error){if(!this.historyDownload)throw error;detailError=error;}
+      if(state==='failed')return {state};
+      if(state==='completed'&&this.download)return {state:'completed',output:await this.download(page)};
+      if(state!=='completed'&&this.historyDownload){
+        await page.goto(ORIGIN+'/generate',{waitUntil:'domcontentloaded',timeout:30000});
+        const output=await this.historyDownload(page,id);
+        if(output)return {state:'completed',output};
+      }
+      if(detailError)throw detailError;
       if(state!=='completed')return {state};
-      if (this.download) return { state: 'completed', output: await this.download(page) };
       const cdp = await page.context().newCDPSession(page);
       let timer, listener;
       try {
