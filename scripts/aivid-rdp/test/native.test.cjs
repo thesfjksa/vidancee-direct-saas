@@ -98,7 +98,13 @@ test('inline media URL is pinned to the observed source storage host and exact j
  const {inlineVideoUrl}=require('../native.cjs'),id='6aee348c6467353c0fd7ded1';
  const good='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-123-'+id+'.mp4?X-Amz-Signature=fixture';
  assert.equal(inlineVideoUrl(good,id),good);
- for(const bad of [good.replace('https:','http:'),good.replace('/generating/','/other/'),good.replace(id,'other-job-id'),good.replace('.com/','.com.evil.test/'),good.replace('https://','https://user:pass@'),good+'#fragment',good.replace('.com/','.com:444/')])assert.equal(inlineVideoUrl(bad,id),null);
+ const distinctAsset=good.replace(id,'other-asset-id');
+ assert.equal(inlineVideoUrl(distinctAsset,id),null);
+ assert.equal(inlineVideoUrl(distinctAsset,id,{jobVerified:true}),distinctAsset);
+ for(const bad of [good.replace('https:','http:'),good.replace('/generating/','/other/'),good.replace('.com/','.com.evil.test/'),good.replace('https://','https://user:pass@'),good+'#fragment',good.replace('.com/','.com:444/')]){
+  assert.equal(inlineVideoUrl(bad,id),null);
+  assert.equal(inlineVideoUrl(bad,id,{jobVerified:true}),null);
+ }
  assert.equal(inlineVideoUrl(good,null),null);
 });
 test('inline transfer enforces status, type, complete bounded body and MP4 signature',async()=>{
