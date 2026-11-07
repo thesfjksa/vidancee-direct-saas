@@ -184,6 +184,28 @@ test('interception blocks duplicate POSTs and private or incomplete requests bef
   await guard.close();
 });
 
+test('request-paused listener is installed before Fetch.enable can pause in-flight requests', async () => {
+  const cdp = new EventEmitter(), calls = [];
+  cdp.send = async (method,args) => {
+    calls.push({method,args});
+    if(method==='Fetch.enable'){
+      assert.equal(cdp.listenerCount('Fetch.requestPaused'),1,
+        'the handler must exist before Fetch.enable emits its first event');
+      cdp.emit('Fetch.requestPaused',{requestId:'already-in-flight',request:{
+        method:'GET',url:'https://aivid.dev/api/session'}}); 
+      await new Promise(resolve=>setImmediate(resolve));
+    }
+  };
+  cdp.detach = async () => {};
+  const guard=await installRequestGuard(
+    {context:()=>({newCDPSession:async()=>cdp})},
+    validateJob(input));
+  assert.ok(calls.some(call=>call.method==='Fetch.continueRequest'&&
+    call.args.requestId==='already-in-flight'),
+    'the first in-flight request must be resumed instead of stranded');
+  await guard.close();
+});
+
 test('background likes refresh does not reject or reserve a video submission', async () => {
   const cdp = new EventEmitter(), calls = [];
   let reservations = 0;

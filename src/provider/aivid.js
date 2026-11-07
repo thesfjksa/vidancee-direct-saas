@@ -85,6 +85,7 @@ const DIAGNOSTICS = Object.freeze({
   submission_aspect_ratio: 'AIVID sent a different aspect ratio in its video request.',
   submission_privacy: 'AIVID did not confirm public visibility in its video request.',
   submission_request: 'The worker blocked an unexpected AIVID request before submission.',
+  request_guard_setup: 'Chrome could not start safe AIVID request monitoring. Close DevTools, restart the Agent, and inspect its log.',
   submission_price_unreadable: 'The worker could not confirm the displayed video price before submission.',
   submission_click: 'The AIVID Generate button did not complete the submission.',
   source_rejected: 'AIVID rejected the video request.',
@@ -442,7 +443,9 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
 }
 
 async function installRequestGuard(page, job, {references=[],beforeGenerate=async()=>{},probe=false,onBlockedRequest}={}) {
-  const cdp = await page.context().newCDPSession(page);
+  let cdp;
+  try { cdp = await page.context().newCDPSession(page); }
+  catch { throw sessionFailure('request_guard_setup'); }
   let guardError = null, allowed = false, armed = false, claimed=false, reportedBlockedRequest=false;
   const failure=deferred(),observed=deferred();
   // Once an exact paid POST was released after reservation, unrelated late
@@ -455,9 +458,10 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
   const uploads=new UploadTracker(references,fail);
   const onResponse=response=>{void uploads.response(response)};
   page.on?.('response',onResponse);
-  // Intercept every mutation, not just today's generation path. If the site
-  // moves generation to a new path or host it must not escape this guard.
-  await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+  // Register the event handler BEFORE enabling interception. Fetch.enable can
+  // immediately emit requestPaused for requests already in flight. If that
+  // first event arrives before the listener exists, Chrome leaves the request
+  // paused forever; opening DevTools can appear to "unstick" the tab.
   const handler = async event => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(event.request.method)) {
       await cdp.send('Fetch.continueRequest', { requestId: event.requestId }).catch(() => {}); return;
@@ -525,9 +529,19 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
     }
   };
   cdp.on('Fetch.requestPaused', handler);
+  // Intercept every mutation, not just today's generation path. If the site
+  // moves generation to a new path or host it must not escape this guard.
+  try {
+    await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+  } catch {
+    cdp.off?.('Fetch.requestPaused', handler);
+    page.off?.('response',onResponse);
+    await cdp.detach().catch(()=>{});
+    throw sessionFailure('request_guard_setup');
+  }
   return { arm() { if(probe)throw new Error('Reference checks cannot authorize generation.');armed = true; },
     failure:failure.promise,observed:observed.promise,get error() { return guardError; }, get allowed() { return allowed; }, get claimed() { return claimed; },
-    close: async () => { page.off?.('response',onResponse);await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
+    close: async () => { cdp.off?.('Fetch.requestPaused',handler);page.off?.('response',onResponse);await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
 }
 
 // Public video pages can say "Video not found." until a newly accepted job
@@ -576,12 +590,12 @@ class AividBrowserlessClient {
       const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
       if (credits.price <= 0 || credits.price > this.maxSourceCredits || credits.balance < credits.price)
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
-      const guard = await installRequestGuard(page, job,{references,onBlockedRequest:this.onBlockedRequest,beforeGenerate:async()=>{
+      const guard = await step('request_guard_setup', () => installRequestGuard(page, job,{references,onBlockedRequest:this.onBlockedRequest,beforeGenerate:async()=>{
         await confirmSubmissionPrice(page, credits.price);
         // Uploads and final file IDs have been verified. Persist the receipt
         // immediately before releasing the one paused paid request.
         await step('submission_reservation',()=>beforeClick({price:credits.price}));
-      }});
+      }}), this.onProgress);
       try {
         const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 120000 }).catch(() => null);
         guard.arm();
@@ -593,6 +607,7 @@ class AividBrowserlessClient {
         // away merely because the click promise rejected after interception.
         if(clickFailed&&!guard.allowed&&!guard.claimed)
           return {state:'rejected',errorCode:guard.error?diagnosticCode(guard.error):'submission_click'};
+        if(this.onProgress)this.onProgress('waiting_for_generation_response');
         const response = await Promise.race([responsePromise,guard.failure.catch(()=>null)]);
         if (guard.error && !guard.allowed) return { state: 'rejected', errorCode: diagnosticCode(guard.error) };
         if (!response) return { state: 'submission_uncertain' };
@@ -601,7 +616,7 @@ class AividBrowserlessClient {
       } finally {
         // Stop the page before removing interception: a late web-app retry
         // must not escape the guard after our response timeout.
-        try{await page.goto('about:blank#cmmtools-worker',{timeout:10000})}catch{await page.close()}
+        try{await page.goto('about:blank#cmmtools-worker',{timeout:10000})}catch{await page.close().catch(()=>{})}
         await guard.close();
       }
     });
