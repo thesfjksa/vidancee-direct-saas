@@ -4,6 +4,17 @@
 **Repository:** `thesfjksa/vidancee-direct-saas`, branch `main`.  
 **Scope:** preserve all confirmed findings from the owner's 7 November AIVID incidents, pull requests, storage error, customer cleanup, and Admin Activity screenshot; updated with the later AIVID collection, Admin history, and retry fixes (#182–#186). This is the current operational handoff; [6 November handoff](PROJECT_HANDOFF_2026-11-06.md) retains architecture, earlier integration work, pricing, and setup.
 
+## Standing workflow for CMMTools changes
+
+The owner authorizes the assistant to push and merge every owner-requested repository change into `main` without a separate confirmation. Update this handoff in the same pull request on every change or push. Record what changed, which checks ran, and what still needs deployment or live verification. Wait for applicable CI before merging, verify the result on `main`, and report any unresolved blocker. See [repository instructions](../AGENTS.md).
+
+## Recent changes in Image Studio and Library
+
+- [#189](https://github.com/thesfjksa/vidancee-direct-saas/pull/189) adds reference uploads for compatible fal.ai Image Edit variants. The existing fal.ai GPT Image 2, GPT Image 2.5 Flare and Sunburst, GPT Image 1.5, and GPT Image 1 Mini selections each accept one optional reference. Attaching an image selects the matching edit endpoint and uses the same estimated edit price for the preview and the credit reservation.
+- The ready fal.ai image worker checks for queued jobs every two seconds instead of five. This reduces pickup delay when a slot is free. The 512 passing local tests cover catalog pairing, reference validation, quote and charge agreement, signed asset delivery, and pickup timing. Provider rendering time still needs a live benchmark.
+- To activate the catalog changes, verify that both Hostinger services are running the merged revision, then run **Admin → Provider → fal.ai → Sync fal.ai image models**, or wait for the worker's scheduled sync. Refresh Image Studio and confirm the reference control appears on the named GPT models and compatible Edit variants. Production deployment and catalog sync remain unverified.
+- [#188](https://github.com/thesfjksa/vidancee-direct-saas/pull/188) merged at `123b6ea`. The signed-in Library's **Download backup** action exports the customer's complete video history for completed jobs and the corresponding prompts in one ZIP. GitHub's Node and browser checks passed. Production deployment remains unverified.
+
 ## Executive status — distinguish code from live service
 
 - **Merged on GitHub:** PRs #175–#186, including documentation-only #181, are merged into `main`. Latest inspected AIVID code checkpoint: PR #186 merge `6aa2ccb9437562fc8c94c2eb3330b4fe78036376` (7 November 2026, 13:17 UTC).
