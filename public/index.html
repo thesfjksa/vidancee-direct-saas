@@ -3110,10 +3110,7 @@ async function createGeneration(){
     }
 
     const freshIndexByKey=new Map();
-    fresh.forEach((item,index)=>{
-      freshIndexByKey.set(item.key,index);
-      form.append('images',item.file,item.filename);
-    });
+    fresh.forEach((item,index)=>freshIndexByKey.set(item.key,index));
 
     form.append('referenceOrder',JSON.stringify(referenceItems.map(item=>
       item.kind==='reused'
@@ -3121,16 +3118,18 @@ async function createGeneration(){
         :{kind:'fresh',index:freshIndexByKey.get(item.key),role:item.role}
     )));
 
-    // Videos and sound go straight to cloud storage when possible: large files
-    // sent through the web host can time out ("Failed to fetch").
+    // Upload reference bytes separately so the generation request stays small.
     const direct=await uploadReferencesDirect([
+      ...fresh.map(item=>({item,kind:'image'})),
       ...videoReferenceItems.map(item=>({item,kind:'video'})),
       ...audioReferenceItems.map(item=>({item,kind:'audio'}))],m);
     assertVideoSubmissionSelection(sent.selection,prompt);
     if(direct){
+      form.append('imageUploads',JSON.stringify(direct.filter(d=>d.kind==='image').map(d=>d.upload)));
       form.append('videoUploads',JSON.stringify(direct.filter(d=>d.kind==='video').map(d=>d.upload)));
       form.append('audioUploads',JSON.stringify(direct.filter(d=>d.kind==='audio').map(d=>d.upload)));
     }else{
+      for(const item of fresh)form.append('images',item.file,item.filename);
       for(const item of videoReferenceItems)form.append('videos',item.file,item.filename);
       for(const item of audioReferenceItems)form.append('audios',item.file,item.filename);
     }
@@ -3274,7 +3273,13 @@ function postFormWithProgress(path,form,onProgress){
       reject(new Error('The server did not answer. Check your library: if the video is not there, click Generate again.'));},90000);};
     xhr.onload=()=>{
       clearTimeout(answerTimer);
-      let d;try{d=JSON.parse(xhr.responseText);}catch{d={ok:false,error:'Invalid server response'};}
+      let d;
+      try{d=JSON.parse(xhr.responseText);}catch{
+        const message=xhr.status===413
+          ?'The host rejected the upload size. Try smaller reference files.'
+          :'The host returned an unexpected response (HTTP '+xhr.status+'). Check your library before retrying.';
+        return reject(Object.assign(new Error(message),{status:xhr.status}));
+      }
       if(xhr.status>=200&&xhr.status<300)return resolve(d);
       reject(Object.assign(new Error(d.error||('HTTP '+xhr.status)),{status:xhr.status}));
     };
@@ -3287,7 +3292,7 @@ async function uploadReferencesDirect(entries,m){
   const out=[];
   try{
     for(const [index,{item,kind}] of entries.entries()){
-      const mimeType=item.file.type||(kind==='video'?'video/mp4':'audio/mpeg');
+      const mimeType=item.file.type||{image:'image/jpeg',video:'video/mp4',audio:'audio/mpeg'}[kind];
       // Time-limited with one retry: a request sent while the web app restarts
       // can otherwise wait forever.
       let link;
@@ -3295,7 +3300,7 @@ async function uploadReferencesDirect(entries,m){
         try{link=await api('/api/uploads/presign',{method:'POST',body:JSON.stringify({kind,mimeType,size:item.file.size}),signal:AbortSignal.timeout(15000)});break;}
         catch(e){if(e.name!=='TimeoutError'||attempt>=1)throw e.name==='TimeoutError'?new Error('The server did not respond. Please try again in a moment.'):e;}
       }
-      const label=(kind==='video'?'video':'sound')+(entries.length>1?' '+(index+1)+' of '+entries.length:'');
+      const label=(kind==='audio'?'sound':kind)+(entries.length>1?' '+(index+1)+' of '+entries.length:'');
       await new Promise((resolve,reject)=>{
         const xhr=new XMLHttpRequest();
         xhr.open('PUT',link.url);
