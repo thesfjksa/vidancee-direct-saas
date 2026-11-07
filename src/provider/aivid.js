@@ -441,9 +441,9 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   return job;
 }
 
-async function installRequestGuard(page, job, {references=[],beforeGenerate=async()=>{},probe=false}={}) {
+async function installRequestGuard(page, job, {references=[],beforeGenerate=async()=>{},probe=false,onBlockedRequest}={}) {
   const cdp = await page.context().newCDPSession(page);
-  let guardError = null, allowed = false, armed = false, claimed=false;
+  let guardError = null, allowed = false, armed = false, claimed=false, reportedBlockedRequest=false;
   const failure=deferred(),observed=deferred();
   const fail=error=>{guardError=error;failure.reject(error)};
   const uploads=new UploadTracker(references,fail);
@@ -467,13 +467,29 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
       if(await uploads.before(event.request)){
         await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
       }
+      // The generation page refreshes card likes while the submission guard is active.
+      if (event.request.method === 'POST' && url.origin === API &&
+          url.pathname === '/v2/interactions/likes/bulk' && !url.search && !url.username && !url.password) {
+        await cdp.send('Fetch.continueRequest', { requestId: event.requestId }); return;
+      }
       if(event.request.method==='POST'&&url.origin===API&&url.pathname==='/v2/sensitive-keywords/check'&&!url.search){
         const check=JSON.parse(event.request.postData||'{}');
         if(normalizePrompt(check.prompt)!==job.prompt)throw sessionFailure('submission_prompt');
         await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
       }
-      if (event.request.method !== 'POST' || url.origin !== API || url.pathname !== '/v2/generations' || url.search)
+      if (event.request.method !== 'POST' || url.origin !== API || url.pathname !== '/v2/generations' || url.search) {
+        if (onBlockedRequest && !reportedBlockedRequest) {
+          reportedBlockedRequest = true;
+          const method = /^[A-Z]{1,16}$/.test(event.request.method) ? event.request.method : 'UNKNOWN';
+          // Keep diagnostic output local and omit URL credentials, query values,
+          // headers, bodies and path segments that look like opaque identifiers.
+          const path = url.pathname.split('/').slice(0,9).map(part =>
+            /^[a-z][a-z0-9._-]{0,31}$/i.test(part) && !/^[0-9a-f]{16,}$/i.test(part) ? part : part ? '[redacted]' : ''
+          ).join('/');
+          try { onBlockedRequest({method, hostname:url.hostname, path}); } catch {}
+        }
         throw sessionFailure('submission_request');
+      }
       if (allowed||claimed) throw new Error('A second AIVID submission was blocked.');
       const body = JSON.parse(event.request.postData || '{}');
       const uploaded=await uploads.completed();
@@ -522,8 +538,9 @@ async function collectionState(page,{timeoutMs=15000}={}){
 }
 
 class AividBrowserlessClient {
-  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, historyDownload = null, onProgress = null } = {}) {
+  constructor({ connectUrl, maxSourceCredits = 0, connect = connectSession, download = null, historyDownload = null, onProgress = null, onBlockedRequest = null } = {}) {
     this.connectUrl = connectUrl; this.maxSourceCredits = maxSourceCredits; this.connect = connect; this.download = download; this.historyDownload = historyDownload; this.onProgress = onProgress;
+    this.onBlockedRequest = onBlockedRequest;
   }
   async withPage(fn) {
     const session = await step('browser_connection', () => this.connect(this.connectUrl), this.onProgress);
@@ -546,7 +563,7 @@ class AividBrowserlessClient {
       const credits = await step('credit_reading', async () => creditState(await page.locator('body').innerText()), this.onProgress);
       if (credits.price <= 0 || credits.price > this.maxSourceCredits || credits.balance < credits.price)
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
-      const guard = await installRequestGuard(page, job,{references,beforeGenerate:async()=>{
+      const guard = await installRequestGuard(page, job,{references,onBlockedRequest:this.onBlockedRequest,beforeGenerate:async()=>{
         await confirmSubmissionPrice(page, credits.price);
         // Uploads and final file IDs have been verified. Persist the receipt
         // immediately before releasing the one paused paid request.
@@ -576,7 +593,7 @@ class AividBrowserlessClient {
       const job=await prepare(page,value,references,{onProgress:this.onProgress});
       const before=creditState(await page.locator('body').innerText());
       if(before.balance<before.price)throw new Error('AIVID needs sufficient balance to open its upload flow; no video will be submitted.');
-      const guard=await installRequestGuard(page,job,{references,probe:true,beforeGenerate:()=>confirmSubmissionPrice(page,before.price)});
+      const guard=await installRequestGuard(page,job,{references,probe:true,onBlockedRequest:this.onBlockedRequest,beforeGenerate:()=>confirmSubmissionPrice(page,before.price)});
       try{
         const check=Promise.race([guard.observed,guard.failure]);check.catch(()=>{});
         await page.locator('main').first().getByRole('button',{name:'Generate',exact:true}).click();

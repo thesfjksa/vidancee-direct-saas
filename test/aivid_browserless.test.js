@@ -146,23 +146,63 @@ test('paid request guard requires exact settings, public visibility and every re
 });
 
 test('interception blocks duplicate POSTs and private or incomplete requests before forwarding', async () => {
-  const cdp = new EventEmitter(), calls = [];
+  const cdp = new EventEmitter(), calls = [], blocked = [];
   cdp.send = async (method, args) => { calls.push({ method, args }); };
   cdp.detach = async () => {};
-  const guard = await installRequestGuard({ context: () => ({ newCDPSession: async () => cdp }) }, validateJob(input));
+  const guard = await installRequestGuard({ context: () => ({ newCDPSession: async () => cdp }) }, validateJob(input),
+    { onBlockedRequest: request => blocked.push(request) });
   const handler = cdp.listeners('Fetch.requestPaused')[0];
   const url = 'https://api.aivid.dev/v2/generations';
   await handler({ requestId: 'too-early', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest'); assert.equal(guard.allowed, false);
   guard.arm();
+  await handler({ requestId: 'card-likes', request: {
+    url: 'https://api.aivid.dev/v2/interactions/likes/bulk', method: 'POST', postData: '{}' } });
+  assert.equal(calls.at(-1).method, 'Fetch.continueRequest');
+  assert.equal(guard.allowed, false);
+  assert.equal(blocked.length, 0);
+  for (const endpoint of [
+    'https://api.aivid.dev/v2/interactions/likes/bulk?extra=1',
+    'https://api.aivid.dev/v2/interactions/likes',
+    'https://other.example/v2/interactions/likes/bulk'
+  ]) {
+    await handler({ requestId: 'unknown-interaction', request: {url:endpoint, method:'POST'} });
+    assert.equal(calls.at(-1).method, 'Fetch.failRequest');
+  }
+  assert.deepEqual(blocked, [{method:'POST', hostname:'api.aivid.dev', path:'/v2/interactions/likes/bulk'}]);
   await handler({ requestId: 'private', request: { url, method: 'POST', postData: JSON.stringify({ ...payload, isPublic: false }) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
-  await handler({ requestId: 'moved-endpoint', request: { url: 'https://api.aivid.dev/v3/generations', method: 'POST', postData: JSON.stringify(payload) } });
+  await handler({ requestId: 'moved-endpoint', request: {
+    url: 'https://user:secret@api.aivid.dev/v3/generations/abcdef0123456789?token=secret',
+    method: 'POST', postData: JSON.stringify(payload)
+  } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
   await handler({ requestId: 'first', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
   await handler({ requestId: 'duplicate', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
-  assert.equal(calls.filter(c => c.method === 'Fetch.continueRequest').length, 1);
+  assert.equal(calls.filter(c => c.method === 'Fetch.continueRequest').length, 2);
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
+  await guard.close();
+});
+
+test('background likes refresh does not reject or reserve a video submission', async () => {
+  const cdp = new EventEmitter(), calls = [];
+  let reservations = 0;
+  cdp.send = async (method, args) => { calls.push({method, args}); };
+  cdp.detach = async () => {};
+  const guard = await installRequestGuard({context: () => ({newCDPSession: async () => cdp})},
+    validateJob(input), {beforeGenerate: async () => { reservations++; }});
+  const handler = cdp.listeners('Fetch.requestPaused')[0];
+  guard.arm();
+  await handler({requestId:'likes', request:{method:'POST', url:'https://api.aivid.dev/v2/interactions/likes/bulk'}});
+  assert.equal(guard.error, null);
+  assert.equal(guard.allowed, false);
+  assert.equal(reservations, 0);
+  await handler({requestId:'video', request:{method:'POST', url:'https://api.aivid.dev/v2/generations',
+    postData:JSON.stringify(payload)}});
+  assert.equal(guard.error, null);
+  assert.equal(guard.allowed, true);
+  assert.equal(reservations, 1);
+  assert.deepEqual(calls.filter(call => call.method === 'Fetch.continueRequest').map(call => call.args.requestId), ['likes','video']);
   await guard.close();
 });
 
