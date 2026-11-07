@@ -368,7 +368,7 @@ test('unclassified RDP dispatch error reports a safe stage and never leaks raw e
   let message='';
   f.q.refund=async(...args)=>{message=args[2];return original(...args)};
   await f.q.runOnce(f.db);
-  assert.match(message,/\\[rdp_dispatch\\]/);
+  assert.match(message,/\[rdp_dispatch\]/);
   assert.doesNotMatch(message,/private\\.example|do-not-log-this/);
   assert.equal(f.stats().refunds,1);
   assert.equal(f.job.status,'failed');
@@ -382,7 +382,7 @@ test('reference retrieval and pre-reservation errors show distinct codes without
   const originalRefund=refs.q.refund;
   refs.q.refund=async(...args)=>{refMessage=args[2];return originalRefund(...args)};
   await refs.q.runOnce(refs.db);
-  assert.match(refMessage,/\\[reference_storage\\]/);
+  assert.match(refMessage,/\[reference_storage\]/);
   assert.doesNotMatch(refMessage,/credentials|HTTP 500/);
   assert.equal(refs.stats().submissions,0);
   assert.equal(refs.stats().refunds,1);
@@ -394,7 +394,7 @@ test('reference retrieval and pre-reservation errors show distinct codes without
   const refund=reservation.q.refund;
   reservation.q.refund=async(...args)=>{reservationMessage=args[2];return refund(...args)};
   await reservation.q.runOnce(reservation.db);
-  assert.match(reservationMessage,/\\[reservation_precheck\\]/);
+  assert.match(reservationMessage,/\[reservation_precheck\]/);
   assert.doesNotMatch(reservationMessage,/MySQL error/);
   assert.equal(reservation.stats().refunds,1);
   assert.equal(reservation.stats().submissions,1);
