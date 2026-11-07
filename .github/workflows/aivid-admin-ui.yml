@@ -11,6 +11,8 @@ on:
       - 'scripts/check-aivid-admin-ui.cjs'
       - 'src/provider/aivid.js'
       - 'scripts/aivid-rdp/fixtures/**'
+      - 'scripts/aivid-rdp/agent.cjs'
+      - 'src/aivid_rdp.js'
       - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
   push:
@@ -24,6 +26,8 @@ on:
       - 'scripts/check-aivid-admin-ui.cjs'
       - 'src/provider/aivid.js'
       - 'scripts/aivid-rdp/fixtures/**'
+      - 'scripts/aivid-rdp/agent.cjs'
+      - 'src/aivid_rdp.js'
       - 'scripts/check-provider-admin-ui.cjs'
       - '.github/workflows/aivid-admin-ui.yml'
 permissions:

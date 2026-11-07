@@ -107,6 +107,7 @@ class AividRdpClient {
         ({ index, kind: r.kind, mimeType: r.mimeType, size: r.data.length, sha256: hash(r.data) })) } };
     await this.store.insert(command);
     let reserved = false;
+    let commandFinished = false;
     try {
       while (this.now() < command.expiresAt) {
         const current = await this.store.get(command.id);
@@ -120,6 +121,7 @@ class AividRdpClient {
           if (!await this.store.move(command.id, 'review', 'reserved', { price })) throw failure('The RDP reservation expired.', 409);
         }
         if (current.state === 'done') {
+          commandFinished = true;
           if (kind === 'submit' && !reserved && current.response.state!=='rejected' && !current.response.error) throw failure('RDP submission had no server reservation.', 409);
           if (current.response.error) throw Object.assign(failure(current.response.errorCode
             ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
@@ -132,11 +134,14 @@ class AividRdpClient {
       }
       throw failure('The RDP agent did not finish in time. Check that it is running and signed in.', 503);
     } finally {
-      // Cancel first: a late agent cannot obtain a reservation after a safe refund.
-      await this.store.cancel(command.id);
-      // Completed artifacts are consumed or safely re-collected by source ID.
-      const final = await this.store.get(command.id);
-      if (final?.state === 'done') await this.store.remove(command.id);
+      if (commandFinished) {
+        // Expired rows are pruned on future inserts. A cleanup failure must
+        // not discard an already accepted provider ID or a verified output.
+        await this.store.remove(command.id).catch(() => {});
+      } else {
+        // A late agent cannot obtain a reservation after a safe refund.
+        await this.store.cancel(command.id);
+      }
     }
   }
   preflight(value, references = []) {
