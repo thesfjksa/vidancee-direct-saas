@@ -3,11 +3,20 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {describeFalImageModel,FalImageClient,publicId,isFalImageModel}=require('../src/fal_images.js');
 const {quoteGateway,validateReferences}=require('../src/vercel_models.js');
+const {serializeImageGeneration}=require('../src/image_generations.js');
 
 const entry=(endpoint,props,required=['prompt'])=>({endpoint_id:endpoint,metadata:{display_name:'Test Model Text to Image',status:'active'},openapi:{
   paths:{['/'+endpoint]:{post:{requestBody:{content:{'application/json':{schema:{$ref:'#/components/schemas/Input'}}}}}}},
   components:{schemas:{Input:{properties:{prompt:{type:'string'},...props},required}}}}});
 const imageSize={image_size:{anyOf:[{$ref:'#/components/schemas/ImageSize'},{enum:['square_hd','square','portrait_4_3','portrait_16_9','landscape_4_3','landscape_16_9'],type:'string'}]},num_images:{type:'integer'}};
+
+test('fal image history recovers the selected quality from earlier saved quotes',()=>{
+  const row={provider:'falimg',image_quality:null,generation_options:'{"quality":"low"}'};
+  assert.equal(serializeImageGeneration(row).quality,'low');
+  assert.equal(serializeImageGeneration({...row,image_quality:'medium'}).quality,'medium');
+  assert.equal(serializeImageGeneration({...row,generation_options:'invalid json'}).quality,null);
+  assert.equal(serializeImageGeneration({...row,provider:'vercel'}).quality,null);
+});
 
 test('a fal text-to-image model maps presets, custom sizes and per-megapixel prices',()=>{
   const m=describeFalImageModel(entry('fal-ai/flux/dev',imageSize),{unit_price:0.025,unit:'megapixels',currency:'USD'});

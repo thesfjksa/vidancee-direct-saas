@@ -1025,6 +1025,7 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
     generation=await createImage(user.id,{...input,aspectRatio:quote.aspectRatio},{
       provider:FAL_IMAGE_PROVIDER,dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:quote.isEstimate?'usd-estimate':'usd',
+      imageQuality:quote.quality,
       generationOptions:{...quote,model},
     });
   }
