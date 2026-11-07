@@ -99,10 +99,10 @@ async function readInlineVideo(url,{fetchImpl=fetch,signal}={}) {
     return mp4Output(Buffer.concat(chunks,size));
   }catch(error){await response.body?.cancel?.().catch(()=>{});throw error;}
 }
-async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000}={}) {
+async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:requestedId,button=null}={}) {
   let download,resolveInline,rejectInline,rejectBlocked,success=false,mediaStarted=false,timer,nativeListener;
   const owned=new Map(),controller=new AbortController();
-  const jobId=(()=>{try{const u=new URL(page.url());return u.origin==='https://aivid.dev'?u.pathname.match(/^\/videos\/([a-z0-9_-]+)$/i)?.[1]:null;}catch{return null;}})();
+  const jobId=(()=>{try{const u=new URL(page.url());return u.origin==='https://aivid.dev'?(requestedId||u.pathname.match(/^\/videos\/([a-z0-9_-]+)$/i)?.[1]):null;}catch{return null;}})();
   const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
   const inline=new Promise((resolve,reject)=>{resolveInline=resolve;rejectInline=reject});inline.catch(()=>{});
   const timed=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Download timed out.'));},timeoutMs)});timed.catch(()=>{});
@@ -134,7 +134,7 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000}={}) {
   page.context?.().on('page',popup);page.on?.('popup',directPopup);page.on?.('domcontentloaded',navigated);
   try {
     const pending=page.on?new Promise(resolve=>{nativeListener=resolve;page.on('download',nativeListener)}):page.waitForEvent('download',{timeout:timeoutMs});pending.catch(()=>{});
-    await page.getByRole('button', { name: 'Download Video', exact: true }).click();
+    await (button||page.getByRole('button', { name: 'Download Video', exact: true })).click();
     const result=await Promise.race([pending,popupFile,inline,blocked,timed]);
     if(result?.mimeType==='video/mp4'){success=true;return result;}
     download=result;
@@ -155,6 +155,40 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000}={}) {
   }
 }
 
+// The account history's Save button is an alternative to the public detail
+// page. Match the actual media source ID, never card order or prompt text.
+async function downloadSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000,findTimeoutMs=5000}={}) {
+  if(!/^[a-z0-9_-]{8,100}$/i.test(String(id))||new URL(page.url()).origin!=='https://aivid.dev'||new URL(page.url()).pathname!=='/generate')return null;
+  const marker='cmm-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+  const deadline=Date.now()+findTimeoutMs;
+  let matched=false;
+  try {
+    do {
+      matched=await page.evaluate(({id,host,marker})=>{
+        const matches=[];
+        for(const video of document.querySelectorAll('video')){
+          const sources=[video.currentSrc,video.src,...Array.from(video.querySelectorAll('source'),s=>s.src)];
+          if(!sources.some(src=>{try{const u=new URL(src);return u.protocol==='https:'&&u.hostname===host&&u.pathname.startsWith('/generating/')&&u.pathname.endsWith('-'+id+'.mp4');}catch{return false;}}))continue;
+          let card=video.parentElement;
+          for(let n=0;card&&n<8;n++,card=card.parentElement){
+            if(card.querySelectorAll('video').length!==1)break;
+            const buttons=Array.from(card.querySelectorAll('button,[role="button"],a[href]')).filter(b=>[b.getAttribute('aria-label'),b.textContent].some(text=>(text||'').trim()==='Save'));
+            if(buttons.length===1){matches.push(buttons[0]);break;}
+          }
+        }
+        if(matches.length!==1)return false;
+        matches[0].setAttribute('data-cmmtools-save',marker);return true;
+      },{id,host:MEDIA_HOST,marker});
+      if(matched)break;
+      await pause(200);
+    }while(Date.now()<deadline);
+    if(!matched)return null;
+    const button=page.locator('[data-cmmtools-save="'+marker+'"]');
+    await button.scrollIntoViewIfNeeded();
+    return await downloadNative(page,{jobId:id,button,fetchImpl,timeoutMs});
+  }finally{if(matched)await page.locator('[data-cmmtools-save="'+marker+'"]').evaluate(el=>el.removeAttribute('data-cmmtools-save')).catch(()=>{});}
+}
+
 async function takeLock(root) {
   const file = path.join(root, '.aivid-agent.lock');
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -171,4 +205,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { downloadSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };

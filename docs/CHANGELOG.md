@@ -1,5 +1,6 @@
 ## AIVID inline MP4 collection
 
+- RDP collection first opens account history, scrolls to the single video card whose media filename matches the accepted source ID, and clicks its Save button. Missing or ambiguous cards fall back to the existing public detail check; card order and prompt text are never used as identity.
 - Handle Download Video opening a playable media tab instead of emitting a file download. Only the source button's popup (including noopener) or work-tab navigation is eligible, pinned to the observed storage hostname and the exact accepted source ID.
 - Fetch the observed media with normal TLS, no copied authentication or cookies, no redirects, a bounded streaming size, complete-length validation and an MP4 header check. Expired links, HTML/error pages and partial responses remain retryable collection failures. Owned media popups close only after success.
 - Genuine Chrome security warnings still stop collection without any click-through or security override. The centrally served native module updates managed workers between jobs; no Windows reinstall is needed. Existing paused jobs require reviewed Admin Retry collection, never regeneration.

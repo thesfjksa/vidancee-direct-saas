@@ -333,3 +333,13 @@ test('collection errors back off and pause instead of creating unlimited browser
  await reconcileAivid(f.db,f.job.id,{action:'retry_collection'});
  assert.equal(JSON.parse(f.job.provider_operation).collectionPaused,undefined);
 });
+
+
+test('native history collection returns existing media without opening a public detail or submitting again',async()=>{
+ const visited=[],output={data:Buffer.from('0000ftypisom0000'),mimeType:'video/mp4'};
+ const page={goto:async url=>visited.push(url)};
+ const client=new AividBrowserlessClient({historyDownload:async(p,id)=>{assert.equal(p,page);assert.equal(id,'6aee348c6467353c0fd7ded1');return output;},download:async()=>{throw Error('detail download not expected')}});
+ client.withPage=async fn=>fn(page);
+ assert.deepEqual(await client.collectVideo('6aee348c6467353c0fd7ded1'),{state:'completed',output});
+ assert.deepEqual(visited,['https://aivid.dev/generate']);
+});
