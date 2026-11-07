@@ -7,6 +7,8 @@ const { getProviderSettings } = require('./settings.js');
 const { getAividSettings } = require('./aivid_settings.js');
 const { AividBrowserlessClient, ID, DIAGNOSTICS, diagnosticMessage } = require('./provider/aivid.js');
 
+const MEDIA_RETRY_LIMIT = 100; // About 24 hours with the 15-minute backoff cap.
+
 function operation(job) {
   try { return JSON.parse(job.provider_operation || '{}') || {}; } catch { return {}; }
 }
@@ -45,7 +47,7 @@ class AividQueue extends VercelQueue {
     this.collectionWaitingForAgent = false;
     this.maxSourceInflight=Math.max(1,Math.min(10,Math.floor(Number(process.env.AIVID_MAX_INFLIGHT)||3)));
   }
-  health(){return {...super.health(),collectionGuardRevision:1,collectionRetryRevision:1,multiQueueRevision:1,maxSourceInflight:this.maxSourceInflight,collectionWaitingForAgent:this.collectionWaitingForAgent};}
+  health(){return {...super.health(),collectionGuardRevision:1,collectionRetryRevision:2,multiQueueRevision:1,maxSourceInflight:this.maxSourceInflight,collectionWaitingForAgent:this.collectionWaitingForAgent};}
   schedule(delay = 30000) { return super.schedule(delay); }
   async runOnce(db = getPool(), settings = null) {
     const config = await this.getConfig();
@@ -75,12 +77,13 @@ class AividQueue extends VercelQueue {
         } else await this.hold(db, job);
       }
       const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY (provider_job_id IS NULL OR provider_operation LIKE '%review_required%'),updated_at LIMIT 50");
-      let inflight=active.filter(row=>operation(row).stage!=='review_required'&&!operation(row).collectionPaused&&ID.test(String(row.provider_job_id||''))).length;
-      if (inflight) {
-        // A held/invalid older job must not starve other accepted videos.
-        // If all rows need review, preserve the pause on new submissions.
-        const job=active.find(row=>operation(row).stage!=='review_required'&&!operation(row).collectionPaused&&!(Number(operation(row).collectionNextAt)>Date.now())&&ID.test(String(row.provider_job_id||'')));
-        if(job){
+      const collectable=active.map(row=>({row,op:operation(row)})).filter(({row,op})=>
+        op.stage!=='review_required'&&!op.collectionPaused&&ID.test(String(row.provider_job_id||'')));
+      let inflight=collectable.filter(({op})=>!op.collectionMediaPending).length;
+      // Skip held jobs and jobs whose next transfer check is still in backoff.
+      const nextJob=collectable.find(({op})=>!(Number(op.collectionNextAt)>Date.now()));
+      if(nextJob){
+        const {row:job,op}=nextJob;
         // A needs_login agent cannot claim collection commands. Waiting for
         // one here held the browser lock for 180 seconds, blocking the very
         // Admin preflight that could restore readiness. Keep the accepted ID
@@ -89,13 +92,16 @@ class AividQueue extends VercelQueue {
           this.collectionWaitingForAgent=true;return;
         }
         this.tasks.add(job.id);
-        try { const state=await this.pollJob(db, client, job);if(['completed','failed'].includes(state))inflight--; }
+        try { const state=await this.pollJob(db, client, job);if(!op.collectionMediaPending&&['completed','failed'].includes(state))inflight--; }
         catch(error) {
           // Sign-out, missing/private detail page, source failure, download or
           // storage failures retain the accepted ID; never resubmit or refund.
-          const op=operation(job),attempts=(Number(op.collectionFailures)||0)+1;
+          const attempts=(Number(op.collectionFailures)||0)+1;
           const code=Object.hasOwn(DIAGNOSTICS,error?.aividCode)?error.aividCode:(rdp?'collection_relay':'collection_download');
-          const paused=attempts>=3||code==='download_security';
+          // The RDP collector only emits these after matching a completed
+          // AIVID job. A temporary transfer failure uses no generation slot.
+          const mediaPending=Boolean(rdp)&&['collection_media_pending','collection_download'].includes(code);
+          const paused=attempts>=(mediaPending?MEDIA_RETRY_LIMIT:3)||code==='download_security';
           const storageStatus=Number(error?.storageStatus);
           logActivity({
             level:'warn',category:'aivid',event:'aivid.collection_failed',provider:'aivid',
@@ -103,13 +109,13 @@ class AividQueue extends VercelQueue {
             details:{code,attempts,paused,providerJobId:job.provider_job_id,...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})}
           });
           const next=paused?'Collection is paused. The existing video is preserved.':'The existing video will be checked again after a delay.';
+          const errorMessage=mediaPending&&!paused?null:'['+code+'] '+diagnosticMessage(code)+' '+next;
           await db.execute("UPDATE generations SET provider_operation=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
-            [JSON.stringify({...op,collectionFailures:attempts,collectionPaused:paused,collectionNextAt:Date.now()+Math.min(900000,60000*2**(attempts-1))}),
-            '['+code+'] '+diagnosticMessage(code)+' '+next,job.id]);
-          if(paused)inflight--;
+            [JSON.stringify({...op,collectionFailures:attempts,collectionPaused:paused,collectionMediaPending:op.collectionMediaPending||mediaPending,collectionNextAt:Date.now()+Math.min(900000,60000*2**(attempts-1))}),
+            errorMessage,job.id]);
+          if(!op.collectionMediaPending&&(paused||mediaPending))inflight--;
 
         } finally { this.tasks.delete(job.id); }
-        }
       }
       if(inflight>=this.maxSourceInflight)return;
       if (!this.sourceReady || this.stopped) return;

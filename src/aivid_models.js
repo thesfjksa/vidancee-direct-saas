@@ -14,10 +14,14 @@ const isAividModel = id => byId.has(String(id||''));
 const aividModel = id => byId.get(String(id||''))||null;
 const DEFAULT_ID = SPECS[0].id;
 
+function aividReferenceVideoLimit(spec) {
+  return {minClipSeconds:2,totalSeconds:spec.id==='aivid_seedance_2_5'?30:15,toleranceSeconds:0};
+}
+
 function capabilities(spec) {
   const kind=(name,role)=>({supported:true,max:spec.refs[name],min:0,roles:[role],requiredRoles:[]});
   return {totalMax:spec.refs.image+spec.refs.video+spec.refs.audio,
-    image:kind('image','image_references'),video:kind('video','video_references'),audio:kind('audio','audio_references')};
+    image:kind('image','image_references'),video:{...kind('video','video_references'),formats:['mp4','mov'],maxBytes:30*1024*1024,maxTotalSeconds:aividReferenceVideoLimit(spec).totalSeconds},audio:kind('audio','audio_references')};
 }
 function modelEntry(m){
   const durations=Array.from({length:m.maxSeconds-3},(_,i)=>({seconds:i+4,label:(i+4)+' sec',cost:null}));
@@ -96,4 +100,4 @@ async function quoteAivid(config,body,{db}={}){
   return {cost:aividBaseCredits(sourceCredits),sourceUsd:aividSourceUsd(sourceCredits),isEstimate:body.previewHasReferences===true,
     sourceCredits,modelId:model.id,duration:value.duration,resolution:value.resolution,aspectRatio:value.aspectRatio};
 }
-module.exports={SPECS,DEFAULT_ID,isAividModel,aividModel,capabilities,customerCatalog,aividReady,aividConfigured,assertOptions,quoteAivid};
+module.exports={SPECS,DEFAULT_ID,isAividModel,aividModel,capabilities,customerCatalog,aividReady,aividConfigured,assertOptions,quoteAivid,aividReferenceVideoLimit};

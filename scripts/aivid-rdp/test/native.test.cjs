@@ -113,6 +113,15 @@ test('inline transfer enforces status, type, complete bounded body and MP4 signa
  assert.equal(options.redirect,'error');assert.equal(options.credentials,'omit');assert.equal(options.headers,undefined);
  for(const response of [new Response(clip,{status:403}),new Response(clip,{status:206,headers:{'content-type':'video/mp4'}}),new Response('<html>Sign in</html>',{headers:{'content-type':'text/html'}}),new Response('not valid video',{headers:{'content-type':'video/mp4'}}),new Response(clip,{headers:{'content-type':'video/mp4','content-length':'200'}}),new Response(clip,{headers:{'content-type':'video/mp4','content-length':String(100*1024*1024+1)}})])await assert.rejects(readInlineVideo('https://fixture.test/clip',{fetchImpl:async()=>response}));
 });
+test('media delivery failures are retryable while invalid files stay rejected',async()=>{
+ const {readInlineVideo}=require('../native.cjs'),url='https://fixture.test/clip',clip=Buffer.from('0000ftypisom0000');
+ for(const status of [403,404,408,425,429,500,503]){
+  await assert.rejects(readInlineVideo(url,{fetchImpl:async()=>new Response(null,{status})}),{aividCode:'collection_media_pending'});
+ }
+ await assert.rejects(readInlineVideo(url,{fetchImpl:async()=>{throw Error('connection interrupted');}}),{aividCode:'collection_media_pending'});
+ await assert.rejects(readInlineVideo(url,{fetchImpl:async()=>new Response(clip,{headers:{'content-type':'video/mp4','content-length':'200'}})}),{aividCode:'collection_media_pending'});
+ await assert.rejects(readInlineVideo(url,{fetchImpl:async()=>new Response('<html>error</html>',{headers:{'content-type':'video/mp4'}})}),/Invalid MP4/);
+});
 test('inline popup completes without a download event and closes only the owned media tab',async()=>{
  const {EventEmitter}=require('node:events'),context=new EventEmitter(),page=new EventEmitter(),popup=new EventEmitter();
  const id='6aee348c6467353c0fd7ded1',url='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-'+id+'.mp4?X-Amz-Signature=fixture',clip=Buffer.from('0000ftypisom0000');let closed=0,fetches=0;
