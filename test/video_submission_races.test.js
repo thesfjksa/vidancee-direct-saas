@@ -70,3 +70,19 @@ test('Premium reuse displays the prior cost immediately and shares a live quote 
  await Promise.all([first,second]);
  assert.equal(fields.cost.textContent,900);
 });
+
+test('three fresh reference images upload separately and retain their generation order',async()=>{
+ const f=fixture(),uploads=[];
+ f.ctx.referenceItems=['first','second','third'].map(key=>({key,kind:'fresh',role:'image_references',file:{},filename:key+'.png'}));
+ f.ctx.uploadReferencesDirect=async entries=>{
+  uploads.push(...entries);
+  return entries.map(({item,kind})=>({kind,upload:{key:item.key,filename:item.filename,mimeType:'image/png'}}));
+ };
+ const running=f.run();f.enhance.resolve();await flush();
+ assert.deepEqual(uploads.map(({item,kind})=>[kind,item.key]),[['image','first'],['image','second'],['image','third']]);
+ const parts=new Map(f.forms[0].parts);
+ assert.deepEqual(JSON.parse(parts.get('imageUploads')).map(item=>item.key),['first','second','third']);
+ assert.deepEqual(JSON.parse(parts.get('referenceOrder')).map(item=>item.index),[0,1,2]);
+ assert.equal(parts.has('images'),false);
+ f.post.resolve();await running;
+});

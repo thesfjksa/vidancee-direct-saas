@@ -1,15 +1,16 @@
 'use strict';
-// Customers' browsers upload large reference files (videos, sound) straight to
+// Customers' browsers upload large reference files straight to
 // cloud storage with short-lived presigned PUT links, because slow uploads
 // through the web host time out ("Failed to fetch"). The generation request
 // then carries only the object keys.
 const crypto=require('node:crypto');
 const {configuredStorage}=require('./object_storage.js');
 
-const KINDS={
+const KINDS=Object.assign(Object.create(null),{
+  image:{types:['image/jpeg','image/png','image/webp'],maxBytes:10*1024*1024,field:'images',label:'Each image must be 10 MB or smaller.',format:'Images must be JPEG, PNG, or WebP.',maxFiles:30},
   video:{types:['video/mp4','video/webm','video/quicktime'],maxBytes:25*1024*1024,field:'videos',label:'Each video reference must be 25 MB or smaller.'},
   audio:{types:['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/vnd.wave'],maxBytes:15*1024*1024,field:'audios',label:'Each sound reference must be 15 MB or smaller.'},
-};
+});
 const UPLOAD_SECONDS=15*60;
 const fail=(message,statusCode=400)=>{throw Object.assign(new Error(message),{statusCode});};
 const prefixFor=userId=>'uploads/'+Number(userId)+'/';
@@ -18,7 +19,7 @@ async function presignUpload(userId,{kind,mimeType,size}={},{store}={}){
   const spec=KINDS[kind];
   if(!spec)fail('Unsupported upload type.');
   const type=String(mimeType||'').toLowerCase();
-  if(!spec.types.includes(type))fail(kind==='video'?'Video references must be MP4, WebM, or MOV.':'Sound references must be MP3 or WAV.');
+  if(!spec.types.includes(type))fail(spec.format||(kind==='video'?'Video references must be MP4, WebM, or MOV.':'Sound references must be MP3 or WAV.'));
   if(!(Number(size)>0)||Number(size)>spec.maxBytes)fail(spec.label,413);
   store=store||await configuredStorage();
   if(!store)fail('Direct uploads are not available.',409);
@@ -26,17 +27,19 @@ async function presignUpload(userId,{kind,mimeType,size}={},{store}={}){
   return {key,url:store.presign(key,{method:'PUT',expires:UPLOAD_SECONDS}),expiresIn:UPLOAD_SECONDS};
 }
 
-// Reads `videoUploads` / `audioUploads` ([{key,filename,mimeType}]) from a
-// generation form and appends the files to body.videos / body.audios.
+// Resolves the temporary reference uploads into the generation form.
 // Returns the temporary keys, to delete once the request is handled.
 async function collectDirectUploads(body,userId,{store}={}){
   const keys=[];
+  const maxTotalBytes=100*1024*1024;
+  let totalBytes=Object.values(KINDS).reduce((total,spec)=>total+
+    (Array.isArray(body[spec.field])?body[spec.field].reduce((sum,file)=>sum+(file?.data?.length||0),0):0),0);
   for(const [kind,spec] of Object.entries(KINDS)){
     let list=body[kind+'Uploads'];
     delete body[kind+'Uploads'];
     if(!list)continue;
     try{list=typeof list==='string'?JSON.parse(list):list;}catch{fail('Invalid uploaded file list.');}
-    if(!Array.isArray(list)||list.length>10)fail('Invalid uploaded file list.');
+    if(!Array.isArray(list)||list.length>(spec.maxFiles||10))fail('Invalid uploaded file list.');
     if(!list.length)continue;
     store=store||await configuredStorage({requireEnabled:false});
     if(!store)fail('Uploaded files are not available. Please upload them again.',409);
@@ -48,9 +51,13 @@ async function collectDirectUploads(body,userId,{store}={}){
       if(!spec.types.includes(type))fail('Unsupported uploaded file type.');
       const meta=await store.head(key);
       if(!meta)fail('An uploaded file has expired. Please add it again.',409);
+      if(!Number.isSafeInteger(meta.size)||meta.size<=0)fail('An uploaded file is empty or invalid.');
       if(meta.size>spec.maxBytes)fail(spec.label,413);
+      if(totalBytes+meta.size>maxTotalBytes)fail('Combined reference upload is too large.',413);
       keys.push(key);
       const data=Buffer.from(await (await store.get(key)).arrayBuffer());
+      if(data.length!==meta.size)fail('An uploaded file changed. Please upload it again.',409);
+      totalBytes+=data.length;
       body[spec.field].push({filename:String(item.filename||kind).slice(0,255),mimeType:type,data});
     }
   }
@@ -64,3 +71,4 @@ async function removeDirectUploads(keys,{store}={}){
 }
 
 module.exports={presignUpload,collectDirectUploads,removeDirectUploads,KINDS};
+

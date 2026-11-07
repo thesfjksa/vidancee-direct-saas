@@ -101,6 +101,17 @@ test('direct uploads: presigned PUT inside the user prefix, then collected into 
   assert.equal(body.videoUploads,undefined);
   // Another customer's key is refused.
   await assert.rejects(collectDirectUploads({videoUploads:JSON.stringify([{key:link.key,mimeType:'video/mp4'}])},8,{store}),/Invalid uploaded file/);
+  const imageUploads=[];
+  for(const name of ['first','second','third']){
+    const image=await presignUpload(7,{kind:'image',mimeType:'image/png',size:name.length},{store});
+    await store.put(image.key,Buffer.from(name),'image/png');
+    imageUploads.push({key:image.key,filename:name+'.png',mimeType:'image/png'});
+  }
+  const imageBody={imageUploads:JSON.stringify(imageUploads)};
+  const imageKeys=await collectDirectUploads(imageBody,7,{store});
+  assert.deepEqual(imageBody.images.map(file=>file.data.toString()),['first','second','third']);
+  await removeDirectUploads(imageKeys,{store});
   await removeDirectUploads(keys,{store});
   assert.equal(objects.size,0);
 });
+
