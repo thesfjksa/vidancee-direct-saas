@@ -282,6 +282,11 @@ class AividRdpService {
       if (command.state !== 'reserved' && !(command.state==='running' && input.state==='rejected')) throw failure('Submission was not reserved.', 409);
       if (input.state === 'accepted' && !ID.test(input.providerJobId || '')) throw failure('Invalid AIVID result.');
       result = { state: input.state, ...(input.state === 'accepted' ? { providerJobId: input.providerJobId } : {}) };
+      if(input.state==='rejected'&&Object.hasOwn(DIAGNOSTICS,input.errorCode)){
+        result.errorCode=input.errorCode;
+        if(input.errorCode==='source_rejected'&&Number.isInteger(input.httpStatus)&&input.httpStatus>=400&&input.httpStatus<500)
+          result.httpStatus=input.httpStatus;
+      }
     } else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) result = { state: input.state };
     else if (command.kind === 'collect' && input.state === 'completed' && Number.isSafeInteger(input.size) && input.size >= 12 && input.size <= MAX_OUTPUT &&
       Number.isSafeInteger(input.chunks) && input.chunks === Math.ceil(input.size / CHUNK) && /^[a-f0-9]{64}$/.test(input.sha256 || '')) {
