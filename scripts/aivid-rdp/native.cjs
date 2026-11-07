@@ -71,11 +71,11 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
 function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
 const MEDIA_HOST='aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com';
 const MAX_VIDEO_BYTES=100*1024*1024;
-function inlineVideoUrl(value,jobId,{relatedToDetail=false}={}) {
+function inlineVideoUrl(value,jobId,{jobVerified=false}={}) {
   try {
     const url=new URL(value);
     if(!/^[a-z0-9_-]{8,100}$/i.test(String(jobId))||url.protocol!=='https:'||url.hostname!==MEDIA_HOST||url.port||url.username||url.password||url.hash||
-      !url.pathname.startsWith('/generating/')||!/^\/generating\/[a-z0-9_-]+\.mp4$/i.test(url.pathname)||(!relatedToDetail&&!url.pathname.endsWith('-'+jobId+'.mp4')))return null;
+      !url.pathname.startsWith('/generating/')||!/^\/generating\/[a-z0-9_-]+\.mp4$/i.test(url.pathname)||(!jobVerified&&!url.pathname.endsWith('-'+jobId+'.mp4')))return null;
     return url.href;
   }catch{return null;}
 }
@@ -104,7 +104,7 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   const owned=new Map(),controller=new AbortController();
   const jobId=(()=>{try{const u=new URL(page.url());return u.origin==='https://aivid.dev'?(requestedId||u.pathname.match(/^\/videos\/([a-z0-9_-]+)$/i)?.[1]):null;}catch{return null;}})();
   const relatedToDetail=(()=>{try{return new URL(page.url()).origin==='https://aivid.dev'&&new URL(page.url()).pathname==='/videos/'+jobId;}catch{return false;}})();
-  const mediaUrl=value=>inlineVideoUrl(value,jobId,{relatedToDetail});
+  const mediaUrl=value=>inlineVideoUrl(value,jobId,{jobVerified:relatedToDetail});
   const blocked=new Promise((_,reject)=>{rejectBlocked=reject});blocked.catch(()=>{});
   const inline=new Promise((resolve,reject)=>{resolveInline=resolve;rejectInline=reject});inline.catch(()=>{});
   const timed=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Download timed out.'));},timeoutMs)});timed.catch(()=>{});
@@ -193,7 +193,9 @@ async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
     if(job){
       if(['failed','cancelled','canceled'].includes(job.status))return {state:'failed'};
       if(job.status!=='completed')return {state:'pending'};
-      const url=inlineVideoUrl(job.video,id);
+      // The authenticated history row ties the media to this exact job.
+      // AIVID can use a separate asset ID in the MP4 filename.
+      const url=inlineVideoUrl(job.video,id,{jobVerified:true});
       if(!url)throw collectionFailure('collection_media_url','AIVID did not provide a verified MP4 for this job.');
       try{
         const output=await readInlineVideo(url,{fetchImpl,signal:AbortSignal.timeout(timeoutMs)});

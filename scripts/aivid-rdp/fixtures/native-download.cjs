@@ -4,6 +4,7 @@ const {downloadNative,collectSavedVideo}=require('../native.cjs');
 async function checkInlineDownload(context){
  const id='6aee348c6467353c0fd7ded1',detail='https://aivid.dev/videos/parent-generation-id';
  const media='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-'+id+'.mp4?X-Amz-Signature=fixture';
+ const historyMedia=media.replace(id,'6aee348c6467353c0fd7ded3');
  const clip=Buffer.from('0000ftypisom0000');
  const page=await context.newPage();let fetches=0,mutations=0,mode='completed';
  const history='https://api.aivid.dev/v2/generations?page=';
@@ -15,7 +16,7 @@ async function checkInlineDownload(context){
    '<script>function load(page){return fetch("'+history+'"+page+"&pageSize=20").then(r=>r.json());}load(1);</script>'});
   if(route.request().url().startsWith(history)){
    const page=new URL(route.request().url()).searchParams.get('page');
-   const match={_id:id,status:mode==='wrong_media'?'completed':mode,video:mode==='wrong_media'?media.replace(id,'wrong-source-job'):media};
+   const match={_id:id,status:mode==='wrong_media'?'completed':mode,video:mode==='wrong_media'?historyMedia.replace('.com/','.com.evil.test/'):historyMedia};
    const data=page==='2'?(mode==='duplicate'?[match,match]:[match]):[{_id:'unrelated-source-job',status:'completed',video:media}];
    return route.fulfill({headers:{'access-control-allow-origin':'https://aivid.dev'},json:{data,metadata:{totalPages:2}}});
   }
@@ -34,7 +35,7 @@ async function checkInlineDownload(context){
   assert.equal(context.pages().length,count,'inline popup cleaned after successful transfer');
   assert.equal(page.url(),detail,'original work tab remains available');
   const fetchImpl=async url=>{
-    assert.equal(url,media);fetches++;return new Response(clip,{headers:{'content-type':'video/mp4'}});
+    assert.equal(url,historyMedia);fetches++;return new Response(clip,{headers:{'content-type':'video/mp4'}});
   };
   const saved=await collectSavedVideo(page,id,{fetchImpl});
   assert.deepEqual(saved,{state:'completed',output:{data:clip,mimeType:'video/mp4'}});
