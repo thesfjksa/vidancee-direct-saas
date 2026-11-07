@@ -206,6 +206,51 @@ test('background likes refresh does not reject or reserve a video submission', a
   await guard.close();
 });
 
+test('background mutations before and after the authorized POST cannot prematurely clear a paid AIVID tab', async () => {
+  const cdp = new EventEmitter(), calls = [], blocked = [];
+  let reservations = 0, failedEarly = false;
+  cdp.send = async (method,args) => { calls.push({method,args}); };
+  cdp.detach = async () => {};
+  const guard = await installRequestGuard({context: () => ({newCDPSession: async () => cdp})},
+    validateJob(input), {
+      beforeGenerate: async () => {reservations++;},
+      onBlockedRequest: request => blocked.push(request)
+    });
+  guard.failure.catch(() => { failedEarly = true; });
+  const handler = cdp.listeners('Fetch.requestPaused')[0];
+  guard.arm();
+  // AIVID performs unrelated POSTs while preparing the generation page. Keep
+  // unknown mutations blocked, but do not mistake them for generation failure.
+  await handler({requestId:'ambient-before',request:{
+    method:'POST',url:'https://api.aivid.dev/v2/interactions/other',postData:'{}'}});
+  assert.equal(calls.at(-1).method,'Fetch.failRequest');
+  assert.equal(guard.error,null);
+  assert.equal(guard.allowed,false);
+  assert.equal(reservations,0);
+
+  await handler({requestId:'paid-video',request:{
+    method:'POST',url:'https://api.aivid.dev/v2/generations',postData:JSON.stringify(payload)}});
+  assert.equal(calls.at(-1).method,'Fetch.continueRequest');
+  assert.equal(guard.allowed,true);
+  assert.equal(guard.claimed,true);
+  assert.equal(reservations,1);
+
+  // This race used to reject guard.failure and immediately navigate the page
+  // to about:blank before the /v2/generations response could arrive.
+  await handler({requestId:'ambient-after',request:{
+    method:'POST',url:'https://api.aivid.dev/v2/interactions/other',postData:'{}'}});
+  assert.equal(calls.at(-1).method,'Fetch.failRequest');
+  await handler({requestId:'duplicate-video',request:{
+    method:'POST',url:'https://api.aivid.dev/v2/generations',postData:JSON.stringify(payload)}});
+  assert.equal(calls.at(-1).method,'Fetch.failRequest');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(failedEarly,false,'a late blocked request must not end response wait for an authorized job');
+  assert.equal(reservations,1,'unrelated or duplicate requests cannot reserve a second charge');
+  assert.equal(calls.filter(x=>x.method==='Fetch.continueRequest').length,1);
+  assert.deepEqual(blocked,[{method:'POST',hostname:'api.aivid.dev',path:'/v2/interactions/other'}]);
+  await guard.close();
+});
+
 test('paid submission cannot run without a reservation and explicit source credit limit', async () => {
   let connections = 0;
   const client = new AividBrowserlessClient({ connectUrl, connect: async () => { connections++; } });
