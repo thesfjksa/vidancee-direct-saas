@@ -5,6 +5,8 @@ on:
     paths:
       - 'scripts/aivid-rdp/**'
       - 'src/aivid_rdp*'
+      - 'src/aivid_queue.js'
+      - 'test/aivid_rdp_mysql.test.js'
       - 'src/provider/aivid.js'
       - 'src/provider/aivid_uploads.js'
       - 'src/aivid_probe_assets.js'

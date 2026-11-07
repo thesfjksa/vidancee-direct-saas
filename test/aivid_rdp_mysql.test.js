@@ -9,6 +9,19 @@ test('RDP schema, atomic claims, reservation and binary chunks work in real MySQ
   const { RdpStore, AividRdpService, ensureRdpTables, hash } = require('../src/aivid_rdp.js');
   const db = getPool(); t.after(() => db.end());
   await initDb(); await ensureRdpTables(db); await saveAividSettings({ mode: 'rdp' });
+  const { withAividLock } = require('../src/aivid_queue.js');
+  const lockDb = {getConnection:async()=>{
+    const conn=await db.getConnection();
+    try { await conn.query('SET SESSION wait_timeout=1'); }
+    catch(error) { conn.release();throw error; }
+    return conn;
+  }};
+  assert.equal(await withAividLock(lockDb,async()=>{
+    await new Promise(resolve=>setTimeout(resolve,1800));
+    assert.equal(await withAividLock(db,async()=>true),null);
+    return true;
+  },{keepaliveMs:100}),true);
+  assert.equal(await withAividLock(db,async()=>true),true);
   const store = new RdpStore(db), service = new AividRdpService({ store });
   const code = await service.createPairing(), paired = await service.pair(code.code);
   const device = await service.authorize('Bearer ' + paired.token);
