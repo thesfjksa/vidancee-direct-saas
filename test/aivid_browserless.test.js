@@ -504,18 +504,17 @@ test('collection errors back off and pause instead of creating unlimited browser
 });
 
 
-test('native collection prefers the exact detail page, falls back to history for pending/unavailable detail and never overrides source failure',async()=>{
- const id='6aee348c6467353c0fd7ded1',output={data:Buffer.from('0000ftypisom0000'),mimeType:'video/mp4'};
- for(const state of ['Completed','Processing','Failed','unavailable']){
-  const visited=[];let history=0,downloads=0;
-  const status={count:async()=>1,isVisible:async()=>true,innerText:async()=>{if(state==='unavailable')throw Error('detail unavailable');return state;}};
-  const page={goto:async url=>visited.push(url),url:()=>visited.at(-1),locator:()=>({filter:()=>({locator:()=>status})})};
-  const client=new AividBrowserlessClient({historyDownload:async(p,job)=>{history++;assert.equal(job,id);return output;},download:async()=>{downloads++;return output;}});
+test('native collection uses generation history for the exact job without visiting its detail page',async()=>{
+ const id='6aee348c6467353c0fd7ded1',page={goto:()=>assert.fail('detail page must not be opened')};
+ const output={data:Buffer.from('0000ftypisom0000'),mimeType:'video/mp4'};
+ for(const result of [{state:'completed',output},{state:'pending'},{state:'failed'}]){
+  let calls=0;
+  const client=new AividBrowserlessClient({collectFromHistory:async(p,job)=>{
+   assert.equal(p,page);assert.equal(job,id);calls++;return result;
+  },download:()=>assert.fail('native download must not be used')});
   client.withPage=async fn=>fn(page);
-  const result=await client.collectVideo(id);
-  assert.equal(visited[0],'https://aivid.dev/videos/'+id);
-  if(state==='Failed'){assert.deepEqual(result,{state:'failed'});assert.equal(history,0);assert.equal(downloads,0);}
-  else {assert.deepEqual(result,{state:'completed',output});assert.equal(downloads,state==='Completed'?1:0);assert.equal(history,state==='Completed'?0:1);}
+  assert.deepEqual(await client.collectVideo(id),result);
+  assert.equal(calls,1);
  }
 });
 

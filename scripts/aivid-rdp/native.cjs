@@ -157,38 +157,47 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   }
 }
 
-// The account history's Save button is an alternative to the public detail
-// page. Match the actual media source ID, never card order or prompt text.
-async function downloadSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000,findTimeoutMs=5000}={}) {
-  if(!/^[a-z0-9_-]{8,100}$/i.test(String(id))||new URL(page.url()).origin!=='https://aivid.dev'||new URL(page.url()).pathname!=='/generate')return null;
-  const marker='cmm-'+Date.now()+'-'+Math.random().toString(16).slice(2);
-  const deadline=Date.now()+findTimeoutMs;
-  let matched=false;
-  try {
-    do {
-      matched=await page.evaluate(({id,host,marker})=>{
-        const matches=[];
-        for(const video of document.querySelectorAll('video')){
-          const sources=[video.currentSrc,video.src,...Array.from(video.querySelectorAll('source'),s=>s.src)];
-          if(!sources.some(src=>{try{const u=new URL(src);return u.protocol==='https:'&&u.hostname===host&&u.pathname.startsWith('/generating/')&&u.pathname.endsWith('-'+id+'.mp4');}catch{return false;}}))continue;
-          let card=video.parentElement;
-          for(let n=0;card&&n<8;n++,card=card.parentElement){
-            if(card.querySelectorAll('video').length!==1)break;
-            const buttons=Array.from(card.querySelectorAll('button,[role="button"],a[href]')).filter(b=>[b.getAttribute('aria-label'),b.textContent].some(text=>(text||'').trim()==='Save'));
-            if(buttons.length===1){matches.push(buttons[0]);break;}
-          }
-        }
-        if(matches.length!==1)return false;
-        matches[0].setAttribute('data-cmmtools-save',marker);return true;
-      },{id,host:MEDIA_HOST,marker});
-      if(matched)break;
-      await pause(200);
-    }while(Date.now()<deadline);
-    if(!matched)return null;
-    const button=page.locator('[data-cmmtools-save="'+marker+'"]');
-    await button.scrollIntoViewIfNeeded();
-    return await downloadNative(page,{jobId:id,button,fetchImpl,timeoutMs});
-  }finally{if(matched)await page.locator('[data-cmmtools-save="'+marker+'"]').evaluate(el=>el.removeAttribute('data-cmmtools-save')).catch(()=>{});}
+// Observe the account history GET that the Generate page already makes.
+// Match the provider ID and its MP4 independently before reading the media.
+async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
+  if(!/^[a-z0-9_-]{8,100}$/i.test(String(id)))throw new Error('Invalid AIVID job ID.');
+  const generateUrl='https://aivid.dev/generate';
+  const readHistory=async(number,action)=>{
+    const response=page.waitForResponse(response=>{
+      const url=new URL(response.url());
+      return response.request().method()==='GET'&&url.origin==='https://api.aivid.dev'&&
+        url.pathname==='/v2/generations'&&url.searchParams.get('page')===String(number)&&
+        Number(url.searchParams.get('pageSize'))>1;
+    },{timeout:15000});
+    response.catch(()=>{});
+    await action();
+    const result=await response;
+    if(page.url()!==generateUrl||!result.ok())throw new Error('AIVID generation history is unavailable.');
+    const history=await result.json();
+    if(!Array.isArray(history?.data))throw new Error('AIVID generation history is invalid.');
+    return history;
+  };
+  let history=await readHistory(1,()=>page.goto(generateUrl,{waitUntil:'domcontentloaded',timeout:30000}));
+  for(let number=1;number<=3;number++){
+    const matches=history.data.filter(row=>row?._id===id);
+    if(matches.length>1)throw new Error('AIVID generation history contains an ambiguous job ID.');
+    const job=matches[0];
+    if(job){
+      if(['failed','cancelled','canceled'].includes(job.status))return {state:'failed'};
+      if(job.status!=='completed')return {state:'pending'};
+      const url=inlineVideoUrl(job.video,id);
+      if(!url)throw new Error('AIVID did not provide a verified MP4 for this job.');
+      try{
+        const output=await readInlineVideo(url,{fetchImpl,signal:AbortSignal.timeout(timeoutMs)});
+        return {state:'completed',output};
+      }catch{throw new Error('AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.');}
+    }
+    if(number===3||!(Number(history.metadata?.totalPages)>number))break;
+    const more=page.getByRole('button',{name:'Load More',exact:true});
+    await more.waitFor({state:'visible',timeout:5000});
+    history=await readHistory(number+1,()=>more.click({timeout:5000}));
+  }
+  return {state:'pending'};
 }
 
 async function takeLock(root) {
@@ -207,4 +216,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { downloadSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { collectSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };

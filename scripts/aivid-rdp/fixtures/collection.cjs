@@ -21,6 +21,11 @@ async function checkCollection(context,Client){
   assert.equal(downloads,2);
   mode='failed';assert.deepEqual(await client.collectVideo(id),{state:'failed'});
   mode='unknown';await assert.rejects(client.collectVideo(id),/not recognized/);
+  const historyClient=new Client({
+    connect:async()=>({page:{goto:()=>assert.fail('RDP must use generation history')},close:async()=>{}}),
+    collectFromHistory:async(_page,jobId)=>{assert.equal(jobId,id);return {state:'pending'};},
+  });
+  assert.deepEqual(await historyClient.collectVideo(id),{state:'pending'});
   assert.equal(mutations,0);
   console.log('Collection: temporary not-found and processing retry the existing ID; completed/delayed pages download; only explicit failed status fails; no mutation.');
 }

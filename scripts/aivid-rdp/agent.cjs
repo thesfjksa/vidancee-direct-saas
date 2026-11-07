@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
-const { connectNative, downloadNative, downloadSavedVideo, takeLock } = require('./native.cjs');
+const { connectNative, collectSavedVideo, takeLock } = require('./native.cjs');
 const adapter = require(require('node:fs').existsSync(path.join(__dirname, 'provider/aivid.js')) ? './provider/aivid.js' : '../../src/provider/aivid.js');
 const CHUNK = 1024 * 1024, MAX_OUTPUT = 100 * CHUNK;
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -63,7 +63,7 @@ class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
     this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
     this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
-    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, download: downloadNative, historyDownload: downloadSavedVideo, maxSourceCredits: limit,
+    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: collectSavedVideo, maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
       onBlockedRequest: ({method, hostname, path}) =>
         console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
