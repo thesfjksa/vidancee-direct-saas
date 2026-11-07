@@ -6,7 +6,7 @@ async function checkInlineDownload(context){
  const media='https://aivid-dev.ea27a69da769d04e04a51faf6bcc2f00.r2.cloudflarestorage.com/generating/123-'+id+'.mp4?X-Amz-Signature=fixture';
  const historyMedia=media.replace(id,'6aee348c6467353c0fd7ded3');
  const clip=Buffer.from('0000ftypisom0000');
- const page=await context.newPage();let fetches=0,mutations=0,mode='completed';
+ const page=await context.newPage();let fetches=0,mutations=0,mode='completed',providerError;
  const history='https://api.aivid.dev/v2/generations?page=';
  const generate='https://aivid.dev/generate';
  await context.route('**/*',async route=>{
@@ -16,7 +16,7 @@ async function checkInlineDownload(context){
    '<script>function load(page){return fetch("'+history+'"+page+"&pageSize=20").then(r=>r.json());}load(1);</script>'});
   if(route.request().url().startsWith(history)){
    const page=new URL(route.request().url()).searchParams.get('page');
-   const match={_id:id,status:mode==='wrong_media'?'completed':mode,video:mode==='wrong_media'?historyMedia.replace('.com/','.com.evil.test/'):historyMedia};
+   const match={_id:id,error:providerError,status:mode==='wrong_media'?'completed':mode,video:mode==='wrong_media'?historyMedia.replace('.com/','.com.evil.test/'):historyMedia};
    const data=page==='2'?(mode==='duplicate'?[match,match]:[match]):[{_id:'unrelated-source-job',status:'completed',video:media}];
    return route.fulfill({headers:{'access-control-allow-origin':'https://aivid.dev'},json:{data,metadata:{totalPages:2}}});
   }
@@ -46,6 +46,10 @@ async function checkInlineDownload(context){
     mode=state;
     assert.deepEqual(await collectSavedVideo(page,id,{fetchImpl}),{state});
   }
+  providerError='The request failed because the input or output video may contain sensitive information.';
+  assert.deepEqual(await collectSavedVideo(page,id,{fetchImpl}),{state:'failed',errorCode:'source_sensitive_content'});
+  providerError='Private provider diagnostic';
+  assert.deepEqual(await collectSavedVideo(page,id,{fetchImpl}),{state:'failed'});
   mode='duplicate';
   await assert.rejects(collectSavedVideo(page,id,{fetchImpl}),/ambiguous job ID/);
   mode='wrong_media';

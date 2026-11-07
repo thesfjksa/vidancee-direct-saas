@@ -205,6 +205,10 @@ async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
     if(matches.length>1)throw collectionFailure('collection_history','AIVID generation history contains an ambiguous job ID.');
     const job=matches[0];
     if(job){
+      if(job.status==='failed'&&typeof job.error==='string'&&
+        /^the request failed because the input or output video may contain sensitive information\.?$/i.test(job.error.trim())){
+        return {state:'failed',errorCode:'source_sensitive_content'};
+      }
       if(['failed','cancelled','canceled'].includes(job.status))return {state:'failed'};
       if(job.status!=='completed')return {state:'pending'};
       // The authenticated history row ties the media to this exact job.

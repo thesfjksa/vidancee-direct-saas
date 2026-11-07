@@ -214,7 +214,12 @@ class AividQueue extends VercelQueue {
   async pollJob(db, client, job) {
     const result = await client.collectVideo(job.provider_job_id);
     if (result.state === 'pending'){await this.markProcessing(db,job);return 'pending';}
-    if (result.state === 'failed'){await this.refund(job.id, 'failed', 'The video could not be completed. Credits were refunded.', null);return 'failed';}
+    if (result.state === 'failed') {
+      const message = result.errorCode === 'source_sensitive_content'
+        ? diagnosticMessage(result.errorCode) : 'The video could not be completed.';
+      await this.refund(job.id, 'failed', message + ' Credits were refunded.', null);
+      return 'failed';
+    }
     if (result.state !== 'completed') throw new Error('Unknown video status.');
     try { await this.complete(db, job, result.output); }
     catch (error) {
