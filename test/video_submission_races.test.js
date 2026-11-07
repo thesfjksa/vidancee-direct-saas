@@ -41,3 +41,32 @@ test('dynamic quotes expire and refresh instead of retaining stale Premium price
  const get=()=>vm.runInContext("fetchQuote({model:'aivid_seedance_2_0_mini',duration:5})",ctx);
  assert.equal((await get()).cost,1);assert.equal((await get()).cost,1);clock=16000;assert.equal((await get()).cost,2);assert.equal(calls,2);
 });
+
+test('Premium reuse displays the prior cost immediately and shares a live quote across prompt edits', async () => {
+ const a=html.indexOf('const quoteCache=new Map();'),b=html.indexOf('\nfunction clearReferenceItems',a);
+ const live=deferred(),requests=[];
+ const fields=Object.fromEntries(['model','duration','ratio','resolution','prompt','cost','videoPriceNote','videoPriceRetry',
+   'resolutionControl','videoModeControl','videoGenerationMode','videoGenerateAudio'].map(id=>[id,{
+   value:'',textContent:'',classList:{add(){},remove(){},toggle(){},contains:()=>id==='videoModeControl'}
+ }]));
+ const model='aivid_seedance_2_0_mini';
+ fields.model.value=model;fields.duration.value='15';fields.duration.options=[];fields.ratio.value='16:9';fields.resolution.value='480p';
+ fields.prompt.value='Original prompt';
+ const ctx={config:{pricing:[{id:model,premium:true,dynamicCost:true}]},$:id=>fields[id],syncCustomSelect(){},
+   videoCostRequestSeq:0,referenceItems:[{}],videoReferenceItems:[],audioReferenceItems:[],
+   AbortSignal:{timeout:()=>null},api:async(_path,options)=>{requests.push(JSON.parse(options.body));return live.promise;},
+   past:{model,status:'completed',credits_cost:846.72,duration:15,resolution:'480p',aspect_ratio:'16:9'}};
+ vm.createContext(ctx);vm.runInContext(html.slice(a,b),ctx);
+ await vm.runInContext('updateCost({previousGeneration:past,previewOnly:true})',ctx);
+ assert.equal(fields.cost.textContent,846.72);assert.equal(requests.length,0);
+ assert.match(fields.videoPriceNote.textContent,/previous cost/);
+ const first=vm.runInContext('updateCost({previousGeneration:past})',ctx);
+ fields.prompt.value='Edited prompt';
+ const second=vm.runInContext('updateCost({previousGeneration:past})',ctx);
+ assert.equal(requests.length,1);
+ assert.equal(requests[0].prompt,undefined);
+ assert.equal(requests[0].previewHasReferences,true);
+ live.resolve({cost:900});
+ await Promise.all([first,second]);
+ assert.equal(fields.cost.textContent,900);
+});
