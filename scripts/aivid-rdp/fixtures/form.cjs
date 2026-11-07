@@ -122,7 +122,7 @@ async function checkForm(page, Client, waitForSession) {
   await assert.rejects(client.preflight({model:'aivid_seedance_2_0',prompt:'A quiet river',duration:5,aspectRatio:'16:9',resolution:'720p'}),e=>e.aividCode==='model_selection');
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
   duplicateModel=false;
-  for (const [model,duration] of [['aivid_seedance_2_0',15],['aivid_seedance_2_5',30]]) {
+  for (const [model,duration] of [['aivid_seedance_2_0',15],['aivid_seedance_2_0_fast',15],['aivid_seedance_2_5',30]]) {
     const result=await client.preflight({model,prompt:'A quiet river',duration,aspectRatio:'16:9',resolution:'480p'});
     assert.equal(result.modelId,model);
     assert.equal(result.duration,duration);
@@ -132,7 +132,7 @@ async function checkForm(page, Client, waitForSession) {
   // Current-model buttons may contain descriptions after their model name;
   // the selected control must be validated, not an exactly named menu item.
   modelSuffix = true;
-  for (const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']) {
+  for (const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']) {
     const result = await client.preflight({ model, prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p' });
     assert.equal(result.modelId,model);
     assert.equal(await page.evaluate(()=>window.generateClicks),0);

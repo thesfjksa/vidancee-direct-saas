@@ -10,7 +10,7 @@ test('Premium models are always in the account catalog, even if RDP disconnects'
   const ready=models.customerCatalog(connected);
   const stale=models.customerCatalog({...connected,rdpDevice:{...connected.rdpDevice,seenAt:'2020-01-01T00:00:00Z'}});
   assert.deepEqual(stale.map(m=>m.id),ready.map(m=>m.id));
-  assert.equal(ready.length,3);
+  assert.equal(ready.length,4);
   assert.ok(ready.every(m=>m.unavailable===false));
   assert.ok(stale.every(m=>m.unavailable===true));
   assert.ok(stale.every(m=>m.premium===true));

@@ -60,7 +60,7 @@ actual RDP and a permitted live trial; no RDP credentials are requested in chat.
 
 ## Customer model visibility (November 2026)
 
-The three Premium choices (AIVID Seedance 2.0 Mini, 2.0, 2.5) stay visible
+The four Premium choices (AIVID Seedance 2.0 Mini, 2.0, 2.0 Fast, 2.5) stay visible
 in Video Studio for customers whose AIVID source access is allowed, once the
 AIVID source has been configured (paired RDP or saved browser session), even if
 the Windows agent is offline, the browser session expires, or the source-credit
@@ -116,3 +116,5 @@ with the maximum supported by the current AIVID browser interface.**
 Unknown/unsupported requested lengths fail closed; no source credits
 should be spent during read-only preflights. A paid live output's exact
 MP4 running time is still unverified.
+
+Premium Video Studio defaults to the maximum supported duration: 15 seconds for Mini, standard 2.0 and Fast; 30 seconds for 2.5. Shorter durations remain selectable. Fast uses the distinct `seedance-2.0-fast` upstream model and its own live public-mode quote. Admin model and reference diagnostics include Fast.

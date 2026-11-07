@@ -6,6 +6,7 @@
 const SPECS = Object.freeze([
   { id:'aivid_seedance_2_0_mini', providerId:'seedance-2.0-mini', name:'Seedance 2.0 (Mini)', maxSeconds:15, resolutions:['480p','720p'], refs:{image:9,video:3,audio:3} },
   { id:'aivid_seedance_2_0', providerId:'seedance-2.0', name:'Seedance 2.0', maxSeconds:15, resolutions:['480p','720p'], refs:{image:9,video:3,audio:3} },
+  { id:'aivid_seedance_2_0_fast', providerId:'seedance-2.0-fast', name:'Seedance 2.0 (Fast)', maxSeconds:15, resolutions:['480p','720p'], refs:{image:9,video:3,audio:3} },
   { id:'aivid_seedance_2_5', providerId:'seedance-2.5', name:'Seedance 2.5', maxSeconds:30, resolutions:['480p','720p'], refs:{image:30,video:3,audio:3} },
 ]);
 const byId=new Map(SPECS.map(m=>[m.id,m]));
@@ -23,7 +24,7 @@ function modelEntry(m){
   return { id:m.id,label:m.name+' · Premium',premium:true, dynamicCost:true,
     warning:'Public generation: results may be visible to other users of the upstream video service.',
     durations,resolutions:m.resolutions.map(id=>({id,label:id,durations})),
-    defaultDuration:5,defaultResolution:'480p',aspectRatios:['16:9','9:16','1:1'],
+    defaultDuration:m.maxSeconds,defaultResolution:'480p',aspectRatios:['16:9','9:16','1:1'],
     defaultAspectRatio:'16:9',promptMaxChars:50000,capabilities:capabilities(m) };
 }
 function aividReady(config){

@@ -55,12 +55,12 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
       assert.equal(result.standardCustomerCredits,1693.44);assert.equal(result.sourceUsd,0.24);
       assert.equal(result.withinLimit,false); // A paused ceiling does not prevent read-only diagnosis.
     }
-    assert.equal(seen.length,6);
+    assert.equal(seen.length,8);
     assert.ok(seen.every(v=>v.prompt==='A quiet river at dawn'));
     for(const input of [{model:'not-aivid',duration:5},{model:'aivid_seedance_2_0',duration:30},{model:'aivid_seedance_2_5',duration:5,resolution:'4K'}]){
       assert.equal((await fetch(origin+'/admin/aivid/check',{method:'POST',headers,body:JSON.stringify(input)})).status,400);
     }
-    assert.equal(seen.length,6); // Invalid options cannot reach the provider.
+    assert.equal(seen.length,8); // Invalid options cannot reach the provider.
   } finally {AividBrowserlessClient.prototype.preflight=previousPreflight;}
   const originalReferenceCheck=AividBrowserlessClient.prototype.checkReferences;
   AividBrowserlessClient.prototype.checkReferences=async(v,refs)=>{

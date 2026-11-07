@@ -11,7 +11,7 @@ test('AIVID duration verified against slider value, ARIA, and displayed 15s labe
   assert.equal(durationVerified({...base,value:14},15),false);
   assert.equal(durationVerified({...base,labels:[]},15),true);
 });
-test('Premium Video Studio honors advertised 5s default, not its maximum length',()=>{
+test('Premium Video Studio honors each model default and preserves a chosen duration on resolution changes',()=>{
   assert.match(html,/m\.premium\s*&&\s*durations\.some\(d=>Number\(d\.seconds\)===preferred\)/);
   assert.match(html,/const preferred=Number\(m\.premium\?m\.defaultDuration:NaN\)/);
 });
