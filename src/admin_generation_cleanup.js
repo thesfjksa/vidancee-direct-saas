@@ -29,7 +29,7 @@ async function deleteFinishedUserGenerations(userId,confirmEmail,{
 }={}){
   const preview=await userGenerationCleanupPreview(userId,{db});
   // Require the current exact customer email, not just the id or a partial match.
-  if(typeof confirmEmail!=='string'||confirmEmail.trim()!==preview.email)
+  if(typeof confirmEmail!=='string'||confirmEmail!==preview.email)
     throw fail(409,'Type this customer\'s exact email address to confirm deletion.');
   const safeLimit=Math.min(5,Math.max(1,Math.floor(Number(limit)||5)));
   const [rows]=await db.execute(
