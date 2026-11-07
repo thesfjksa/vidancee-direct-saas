@@ -182,7 +182,7 @@ test('timeouts, conflicts, throttles and successful responses without IDs remain
   assert.equal(submissionResult(409, { id: providerJobId }).state, 'submission_uncertain');
 });
 
-function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pending' }, enabled = true, charges = true, configOverrides = {} } = {}) {
+function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pending' }, enabled = true, charges = true, configOverrides = {}, liveRdpCommand = () => false } = {}) {
   const job = { id: '12345678-1234-1234-1234-123456789012', user_id: 1, media_type: 'video',
     model: 'aivid_pilot_mini', provider: 'aivid', status, generation_options: '{}',
     prompt: input.prompt, duration: input.duration, aspect_ratio: input.aspectRatio, resolution: input.resolution,
@@ -193,6 +193,10 @@ function fixture({ startVideo, status = 'queued', op = {}, output = { state: 'pe
     queries.push(sql);
     if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }]];
     if (sql.includes('RELEASE_LOCK')) return [[{}]];
+    if (sql.startsWith('SELECT id FROM aivid_rdp_commands')) {
+      assert.deepEqual(args, [job.id]);
+      return [liveRdpCommand() ? [{id:'active-command'}] : []];
+    }
     if (sql.startsWith('SELECT media_kind')) return [[]];
     if (sql.startsWith('SELECT * FROM generations WHERE id=')) return [[{ ...job }]];
     if (sql.startsWith('SELECT * FROM generations') && sql.includes("status='submitting'")) return [[...(!job.refunded_at && job.status === 'submitting' ? [{ ...job }] : [])]];
@@ -257,6 +261,18 @@ test('crash recovery holds reserved clicks and safely refunds interrupted prepar
   assert.equal(uncertain.stats().submissions, 0); assert.equal(uncertain.stats().refunds, 0);
   const safe = fixture({ status: 'submitting', op: { stage: 'preparing' } });
   await safe.q.runOnce(safe.db); assert.equal(safe.stats().refunds, 1);
+});
+
+test('recovery leaves an active RDP submission alone after another worker loses its lock', async () => {
+  let live = true;
+  const f = fixture({status:'submitting',op:{stage:'preparing'},liveRdpCommand:()=>live,
+    configOverrides:{mode:'rdp',rdpDevice:{tokenHash:'paired'}}});
+  await f.q.runOnce(f.db);
+  assert.equal(f.job.status,'submitting');
+  assert.deepEqual(f.stats(),{submissions:0,polls:0,refunds:0,complete:0});
+  live = false;
+  await f.q.runOnce(f.db);
+  assert.equal(f.stats().refunds,1);
 });
 
 test('paused new jobs still collect accepted jobs; download failures retain the ID', async () => {

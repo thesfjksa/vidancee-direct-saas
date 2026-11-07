@@ -10,13 +10,24 @@ function operation(job) {
   try { return JSON.parse(job.provider_operation || '{}') || {}; } catch { return {}; }
 }
 
-async function withAividLock(db, fn) {
-  const conn = await db.getConnection(); let locked = false;
+async function withAividLock(db, fn, { keepaliveMs = 10000 } = {}) {
+  const conn = await db.getConnection();
+  let locked = false, keepalive, heartbeat;
   try {
     const [[row]] = await conn.query("SELECT GET_LOCK('cmm_aivid_browser',0) AS acquired");
     locked = Number(row?.acquired) === 1;
-    return locked ? await fn() : null;
+    if (!locked) return null;
+    // RDP browser work uses other DB connections. Keep this session active
+    // while Chrome prepares the upload so an idle disconnect cannot drop its lock.
+    keepalive = setInterval(() => {
+      if (!heartbeat) heartbeat = conn.query({sql:'SELECT 1',timeout:5000})
+        .catch(() => {}).finally(() => { heartbeat = null; });
+    }, keepaliveMs);
+    keepalive.unref();
+    return await fn(conn);
   } finally {
+    clearInterval(keepalive);
+    await heartbeat;
     if (locked) await conn.query("SELECT RELEASE_LOCK('cmm_aivid_browser')").catch(() => {});
     conn.release();
   }
@@ -45,11 +56,18 @@ class AividQueue extends VercelQueue {
     const rdp=config.mode==='rdp'?require('./aivid_rdp.js').publicDevice(config.rdpDevice||{}):null;
     if(rdp&&(!rdp.online||rdp.status!=='ready'))this.sourceReady=false;
     const client = this.clientFactory(config);
-    await withAividLock(db, async () => {
-      // Holding this lock proves no other live queue operation can be clicking.
-      // A restart after click reservation is held for reconciliation forever,
-      // even with zero credits or after the normal video timeout.
+    await withAividLock(db, async lockConnection => {
+      // A connection failure can release another worker's lock while its
+      // RDP command is still live. Let that command finish before recovery.
       const [interrupted] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status='submitting' AND refunded_at IS NULL ORDER BY created_at LIMIT 20");
+      if (rdp && interrupted.length) {
+        const ids = interrupted.map(job => job.id);
+        const [live] = await db.execute(
+          "SELECT id FROM aivid_rdp_commands WHERE kind='submit' AND state<>'cancelled' AND expires_at>UTC_TIMESTAMP(3) AND generation_id IN (" +
+          ids.map(() => '?').join(',') + ') LIMIT 1', ids);
+        if (live.length) return;
+      }
+      // A restart after a durable reservation requires reconciliation.
       for (const job of interrupted) {
         if (operation(job).stage === 'preparing') {
           await this.refund(job.id, 'submit_error', 'Generation stopped before submission. Credits were refunded.', null);
@@ -91,7 +109,7 @@ class AividQueue extends VercelQueue {
         [JSON.stringify({ stage: 'preparing' }), job.id]);
       if (!claimed.affectedRows) return;
       this.tasks.add(job.id);
-      try { await this.submit(db, job, client); }
+      try { await this.submit(db, job, client, lockConnection); }
       finally { this.tasks.delete(job.id); }
     });
   }
@@ -100,7 +118,7 @@ class AividQueue extends VercelQueue {
     await require('./object_storage.js').hydrateBlobs(rows, 'media_data');
     return rows.map(r => ({ kind: r.media_kind, mimeType: r.mime_type, data: r.media_data }));
   }
-  async submit(db, job, client) {
+  async submit(db, job, client, lockConnection) {
     let clicked = false;
     try {
       const options = JSON.parse(job.generation_options || '{}');
@@ -113,7 +131,7 @@ class AividQueue extends VercelQueue {
           if (!latest.allowProviderCharges || !config.enabled || price > config.maxSourceCredits ||
               (Number.isFinite(Number(options.quotedSourceCredits)) && options.quotedSourceCredits != null && Number(options.quotedSourceCredits)!==price))
             throw new Error('New submissions are paused or the price limit changed.');
-          const [reserved] = await db.execute("UPDATE generations SET provider_operation=?,provider_cost=?,provider_cost_unit='aivid_credits',updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status='submitting' AND refunded_at IS NULL",
+          const [reserved] = await lockConnection.query("UPDATE generations SET provider_operation=?,provider_cost=?,provider_cost_unit='aivid_credits',updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status='submitting' AND refunded_at IS NULL AND IS_USED_LOCK('cmm_aivid_browser')=CONNECTION_ID()",
             [JSON.stringify({ stage: 'click_reserved', price }), price, job.id]);
           if (!reserved.affectedRows) throw new Error('The submission reservation is unavailable.');
           clicked = true;
