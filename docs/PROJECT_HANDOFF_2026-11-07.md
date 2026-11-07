@@ -31,8 +31,8 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 
 - **Merged on GitHub:** PRs #175–#186, including documentation-only #181, are merged into `main`. Latest inspected AIVID code checkpoint: PR #186 merge `6aa2ccb9437562fc8c94c2eb3330b4fe78036376` (7 November 2026, 13:17 UTC).
 - **CI:** #179 and #180 each passed Node tests, AIVID RDP agent package checks (Windows / real Chrome and MySQL integration), and AIVID Admin browser checks. **Passing CI does not mean the owner's Windows RDP generation succeeds.**
-- **Production:** Hostinger web and worker deployment of the newest code, managed agent update on the owner's RDP, corrected source submission, media collection, and credits/storage effects **have not been independently verified** during this handoff.
-- **Reported user outcomes evolved:** an earlier no-F12 attempt displayed `The video request could not be prepared. Credits were refunded.` before visible source submission (PR #180 diagnostics; root cause unverified). Later, the owner reported videos **completed on AIVID** but CMMTools displayed `[collection_download] The worker could not download and validate the AIVID MP4`, and clicking **Retry collection** appeared to have no visible effect. PRs #182–#186 address collection mechanics, diagnostics, retry feedback, and a verified-history/asset-ID mismatch **in code**; no end-to-end production success has been established.
+- **Production:** Admin History confirmed that a production AIVID job was accepted and its MP4 was saved at 10:02 PM PKT. The exact deployed Hostinger and managed RDP revisions remain unverified. The later reference failure is documented below.
+- **Earlier user reports:** one no-F12 attempt displayed `The video request could not be prepared. Credits were refunded.` Later, AIVID finished jobs that CMMTools showed with `[collection_download]`. PRs #182–#186 address collection diagnostics, transfer, retry feedback, and a history asset-ID mismatch.
 - **Owner's Activity screenshot:** from 7 November 2026 about **4:13:11–4:13:47 PM** as displayed in Admin Activity, repeated `POST /api/aivid-rdp/poll → 200` entries every ~2–3 seconds, taking ~3–7 ms. These establish that the RDP polling endpoint was answering; they **do not establish** an accepted generation, correct agent release, healthy cloud storage, or a successful customer job. Screenshot showed no relevant job-specific error; entries were dominated by normal info-level request polling.
 
 ## 7 November user-reported symptoms (chronological)
@@ -44,6 +44,12 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 5. Admin Activity screenshot (as above) contained successful RDP poll requests only; successful polling alone does not prove AIVID worker submission or file delivery.
 6. In later attempts, the owner observed AIVID's own site had successfully generated the videos while CMMTools still reported `[collection_download] The worker could not download and validate the AIVID MP4. The existing video will be checked again after a delay.` This is a **post-generation collection failure**, not proof that paid generation failed; source job IDs must be preserved.
 7. The owner clicked **Retry collection** in Admin but saw no obvious response. PR #185 changes the acknowledgment, worker wake-up, and Activity visibility. A button response is not proof of MP4 arrival.
+
+### 11:24 PM PKT production AIVID failure
+
+- Admin → Generations showed a Seedance 2.0 Mini job (`5bc94231`) at 15 seconds and 480p with one video reference. AIVID History recorded `aivid.preparation_failed` at 11:25:22 PM with stage `rdp_dispatch` and code `reference_upload`. The job ended as `submit_error` before the paid submission reservation, had no provider job ID, and received a full refund of 846.72 CMMTools credits.
+- The diagnostic identifies reference verification in the RDP browser. The specific failed check remains unresolved among the input lookup, selected file, preview, and upload ID. Admin reported the RDP agent online and ready at 11:30 PM. The preceding AIVID job had an accepted provider ID and a saved MP4 at 10:02 PM.
+- Verification used the live Admin job record, uploaded input types, job-specific activity, and provider status. The investigation was read-only. To narrow a recurrence without a paid submission, use the synthetic reference preflight and compare the result with the failed job's single-video input.
 
 ## Merged change index and purpose
 
@@ -86,7 +92,7 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 3. Only for an eligible **paused collection** of that existing provider job, click **Retry collection** once. Confirm the inline queued acknowledgment and `aivid.collection_retry_queued` event; if error/409, refresh and inspect state before further action. Do not repeatedly click or start another paid request.
 4. Follow worker activity by that generation ID. Validate a **completed** CMMTools record, stored playable MP4, correct ownership, and unchanged/appropriately reconciled credit ledger. If a collection error persists, classify history vs media URL vs provider transfer vs relay vs output storage; recheck any cloud-storage 500 separately. A worker `/poll` HTTP 200 and a queued acknowledgment alone are insufficient.
 
-**Verification boundary:** PRs #182–#186 are merged in GitHub; this handoff did **not** verify a new live Hostinger deployment, RDP agent upgrade, or successfully collected/played production MP4. Do not claim the full incident permanently fixed or promise that the issue cannot recur. Previous F12/pre-click problems remain a distinct line of investigation if they recur.
+**Verification boundary:** PRs #182–#186 are merged in GitHub. Admin History shows completed production MP4 storage at 10:02 PM PKT, with playback and the exact Hostinger and managed RDP revisions still unverified. The later pre-click reference failure is a separate issue.
 
 ### How the Chrome worker is intended to behave
 
