@@ -107,7 +107,7 @@ test('agent Generate occurs only after the server reservation, and reporting ret
   let clicked = 0, reserved = 0, reports = 0;
   const request = f.transport.request;
   f.transport.request = async (route, options) => {
-    if (route.endsWith('/result') && reports++ === 0) throw Object.assign(new Error('network'), { network: true });
+    if (route.endsWith('/result') && reports++ === 0) throw Object.assign(new Error('Unavailable'), { statusCode: 503 });
     return request(route, options);
   };
   const agent = new Agent({ root, transport: f.transport, pause: flush, clientFactory: () => ({ startVideo: async (_value, _refs, hooks) => {
@@ -176,10 +176,20 @@ test('Premium preflight relay preserves verified model settings and rejects wron
 });
 test('MP4 is transferred in bounded chunks and verified before the existing queue receives it', { timeout: 10000 }, async () => {
   const f = fixture(), data = Buffer.alloc(1024 * 1024 + 20); data.write('ftyp', 4, 'ascii');
-  const agent = new Agent({ transport: f.transport, clientFactory: () => ({ collectVideo: async () => ({ state: 'completed', output: { data, mimeType: 'video/mp4' } }) }) });
+  const request = f.transport.request;
+  let chunkAttempts = 0;
+  f.transport.request = async (route, options) => {
+    if (route.includes('/chunks/') && ++chunkAttempts === 1) {
+      await request(route, options);
+      throw Object.assign(new Error('Lost chunk acknowledgement'), { network: true });
+    }
+    return request(route, options);
+  };
+  const agent = new Agent({ pause: flush, transport: f.transport, clientFactory: () => ({ collectVideo: async () => ({ state: 'completed', output: { data, mimeType: 'video/mp4' } }) }) });
   const waiting = f.client.collectVideo(providerJobId); await flush(); const { command } = await f.service.poll(f.device, 'ready');
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.state, 'completed'); assert.deepEqual(result.output.data, data);
+  assert.equal(chunkAttempts, 3);
   assert.equal(f.store.rows.size, 0); assert.equal(f.store.chunks.size, 0);
 });
 test('invalid, missing or out-of-order MP4 chunks cannot complete an output', async () => {
@@ -227,4 +237,16 @@ test('offline pairing recovers accepted videos while live agents and uncertain c
  await assert.rejects(f.service.createPairing(),/Stop the existing/);
  f.records.delete(HEARTBEAT_KEY);uncertain=true;
  await assert.rejects(f.service.createPairing(),/uncertain submission/);
+});
+
+test('a cleanup outage preserves the accepted result after a paid submission', async () => {
+  const f = fixture();
+  f.store.remove = async () => { throw new Error('Database connection interrupted'); };
+  const waiting = f.client.startVideo(value, [], { beforeClick: async () => {} });
+  await flush();
+  const { command } = await f.service.poll(f.device, 'ready');
+  await f.service.reserve(f.device, command.id, 2);
+  await flush();
+  await f.service.result(f.device, command.id, { state: 'accepted', providerJobId });
+  assert.deepEqual(await waiting, { state: 'accepted', providerJobId });
 });

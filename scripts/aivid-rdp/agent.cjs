@@ -60,8 +60,8 @@ async function saveConfig(root, value, codec = protect) {
   await fs.writeFile(path.join(root, '.aivid-agent.json'), JSON.stringify({ origin: baseUrl, credential }) + '\n', { mode: 0o600 });
 }
 class Agent {
-  constructor({ root = __dirname, transport, connect, clientFactory, pause = delay } = {}) {
-    this.root = root; this.transport = transport; this.pause = pause; this.status = 'starting'; this.stopping = false;
+  constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
+    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
     this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, download: downloadNative, historyDownload: downloadSavedVideo, maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...') }));
@@ -74,6 +74,16 @@ class Agent {
     } catch (error) {
       this.status = 'needs_login';
       console.log('AIVID [' + adapter.diagnosticCode(error) + ']: ' + adapter.diagnosticMessage(adapter.diagnosticCode(error)));
+    }
+  }
+  async report(route, body) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await this.transport.request(route, { body }); }
+      catch (error) {
+        const retryable = error.network || [408, 429, 500, 502, 503, 504].includes(error.statusCode);
+        if (!retryable || attempt === 2) throw error;
+        await this.pause(1000);
+      }
     }
   }
   async execute(command) {
@@ -115,15 +125,12 @@ class Agent {
       if (result.state === 'completed') {
         const data = result.output.data;
         if (!Buffer.isBuffer(data) || data.length < 12 || data.length > MAX_OUTPUT || data.toString('ascii', 4, 8) !== 'ftyp') throw new Error('Unsupported output.');
-        for (let i = 0; i < Math.ceil(data.length / CHUNK); i++) await this.transport.request(route + '/chunks/' + i, { body: data.subarray(i * CHUNK, (i + 1) * CHUNK) });
+        for (let i = 0; i < Math.ceil(data.length / CHUNK); i++) await this.report(route + '/chunks/' + i, data.subarray(i * CHUNK, (i + 1) * CHUNK));
         result = { state: 'completed', size: data.length, chunks: Math.ceil(data.length / CHUNK), sha256: hash(data) };
       }
     } else throw new Error('Unknown RDP command.');
-    // Result retries only report an existing outcome. They never run the job again.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { await this.transport.request(route + '/result', { body: result }); return; }
-      catch (error) { if (!error.network || attempt === 2) throw error; await this.pause(1000); }
-    }
+    // These writes are idempotent. A transfer retry never repeats Generate.
+    await this.report(route + '/result', result);
   }
   async run() {
     const release = await takeLock(this.root);
@@ -137,8 +144,12 @@ class Agent {
         }
       }
       if (this.stopping) return;
-      const startupBeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
-      try { await this.check(); } finally { clearInterval(startupBeat); }
+      const checkSession = async () => {
+        const heartbeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
+        try { await this.check(); } finally { clearInterval(heartbeat); }
+      };
+      await checkSession();
+      let nextSessionCheck = this.now() + 30000;
       let releaseCheckedAt=0,initialRelease=process.env.AIVID_RUNTIME_VERSION||null;
       while (!this.stopping) {
         try {
@@ -153,6 +164,10 @@ class Agent {
               console.log('Worker update check unavailable; keeping the current verified worker.');
             }
           }
+          if (this.status === 'needs_login' && this.now() >= nextSessionCheck) {
+            await checkSession();
+            nextSessionCheck = this.now() + 30000;
+          }
           const { command } = await this.transport.request('/poll', { body: { status: this.status } });
           if (command) {
             const previous = this.status;
@@ -160,13 +175,14 @@ class Agent {
             const timer = setInterval(() => this.transport.request('/poll', { body: { status: 'busy' } }).catch(() => {}), 10000);
             try { await this.execute(command); this.status = 'ready'; console.log('RDP operation finished.'); }
             catch (error) {
+              if (error.statusCode === 401) throw error;
               const errorCode = adapter.diagnosticCode(error);
               await this.transport.request('/commands/' + command.id + '/result', { body: { error: true, errorCode } }).catch(() => {});
-              // Collection errors retain an accepted job and must not disable the
-              // only consumer able to collect it later. They never resubmit.
-              const retryCollection=command.kind==='collect'&&!['session_sign_in','session_page_left'].includes(errorCode);
-              this.status = error.network||retryCollection ? previous : 'needs_login';
-              console.log(retryCollection?'Collection will retry the existing AIVID video. No new video will be submitted.':'Operation needs review. Check Chrome and Admin; existing paid jobs will not be submitted again.');
+              const sessionFailure = ['browser_connection', 'session_sign_in', 'session_page_left',
+                'session_check', 'session_form_missing', 'session_form_ambiguous'].includes(errorCode);
+              this.status = sessionFailure ? 'needs_login' : previous;
+              if (sessionFailure) nextSessionCheck = this.now() + 30000;
+              console.log('AIVID operation needs attention. Existing paid jobs remain protected.');
               console.log('AIVID [' + errorCode + ']: ' + adapter.diagnosticMessage(errorCode));
             } finally { clearInterval(timer); }
           }
@@ -214,5 +230,5 @@ async function main() {
   process.once('SIGINT', () => { agent.stopping = true; }); process.once('SIGTERM', () => { agent.stopping = true; });
   await agent.run();
 }
-if (require.main === module) main().catch(error => { console.error(error.safe || error.network || error.statusCode ? error.message : 'The RDP agent stopped. Check Chrome, pairing and the writable agent folder.'); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error(error.safe || error.network || error.statusCode ? error.message : 'The RDP agent stopped. Check Chrome, pairing and the writable agent folder.'); process.exitCode = error.statusCode === 401 ? 23 : 1; });
 module.exports = { Agent, Transport, origin, loadConfig, saveConfig, protect, readPairingInput, main };

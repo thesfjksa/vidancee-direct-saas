@@ -61,7 +61,7 @@ test('native download validates the MP4 header and deletes only its temporary do
   await assert.rejects(downloadNative(page), /valid MP4/); assert.equal(deleted, 2);
 });
 
-test('temporary collection errors leave the agent available for the next collection poll',async t=>{
+test('job-specific errors leave the agent available for the next poll',async t=>{
   const {Agent}=require('../agent.cjs');
   for(const kind of ['collect','preflight']){
     const root=await fs.mkdtemp(path.join(os.tmpdir(),'aivid-collect-retry-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
@@ -79,7 +79,7 @@ test('temporary collection errors leave the agent available for the next collect
     agent=new Agent({root,transport,pause:async()=>{},clientFactory:()=>({preflight:async()=>({ready:true})})});
     agent.execute=async()=>{throw new Error('Temporary video detail/download failure')};
     await agent.run();assert.equal(reports,1);
-    assert.equal(statuses.at(-1),kind==='collect'?'ready':'needs_login');
+    assert.equal(statuses.at(-1),'ready');
   }
 });
 test('download security warnings stop collection without clicking through the warning',async()=>{
@@ -161,4 +161,27 @@ test('connection and update outages reconnect without repeating an accepted oper
   assert.equal(checks,1);assert.equal(updates,1);
   assert.equal(await fs.stat(path.join(root,'.aivid-agent.lock')).then(()=>true,()=>false),false);
  }
+});
+
+test('the agent restores readiness after the browser session recovers', async t => {
+  const { Agent } = require('../agent.cjs');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'aivid-session-recovery-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  let now = 0, checks = 0;
+  const statuses = [];
+  const agent = new Agent({
+    root,
+    now: () => now,
+    pause: async () => { now += 30000; },
+    transport: { request: async (_route, options) => {
+      statuses.push(options.body.status);
+      if (options.body.status === 'ready') agent.stopping = true;
+      return { command: null };
+    } },
+    clientFactory: () => ({ preflight: async () => {
+      if (++checks === 1) throw Object.assign(new Error('Sign in'), { aividCode: 'session_sign_in' });
+    } }),
+  });
+  await agent.run();
+  assert.deepEqual(statuses, ['starting', 'needs_login', 'ready']);
 });
