@@ -257,3 +257,19 @@ or bypassed, and the server pauses collection immediately for download_security.
 Generic collection failures back off and pause after three errors. Owner-reviewed
 retry_collection resumes only the original source ID. No new live generation was
 submitted, and the owner's original CMMTools transfer remains unverified.
+
+
+## 7 November: post-Generate F12-dependent race investigation
+
+Owner reported that pressing F12 during AIVID generation allows a
+video to proceed, while the same operation without F12 immediately resets
+the managed work tab to `about:blank#cmmtools-worker`. The blank page
+is deliberate agent cleanup, not the actual failure diagnosis. After
+PR #176 allowed a known likes-refresh background POST, other unexpected
+mutations could still reject the paid response race. The follow-up fix blocks
+these unknown requests without terminally failing an otherwise valid
+`POST /v2/generations`, keeps the guarded response wait alive after
+reservation even if click handling rejects, and tests that only one paid
+POST and one reservation can proceed. This remains a GitHub-level change;
+live Hostinger revision, managed agent delivery, source acceptance and video
+completion have not been verified. Do not replay existing uncertain jobs.

@@ -118,3 +118,30 @@ should be spent during read-only preflights. A paid live output's exact
 MP4 running time is still unverified.
 
 Premium Video Studio defaults to the maximum supported duration: 15 seconds for Mini, standard 2.0 and Fast; 30 seconds for 2.5. Shorter durations remain selectable. Fast uses the distinct `seedance-2.0-fast` upstream model and its own live public-mode quote. Admin model and reference diagnostics include Fast.
+
+
+## Response race after Generate (7 Nov 2026)
+
+The owned Windows RDP Chrome tab deliberately goes to `about:blank#cmmtools-worker`
+once its guarded operation has reached a conclusive provider response or a safe
+uncertain/failed state; the blank URL alone is not evidence that AIVID accepted
+a job. Owner observed that opening DevTools (F12) changes whether AIVID
+generation succeeds. Browser diagnostics and exact response/receipt evidence
+are still required to distinguish a source rejection, a blocked request, and
+a stalled provider response.
+
+The old guard treated every unknown background mutation as a fatal
+`submission_request` and raced that failure with the expected
+`POST /v2/generations` response. This could cancel a legitimate in-flight
+submission and navigate to blank immediately. The repair blocks unknown
+mutations without allowing or charging them, but keeps waiting for the exact
+validated generation request; after a durable reservation, late blocked
+mutations or duplicate requests cannot terminate the response wait. The
+existing 120-second response timeout remains an uncertain state that must be
+reconciled against AIVID history; it is never retried as a new paid POST.
+
+After deploying both Hostinger processes and the managed RDP runtime, test
+once without F12. Inspect the agent's first redacted
+`AIVID [submission_request] blocked` log, original customer generation
+status, and AIVID history before attempting a new paid generation. The
+patch has not been verified on the owner's live RDP.
