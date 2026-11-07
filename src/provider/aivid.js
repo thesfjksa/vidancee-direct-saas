@@ -61,6 +61,11 @@ const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/
 // Only fixed diagnostic codes/messages cross the RDP bridge. Never forward
 // Playwright call logs, page text, account data or connection URLs.
 const DIAGNOSTICS = Object.freeze({
+  collection_history: 'The worker could not read AIVID generation history.',
+  collection_media_url: 'AIVID history did not provide a verified video link for this job.',
+  collection_download: 'The worker could not download and validate the AIVID MP4.',
+  collection_relay: 'CMMTools did not receive the complete video from the RDP agent.',
+  collection_storage: 'CMMTools received the video but could not save it.',
   download_security: 'Chrome blocked the video download with a security warning. Review it manually; automatic collection is paused.',
   browser_connection: 'Could not connect to the local Chrome profile. Close the Login Chrome windows, then restart Agent.',
   page_navigation: 'AIVID did not load in time. Check its Chrome tab and the RDP internet connection.',

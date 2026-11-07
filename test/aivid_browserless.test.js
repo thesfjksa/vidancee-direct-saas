@@ -434,6 +434,7 @@ test('paused new jobs still collect accepted jobs; download failures retain the 
   const done = fixture({ enabled: false, charges: false, status: 'submitted', op: { stage: 'accepted', providerJobId }, output: { state: 'completed', output: { data: Buffer.from('video'), mimeType: 'video/mp4' } } });
   await done.q.runOnce(done.db); assert.equal(done.stats().complete, 1);
   done.job.status = 'submitted'; done.q.complete = async () => { throw new Error('storage offline'); };
+  await assert.rejects(done.q.pollJob(done.db,done.q.clientFactory(),done.job),{aividCode:'collection_storage'});
   await done.q.runOnce(done.db);
   assert.equal(done.job.provider_job_id, providerJobId); assert.equal(done.stats().refunds, 0);
 });
