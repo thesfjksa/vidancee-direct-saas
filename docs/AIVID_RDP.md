@@ -1,5 +1,8 @@
 # AIVID on the owner's Windows RDP
 
+> **Current 7 November 2026 incident/recovery handoff:** [PROJECT_HANDOFF_2026-11-07.md](PROJECT_HANDOFF_2026-11-07.md). PRs #175–#180 are merged on GitHub, including the F12/CDP race changes and pre-click stage diagnostics. The owner's latest reported generation still failed before visible submission; no live end-to-end recovery has been verified. Keep accepted/uncertain jobs for account-history reconciliation and never re-submit them automatically.
+
+
 Owner setting (6 November 2026): every preflight and generation selects Public.
 The form and outgoing request both verify public visibility. Price is read
 after the switch, then checked against the saved source-credit ceiling.
