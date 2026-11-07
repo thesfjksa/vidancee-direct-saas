@@ -162,3 +162,55 @@ test('fal GPT image models are priced per image by quality and send the chosen q
   assert.equal(quoteGateway(m1,{aspectRatio:'3:2',quality:'medium'},1000).sourceUsd,0.02);
   assert.equal(new FalImageClient().input(m1,{prompt:'P',aspectRatio:'3:2',quality:'medium'}).image_size,'1536x1024');
 });
+
+test('GPT Image 2 uses its existing model ID and switches endpoint and quote when an image is attached',async()=>{
+  const id='openai/gpt-image-2', editId=id+'/edit';
+  const quality={type:'string',enum:['auto','low','medium','high']};
+  const base=entry(id,{...imageSize,quality});
+  const edit=entry(editId,{...imageSize,quality,image_urls:{type:'array',items:{type:'string'},maxItems:16}},['prompt','image_urls']);
+  const describe=(editEntry)=>describeFalImageModel(base,null,editEntry);
+  const m=describe(edit);
+  const model={...m.options,providerModelId:id,mediaType:'image'};
+  assert.equal(m.publicModelId,publicId(id));
+  assert.equal(model.referenceCapabilities.image.min,0);
+  assert.equal(model.referenceCapabilities.image.max,1);
+  assert.deepEqual(model.supportedOperations,['text-to-image','image-to-image']);
+  assert.equal(describe(null).options.referenceCapabilities.image.supported,false);
+  assert.equal(describe(entry(editId,{quality,image_url:{type:'string'}})).options.referenceCapabilities.image.supported,false);
+  const options={prompt:'Keep the subject',aspectRatio:'16:9',quality:'high'};
+  const refs=[{url:'https://example.com/reference.png'}];
+  const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),Buffer.alloc(32)]);
+  const client=new FalImageClient({fetchImpl:async()=>new Response(png)});
+  const submissions=[];
+  client.fal.submit=async (...args)=>{submissions.push(args);return {};};
+  client.fal.status=async()=>({status:'COMPLETED'});
+  client.fal.result=async()=>({images:[{url:'https://v3b.fal.media/files/out.png'}]});
+  await client.generateImage(model,options,[]);
+  await client.generateImage(model,options,refs);
+  assert.equal(submissions[0][0],id);
+  assert.equal(submissions[0][1].image_urls,undefined);
+  assert.deepEqual(submissions[1],[editId,{...submissions[0][1],image_urls:[refs[0].url]}]);
+  assert.throws(()=>client.input(model,options,[...refs,...refs]),/reference image count/);
+  assert.equal(quoteGateway(model,options,1000).sourceUsd,0.214);
+  const editQuote=quoteGateway(model,{...options,images:[{}]},1000);
+  assert.equal(editQuote.sourceUsd,0.226);
+  assert.equal(editQuote.isEstimate,true);
+  assert.deepEqual(quoteGateway(model,{...options,previewHasReferences:true},1000),editQuote);
+});
+
+test('catalog pairs the exact active GPT edit schema with the text model',async()=>{
+  const {fetchFalImageCatalog}=require('../src/fal_images.js');
+  const id='openai/gpt-image-2.5/flare/text-to-image', editId='openai/gpt-image-2.5/flare/edit';
+  const quality={type:'string',enum:['low','medium','high']};
+  const text=entry(id,{...imageSize,quality});
+  const edit=entry(editId,{...imageSize,quality,image_urls:{type:'array',items:{type:'string'}}},['prompt','image_urls']);
+  const fetchImpl=async url=>{
+    if(url.includes('category=text-to-image'))return Response.json({models:[text]});
+    if(url.includes('category=image-to-image'))return Response.json({models:[edit]});
+    if(url.includes('expand=openapi'))return Response.json({models:[text,edit]});
+    return Response.json({prices:[]});
+  };
+  const models=await fetchFalImageCatalog({apiKey:'k',fetchImpl});
+  assert.deepEqual(models.map(m=>m.providerModelId),[id]);
+  assert.equal(models[0].options.falImage.edit.endpoint,editId);
+});

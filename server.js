@@ -1018,11 +1018,13 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
     if(!customerAccess.fal||!providerSettings.falEnabled||!providerSettings.falApiKey)throw httpError(503,'This image model is currently unavailable.');
     const model=await getProviderModelByPublicId(FAL_IMAGE_PROVIDER,requestedModel,'image');
     if(!model?.ready)throw httpError(404,'This image model is currently unavailable.');
-    validateReferences(model,body);
-    const quote=quoteGateway(model,body,providerSettings.falCustomerCreditsPerUsd);
-    generation=await createImage(user.id,{...body,aspectRatio:quote.aspectRatio},{
+    // Only the uploaded and restored files determine the charged price.
+    const input={...body,previewHasReferences:false,reuseImageIds:undefined};
+    validateReferences(model,input);
+    const quote=quoteGateway(model,input,providerSettings.falCustomerCreditsPerUsd);
+    generation=await createImage(user.id,{...input,aspectRatio:quote.aspectRatio},{
       provider:FAL_IMAGE_PROVIDER,dynamicModel:true,referenceCapabilities:model.referenceCapabilities,
-      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:quote.isEstimate?'usd-estimate':'usd',
       generationOptions:{...quote,model},
     });
   }

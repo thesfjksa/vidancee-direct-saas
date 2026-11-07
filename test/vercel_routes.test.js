@@ -21,6 +21,15 @@ test('priced provider HTTP routes enforce account/model controls, reserve quoted
   },{unit_price:0.08,unit:'image',currency:'USD'});
   modelRows.push({id:4,provider:'falimg',provider_model_id:falEdit.providerModelId,public_model_id:falEdit.publicModelId,
     label:falEdit.label,media_type:'image',options_json:JSON.stringify(falEdit.options),enabled:1,available:1});
+  const gptId='openai/gpt-image-2',gptEditId=gptId+'/edit';
+  const gptProps={prompt:{type:'string'},image_size:{enum:['square_hd']},quality:{enum:['low','medium','high']}};
+  const gptEntry=(endpoint_id,properties,required)=>({endpoint_id,openapi:{
+    paths:{'/':{post:{requestBody:{content:{'application/json':{schema:{properties,required}}}}}}},
+  }});
+  const falGpt=describeFalImageModel(gptEntry(gptId,gptProps,['prompt']),null,
+    gptEntry(gptEditId,{...gptProps,image_urls:{type:'array',items:{type:'string'}}},['prompt','image_urls']));
+  modelRows.push({id:5,provider:'falimg',provider_model_id:falGpt.providerModelId,public_model_id:falGpt.publicModelId,
+    label:falGpt.label,media_type:'image',options_json:JSON.stringify(falGpt.options),enabled:1,available:1});
   async function execute(sql,args=[]){
     sql=sql.replace(/ = \?/g,'=?').replace(/credits = credits - \?/g,'credits=credits-?');
     if(sql.startsWith('CREATE'))return [[]];
@@ -126,7 +135,8 @@ test('priced provider HTTP routes enforce account/model controls, reserve quoted
 
   const falSettings=await request('/admin/provider-settings',{admin:true,method:'POST',body:{falApiKey:'fal-test-only',falEnabled:true}});
   assert.equal(falSettings.status,200);
-  const editConfig=(await request('/api/config')).data.imagePricing.find(m=>m.id===falEdit.publicModelId);
+  const falCatalog=(await request('/api/config')).data.imagePricing;
+  const editConfig=falCatalog.find(m=>m.id===falEdit.publicModelId);
   assert.equal(editConfig.capabilities.image.supported,true);
   assert.equal(editConfig.capabilities.image.min,1);
   const editInput={model:falEdit.publicModelId,prompt:'Change the background',aspectRatio:'16:9'};
@@ -151,4 +161,27 @@ test('priced provider HTTP routes enforce account/model controls, reserve quoted
   const refResponse=await fetch(origin+url.pathname+url.search);
   assert.equal(refResponse.status,200);
   assert.deepEqual(Buffer.from(await refResponse.arrayBuffer()),refBytes);
+
+  const gptConfig=falCatalog.find(m=>m.id===falGpt.publicModelId);
+  assert.equal(gptConfig.referencePricing,true);
+  assert.equal(gptConfig.capabilities.image.min,0);
+  const gptInput={model:falGpt.publicModelId,prompt:'Keep the subject',quality:'high',aspectRatio:'1:1'};
+  const textPrice=gptConfig.costTable['1:1|high|'];
+  const editPrice=gptConfig.costTable['1:1|high||reference'];
+  assert.ok(editPrice>textPrice);
+  assert.ok(gptConfig.costEstimates.includes('1:1|high||reference'));
+  const gptQuote=await request('/api/model-cost',{method:'POST',body:{...gptInput,mediaType:'image',previewHasReferences:true}});
+  assert.equal(gptQuote.data.cost,editPrice);
+  assert.equal(gptQuote.data.isEstimate,true);
+  const gptText=await request('/api/image-generations',{method:'POST',body:{...gptInput,previewHasReferences:true}});
+  assert.equal(gptText.data.generation.credits_cost,textPrice);
+  const gptForm=new FormData();
+  for(const [key,value] of Object.entries(gptInput))gptForm.append(key,value);
+  gptForm.append('images',new Blob([refBytes],{type:'image/png'}),'reference.png');
+  const gptResponse=await fetch(origin+'/api/image-generations',{method:'POST',headers:{'x-test-user':'1'},body:gptForm});
+  assert.equal(gptResponse.status,201);
+  const savedGpt=(await gptResponse.json()).generation;
+  assert.equal(savedGpt.credits_cost,editPrice);
+  assert.equal(jobs.get(savedGpt.id).provider_cost_unit,'usd-estimate');
+  assert.equal(JSON.parse(jobs.get(savedGpt.id).generation_options).model.falImage.edit.endpoint,gptEditId);
 });

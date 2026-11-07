@@ -185,13 +185,15 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
   if (model.mediaType==='image') {
     const [w,h]=imageDimensions(model,chosen).split('x').map(Number);
     const area=w*h/(1024*1024);
-    if (override) {
+    const editTiers=p.reference_image_dimension_quality_pricing;
+    const editing=editTiers?.length&&hasInputMaterial(input);
+    if (override&&!editing) {
       const rate=override[chosen.quality]||override.perImage;
       // Admin image rates are a square 1024px estimate; non-square pixel area
       // is applied explicitly, independently for each quality.
       if (positive(rate)) {sourceUsd=Number(rate)*area;isEstimate=true;}
     } else {
-      const catalogTiers=p.image_dimension_quality_pricing||[];
+      const catalogTiers=editing?editTiers:p.image_dimension_quality_pricing||[];
       const tiers=catalogTiers.length||positive(p.image)?catalogTiers:publishedImageTiers(model.providerModelId);
       const matches=tiers.filter(t=>
         (!t.size||t.size==='default'||t.size===chosen.imageSize||t.size===w+'x'+h)&&
@@ -202,7 +204,7 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
     }
     // Token-based models have additional variable input charges. Their base
     // image quote is an estimate, not an invented conversion of output tokens.
-    if (positive(p.input)) isEstimate=true;
+    if (editing||positive(p.input)) isEstimate=true;
   } else if (override?.perSecond) {sourceUsd=Number(override.perSecond)*chosen.duration;isEstimate=true;}
   // Some sources (Vidancee) charge a flat price per clip length.
   else if ((p.video_duration_prices||[]).length) {
