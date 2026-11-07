@@ -145,3 +145,9 @@ once without F12. Inspect the agent's first redacted
 `AIVID [submission_request] blocked` log, original customer generation
 status, and AIVID history before attempting a new paid generation. The
 patch has not been verified on the owner's live RDP.
+
+## 7 November: Fetch interception startup race
+
+A second timing defect was found after PR #178: installRequestGuard enabled CDP Fetch interception before registering Fetch.requestPaused. Chrome can emit the first paused event while the Fetch.enable command is still in flight. If no listener exists yet, the request can remain paused. PR #179 registers the handler first, then enables interception, cleans up failed setup, and emits a fixed request_guard_setup diagnostic for CDP attach/enable failures. A regression test emits a paused request during Fetch.enable and asserts that it is resumed.
+
+This is a code-level explanation consistent with the reported F12 workaround, not yet a verified live-RDP root cause. Keep unknown POSTs blocked and only release the exact validated generation POST after durable reservation. After all checks pass, deploy main and restart/update the managed RDP agent. Run one controlled no-F12 test; inspect Agent progress and AIVID history before any repeat. Never automatically retry an uncertain paid submission.
