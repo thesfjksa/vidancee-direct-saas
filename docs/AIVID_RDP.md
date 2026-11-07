@@ -1,6 +1,6 @@
 # AIVID on the owner's Windows RDP
 
-> **Current 7 November 2026 incident/recovery handoff:** [PROJECT_HANDOFF_2026-11-07.md](PROJECT_HANDOFF_2026-11-07.md). PRs #175–#180 are merged on GitHub, including the F12/CDP race changes and pre-click stage diagnostics. The owner's latest reported generation still failed before visible submission; no live end-to-end recovery has been verified. Keep accepted/uncertain jobs for account-history reconciliation and never re-submit them automatically.
+> **Current 7 November 2026 incident/recovery handoff:** [PROJECT_HANDOFF_2026-11-07.md](PROJECT_HANDOFF_2026-11-07.md). PRs #175–#186 are merged, including F12/CDP diagnostics, history-based collection, stage-specific errors, Admin job history, retry feedback and a distinct MP4 asset-ID fix. The owner later reported completed AIVID videos that CMMTools failed to collect and a Retry collection click with no apparent feedback; no live end-to-end recovery has been verified. Keep accepted/uncertain jobs for account-history reconciliation and never re-submit them automatically.
 
 
 Owner setting (6 November 2026): every preflight and generation selects Public.
@@ -154,3 +154,14 @@ patch has not been verified on the owner's live RDP.
 A second timing defect was found after PR #178: installRequestGuard enabled CDP Fetch interception before registering Fetch.requestPaused. Chrome can emit the first paused event while the Fetch.enable command is still in flight. If no listener exists yet, the request can remain paused. PR #179 registers the handler first, then enables interception, cleans up failed setup, and emits a fixed request_guard_setup diagnostic for CDP attach/enable failures. A regression test emits a paused request during Fetch.enable and asserts that it is resumed.
 
 This is a code-level explanation consistent with the reported F12 workaround, not yet a verified live-RDP root cause. Keep unknown POSTs blocked and only release the exact validated generation POST after durable reservation. After all checks pass, deploy main and restart/update the managed RDP agent. Run one controlled no-F12 test; inspect Agent progress and AIVID history before any repeat. Never automatically retry an uncertain paid submission.
+
+
+## AIVID collection follow-up (7 November 2026; PRs #182–#186)
+
+See the [detailed current handoff](PROJECT_HANDOFF_2026-11-07.md#7-november-follow-on-aivid-completed-video-collection-retry-and-history-182186) for symptom timeline, tests and safe steps.
+
+- AIVID finished some videos according to the owner, but CMMTools reported `[collection_download] The worker could not download and validate the AIVID MP4`. This is a *collection* failure, not reason to submit a second paid generation.
+- #182 uses signed-in Generate-page history to match the exact provider job ID and fetch the verified MP4 without opening public detail pages; #183 separates history, media URL, provider transfer, RDP relay and CMMTools storage error stages; #184 adds Admin **AIVID History** job drill-down.
+- #185 addresses a **Retry collection** button that appeared to do nothing: previous UI silently refreshed on API success, route only made a generic reconciliation log and did not explicitly wake the worker. Current UI shows Queuing and a server-confirmed queued notice or inline error; backend wakes worker and records `aivid.collection_retry_queued` for the generation/provider job ID. Only paused existing non-refunded submitted/processing jobs with verified provider IDs are eligible; second/uncertain retries reject HTTP 409. **Queued != collected.**
+- #186 fixes a code-level validation mismatch: authenticated history associates generation ID with a valid MP4 file whose **asset ID differs** from the generation ID. Trusted host, HTTPS, path and MP4 checks stay enforced. Does not relax host validation or guarantee a successful storage transfer.
+- Verify both Hostinger services and the managed Windows agent carry #186. For one **existing completed** AIVID job, check Admin Generations and AIVID History, queue a single safe collection retry if eligible, then confirm worker completion, stored playable file, and wallet integrity. **No new paid generation to test collection.** No live success of #185/#186 has been independently confirmed.
