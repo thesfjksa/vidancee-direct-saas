@@ -100,7 +100,7 @@ class AividQueue extends VercelQueue {
           logActivity({
             level:'warn',category:'aivid',event:'aivid.collection_failed',provider:'aivid',
             userId:job.user_id,generationId:job.id,message:diagnosticMessage(code),
-            details:{code,attempts,paused,...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})}
+            details:{code,attempts,paused,providerJobId:job.provider_job_id,...(Number.isInteger(storageStatus)&&storageStatus>=400&&storageStatus<=599?{storageStatus}:{})}
           });
           const next=paused?'Collection is paused. The existing video is preserved.':'The existing video will be checked again after a delay.';
           await db.execute("UPDATE generations SET provider_operation=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL",
@@ -170,6 +170,7 @@ class AividQueue extends VercelQueue {
         const [saved] = await db.execute("UPDATE generations SET status='submitted',provider_job_id=?,provider_operation=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND provider='aivid' AND status='submitting' AND refunded_at IS NULL",
           [result.providerJobId, JSON.stringify({ stage: 'accepted', providerJobId: result.providerJobId }), job.id]);
         if (!saved.affectedRows) throw new Error('Accepted job could not be persisted.');
+        this.log(job,'aivid.submitted','AIVID accepted the video.',{providerJobId:result.providerJobId});
       } else if (result.state === 'rejected') {
         const code=result.errorCode;
         const detail=Object.hasOwn(DIAGNOSTICS,code)

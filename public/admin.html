@@ -6,7 +6,7 @@
 <div id="loginBox" class="card login"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div class="brand">CMM Tools Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
 <div id="adminApp" class="hide">
   <div class="top"><div class="admin-brand"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div><div class="brand">Admin console</div><div class="muted">Production control center</div></div></div><button class="secondary" onclick="adminLogout()">Lock admin</button></div>
-  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="storage" onclick="tab('storage',this)">Storage</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button><button data-tab="activity" onclick="tab('activity',this)">Activity</button></div>
+  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="storage" onclick="tab('storage',this)">Storage</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button><button data-tab="activity" onclick="tab('activity',this)">Activity</button><button data-tab="aividHistory" onclick="tab('aividHistory',this)">AIVID History</button></div>
 
   <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>Server health</h2><div id="healthInfo" class="muted">Loading...</div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
@@ -95,13 +95,13 @@
 
   <section id="activity" class="section">
     <div class="card">
-      <div class="top"><div><h2 style="margin:0">Activity log</h2><div class="muted">Every action in CMM Tools: sign-ins, generations, provider requests and replies, retries, upscales, refunds and Admin changes. Keys and passwords are always masked. Kept for 30 days.</div></div><button class="secondary" onclick="loadActivity()">Refresh</button></div>
+      <div class="top"><div><h2 id="activityHeading" style="margin:0">Activity log</h2><div id="activityDescription" class="muted">Every action in CMM Tools: sign-ins, generations, provider requests and replies, retries, upscales, refunds and Admin changes. Keys and passwords are always masked. Kept for 30 days.</div></div><button class="secondary" onclick="loadActivity()">Refresh</button></div>
       <div class="row" style="margin-top:12px">
         <input id="actSearch" type="search" placeholder="Search message or details" onkeydown="if(event.key==='Enter')loadActivity()">
         <input id="actGeneration" placeholder="Generation ID" onkeydown="if(event.key==='Enter')loadActivity()">
         <select id="actLevel" onchange="loadActivity()"><option value="">All levels</option><option value="error">Errors</option><option value="warn">Warnings</option><option value="info">Info</option></select>
-        <select id="actCategory" onchange="loadActivity()"><option value="">All categories</option><option value="generation">Generations</option><option value="provider">Providers</option><option value="refund">Refunds</option><option value="request">Customer actions</option><option value="admin">Admin</option><option value="system">System</option></select>
-        <label class="muted" style="display:flex;align-items:center;gap:6px"><input id="actLive" type="checkbox" style="width:auto" onchange="toggleActivityLive()"> Live</label>
+        <select id="actCategory" onchange="loadActivity()"><option value="">All categories</option><option value="generation">Generations</option><option value="provider">Providers</option><option value="aivid">AIVID diagnostics</option><option value="refund">Refunds</option><option value="request">Customer actions</option><option value="admin">Admin</option><option value="system">System</option></select>
+        <button class="secondary" onclick="clearActivityFilters()">Clear filters</button><label class="muted" style="display:flex;align-items:center;gap:6px"><input id="actLive" type="checkbox" style="width:auto" onchange="toggleActivityLive()"> Live</label>
       </div>
       <div class="tablewrap"><table><thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Event</th><th>User</th><th>Provider</th><th>Generation</th><th>Message</th></tr></thead><tbody id="activityRows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>
       <div style="margin-top:10px"><button class="secondary" id="actMore" onclick="loadActivity(true)">Load older</button></div>
@@ -149,7 +149,7 @@
             <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Premium models are listed when this source is enabled and online. Each quote checks live Public pricing; any changed price blocks submission.</p>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin:12px 0"><button class="btn" id="aividSaveButton" onclick="saveAividAdmin()">Save Browserless key</button><button class="secondary" onclick="loadAividAdmin()">Refresh status</button></div>
-          <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividConnectButton" onclick="connectAividAdmin(false)">Connect aivid</button><button class="secondary" id="aividCheckButton" onclick="checkAividAdmin()">Check connection</button><button class="secondary" id="aividCheckModelsButton" onclick="checkAividModels()">Check all Premium models</button><button class="secondary" id="aividCheckReferencesButton" onclick="checkAividReferences()">Check reference uploads (no generation)</button></div>
+          <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividConnectButton" onclick="connectAividAdmin(false)">Connect aivid</button><button class="secondary" id="aividCheckButton" onclick="checkAividAdmin()">Check connection</button><button class="secondary" id="aividCheckModelsButton" onclick="checkAividModels()">Check all Premium models</button><button class="secondary" onclick="tab('aividHistory')">Open AIVID History</button><button class="secondary" id="aividCheckReferencesButton" onclick="checkAividReferences()">Check reference uploads (no generation)</button></div>
           <p class="muted">Reference checks upload synthetic image, video and audio files, then block the final video request. They require the complete current Windows agent and do not generate or charge for a video.</p>
           <div id="aividLoginBox" class="hide" style="margin-top:16px;padding:14px;border:1px solid var(--line,#dbe2ea);border-radius:12px">
             <p id="aividLoginMessage" class="muted" role="status"></p>
@@ -481,7 +481,27 @@ async function api(path,options={}){
 }
 async function adminLogin(){token=$('tokenInput').value.trim();try{const stats=await api('/admin/stats');sessionStorage.setItem('mehroz_admin_token',token);$('loginBox').classList.add('hide');$('adminApp').classList.remove('hide');loadOverview(stats);}catch(e){$('loginMsg').className='err';$('loginMsg').textContent=e.message}}
 function adminLogout(){sessionStorage.removeItem('mehroz_admin_token');location.reload()}
-function tab(name,btn){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='users')loadUsers();if(name==='generations')loadGenerations();if(name==='plans')loadPlanRequests();if(name==='credits')loadCredits();if(name==='storage'){loadCloudStorage();loadDriveStorage();}if(name==='provider'){openProviderWorkspace()}if(name==='activity'){loadActivity();loadSupportKey()}else toggleActivityLive(false)}
+function tab(name,btn,activityJobId){
+  const activityTab=name==='activity'||name==='aividHistory';
+  const section=activityTab?'activity':name;
+  document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id===section));
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
+  if(name==='users')loadUsers();
+  if(name==='generations')loadGenerations();
+  if(name==='plans')loadPlanRequests();
+  if(name==='credits')loadCredits();
+  if(name==='storage'){loadCloudStorage();loadDriveStorage();}
+  if(name==='provider')openProviderWorkspace();
+  if(activityTab){
+    setActivityScope(name==='aividHistory');
+    if(activityJobId){
+      for(const id of activityFilters)$(id).value='';
+      $('actGeneration').value=activityJobId;
+    }
+    loadActivity();
+    loadSupportKey();
+  }else toggleActivityLive(false);
+}
 function ago(iso){const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':Math.round(s/86400)+' days'}
 async function loadHealth(){const box=$('healthInfo');try{
   const d=await api('/admin/diagnostics'),w=d.web,day=Date.now()-864e5;
@@ -812,7 +832,7 @@ async function loadGenerations(){try{const p=new URLSearchParams({q:$('genSearch
   const thumb=g=>g.thumb_url||g.poster_url?'<img class="thumb-mini" loading="lazy" src="'+esc(g.thumb_url||g.poster_url)+'" alt="">':'';
   const prev=g=>{const link=g.image_url||g.video_url||g.audio_url;return link?'<a href="'+esc(link)+'" target="_blank" rel="noopener" title="Open">'+(thumb(g)||'Open')+'</a>':'—'};
   d.generations.forEach(g=>genById.set(g.id,g));
-  $('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+prev(g)+'</td><td><a href="#" onclick="openUserDrawer('+g.user_id+',\'gens\');return false">'+esc(g.user_email)+'</a></td><td>'+esc(g.media_type||'video')+'</td><td><span class="st '+esc(g.status)+'">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+(g.resolution?esc(g.resolution):'—')+'</td><td>'+g.credits_cost+'</td><td>'+esc(g.provider_job_id||'—')+(g.provider==='aivid'&&g.collectionPaused&&['submitted','processing'].includes(g.status)?' <button class="secondary" onclick="resumeAividCollection(this,&#39;'+esc(g.id)+'&#39;)">Retry collection</button>':'')+(g.provider==='aivid'&&g.media_type==='video'?' <button class="danger" onclick="manageAividGeneration(this,&#39;'+esc(g.id)+'&#39;,&#39;'+(['completed','failed','submit_error'].includes(g.status)?'delete':'cancel')+'&#39;)">'+(['completed','failed','submit_error'].includes(g.status)?'Delete':'Cancel job')+'</button>':'')+(g.provider==='api888'&&g.media_type==='video'&&g.provider_job_id?' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="checkApi888Task(this,&#39;'+esc(g.id)+'&#39;)">Check 888API</button>':'')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="openGenDetail(&#39;'+esc(g.id)+'&#39;)">Details</button></td></tr>').join(''):'<tr><td colspan="12" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="12" class="err">'+esc(e.message)+'</td></tr>'}}
+  $('generationRows').innerHTML=d.generations.length?d.generations.map(g=>'<tr><td>'+prev(g)+'</td><td><a href="#" onclick="openUserDrawer('+g.user_id+',\'gens\');return false">'+esc(g.user_email)+'</a></td><td>'+esc(g.media_type||'video')+'</td><td><span class="st '+esc(g.status)+'">'+esc(g.status)+'</span></td><td>'+esc(g.provider||'—')+'</td><td>'+esc(g.model)+'</td><td>'+(g.media_type==='image'?'—':g.duration+'s')+'</td><td>'+(g.resolution?esc(g.resolution):'—')+'</td><td>'+g.credits_cost+'</td><td>'+esc(g.provider_job_id||'—')+(g.provider==='aivid'&&g.collectionPaused&&['submitted','processing'].includes(g.status)?' <button class="secondary" onclick="resumeAividCollection(this,&#39;'+esc(g.id)+'&#39;)">Retry collection</button>':'')+(g.provider==='aivid'&&g.media_type==='video'?' <button class="danger" onclick="manageAividGeneration(this,&#39;'+esc(g.id)+'&#39;,&#39;'+(['completed','failed','submit_error'].includes(g.status)?'delete':'cancel')+'&#39;)">'+(['completed','failed','submit_error'].includes(g.status)?'Delete':'Cancel job')+'</button>':'')+(g.provider==='api888'&&g.media_type==='video'&&g.provider_job_id?' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="checkApi888Task(this,&#39;'+esc(g.id)+'&#39;)">Check 888API</button>':'')+'</td><td>'+fmt(g.created_at)+'</td><td style="max-width:300px">'+esc((g.error_message||g.prompt||'').slice(0,220))+(g.provider==='aivid'?' <button class="secondary" data-aivid-job="'+esc(g.id)+'" onclick="tab(\'aividHistory\',null,this.dataset.aividJob)">Job history</button>':'')+' <button class="secondary" style="font-size:11px;padding:4px 7px" onclick="openGenDetail(&#39;'+esc(g.id)+'&#39;)">Details</button></td></tr>').join(''):'<tr><td colspan="12" class="muted">No generations found.</td></tr>'}catch(e){$('generationRows').innerHTML='<tr><td colspan="12" class="err">'+esc(e.message)+'</td></tr>'}}
 async function manageAividGeneration(button,id,action){
   const message=action==='delete'?'Delete this video record and its stored files? Billing history and an audit receipt are retained. This cannot undo a source generation charge.':
     'Stop processing this job in CMMTools? Queued, unsubmitted jobs are refunded. Submitted or uncertain jobs are not automatically refunded and may still finish at the video service.';
@@ -1146,21 +1166,70 @@ async function saveProviderSettings(){
 }
 
 let vercelModels=[],argoModels=[];const vercelPriceDrafts=new Map();
-let activityRows=[],activityTimer=null;
+let activityRows=[],activityTimer=null,activityRequest=0,aividActivity=false;
+const activityFilters=['actSearch','actGeneration','actLevel','actCategory'];
+const activityValues={};
+const generalActivityDescription=$('activityDescription').textContent;
+function setActivityScope(aivid){
+  if(aivid===aividActivity)return;
+  activityValues[aividActivity]=activityFilters.map(id=>$(id).value);
+  aividActivity=aivid;
+  activityRows=[];
+  $('activityRows').innerHTML='<tr><td colspan="8" class="muted">Loading...</td></tr>';
+  $('actMore').classList.add('hide');
+  activityFilters.forEach((id,i)=>{$(id).value=activityValues[aivid]?.[i]||'';});
+  $('activityHeading').textContent=aivid?'AIVID History':'Activity log';
+  $('activityDescription').textContent=aivid?'AIVID generation and transfer events from the last 30 days. Select a generation ID to see its timeline or open the job in Generations.':generalActivityDescription;
+}
+function clearActivityFilters(){
+  for(const id of activityFilters)$(id).value='';
+  loadActivity();
+}
 function activityQuery(older){
   const p=new URLSearchParams({limit:'200'});
+  if(aividActivity)p.set('provider','aivid');
   for(const [k,id] of [['q','actSearch'],['generation','actGeneration'],['level','actLevel'],['category','actCategory']]){const v=$(id).value.trim();if(v)p.set(k,v);}
   if(older&&activityRows.length)p.set('before',activityRows[activityRows.length-1].id);
   return p.toString();
 }
+function showActivityGeneration(i,viewJob=false){
+  const id=activityRows[i]?.generationId;
+  if(!id)return;
+  if(viewJob){
+    $('genSearch').value=id;
+    $('genStatus').value='';
+    $('genType').value='';
+    tab('generations');
+  }else{
+    $('actGeneration').value=id;
+    loadActivity();
+  }
+}
+function aividActivityDetails(e){
+  if(!aividActivity||!e.details||typeof e.details!=='object')return '';
+  const d=e.details,items=[];
+  if(d.code)items.push('['+d.code+']');
+  if(d.stage)items.push('Stage '+d.stage);
+  if(d.providerJobId)items.push('Provider job '+d.providerJobId);
+  if(Number.isInteger(d.storageStatus))items.push('Storage HTTP '+d.storageStatus);
+  if(Number.isInteger(d.attempts))items.push('Attempt '+d.attempts);
+  if(d.paused===true)items.push('Paused');
+  return items.length?'<div class="muted">'+esc(items.join(' · '))+'</div>':'';
+}
 async function loadActivity(older=false){
+  const request=++activityRequest;
   try{
     const d=await api('/admin/activity?'+activityQuery(older));
+    if(request!==activityRequest)return;
     activityRows=older?activityRows.concat(d.entries):d.entries;
     $('actMore').classList.toggle('hide',d.entries.length<200);
     const lvl={error:'err',warn:'warn',info:'muted'};
-    $('activityRows').innerHTML=activityRows.length?activityRows.map((e,i)=>'<tr class="act-row" onclick="toggleActivityDetails('+i+')" style="cursor:pointer"><td title="'+esc(e.at)+'">'+fmt(e.at)+'</td><td class="'+(lvl[e.level]||'')+'">'+esc(e.level)+'</td><td>'+esc(e.category)+'</td><td>'+esc(e.event)+'</td><td>'+esc(e.email||(e.userId?'#'+e.userId:''))+'</td><td>'+esc(e.provider||'')+'</td><td>'+(e.generationId?'<a href="#" onclick="event.stopPropagation();$(\'actGeneration\').value=\''+esc(e.generationId)+'\';loadActivity();return false">'+esc(e.generationId.slice(0,8))+'</a>':'')+'</td><td style="max-width:520px">'+esc(e.message)+'</td></tr><tr id="actDetails'+i+'" class="hide"><td colspan="8"><pre style="max-height:360px;overflow:auto;white-space:pre-wrap;word-break:break-word">'+esc(JSON.stringify({id:e.id,service:e.service,generationId:e.generationId,details:e.details},null,2))+'</pre></td></tr>').join(''):'<tr><td colspan="8" class="muted">No activity matches these filters.</td></tr>';
-  }catch(e){$('activityRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>';}
+    $('activityRows').innerHTML=activityRows.length?activityRows.map((e,i)=>{
+      const generation=e.generationId?'<a href="#" title="'+esc(e.generationId)+'" onclick="event.stopPropagation();showActivityGeneration('+i+');return false">'+esc(e.generationId.slice(0,8))+'</a>':'';
+      const job=aividActivity&&e.generationId?' <button class="secondary" onclick="event.stopPropagation();showActivityGeneration('+i+',true)">View job</button>':'';
+      return '<tr class="act-row" onclick="toggleActivityDetails('+i+')" style="cursor:pointer"><td title="'+esc(e.at)+'">'+fmt(e.at)+'</td><td class="'+(lvl[e.level]||'')+'">'+esc(e.level)+'</td><td>'+esc(e.category)+'</td><td>'+esc(e.event)+'</td><td>'+esc(e.email||(e.userId?'#'+e.userId:''))+'</td><td>'+esc(e.provider||'')+'</td><td>'+generation+job+'</td><td style="max-width:520px">'+esc(e.message)+aividActivityDetails(e)+'</td></tr><tr id="actDetails'+i+'" class="hide"><td colspan="8"><pre style="max-height:360px;overflow:auto;white-space:pre-wrap;word-break:break-word">'+esc(JSON.stringify({id:e.id,service:e.service,generationId:e.generationId,details:e.details},null,2))+'</pre></td></tr>';
+    }).join(''):'<tr><td colspan="8" class="muted">No '+(aividActivity?'AIVID ':'')+'activity matches these filters.</td></tr>';
+  }catch(e){if(request===activityRequest)$('activityRows').innerHTML='<tr><td colspan="8" class="err">'+esc(e.message)+'</td></tr>';}
 }
 function toggleActivityDetails(i){$('actDetails'+i)?.classList.toggle('hide');}
 function toggleActivityLive(on){
