@@ -1,4 +1,4 @@
-# CMMTools AIVID managed worker 3.0.0
+# CMMTools AIVID managed worker 3.0.1
 
 ## One-time migration
 
@@ -49,3 +49,5 @@ rejection, real Windows Chrome tab reuse, mocked provider submissions/uploads an
 safe warning handling. No new paid generation is performed during this migration.
 The owner's existing completed source video still needs a successful transfer
 into CMMTools after the managed worker is installed and connected.
+
+Version 3.0.1 fixes the bootstrap restart counter so verified runtime updates activate without stopping the launcher. Close Agent before extracting the complete package into its existing folder. Preserve `.aivid-agent.json`, `.aivid-rdp-profile`, `.aivid-runtime` and `receipts`. Do not copy only the EXE into a new folder.
