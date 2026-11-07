@@ -500,8 +500,11 @@ test('collection errors back off and pause instead of creating unlimited browser
   if(i<3)f.job.provider_operation=JSON.stringify({...op,collectionNextAt:0});
  }
  assert.equal(f.job.provider_job_id,providerJobId);assert.equal(f.stats().refunds,0);assert.equal(f.stats().submissions,0);
- await reconcileAivid(f.db,f.job.id,{action:'retry_collection'});
+ assert.deepEqual(await reconcileAivid(f.db,f.job.id,{action:'retry_collection'}),
+  {reconciled:true,collectionQueued:true,providerJobId});
  assert.equal(JSON.parse(f.job.provider_operation).collectionPaused,undefined);
+ await assert.rejects(reconcileAivid(f.db,f.job.id,{action:'retry_collection'}),{statusCode:409});
+
 });
 
 
