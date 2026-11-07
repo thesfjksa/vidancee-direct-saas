@@ -81,21 +81,59 @@ function assertOptions(model,body) {
     throw Object.assign(new Error('Unsupported Premium model, duration, resolution or aspect ratio.'),{statusCode:400});
   return {model:model.id,prompt:String(body.prompt||'Cost estimate').trim()||'Cost estimate',duration,resolution,aspectRatio};
 }
+const PREVIEW_QUOTE_TTL_MS = 60_000;
+const previewQuotes = new Map();
+
+function rememberPreviewQuote(key,entry) {
+  if(!previewQuotes.has(key)&&previewQuotes.size>=256)previewQuotes.delete(previewQuotes.keys().next().value);
+  previewQuotes.set(key,entry);
+}
+
+function previewQuote(key,read) {
+  const cached=previewQuotes.get(key);
+  if(cached&&(cached.pending||cached.expiresAt>Date.now()))return cached.promise;
+
+  const entry={pending:true,expiresAt:0};
+  entry.promise=read().then(price=>{
+    entry.expiresAt=Date.now()+PREVIEW_QUOTE_TTL_MS;
+    return price;
+  }).catch(error=>{
+    if(previewQuotes.get(key)===entry)previewQuotes.delete(key);
+    throw error;
+  }).finally(()=>{entry.pending=false;});
+  rememberPreviewQuote(key,entry);
+  return entry.promise;
+}
+
 // A signed-in AIVID browser reports its own *public-mode* price; we never
 // infer that AIVID credits are yuan, or use 888API's yuan conversion.
-async function quoteAivid(config,body,{db}={}){
+async function quoteAivid(config,body,{db,preview=false}={}){
   if(!aividReady(config))throw Object.assign(new Error('Premium video generation requires a connected AIVID agent.'),{statusCode:503});
   const model=aividModel(body.model),value=assertOptions(model,body);
   const {withAividLock}=require('./aivid_queue.js');
   const Client=config.mode==='rdp'?require('./aivid_rdp.js').AividRdpClient:require('./provider/aivid.js').AividBrowserlessClient;
-  const result=await withAividLock(db||require('./db.js').getPool(),()=>new Client(config).preflight(value));
-  if(!result)throw Object.assign(new Error('Premium price checking is busy; retry shortly.'),{statusCode:409});
-  if(result.ready!==true||result.submitted!==false||result.modelId!==model.id||
-     result.duration!==value.duration||result.resolution!==value.resolution||result.aspectRatio!==value.aspectRatio)
-    throw Object.assign(new Error('AIVID did not verify the requested model and settings. Use the complete current Windows agent package.'),{statusCode:503});
-  const sourceCredits=Number(result.price);
-  if(!Number.isFinite(sourceCredits)||sourceCredits<=0||sourceCredits>config.maxSourceCredits)
-    throw Object.assign(new Error('AIVID pricing is unavailable or exceeds the configured source-credit limit.'),{statusCode:503});
+  const readPrice=async()=>{
+    const result=await withAividLock(db||require('./db.js').getPool(),()=>new Client(config).preflight(value));
+    if(!result)throw Object.assign(new Error('Premium price checking is busy; retry shortly.'),{statusCode:409});
+    if(result.ready!==true||result.submitted!==false||result.modelId!==model.id||
+       result.duration!==value.duration||result.resolution!==value.resolution||result.aspectRatio!==value.aspectRatio)
+      throw Object.assign(new Error('AIVID did not verify the requested model and settings. Use the complete current Windows agent package.'),{statusCode:503});
+    const price=Number(result.price);
+    if(!Number.isFinite(price)||price<=0)
+      throw Object.assign(new Error('AIVID pricing is unavailable.'),{statusCode:503});
+    return price;
+  };
+  // Cache only the upstream public price, never a customer's wallet quote.
+  // Every submission still makes a fresh read before it can reserve credits.
+  const source=config.mode==='rdp'?[config.rdpDevice.deviceId,config.rdpDevice.tokenHash]:config.connectUrl;
+  const key=JSON.stringify([config.mode,source,value.model,value.duration,value.resolution,value.aspectRatio]);
+  if(preview)value.prompt='Cost estimate';
+  const sourceCredits=await (preview?previewQuote(key,readPrice):readPrice());
+  if(!preview&&!previewQuotes.get(key)?.pending){
+    rememberPreviewQuote(key,{pending:false,expiresAt:Date.now()+PREVIEW_QUOTE_TTL_MS,promise:Promise.resolve(sourceCredits)});
+  }
+  if(sourceCredits>config.maxSourceCredits)
+    throw Object.assign(new Error('AIVID pricing exceeds the configured source-credit limit.'),{statusCode:503});
   const {aividBaseCredits,aividSourceUsd}=require('./aivid_pricing.js');
   return {cost:aividBaseCredits(sourceCredits),sourceUsd:aividSourceUsd(sourceCredits),isEstimate:body.previewHasReferences===true,
     sourceCredits,modelId:model.id,duration:value.duration,resolution:value.resolution,aspectRatio:value.aspectRatio};

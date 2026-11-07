@@ -64,6 +64,13 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 - The collector recognizes that exact message on the matched failed provider job and relays an allowlisted code. CMMTools uses fixed customer-facing wording with the usual refund confirmation. Unknown reasons and older agents still get the generic message. Raw provider diagnostics are not relayed.
 - Focused local tests passed (108 passing, two environment-dependent skips) for the relay, refund wording, and surrounding flow. The Chrome fixture covers the history response. Managed RDP rollout and a matching live rejection remain unverified. The change does not rewrite previous job messages.
 
+### Premium credit preview latency and loading state (8 November PKT)
+
+- The owner reported that the price took time to appear and Generate could show “Wait for a current Premium price before submitting” in the meantime. Premium quotes read the source browser under the shared AIVID lock. Repeated preview requests for the same settings could repeat that work, and the old button treated price loading as a submission error.
+- Preview requests now share the verified upstream public price for 60 seconds per source session and exact model, duration, resolution and ratio. Customer rates and the configured source ceiling still apply per request. Submissions independently verify a fresh source price and continue to enforce the customer's displayed credit ceiling and the worker's paid-request guard. Cold browser checks use the nearest verified slider position or endpoint and still verify the displayed duration.
+- Video Studio preserves the current estimate during prompt and reference changes. A new selection shows a loading status, and Generate waits for the matching live quote. Reuse can still show an older cost while the matching quote is pending.
+- Focused local checks passed (117 passing, two environment-dependent skips), including quote coalescing, source and settings isolation, expiration, fresh submission verification, and loading/ready button state. Production latency and the managed agent rollout remain to be verified.
+
 ## Merged change index and purpose
 
 | PR | Description | Merge commit | Verified boundary |

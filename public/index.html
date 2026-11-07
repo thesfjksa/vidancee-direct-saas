@@ -159,7 +159,7 @@
           </div>
 
           <div class="creator-footer">
-            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div><div id="videoPriceNote" class="meta hide">Estimated price for the selected settings.</div><button id="videoPriceRetry" class="btn secondary hide" type="button" onclick="updateCost()">Retry price</button>
+            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div><div id="videoPriceNote" class="meta hide" role="status">Estimated price for the selected settings.</div><button id="videoPriceRetry" class="btn secondary hide" type="button" onclick="updateCost()">Retry price</button>
             <button id="generateBtn" class="generate" onclick="createGeneration()">Generate</button>
             <div id="genMsg" class="msg muted"></div>
           </div>
@@ -1505,7 +1505,6 @@ function renderConfig(){
   $('videoCatalogEmpty').textContent=missing?(config.catalogError
     ?'Video models could not be loaded. Please contact support or try again later.'
     :'No video models are currently available for your account. Please contact support.') : '';
-  $('generateBtn').disabled=missing||videoSubmissionInFlight;
   ensureCustomSelect('model');
   ensureCustomSelect('ratio');
   renderDurations(true);
@@ -1521,12 +1520,9 @@ function renderDurations(resetResolution=false, refreshPrice=true){
     $('duration').innerHTML='';
     $('ratio').innerHTML='';
     $('cost').textContent='—';
+    syncVideoGenerateButton();
     return;
   }
-
-  // Show unavailable Premium models in the picker, but never allow a paid
-  // generation until the RDP/browser connection has passed readiness checks.
-  $('generateBtn').disabled=m.unavailable===true||videoSubmissionInFlight;
   renderGatewayVideoSettings(m);
   showModelWarning('videoModelWarning',m);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
@@ -1584,6 +1580,7 @@ function renderDurations(resetResolution=false, refreshPrice=true){
   syncCustomSelect('ratio');
   syncCustomSelect('duration');
   if(refreshPrice)updateCost();
+  else syncVideoGenerateButton();
 }
 
 function renderGatewayVideoSettings(model){
@@ -1598,13 +1595,31 @@ function renderGatewayVideoSettings(model){
 
 // Share one price request for identical selections, including while it is pending.
 const quoteCache=new Map();
+let premiumQuote=null;
+
+function premiumPriceKey(model){
+  const resolution=$('resolutionControl').classList.contains('hide')?'':$('resolution').value;
+  return JSON.stringify([model.id,Number($('duration').value),resolution,$('ratio').value]);
+}
+
+function premiumPriceFor(model){
+  return model?.premium&&premiumQuote?.key===premiumPriceKey(model)?premiumQuote.cost:null;
+}
+
+function syncVideoGenerateButton(){
+  const model=currentVideoModel();
+  $('generateBtn').disabled=videoSubmissionInFlight||videoReferenceRestoreInFlight||
+    !model||model.unavailable===true||Boolean(model.premium&&!premiumPriceFor(model));
+}
 async function fetchQuote(body){
   const model=String(body.model||'');
   const premium=model.startsWith('aivid_');
   // Premium previews read the form price for the selected settings. The
   // submitted prompt and files still receive a fresh quote on the server.
   const request=premium?{...body,prompt:undefined,previewVideoSeconds:undefined}:body;
-  const key=JSON.stringify(/^(studio_gw_|argo_)/.test(model)?{...request,prompt:undefined}:request);
+  const key=JSON.stringify(premium
+    ?[model,request.duration,request.resolution,request.aspectRatio]
+    :/^(studio_gw_|argo_)/.test(model)?{...request,prompt:undefined}:request);
   const cached=quoteCache.get(key);
   if(cached&&(cached.pending||cached.expiresAt>Date.now()))return cached.promise;
 
@@ -1613,8 +1628,10 @@ async function fetchQuote(body){
     for(let attempt=0; ;attempt++){
       try{
         const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(request),signal:AbortSignal.timeout(premium?100000:10000)});
+        const cost=Number(d.cost);
+        if(premium&&(!Number.isFinite(cost)||cost<=0))throw new Error('Premium price is unavailable.');
         entry.expiresAt=Date.now()+(premium?15000:30000);
-        return {cost:Number(d.cost),isEstimate:premium||Boolean(d.isEstimate)};
+        return {cost,isEstimate:premium||Boolean(d.isEstimate)};
       }catch(error){
         if(premium&&error.status===409&&attempt<3){
           await new Promise(resolve=>setTimeout(resolve,750*2**attempt));
@@ -1643,6 +1660,7 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
   const note=$('videoPriceNote');
   note.classList.add('hide');
   $('videoPriceRetry').classList.add('hide');
+  syncVideoGenerateButton();
   if(!model){$('cost').textContent='—';return}
   if(model.unavailable===true){$('cost').textContent='Unavailable';return}
   if(!model.dynamicCost){
@@ -1657,9 +1675,12 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
   const historical=model.premium&&previousGeneration?.status==='completed'&&previousGeneration.model===model.id&&
     Number(previousGeneration.duration)===duration&&previousGeneration.resolution===resolution&&
     previousGeneration.aspect_ratio===aspectRatio&&Number.isFinite(past)&&past>0;
-  $('cost').textContent=historical?past:'…';
-  if(historical){
-    note.textContent='Estimate based on this video’s previous cost. Price is checked before charging.';
+  const currentPremiumPrice=premiumPriceFor(model);
+  const priceKey=model.premium?premiumPriceKey(model):null;
+  $('cost').textContent=currentPremiumPrice??(historical?past:'…');
+  if(model.premium){
+    note.textContent=currentPremiumPrice?'Estimated price for the selected settings.':
+      historical?'Estimate based on this video’s previous cost. Checking the current Premium price…':'Checking Premium price…';
     note.classList.remove('hide');
   }
   if(previewOnly)return;
@@ -1676,7 +1697,9 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
       ...(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length?{previewHasReferences:true}:{}),
     });
     if(seq===videoCostRequestSeq){
+      if(model.premium)premiumQuote={key:priceKey,cost:d.cost};
       $('cost').textContent=Number(d.cost);
+      syncVideoGenerateButton();
       note.textContent='Estimated price for the selected settings.';
       note.classList.toggle('hide',!d.isEstimate);
     }
@@ -1684,7 +1707,10 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
     if(seq!==videoCostRequestSeq)return;
     if(!historical)$('cost').textContent=model.premium?'—':'at submit';
     if(model.premium){
-      if(!historical)note.textContent='Price is temporarily unavailable.';
+      if(premiumQuote?.key===priceKey)premiumQuote=null;
+      $('cost').textContent=historical?past:'—';
+      syncVideoGenerateButton();
+      note.textContent=historical?'Previous cost shown. Current Premium price is temporarily unavailable.':'Premium price is temporarily unavailable.';
       note.classList.remove('hide');
       $('videoPriceRetry').classList.remove('hide');
     }
@@ -2686,7 +2712,7 @@ async function reuseImageGeneration(id){
   const g=imageGenerations.find(item=>String(item.id)===String(id));
   const b=$('generateImageBtn'),m=$('imageGenMsg');
   // Leave the form alone while a generation is being submitted.
-  if(!g||b.disabled)return;
+  if(!g||videoSubmissionInFlight||videoReferenceRestoreInFlight)return;
   const token=++imageReuseToken;
   // Settings come from the gallery data already in memory, so the form fills instantly.
   go('images');
@@ -3075,7 +3101,7 @@ function validateClientReferenceSelection(){
   }
 }
 
-let videoSubmissionInFlight=false;
+let videoSubmissionInFlight=false,videoReferenceRestoreInFlight=false;
 function videoSubmissionSelection(){
   return JSON.stringify({model:$('model').value,duration:$('duration').value,resolution:$('resolution').value,
     ratio:$('ratio').value,mode:$('videoGenerationMode').value,audio:$('videoGenerateAudio').value,
@@ -3087,23 +3113,24 @@ function assertVideoSubmissionSelection(selection,prompt){
 async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
   if(videoSubmissionInFlight||b.disabled)return;
+  const model=currentVideoModel();
+  const ceiling=premiumPriceFor(model);
+  if(model?.premium&&!ceiling){updateCost();return;}
   videoSubmissionInFlight=true;
   // Only the button is locked: the panel stays usable while this submits.
   b.setAttribute('aria-busy','true');
   b.disabled=true;
   m.className='msg muted';
   m.textContent='Submitting generation...';
-  const ceiling=Number($('cost').textContent);
   const sent={selection:videoSubmissionSelection(),prompt:$('prompt').value,refs:[...referenceItems],videos:[...videoReferenceItems],audios:[...audioReferenceItems]};
   try{
-    if(String($('model').value).startsWith('aivid_')&&(!Number.isFinite(ceiling)||ceiling<=0))throw new Error('Wait for a current Premium price before submitting.');
     validateClientReferenceSelection();
     const prompt=await prepareGenerationPrompt('video',m);
     assertVideoSubmissionSelection(sent.selection,prompt);
     m.textContent='Submitting generation...';
     const form=new FormData();
     form.append('prompt',prompt);
-    if(String($('model').value).startsWith('aivid_'))form.append('maxCustomerCredits',String(ceiling));
+    if(model?.premium)form.append('maxCustomerCredits',String(ceiling));
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
@@ -3162,8 +3189,8 @@ async function createGeneration(){
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-    if(/price changed|current Premium price/i.test(e.message)){quoteCache.clear();updateCost();}
-  }finally{videoSubmissionInFlight=false;b.disabled=!currentVideoModel()||currentVideoModel().unavailable===true;b.removeAttribute('aria-busy')}
+    if(/price changed/i.test(e.message)){premiumQuote=null;quoteCache.clear();updateCost();}
+  }finally{videoSubmissionInFlight=false;syncVideoGenerateButton();b.removeAttribute('aria-busy')}
 }
 
 function aspectValue(ratio){
@@ -3234,8 +3261,9 @@ async function reuseGeneration(id){
 
   // Reference images are reused by pointer; only their list needs the network.
   m.textContent='Prompt and settings reused. Restoring reference images…';
+  videoReferenceRestoreInFlight=true;
   updateCost({previousGeneration:g,previewOnly:true});
-  b.disabled=true;b.setAttribute('aria-busy','true');
+  b.setAttribute('aria-busy','true');
   try{
     const d=await api('/api/generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
     if(token!==videoReuseToken)return;
@@ -3255,7 +3283,7 @@ async function reuseGeneration(id){
   }finally{
     if(token===videoReuseToken){
       b.removeAttribute('aria-busy');
-      b.disabled=videoSubmissionInFlight||currentVideoModel()?.unavailable===true;
+      videoReferenceRestoreInFlight=false;
       updateCost({previousGeneration:g});
     }
   }
@@ -3467,7 +3495,7 @@ function openVideoPreview(id){
   $('generatedVideoDimensions').textContent='Loading…';
   const reuse=$('reuseVideoPreviewBtn');
   reuse.classList.toggle('hide',upscale);
-  reuse.disabled=$('generateBtn').disabled;
+  reuse.disabled=videoSubmissionInFlight||videoReferenceRestoreInFlight;
   const video=$('generatedVideoFull'),status=$('generatedVideoStatus'),previewId=videoPreviewGenerationId;
   status.textContent='Loading video…';status.classList.remove('hide');
   video.onloadedmetadata=()=>{if(videoPreviewGenerationId!==previewId)return;status.classList.add('hide');$('generatedVideoDimensions').textContent=video.videoWidth+' × '+video.videoHeight};
@@ -3552,7 +3580,7 @@ function downloadPreviewVideo(){
 
 async function reusePreviewVideo(){
   const id=videoPreviewGenerationId;
-  if(!id||$('generateBtn').disabled)return;
+  if(!id||videoSubmissionInFlight||videoReferenceRestoreInFlight)return;
   closeVideoPreview();
   await reuseGeneration(id);
 }

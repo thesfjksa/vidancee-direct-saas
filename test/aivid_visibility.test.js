@@ -17,7 +17,7 @@ test('Premium models are always in the account catalog, even if RDP disconnects'
 });
 test('Customer UI distinguishes visibility from paid readiness',()=>{
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8');
-  assert.match(html,/\$\('generateBtn'\)\.disabled=m\.unavailable===true/);
+  assert.match(html,/function syncVideoGenerateButton\(\)[\s\S]*?\$\('generateBtn'\)\.disabled=[\s\S]*?model\.unavailable===true/);
   assert.match(html,/\$\('cost'\)\.textContent='Unavailable'/);
   assert.match(html,/showModelWarning\('videoModelWarning',m\)/);
 });
