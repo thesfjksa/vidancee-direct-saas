@@ -445,7 +445,13 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
   const cdp = await page.context().newCDPSession(page);
   let guardError = null, allowed = false, armed = false, claimed=false, reportedBlockedRequest=false;
   const failure=deferred(),observed=deferred();
-  const fail=error=>{guardError=error;failure.reject(error)};
+  // Once an exact paid POST was released after reservation, unrelated late
+  // browser failures must not win the race against its provider response.
+  // The accepted response (or an explicit timeout) decides the paid job.
+  const fail=error=>{
+    if (!guardError) guardError=error;
+    if (!allowed) failure.reject(error);
+  };
   const uploads=new UploadTracker(references,fail);
   const onResponse=response=>{void uploads.response(response)};
   page.on?.('response',onResponse);
@@ -488,7 +494,14 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
           ).join('/');
           try { onBlockedRequest({method, hostname:url.hostname, path}); } catch {}
         }
-        throw sessionFailure('submission_request');
+        // Background POSTs that are not on the allowlist still fail closed,
+        // but must not terminate the guarded paid submission. Otherwise a
+        // harmless concurrent browser mutation wins the failure race and the
+        // finally block navigates away before AIVID answers /v2/generations.
+        // If the provider changes its generation endpoint, it remains blocked
+        // and no unverified charge can escape the guard.
+        await cdp.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'Aborted' }).catch(() => {});
+        return;
       }
       if (allowed||claimed) throw new Error('A second AIVID submission was blocked.');
       const body = JSON.parse(event.request.postData || '{}');
@@ -513,7 +526,7 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
   };
   cdp.on('Fetch.requestPaused', handler);
   return { arm() { if(probe)throw new Error('Reference checks cannot authorize generation.');armed = true; },
-    failure:failure.promise,observed:observed.promise,get error() { return guardError; }, get allowed() { return allowed; },
+    failure:failure.promise,observed:observed.promise,get error() { return guardError; }, get allowed() { return allowed; }, get claimed() { return claimed; },
     close: async () => { page.off?.('response',onResponse);await cdp.send('Fetch.disable').catch(() => {}); await cdp.detach().catch(() => {}); } };
 }
 
@@ -572,8 +585,14 @@ class AividBrowserlessClient {
       try {
         const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 120000 }).catch(() => null);
         guard.arm();
+        let clickFailed=false;
         try { await page.locator('main').first().getByRole('button', { name: 'Generate', exact: true }).click(); }
-        catch { return guard.allowed ? {state:'submission_uncertain'} : {state:'rejected',errorCode:guard.error?diagnosticCode(guard.error):'submission_click'}; }
+        catch { clickFailed=true; }
+        // Playwright can reject the click while an already-dispatched, paid
+        // network request is still waiting for its response. Never navigate
+        // away merely because the click promise rejected after interception.
+        if(clickFailed&&!guard.allowed&&!guard.claimed)
+          return {state:'rejected',errorCode:guard.error?diagnosticCode(guard.error):'submission_click'};
         const response = await Promise.race([responsePromise,guard.failure.catch(()=>null)]);
         if (guard.error && !guard.allowed) return { state: 'rejected', errorCode: diagnosticCode(guard.error) };
         if (!response) return { state: 'submission_uncertain' };
