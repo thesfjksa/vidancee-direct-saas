@@ -136,7 +136,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = require('./src/pricing.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
-const { trimReferenceVideos } = require('./src/reference_trim.js');
+const { trimReferenceVideos, validateAividVideoReferences } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
@@ -851,6 +851,9 @@ async function enableBrowserUploads(){
 
 // The longest reference video (total, or per clip) a video model accepts.
 async function referenceVideoLimit(id){
+  const {aividModel,aividReferenceVideoLimit}=require('./src/aivid_models.js');
+  const premium=aividModel(id);
+  if(premium)return aividReferenceVideoLimit(premium);
   if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
   const provider=isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
@@ -881,8 +884,9 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
   if(!cartoonOptions&&require('./src/aivid_models.js').isAividModel(requestedModel)){
     if(!customerAccess.aivid)throw httpError(403,'Premium models are not enabled for your account.');
     const config=await require('./src/aivid_settings.js').getAividSettings();
-    const {aividModel,capabilities,quoteAivid}=require('./src/aivid_models.js');
+    const {aividModel,capabilities,quoteAivid,aividReferenceVideoLimit}=require('./src/aivid_models.js');
     const spec=aividModel(requestedModel);
+    validateAividVideoReferences(body.videos,aividReferenceVideoLimit(spec));
     const quote=await quoteAivid(config,body);
     generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),

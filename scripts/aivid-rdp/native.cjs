@@ -83,19 +83,33 @@ function mp4Output(data) {
   if(data.length<12||data.length>MAX_VIDEO_BYTES||data.toString('ascii',4,8)!=='ftyp')throw new Error('Invalid MP4.');
   return {data,mimeType:'video/mp4'};
 }
-// Only retrieve media already opened by the source Download button and shown
-// by Chrome's video player. No cookies/tokens are copied, no redirects followed,
-// and no security interstitial is clicked or bypassed.
+// Retrieve verified provider media without forwarding cookies or following redirects.
 async function readInlineVideo(url,{fetchImpl=fetch,signal}={}) {
-  const response=await fetchImpl(url,{method:'GET',redirect:'error',credentials:'omit',signal});
+  const unavailable=()=>collectionFailure('collection_media_pending','AIVID has not delivered the complete MP4 yet.');
+  let response;
   try {
+    response=await fetchImpl(url,{method:'GET',redirect:'error',credentials:'omit',signal});
+  } catch {
+    throw unavailable();
+  }
+  try {
+    if([403,404,408,425,429].includes(response.status)||response.status>=500)throw unavailable();
     if(response.status!==200||!/^video\/mp4(?:;|$)/i.test(response.headers.get('content-type')||''))throw new Error('Unsupported media response.');
     const length=response.headers.get('content-length');
     if(length!==null&&(!/^\d+$/.test(length)||Number(length)<12||Number(length)>MAX_VIDEO_BYTES))throw new Error('Unsupported media size.');
     let size=0;const chunks=[];
-    if(!response.body)throw new Error('Missing media body.');
-    for await(const chunk of response.body){size+=chunk.length;if(size>MAX_VIDEO_BYTES)throw new Error('Media size limit.');chunks.push(Buffer.from(chunk));}
-    if(length!==null&&Number(length)!==size)throw new Error('Incomplete media body.');
+    if(!response.body)throw unavailable();
+    try {
+      for await(const chunk of response.body){
+        size+=chunk.length;
+        if(size>MAX_VIDEO_BYTES)break;
+        chunks.push(Buffer.from(chunk));
+      }
+    } catch {
+      throw unavailable();
+    }
+    if(size>MAX_VIDEO_BYTES)throw new Error('Media size limit.');
+    if(length!==null&&Number(length)!==size)throw unavailable();
     return mp4Output(Buffer.concat(chunks,size));
   }catch(error){await response.body?.cancel?.().catch(()=>{});throw error;}
 }
@@ -200,7 +214,10 @@ async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
       try{
         const output=await readInlineVideo(url,{fetchImpl,signal:AbortSignal.timeout(timeoutMs)});
         return {state:'completed',output};
-      }catch{throw collectionFailure('collection_download','AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.');}
+      }catch(error){
+        if(error?.aividCode==='collection_media_pending')throw error;
+        throw collectionFailure('collection_download','AIVID did not return a valid MP4 within the download limit. The existing source job will be kept.');
+      }
     }
     if(number===3||!(Number(history.metadata?.totalPages)>number))break;
     const more=page.getByRole('button',{name:'Load More',exact:true});

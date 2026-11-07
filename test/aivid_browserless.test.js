@@ -508,6 +508,47 @@ test('collection errors back off and pause instead of creating unlimited browser
 });
 
 
+test('completed RDP videos recover after repeated transfer failures without occupying a generation slot',async()=>{
+ for(const code of ['collection_media_pending','collection_download']){
+  const f=fixture({status:'processing',op:{stage:'accepted',providerJobId},
+   configOverrides:{mode:'rdp',rdpDevice:{deviceId:'fixture-device',tokenHash:'paired',status:'ready',seenAt:new Date().toISOString()}}});
+  const original=f.db.execute;let attempts=0,showedError=false;
+  f.db.execute=async(sql,args)=>{
+   if(sql.includes('SET provider_operation=?,error_message=')){
+    f.job.provider_operation=args[0];showedError=Boolean(args[1]);
+   }
+   return original(sql,args);
+  };
+  f.q.clientFactory=()=>({collectVideo:async id=>{
+   assert.equal(id,providerJobId);
+   if(++attempts<=4)throw Object.assign(new Error('file not ready'),{aividCode:code});
+   return {state:'completed',output:{data:Buffer.from('0000ftypisom0000'),mimeType:'video/mp4'}};
+  }});
+  f.q.maxSourceInflight=1;
+  for(let i=1;i<=4;i++){
+   const queryStart=f.queries.length;
+   await f.q.runOnce(f.db);
+   assert.ok(f.queries.slice(queryStart).some(sql=>sql.startsWith('SELECT g.*')),
+    'a completed source video must leave capacity for queued work');
+   const op=JSON.parse(f.job.provider_operation);
+   assert.equal(op.collectionFailures,i);assert.equal(op.collectionPaused,false);
+   assert.equal(op.collectionMediaPending,true);assert.equal(showedError,false);
+   await f.q.runOnce(f.db);assert.equal(attempts,i,'retry must wait for backoff');
+   f.job.provider_operation=JSON.stringify({...op,collectionNextAt:0});
+  }
+  await f.q.runOnce(f.db);
+  assert.deepEqual(f.stats(),{submissions:0,polls:0,refunds:0,complete:1});
+  f.job.status='processing';
+  f.job.provider_operation=JSON.stringify({stage:'accepted',providerJobId,collectionFailures:99,collectionMediaPending:true});
+  attempts=0;
+  await f.q.runOnce(f.db);
+  assert.equal(JSON.parse(f.job.provider_operation).collectionPaused,true);
+  assert.equal(showedError,true);
+  await f.q.runOnce(f.db);
+  assert.equal(attempts,1,'the manual review limit must stop automatic attempts');
+ }
+});
+
 test('native collection uses generation history for the exact job without visiting its detail page',async()=>{
  const id='6aee348c6467353c0fd7ded1',page={goto:()=>assert.fail('detail page must not be opened')};
  const output={data:Buffer.from('0000ftypisom0000'),mimeType:'video/mp4'};

@@ -33,26 +33,52 @@ async function referenceFileInput(main,kind) {
   if(matches.length!==1)throw new Error('AIVID reference upload input is missing or ambiguous.');
   return matches[0];
 }
-async function attachReferences(main,kind,refs) {
+function referenceAlertCode(message) {
+  if (/shorter than the minimum|maximum allowed is/i.test(message)) return 'reference_duration';
+  if (/the dimensions of|the shape of|the resolution of/i.test(message)) return 'reference_dimensions';
+  if (/could not read|format .* is not supported/i.test(message)) return 'reference_format';
+  if (/smaller than|size cannot exceed/i.test(message)) return 'reference_size';
+  return 'reference_preview';
+}
+async function attachReferences(page,main,kind,refs) {
   // AIVID appends previews in FileReader completion order. Select one at a
   // time so each numbered preview matches the order requested by the customer.
   for(const [index,ref] of refs.entries()){
-    const input=await referenceFileInput(main,kind);
+    const input=await step('reference_input',()=>referenceFileInput(main,kind));
     const name=referenceName(kind,ref.mimeType,index);
-    await input.evaluate(element=>{
-      element.__cmmSelected=new Promise(resolve=>element.addEventListener('change',()=>{
-        const selected=Array.from(element.files||[]);
-        resolve(Promise.all(selected.map(async file=>({name:file.name,type:file.type,size:file.size,
-          sha256:Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('')}))));
-      },{once:true,capture:true}));
-    });
-    await input.setInputFiles({name,mimeType:ref.mimeType,buffer:ref.data});
-    const selected=await input.evaluate(async element=>{try{return await element.__cmmSelected}finally{delete element.__cmmSelected}});
-    const [file]=selected;
-    if(selected.length!==1||file.name!==name||file.type!==ref.mimeType||file.size!==ref.data.length||
-      file.sha256!==crypto.createHash('sha256').update(ref.data).digest('hex'))
-      throw new Error('AIVID did not retain the selected reference file.');
-    await main.getByText('@'+kind+(index+1),{exact:true}).waitFor({state:'visible',timeout:30000});
+    const rejected=deferred();
+    const handleDialog=async dialog=>{
+      const message=dialog.type()==='alert'?dialog.message():'';
+      // Match Playwright's default dismissal. Never approve a dialog.
+      await dialog.dismiss().catch(()=>{});
+      if(message.includes(name))rejected.reject(sessionFailure(referenceAlertCode(message)));
+    };
+    page.on('dialog',handleDialog);
+    try {
+      const preview=async()=>{
+        await step('reference_selection',async()=>{
+          await input.evaluate(element=>{
+            element.__cmmSelected=new Promise(resolve=>element.addEventListener('change',()=>{
+              const selected=Array.from(element.files||[]);
+              resolve(Promise.all(selected.map(async file=>({name:file.name,type:file.type,size:file.size,
+                sha256:Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('')}))));
+            },{once:true,capture:true}));
+          });
+          await input.setInputFiles({name,mimeType:ref.mimeType,buffer:ref.data},{timeout:15000});
+          const selected=await bounded(input.evaluate(async element=>{
+            try{return await element.__cmmSelected}finally{delete element.__cmmSelected}
+          }),15000).catch(()=>{throw sessionFailure('reference_selection')});
+          const [file]=selected;
+          if(selected.length!==1||file.name!==name||file.type!==ref.mimeType||file.size!==ref.data.length||
+            file.sha256!==crypto.createHash('sha256').update(ref.data).digest('hex'))
+            throw new Error('AIVID did not retain the selected reference file.');
+        });
+        await step('reference_preview',()=>main.getByText('@'+kind+(index+1),{exact:true}).waitFor({state:'visible',timeout:30000}));
+      };
+      await Promise.race([preview(),rejected.promise]);
+    } finally {
+      page.off('dialog',handleDialog);
+    }
   }
 }
 
@@ -63,6 +89,7 @@ const MIME = { image: ['image/jpeg', 'image/png', 'image/webp'], video: ['video/
 const DIAGNOSTICS = Object.freeze({
   collection_history: 'The worker could not read AIVID generation history.',
   collection_media_url: 'AIVID history did not provide a verified video link for this job.',
+  collection_media_pending: 'AIVID finished the video. CMMTools is waiting for the full video file.',
   collection_download: 'The worker could not download and validate the AIVID MP4.',
   collection_relay: 'CMMTools did not receive the complete video from the RDP agent.',
   collection_storage: 'CMMTools received the video but could not save it.',
@@ -80,6 +107,13 @@ const DIAGNOSTICS = Object.freeze({
   duration: 'Could not set or verify the AIVID duration slider.',
   privacy: 'Could not set AIVID public visibility. No video was submitted.',
   reference_upload: 'AIVID could not verify the reference files or their upload IDs.',
+  reference_input: 'The AIVID form did not have one compatible reference file input.',
+  reference_selection: 'AIVID could not verify the file selected in its reference input.',
+  reference_preview: 'AIVID did not create a preview for a reference file.',
+  reference_duration: 'AIVID rejected a reference because its duration is outside the allowed range.',
+  reference_dimensions: 'AIVID rejected a reference because of its dimensions or aspect ratio.',
+  reference_format: 'AIVID could not read the reference format. Try exporting the file again.',
+  reference_size: 'AIVID rejected a reference because the file is too large.',
   submission_price_changed: 'AIVID changed the source price while preparing the request.',
   submission_reservation: 'CMM Tools could not confirm the submission reservation.',
   submission_payload: 'AIVID sent a request that could not be verified.',
@@ -430,7 +464,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
     for (const kind of Object.keys(FILE_ACCEPT)) {
       const refs = references.filter(ref => ref.kind === kind);
       if (!refs.length) continue;
-      await attachReferences(main,kind,refs);
+      await attachReferences(page,main,kind,refs);
     }
   }, onProgress);
   const prompt = promptEditors(page);

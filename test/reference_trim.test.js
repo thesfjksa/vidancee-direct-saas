@@ -7,7 +7,7 @@ require('../src/api888_models.js').setApi888MediaRefs(true);
 const fs=require('node:fs');
 const path=require('node:path');
 const {trimMp4,readBoxes}=require('../src/mp4_trim.js');
-const {trimReferenceVideos}=require('../src/reference_trim.js');
+const {trimReferenceVideos,validateAividVideoReferences}=require('../src/reference_trim.js');
 const {mp4Seconds}=require('../src/vercel_models.js');
 const {api888MediaModels}=require('../src/api888_models.js');
 
@@ -62,4 +62,19 @@ test('888API reference-video limits: 15 s for Seedance 2.0, 30 s for Seedance 2.
   assert.equal(limit('seedance-2.5-g5-v2'),30);
   assert.equal(limit('seedance2.5-301010-wool'),30);
   assert.equal(limit('wan30-720p'),30);
+});
+
+test('AIVID validates reference duration and dimensions and trims the verified total exactly',()=>{
+  const {aividModel,aividReferenceVideoLimit}=require('../src/aivid_models.js');
+  const {diagnosticReferences}=require('../src/aivid_probe_assets.js');
+  const limit=aividReferenceVideoLimit(aividModel('aivid_seedance_2_0_mini'));
+  const good=diagnosticReferences().find(ref=>ref.kind==='video');
+  assert.doesNotThrow(()=>validateAividVideoReferences([good],limit));
+  assert.throws(()=>validateAividVideoReferences([{data:clip}],limit),/unsupported dimensions/);
+  assert.throws(()=>validateAividVideoReferences([{data:trimMp4(good.data,1).data}],limit),/at least 2 seconds/);
+  assert.throws(()=>validateAividVideoReferences(Array(6).fill(good),limit),/15 seconds long in total/);
+  const long=[{data:clip}];
+  trimReferenceVideos(long,limit);
+  assert.ok(mp4Seconds(long[0].data)<=15);
+  assert.equal(aividReferenceVideoLimit(aividModel('aivid_seedance_2_5')).totalSeconds,30);
 });

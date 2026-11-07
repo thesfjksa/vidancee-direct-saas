@@ -27,7 +27,7 @@ function preview(input,kind){
 function update(){window.inputEvents++;seconds.textContent=duration.value+'s';price.textContent=(Math.ceil(Number(duration.value)/5)+(privateToggle.checked?2:0))+' Credits / Video';}
 </script></body></html>`;
 async function checkForm(page, Client, waitForSession) {
-  let missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false, promptResetMode='none', initialFast=false;
+  let rejectedVideo = '', missingModel = false, editorMode = 'textarea', signIn = false, privacyMode = 'private', modelSuffix = false, wrongModelAfterSelection = false, wrongResolutionAfterPrompt = false, missingImageInput = false, ambiguousImageInput = false, badDurationLabel = false, sliderMin = 4, sliderStep = 1, shortSlider = false, delayedMenu=false, duplicateModel=false, promptResetMode='none', initialFast=false;
   await page.route('https://aivid.dev/**', route => {
     let body = html;
     if(initialFast)body=body.replace('>Seedance 2.5</button>','>Seedance 2.0 (Fast)</button>');
@@ -44,6 +44,9 @@ async function checkForm(page, Client, waitForSession) {
     if (shortSlider) body=body.replace('duration.max=30;update()','duration.max=15;update()').replace('id="duration" type="range" min="4" max="30"','id="duration" type="range" min="4" max="15"');
     if(delayedMenu)body=body.replace("document.querySelector('#models').hidden=false","setTimeout(()=>document.querySelector('#models').hidden=false,100)");
     if(duplicateModel)body=body.replace('id="models" hidden>','id="models" hidden><button>Seedance 2.0 High quality duplicate</button>');
+    if (rejectedVideo) body=body.replace('<span id="refSelected"></span>',
+      '<span id="refSelected"></span><input type="file" accept="video/mp4,video/quicktime" multiple id="refVideo">')
+      .replace('</script>', '<\/script><script>refVideo.onchange=()=>alert('+JSON.stringify(rejectedVideo)+');</script>');
     if (missingImageInput) body = body.replace('id="refImages" type="file"', 'id="refImages" type="text"');
     if (ambiguousImageInput) body=body.replace('<span id="refSelected"></span>',
       '<span id="refSelected"></span><input type="file" accept="image/*">');
@@ -171,13 +174,29 @@ async function checkForm(page, Client, waitForSession) {
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
   missingImageInput=true;
   await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
-    assert.equal(error.aividCode,'reference_upload');return true;
+    assert.equal(error.aividCode,'reference_input');return true;
   });
   missingImageInput=false;ambiguousImageInput=true;
   await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
-    assert.equal(error.aividCode,'reference_upload');return true;
+    assert.equal(error.aividCode,'reference_input');return true;
   });
   ambiguousImageInput=false;
+  const video={kind:'video',mimeType:'video/mp4',data:Buffer.from('fixture clip')};
+  for(const [reason,code] of [
+    ['Adding "reference-video-1.mp4" makes the total duration 16.0 seconds. The maximum allowed is 15 seconds.','reference_duration'],
+    ['The resolution of "reference-video-1.mp4" is currently 640x360. Please choose a video with more pixels.','reference_dimensions'],
+    ['Could not read "reference-video-1.mp4". The file might be corrupted or in an unsupported format.','reference_format']
+  ]){
+    rejectedVideo=reason;
+    await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[video]),error=>{
+      assert.equal(error.aividCode,code);
+      assert.doesNotMatch(error.message,/reference-video-1|640x360|Playwright/);
+      return true;
+    });
+    assert.equal(await page.evaluate(()=>window.generateClicks),0);
+  }
+  rejectedVideo='';
+  assert.equal(page.listenerCount('dialog'),0);
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
   // All requested lengths must change the actual slider AND its 15s-style
   // displayed label; a mismatch is rejected before any paid Generate click.
