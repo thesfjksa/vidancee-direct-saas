@@ -77,7 +77,15 @@ const DIAGNOSTICS = Object.freeze({
   reference_upload: 'AIVID could not verify the reference files or their upload IDs.',
   submission_price_changed: 'AIVID changed the source price while preparing the request.',
   submission_reservation: 'CMM Tools could not confirm the submission reservation.',
-  submission_payload: 'AIVID sent a request that did not match the prepared video settings.',
+  submission_payload: 'AIVID sent a request that could not be verified.',
+  submission_model: 'AIVID sent a different model in its video request.',
+  submission_prompt: 'AIVID sent a different prompt in its video request.',
+  submission_duration: 'AIVID sent a different duration in its video request.',
+  submission_resolution: 'AIVID sent a different resolution in its video request.',
+  submission_aspect_ratio: 'AIVID sent a different aspect ratio in its video request.',
+  submission_privacy: 'AIVID did not confirm public visibility in its video request.',
+  submission_request: 'The worker blocked an unexpected AIVID request before submission.',
+  submission_price_unreadable: 'The worker could not confirm the displayed video price before submission.',
   submission_click: 'The AIVID Generate button did not complete the submission.',
   source_rejected: 'AIVID rejected the video request.',
   prompt: 'Could not fill the AIVID prompt field.',
@@ -156,6 +164,19 @@ function submissionResult(status, body) {
   return { state: 'submission_uncertain' };
 }
 
+const PRICE_TEXT = /^\s*(\d+(?:\.\d+)?)\s+Credits?\s*\/\s*Video\s*$/i;
+async function confirmSubmissionPrice(page, expected) {
+  // Once Generate is clicked AIVID adds a pending card and updates the
+  // account header optimistically. Recheck the form price on its own.
+  const latest = await step('submission_price_unreadable', async () => {
+    const label = page.locator('main').first().getByText(PRICE_TEXT).filter({ visible: true });
+    if (await label.count() !== 1) throw new Error('AIVID video price label is missing or ambiguous.');
+    const match = (await label.innerText()).match(PRICE_TEXT);
+    if (!match) throw new Error('AIVID video price label is invalid.');
+    return Number(match[1]);
+  });
+  if (latest !== expected) throw sessionFailure('submission_price_changed');
+}
 function creditState(text) {
   const priceMatch = String(text).match(/\b(\d+(?:\.\d+)?)\s+Credits?\s*\/\s*Video\b/i);
   const balances = [...String(text).replace(/\b\d+(?:\.\d+)?\s+Credits?\s*\/\s*Video\b/gi, '')
@@ -167,16 +188,18 @@ function creditState(text) {
 // Fail closed on an unknown outgoing schema. UI selection alone does not
 // prove the requested public visibility or that every upload reached the paid request.
 function validateSubmission(body, job, uploaded=[]) {
-  if (!body || typeof body !== 'object' || body.model !== job.providerModelId ||
-    typeof body.prompt !== 'string' || normalizePrompt(body.prompt) !== job.prompt ||
-    Number(body.duration) !== job.duration || body.resolution !== job.resolution ||
-    (body.aspectRatio ?? body.aspect_ratio) !== job.aspectRatio)
-    throw new Error('AIVID submission settings differ from the prepared job.');
+  if (!body || typeof body !== 'object') throw sessionFailure('submission_payload');
+  if (body.model !== job.providerModelId) throw sessionFailure('submission_model');
+  if (typeof body.prompt !== 'string' || normalizePrompt(body.prompt) !== job.prompt)
+    throw sessionFailure('submission_prompt');
+  if (Number(body.duration) !== job.duration) throw sessionFailure('submission_duration');
+  if (body.resolution !== job.resolution) throw sessionFailure('submission_resolution');
+  if ((body.aspectRatio ?? body.aspect_ratio) !== job.aspectRatio) throw sessionFailure('submission_aspect_ratio');
   const publicChecks = [];
   for (const key of ['isPublic', 'public']) if (Object.hasOwn(body, key)) publicChecks.push(body[key] === true);
   for (const key of ['isPrivate', 'private']) if (Object.hasOwn(body, key)) publicChecks.push(body[key] === false);
   if (Object.hasOwn(body, 'visibility')) publicChecks.push(body.visibility === 'public');
-  if (!publicChecks.length || publicChecks.some(ok => !ok)) throw new Error('AIVID public visibility could not be verified before submission.');
+  if (!publicChecks.length || publicChecks.some(ok => !ok)) throw sessionFailure('submission_privacy');
   exactIds(body,job,uploaded);
 }
 
@@ -446,11 +469,11 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
       }
       if(event.request.method==='POST'&&url.origin===API&&url.pathname==='/v2/sensitive-keywords/check'&&!url.search){
         const check=JSON.parse(event.request.postData||'{}');
-        if(normalizePrompt(check.prompt)!==job.prompt)throw new Error('Unexpected prompt validation request.');
+        if(normalizePrompt(check.prompt)!==job.prompt)throw sessionFailure('submission_prompt');
         await cdp.send('Fetch.continueRequest',{requestId:event.requestId});return;
       }
       if (event.request.method !== 'POST' || url.origin !== API || url.pathname !== '/v2/generations' || url.search)
-        throw new Error('An unexpected AIVID mutation was blocked before submission.');
+        throw sessionFailure('submission_request');
       if (allowed||claimed) throw new Error('A second AIVID submission was blocked.');
       const body = JSON.parse(event.request.postData || '{}');
       const uploaded=await uploads.completed();
@@ -458,6 +481,7 @@ async function installRequestGuard(page, job, {references=[],beforeGenerate=asyn
       if(claimed)throw new Error('A second AIVID submission was blocked.');
       if(probe){
         claimed=true;
+        await beforeGenerate();
         await cdp.send('Fetch.failRequest',{requestId:event.requestId,errorReason:'Aborted'});
         observed.resolve({uploaded});return;
       }
@@ -523,11 +547,10 @@ class AividBrowserlessClient {
       if (credits.price <= 0 || credits.price > this.maxSourceCredits || credits.balance < credits.price)
         throw new Error('AIVID price exceeds the limit or the account has insufficient credits.');
       const guard = await installRequestGuard(page, job,{references,beforeGenerate:async()=>{
-        const latest=creditState(await page.locator('body').innerText());
-        if(latest.price!==credits.price||latest.price>this.maxSourceCredits)throw sessionFailure('submission_price_changed');
+        await confirmSubmissionPrice(page, credits.price);
         // Uploads and final file IDs have been verified. Persist the receipt
         // immediately before releasing the one paused paid request.
-        await step('submission_reservation',()=>beforeClick({price:latest.price}));
+        await step('submission_reservation',()=>beforeClick({price:credits.price}));
       }});
       try {
         const responsePromise = page.waitForResponse(isGenerationResponse, { timeout: 120000 }).catch(() => null);
@@ -553,7 +576,7 @@ class AividBrowserlessClient {
       const job=await prepare(page,value,references,{onProgress:this.onProgress});
       const before=creditState(await page.locator('body').innerText());
       if(before.balance<before.price)throw new Error('AIVID needs sufficient balance to open its upload flow; no video will be submitted.');
-      const guard=await installRequestGuard(page,job,{references,probe:true});
+      const guard=await installRequestGuard(page,job,{references,probe:true,beforeGenerate:()=>confirmSubmissionPrice(page,before.price)});
       try{
         const check=Promise.race([guard.observed,guard.failure]);check.catch(()=>{});
         await page.locator('main').first().getByRole('button',{name:'Generate',exact:true}).click();
