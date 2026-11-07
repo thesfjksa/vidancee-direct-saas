@@ -171,11 +171,11 @@ async function checkForm(page, Client, waitForSession) {
   assert.equal(await page.evaluate(()=>window.generateClicks),0);
   missingImageInput=true;
   await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
-    assert.equal(error.aividCode,'reference_upload');return true;
+    assert.equal(error.aividCode,'reference_selection');return true;
   });
   missingImageInput=false;ambiguousImageInput=true;
   await assert.rejects(client.preflight({prompt:'A quiet river',duration:4,aspectRatio:'16:9',resolution:'480p'},[image]),error=>{
-    assert.equal(error.aividCode,'reference_upload');return true;
+    assert.equal(error.aividCode,'reference_selection');return true;
   });
   ambiguousImageInput=false;
   assert.equal(await page.evaluate(()=>window.generateClicks),0);

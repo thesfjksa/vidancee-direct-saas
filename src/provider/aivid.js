@@ -75,6 +75,11 @@ const DIAGNOSTICS = Object.freeze({
   duration: 'Could not set or verify the AIVID duration slider.',
   privacy: 'Could not set AIVID public visibility. No video was submitted.',
   reference_upload: 'AIVID could not verify the reference files or their upload IDs.',
+  reference_selection: 'The AIVID browser did not retain every selected reference preview.',
+  reference_presign: 'The AIVID upload link could not be matched to the selected reference.',
+  reference_storage: 'AIVID storage did not confirm the reference upload.',
+  reference_save: 'AIVID did not return a verified ID for an uploaded reference.',
+  reference_ids: 'AIVID sent reference IDs that did not match the selected files in order.',
   submission_price_changed: 'AIVID changed the source price while preparing the request.',
   submission_reservation: 'CMM Tools could not confirm the submission reservation.',
   submission_payload: 'AIVID sent a request that did not match the prepared video settings.',
@@ -388,7 +393,7 @@ async function prepare(page, value, references = [], { onProgress } = {}) {
   // Owner-selected Public mode must be set before reading its price.
   // Both the visible form and the outgoing payload independently verify it.
   const privacy = await step('privacy', () => setPublicVisibility(main), onProgress);
-  await step('reference_upload', async () => {
+  await step('reference_selection', async () => {
     if(references.length){
       const mode=main.getByRole('button',{name:'References',exact:true});
       if(await mode.count()===1){await mode.click();await main.locator('input[type="file"][multiple]').first().waitFor({state:'attached',timeout:10000});}

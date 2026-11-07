@@ -4,7 +4,7 @@ const API='https://api.aivid.dev';
 const UPLOAD_ORIGINS=new Set(['https://aivid-dev.s3.ap-southeast-1.amazonaws.com']);
 const TYPES=['image','video','audio'];
 const ID=/^[a-zA-Z0-9_-]{16,80}$/;
-const fail=()=>Object.assign(new Error('AIVID reference upload could not be verified. No video was submitted.'),{aividCode:'reference_upload'});
+const fail=(code='reference_upload')=>Object.assign(new Error('AIVID reference upload could not be verified. No video was submitted.'),{aividCode:code});
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});promise.catch(()=>{});return {promise,resolve,reject};}
 async function bounded(promise,ms=20000){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(fail()),ms)})]);}finally{clearTimeout(timer)}}
 function referenceName(kind, mimeType, index) {
@@ -31,16 +31,16 @@ function storageKey(postData) {
 }
 function exactIds(body,job,uploaded=[]){
   const count=job.counts.image+job.counts.video+job.counts.audio;
-  if(body.firstFrameId!=null||body.lastFrameId!=null||(body.mode!=null&&body.mode!=='references'))throw fail();
-  if(body.references!=null&&(!Array.isArray(body.references)||body.references.length))throw fail();
-  if(uploaded.length!==count)throw fail();
+  if(body.firstFrameId!=null||body.lastFrameId!=null||(body.mode!=null&&body.mode!=='references'))throw fail('reference_ids');
+  if(body.references!=null&&(!Array.isArray(body.references)||body.references.length))throw fail('reference_ids');
+  if(uploaded.length!==count)throw fail('reference_ids');
   const all=[];
   for(const kind of TYPES){
     const ids=body[kind+'Ids']??[],wanted=uploaded.filter(r=>r.kind===kind).map(r=>r.id);
-    if(!Array.isArray(ids)||ids.length!==job.counts[kind]||wanted.length!==ids.length||ids.some((id,i)=>typeof id!=='string'||!ID.test(id)||id!==wanted[i]))throw fail();
+    if(!Array.isArray(ids)||ids.length!==job.counts[kind]||wanted.length!==ids.length||ids.some((id,i)=>typeof id!=='string'||!ID.test(id)||id!==wanted[i]))throw fail('reference_ids');
     all.push(...ids);
   }
-  if(new Set(all).size!==all.length)throw fail();
+  if(new Set(all).size!==all.length)throw fail('reference_ids');
 }
 // Mirror the observed AIVID presign -> S3 POST -> save flow. Only the
 // files already verified in the browser's FileLists can receive upload IDs.
@@ -61,11 +61,11 @@ class UploadTracker {
     if(request.method!=='POST')return false;
     if(url.origin===API&&url.pathname==='/v2/uploads/presigned-url'&&!url.search){
       const body=JSON.parse(request.postData||'{}');
-      if(typeof body.fileName!=='string'||!body.fileName||body.fileName.length>255||/[\\/\x00]/.test(body.fileName))throw fail();
+      if(typeof body.fileName!=='string'||!body.fileName||body.fileName.length>255||/[\\/\x00]/.test(body.fileName))throw fail('reference_presign');
       const named=this.expected.find(ref=>ref.name===body.fileName||ref.providerName===body.fileName);
       const matches=this.expected.filter(ref=>!this.records.has(ref.name)&&ref.mimeType===body.fileType&&ref.size===body.fileSize);
       const expected=named?(matches.includes(named)?named:null):(matches.length===1?matches[0]:null);
-      if(!expected||[...this.records.values()].some(record=>record.requestedName===body.fileName))throw fail();
+      if(!expected||[...this.records.values()].some(record=>record.requestedName===body.fileName))throw fail('reference_presign');
       this.records.set(expected.name,{...expected,requestedName:body.fileName,presigned:deferred(),stored:deferred(),done:deferred(),phase:'presign'});
       return true;
     }
@@ -73,7 +73,7 @@ class UploadTracker {
       const presigning=[...this.records.values()].filter(record=>record.phase==='presign');
       await Promise.all(presigning.map(record=>bounded(record.presigned.promise)));
       const record=this.find('storage_ready',r=>r.url===url.href,storageKey(request.postData));
-      if(!record)throw fail();
+      if(!record)throw fail('reference_storage');
       // Only one storage POST is in flight. Chrome may omit multipart data
       // from the response's request, so the response can still be attributed.
       record.phase='storage_queued';
@@ -84,12 +84,12 @@ class UploadTracker {
     }
     if(url.origin===API&&url.pathname==='/v2/uploads/presigned-save'&&!url.search){
       const body=JSON.parse(request.postData||'{}');
-      if(typeof body.filePath!=='string')throw fail();
+      if(typeof body.filePath!=='string')throw fail('reference_save');
       const record=[...this.records.values()].find(r=>r.key===body.filePath);
-      if(!record)throw fail();
+      if(!record)throw fail('reference_save');
       await bounded(record.stored.promise);
       if(record.phase!=='save_ready'||body.fileName!==record.fileName||body.fileSize!==record.size||
-        body.fileType!==record.mimeType||body.folderPath!==record.folderPath)throw fail();
+        body.fileType!==record.mimeType||body.folderPath!==record.folderPath)throw fail('reference_save');
       record.phase='save';return true;
     }
     return false;
@@ -98,9 +98,10 @@ class UploadTracker {
     const request=response.request();
     if(request.method()!=='POST')return;
     const url=new URL(response.url());
-    let record;
+    let record,code;
     try{
       if(url.origin===API&&url.pathname==='/v2/uploads/presigned-url'){
+        code='reference_presign';
         const name=JSON.parse(request.postData?.()||'{}').fileName;
         record=this.find('presign',r=>!name||r.requestedName===name);
         if(!record||!response.ok())throw fail();
@@ -113,10 +114,12 @@ class UploadTracker {
         Object.assign(record,{url:upload.href,key:data.key,fileName:data.fileName,folderPath:data.folderPath,phase:'storage_ready'});
         record.presigned.resolve();
       }else if(UPLOAD_ORIGINS.has(url.origin)){
+        code='reference_storage';
         record=this.find('storage',r=>r.url===url.href,storageKey(request.postData?.()));
         if(!record||!response.ok())throw fail();
         record.phase='save_ready';record.stored.resolve();
       }else if(url.origin===API&&url.pathname==='/v2/uploads/presigned-save'){
+        code='reference_save';
         const key=JSON.parse(request.postData?.()||'{}').filePath;
         record=this.find('save',()=>true,key);
         if(!record||!response.ok())throw fail();
@@ -126,13 +129,13 @@ class UploadTracker {
         record.id=data.id;record.phase='done';record.done.resolve();
       }
     }catch{
-      const error=fail();
+      const error=fail(code);
       record?.presigned.reject(error);record?.stored.reject(error);record?.done.reject(error);
       this.onError(error);
     }
   }
   async completed() {
-    if(this.records.size!==this.expected.length)throw fail();
+    if(this.records.size!==this.expected.length)throw fail('reference_presign');
     const ordered=this.expected.map(ref=>this.records.get(ref.name));
     await Promise.all(ordered.map(r=>bounded(r.done.promise)));
     return ordered.map(r=>({kind:r.kind,id:r.id,sha256:r.sha256}));
