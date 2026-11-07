@@ -64,7 +64,9 @@ class Agent {
     this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
     this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, download: downloadNative, historyDownload: downloadSavedVideo, maxSourceCredits: limit,
-      onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...') }));
+      onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
+      onBlockedRequest: ({method, hostname, path}) =>
+        console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
   }
   async check() {
     console.log('Opening saved Chrome and checking AIVID. No video will be generated.');

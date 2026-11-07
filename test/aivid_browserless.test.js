@@ -146,10 +146,11 @@ test('paid request guard requires exact settings, public visibility and every re
 });
 
 test('interception blocks duplicate POSTs and private or incomplete requests before forwarding', async () => {
-  const cdp = new EventEmitter(), calls = [];
+  const cdp = new EventEmitter(), calls = [], blocked = [];
   cdp.send = async (method, args) => { calls.push({ method, args }); };
   cdp.detach = async () => {};
-  const guard = await installRequestGuard({ context: () => ({ newCDPSession: async () => cdp }) }, validateJob(input));
+  const guard = await installRequestGuard({ context: () => ({ newCDPSession: async () => cdp }) }, validateJob(input),
+    { onBlockedRequest: request => blocked.push(request) });
   const handler = cdp.listeners('Fetch.requestPaused')[0];
   const url = 'https://api.aivid.dev/v2/generations';
   await handler({ requestId: 'too-early', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
@@ -157,8 +158,12 @@ test('interception blocks duplicate POSTs and private or incomplete requests bef
   guard.arm();
   await handler({ requestId: 'private', request: { url, method: 'POST', postData: JSON.stringify({ ...payload, isPublic: false }) } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
-  await handler({ requestId: 'moved-endpoint', request: { url: 'https://api.aivid.dev/v3/generations', method: 'POST', postData: JSON.stringify(payload) } });
+  await handler({ requestId: 'moved-endpoint', request: {
+    url: 'https://user:secret@api.aivid.dev/v3/generations/abcdef0123456789?token=secret',
+    method: 'POST', postData: JSON.stringify(payload)
+  } });
   assert.equal(calls.at(-1).method, 'Fetch.failRequest');
+  assert.deepEqual(blocked, [{method:'POST',hostname:'api.aivid.dev',path:'/v3/generations/[redacted]'}]);
   await handler({ requestId: 'first', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
   await handler({ requestId: 'duplicate', request: { url, method: 'POST', postData: JSON.stringify(payload) } });
   assert.equal(calls.filter(c => c.method === 'Fetch.continueRequest').length, 1);
