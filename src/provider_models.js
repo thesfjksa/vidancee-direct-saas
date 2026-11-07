@@ -222,6 +222,9 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.inputSchema = safeJson(row.input_schema, {});
   }
   if(row.provider==='vercel')applyModelFixups(base);
+  if(row.provider==='falimg'&&row.media_type==='image'&&base.enabled&&base.available){
+    require('./fal_images.js').applySavedGptEdit(base,row.provider_model_id);
+  }
   if(row.provider==='api888'){
     // The catalog table is a historical/account-scoped snapshot. Shipping a new
     // verified 888API input mapping must not require the administrator to write

@@ -214,3 +214,23 @@ test('catalog pairs the exact active GPT edit schema with the text model',async(
   assert.deepEqual(models.map(m=>m.providerModelId),[id]);
   assert.equal(models[0].options.falImage.edit.endpoint,editId);
 });
+
+test('the saved catalog exposes verified GPT references before a full sync',()=>{
+  const {serializeProviderModel}=require('../src/provider_models.js');
+  const endpoint='openai/gpt-image-2';
+  const quality={type:'string',enum:['low','medium','high']};
+  const model=describeFalImageModel(entry(endpoint,{...imageSize,quality}));
+  const row={id:1,provider:'falimg',provider_model_id:endpoint,public_model_id:model.publicModelId,
+    label:model.label,media_type:'image',enabled:1,available:1,options_json:JSON.stringify(model.options)};
+  assert.equal(serializeProviderModel(row).referenceCapabilities.image.supported,false);
+  delete model.options.falImage.gptEditChecked;
+  row.options_json=JSON.stringify(model.options);
+  const saved=serializeProviderModel(row);
+  assert.equal(saved.ready,true);
+  assert.equal(saved.falImage.edit.endpoint,endpoint+'/edit');
+  assert.deepEqual([saved.referenceCapabilities.image.min,saved.referenceCapabilities.image.max],[0,1]);
+  assert.equal(quoteGateway(saved,{aspectRatio:'1:1',previewHasReferences:true},1000).cost,226);
+  assert.equal(quoteGateway(saved,{aspectRatio:'1:1'},1000).cost,214);
+  assert.equal(serializeProviderModel({...row,enabled:0}).referenceCapabilities.image.supported,false);
+  assert.equal(serializeProviderModel({...row,provider_model_id:'fal-ai/unknown'}).referenceCapabilities.image.supported,false);
+});

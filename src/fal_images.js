@@ -46,6 +46,9 @@ const GPT_EDITS = {
   'fal-ai/gpt-image-1.5': { endpoint: 'fal-ai/gpt-image-1.5/edit', imageUsd: 3050 * 0.008 / 1000, inputFidelity: 'high' },
   'fal-ai/gpt-image-1-mini': { endpoint: 'fal-ai/gpt-image-1-mini/edit', imageUsd: 135 * 0.0025 / 1000 },
 };
+function gptReferencePricing(endpoint) {
+  return GPT_QUALITIES.map(quality => ({ quality, cost: gptCost(GPT_IMAGE[endpoint], quality, GPT_EDITS[endpoint].imageUsd) }));
+}
 function gptCost(gpt, quality, imageUsd = 0) {
   const usd = gpt.prices[quality] + gpt.prompt + imageUsd;
   return gpt.cent ? Math.ceil(usd * 100 - 1e-9) / 100 : Math.round(usd * 1e5) / 1e5;
@@ -117,6 +120,34 @@ function gptEditSettings(fal, entry) {
   };
 }
 
+function imageReferenceCapability(reference) {
+  return reference
+    ? { supported: true, max: reference.max, min: reference.min, roles: ['image_references'], maxBytes: REFERENCE_BYTES, formats: ['jpeg', 'png', 'webp'] }
+    : { supported: false, max: 0, min: 0, roles: [] };
+}
+
+// Rows imported before edit schemas were included can use the same five
+// verified contracts without waiting for a full import. Once a fresh import
+// checks a model, its result takes precedence, including unavailable edits.
+function applySavedGptEdit(model, endpoint) {
+  const spec = GPT_EDITS[endpoint], fal = model.falImage;
+  if (!spec || !model.adapterSupported || !model.catalogVerified || fal?.endpoint !== endpoint ||
+      !fal.hasQuality || fal.sizeParam !== 'image_size' || fal.gptEditChecked || fal.edit) return;
+  const values = Object.values(fal.values || {});
+  const allowed = GPT_IMAGE[endpoint].values ? Object.values(GPT_IMAGE[endpoint].values) : [...Object.values(PRESETS), 'custom'];
+  if (!values.length || values.some(value => !allowed.includes(value)) ||
+      GPT_QUALITIES.some(quality => !model.qualities.includes(quality))) return;
+  const reference = { field: 'image_urls', array: true, min: 1, max: 1 };
+  const edit = { endpoint: spec.endpoint, reference, hasNumImages: true,
+    ...(spec.inputFidelity ? { inputFidelity: spec.inputFidelity } : {}) };
+  model.falImage = { ...fal, edit };
+  model.referenceCapabilities = { ...model.referenceCapabilities, textOnly: false, totalMax: 1,
+    image: imageReferenceCapability({ ...reference, min: 0 }) };
+  model.pricing = { ...model.pricing, reference_image_dimension_quality_pricing: gptReferencePricing(endpoint) };
+  model.supportedOperations = [...new Set([...model.supportedOperations, 'image-to-image'])];
+  model.label += ' · References';
+}
+
 // One catalog entry plus its price ({unit_price, unit}) as a provider model.
 function describeFalImageModel(entry, price = null, editEntry = null) {
   const endpoint = entry.endpoint_id;
@@ -166,6 +197,7 @@ function describeFalImageModel(entry, price = null, editEntry = null) {
   if (!setupReason && !aspectRatios.length) setupReason = 'No supported aspect ratio.';
   fal.hasQuality = Boolean(gpt && props.quality);
   const gptEdit = !setupReason && gpt ? gptEditSettings(fal, editEntry) : null;
+  if (GPT_EDITS[endpoint]) fal.gptEditChecked = true;
   if (gptEdit) {
     fal.edit = gptEdit;
     reference = { ...gptEdit.reference, min: 0 };
@@ -183,9 +215,7 @@ function describeFalImageModel(entry, price = null, editEntry = null) {
   } else if (!setupReason) setupReason = 'fal.ai bills this model per ' + unit + ', which is not supported.';
   const promptMax = Number(props.prompt?.maxLength) || 4000;
   const label = gpt ? gpt.label : name.replace(/\s+(Text to Image|Text-to-Image|API)$/i, '').slice(0, 120);
-  const image = reference
-    ? { supported: true, max: reference.max, min: reference.min, roles: ['image_references'], maxBytes: REFERENCE_BYTES, formats: ['jpeg', 'png', 'webp'] }
-    : { supported: false, max: 0, min: 0, roles: [] };
+  const image = imageReferenceCapability(reference);
   return {
     providerModelId: endpoint, publicModelId: publicId(endpoint),
     label: edit ? label + ' · Image Edit' : reference ? label + ' · References' : label, mediaType: 'image',
@@ -193,8 +223,7 @@ function describeFalImageModel(entry, price = null, editEntry = null) {
       catalogVerified: true, adapterSupported: !setupReason, setupReason, gatewayType: 'image',
       pricing: {
         ...(tiers.length ? { image_dimension_quality_pricing: tiers } : {}),
-        ...(gptEdit ? { reference_image_dimension_quality_pricing: GPT_QUALITIES.map(quality =>
-          ({ quality, cost: gptCost(gpt, quality, GPT_EDITS[endpoint].imageUsd) })) } : {}),
+        ...(gptEdit ? { reference_image_dimension_quality_pricing: gptReferencePricing(endpoint) } : {}),
       },
       aspectRatios, defaultAspectRatio: aspectRatios.includes('1:1') ? '1:1' : aspectRatios[0] || null,
       falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images), hasMaxImages: Boolean(reference && props.max_images?.type === 'integer') },
@@ -290,6 +319,12 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
     if (!(await loadPrices(batch)) && batch.length > 1) for (const id of batch) await loadPrices([id]);
   }
   if (!entries.length) throw Object.assign(new Error('fal.ai returned no image models.'), { statusCode: 502 });
+  for (const [id, spec] of Object.entries(GPT_EDITS)) {
+    if (metadata.has(id) && metadata.has(spec.endpoint) &&
+        (!byId.get(id)?.openapi?.paths || !byId.get(spec.endpoint)?.openapi?.paths)) {
+      throw Object.assign(new Error('fal.ai did not return all active GPT Image schemas. The saved catalog was kept.'), { statusCode: 502 });
+    }
+  }
   const described = ids.filter(id => byId.has(id)).map(id => {
     const entry = byId.get(id);
     const editEndpoint = GPT_EDITS[id]?.endpoint;
@@ -363,4 +398,4 @@ class FalImageClient {
   }
 }
 
-module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema };
+module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema, applySavedGptEdit };
