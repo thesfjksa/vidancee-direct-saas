@@ -277,3 +277,11 @@ completion have not been verified. Do not replay existing uncertain jobs.
 ## 7 November: second F12-dependent AIVID investigation
 
 PR #179 addresses a startup race in the request guard: Chrome may emit Fetch.requestPaused immediately after Fetch.enable, but the old code registered its listener only after the enable command returned. Such an event could be stranded until DevTools changed the interception state. The handler is now registered before enabling Fetch. Setup failures are classified as request_guard_setup, and a regression test emits an event during enable. Node tests and MySQL integration checks pass; Windows real Chrome and Admin browser checks are pending at handoff. This has not yet been merged or tested on the owner's live RDP.
+
+## 7 Nov — Unclassified AIVID preparation failures
+
+Owner reported: `The video request could not be prepared. Credits were refunded.` after latest Chrome interception fix, with no visible upstream generation. This exact generic wording comes from `AividQueue.submit` before the durable click reservation. It is **not** proof that browser interception failed. The earlier independent cloud-storage HTTP 500 means saved reference hydration is a candidate, not a confirmed root cause.
+
+The follow-up change adds fixed, non-sensitive diagnostic stages for saved reference DB/storage reads, queue option preparation, dispatch to the RDP command bridge, and pre-click reservation checks. It also records a safe Admin Activity `aivid.preparation_failed` event with `stage`, `code`, and bounded storage HTTP status when present. Raw SQL, URLs, signed requests, prompts, credentials and provider bodies do not enter customer errors or Activity. Any previously known AIVID stage code retains precedence. The existing refund-before-click and hold-after-reservation accounting remains unchanged. Regression tests cover generic worker errors, reference storage 500, reference DB and reservation failures.
+
+For next investigation, inspect Admin → Generations for the failing generation and Admin → Activity for `aivid.preparation_failed` matching its ID; then inspect RDP console if `rdp_dispatch`, or Storage check if `reference_storage`. Do not repeatedly submit paid requests or conclude the precise failure until live evidence is available. Neither deployment nor a live test was performed by this patch.
