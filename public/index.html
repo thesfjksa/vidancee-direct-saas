@@ -159,7 +159,7 @@
           </div>
 
           <div class="creator-footer">
-            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div><div id="videoPriceNote" class="meta hide">Estimated price for the selected settings.</div>
+            <div class="cost-row"><span>Generation cost</span><strong><span id="cost">—</span> credits</strong></div><div id="videoPriceNote" class="meta hide">Estimated price for the selected settings.</div><button id="videoPriceRetry" class="btn secondary hide" type="button" onclick="updateCost()">Retry price</button>
             <button id="generateBtn" class="generate" onclick="createGeneration()">Generate</button>
             <div id="genMsg" class="msg muted"></div>
           </div>
@@ -1469,7 +1469,7 @@ function renderConfig(){
   renderUpscalerConfig();
 }
 
-function renderDurations(resetResolution=false){
+function renderDurations(resetResolution=false, refreshPrice=true){
   const m=(config.pricing||[]).find(x=>x.id===$('model').value)||(config.pricing||[])[0];
   if(!m){
     $('duration').innerHTML='';
@@ -1537,7 +1537,7 @@ function renderDurations(resetResolution=false){
   syncCustomSelect('model');
   syncCustomSelect('ratio');
   syncCustomSelect('duration');
-  updateCost();
+  if(refreshPrice)updateCost();
 }
 
 function renderGatewayVideoSettings(model){
@@ -1550,40 +1550,53 @@ function renderGatewayVideoSettings(model){
   $('videoGenerateAudio').value=model.supportsAudio?'true':'';
 }
 
-// Server price quotes are cached per selection and time-limited with one retry,
-// so switching back to a combination is instant and one slow request cannot
-// leave the price stuck.
+// Share one price request for identical selections, including while it is pending.
 const quoteCache=new Map();
 async function fetchQuote(body){
-  // Gateway prices never depend on the prompt; other sources may.
-  const key=JSON.stringify(/^(studio_gw_|argo_)/.test(String(body.model||''))?{...body,prompt:undefined}:body);
+  const model=String(body.model||'');
+  const premium=model.startsWith('aivid_');
+  // Premium previews read the form price for the selected settings. The
+  // submitted prompt and files still receive a fresh quote on the server.
+  const request=premium?{...body,prompt:undefined,previewVideoSeconds:undefined}:body;
+  const key=JSON.stringify(/^(studio_gw_|argo_)/.test(model)?{...request,prompt:undefined}:request);
   const cached=quoteCache.get(key);
-  if(cached&&cached.expiresAt>Date.now())return cached.quote;
-  quoteCache.delete(key);
-  let lastError;
-  for(let attempt=0;attempt<2;attempt++){
-    try{
-      const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(String(body.model||'').startsWith('aivid_')?120000:10000)});
-      const quote={cost:Number(d.cost),isEstimate:Boolean(d.isEstimate)};
-      if(quoteCache.size>200)quoteCache.clear();
-      quoteCache.set(key,{quote,expiresAt:Date.now()+(String(body.model||'').startsWith('aivid_')?15000:30000)});
-      return quote;
-    }catch(e){
-      lastError=e;
-      // Client errors (unsupported selection, no access) will not change on retry.
-      if(e.status&&e.status<500)break;
+  if(cached&&(cached.pending||cached.expiresAt>Date.now()))return cached.promise;
+
+  const entry={pending:true,expiresAt:0};
+  entry.promise=(async()=>{
+    for(let attempt=0; ;attempt++){
+      try{
+        const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(request),signal:AbortSignal.timeout(premium?100000:10000)});
+        entry.expiresAt=Date.now()+(premium?15000:30000);
+        return {cost:Number(d.cost),isEstimate:premium||Boolean(d.isEstimate)};
+      }catch(error){
+        if(premium&&error.status===409&&attempt<3){
+          await new Promise(resolve=>setTimeout(resolve,750*2**attempt));
+          continue;
+        }
+        if(premium||attempt>0||(error.status&&error.status<500))throw error;
+      }
     }
-  }
-  throw lastError;
+  })();
+  if(quoteCache.size>200)quoteCache.clear();
+  quoteCache.set(key,entry);
+  try{return await entry.promise;}
+  catch(error){
+    if(quoteCache.get(key)===entry)quoteCache.delete(key);
+    throw error;
+  }finally{entry.pending=false;}
 }
 
-async function updateCost(){
+async function updateCost({previousGeneration=null, previewOnly=false}={}){
+  const seq=++videoCostRequestSeq;
   const model=(config.pricing||[]).find(x=>x.id===$('model').value);
   const o=$('duration').options[$('duration').selectedIndex];
   syncCustomSelect('duration');
   syncCustomSelect('ratio');
 
-  $('videoPriceNote').classList.add('hide');
+  const note=$('videoPriceNote');
+  note.classList.add('hide');
+  $('videoPriceRetry').classList.add('hide');
   if(!model){$('cost').textContent='—';return}
   if(model.unavailable===true){$('cost').textContent='Unavailable';return}
   if(!model.dynamicCost){
@@ -1591,24 +1604,44 @@ async function updateCost(){
     return;
   }
 
-  const seq=++videoCostRequestSeq;
-  $('cost').textContent='…';
+  const duration=Number($('duration').value||0);
+  const resolution=$('resolutionControl').classList.contains('hide')?'':$('resolution').value;
+  const aspectRatio=$('ratio').value;
+  const past=Number(previousGeneration?.credits_cost);
+  const historical=model.premium&&previousGeneration?.status==='completed'&&previousGeneration.model===model.id&&
+    Number(previousGeneration.duration)===duration&&previousGeneration.resolution===resolution&&
+    previousGeneration.aspect_ratio===aspectRatio&&Number.isFinite(past)&&past>0;
+  $('cost').textContent=historical?past:'…';
+  if(historical){
+    note.textContent='Estimate based on this video’s previous cost. Price is checked before charging.';
+    note.classList.remove('hide');
+  }
+  if(previewOnly)return;
+
   try{
     const d=await fetchQuote({
       mediaType:'video',
       model:model.id,
       prompt:String($('prompt').value||'').trim()||'Cost estimate',
-      duration:Number($('duration').value||0),
-      resolution:$('resolutionControl').classList.contains('hide')?'':$('resolution').value,
-      aspectRatio:$('ratio').value,
+      duration,resolution,aspectRatio,
       generationMode:$('videoModeControl').classList.contains('hide')?'':$('videoGenerationMode').value,
       generateAudio:$('videoGenerateAudio').value==='true',
       ...(videoReferenceItems.length?{previewVideoSeconds:videoReferenceItems.map(item=>item.seconds)}:{}),
       ...(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length?{previewHasReferences:true}:{}),
     });
-    if(seq===videoCostRequestSeq){$('cost').textContent=Number(d.cost);$('videoPriceNote').classList.toggle('hide',!d.isEstimate);}
+    if(seq===videoCostRequestSeq){
+      $('cost').textContent=Number(d.cost);
+      note.textContent='Estimated price for the selected settings.';
+      note.classList.toggle('hide',!d.isEstimate);
+    }
   }catch(e){
-    if(seq===videoCostRequestSeq)$('cost').textContent='at submit';
+    if(seq!==videoCostRequestSeq)return;
+    if(!historical)$('cost').textContent=model.premium?'—':'at submit';
+    if(model.premium){
+      if(!historical)note.textContent='Price is temporarily unavailable.';
+      note.classList.remove('hide');
+      $('videoPriceRetry').classList.remove('hide');
+    }
   }
 }
 
@@ -3096,14 +3129,14 @@ function applyVideoReuseSettings(g){
   $('prompt').value=g.prompt||'';updatePromptCounts();
   if([...$('model').options].some(o=>o.value===g.model)){
     $('model').value=g.model;
-    renderDurations(true);
+    renderDurations(true,false);
     renderVideoReferenceControls(true);
   }
   if(g.resolution && !$('resolutionControl').classList.contains('hide')){
     if([...$('resolution').options].some(o=>o.value===g.resolution)){
       $('resolution').value=g.resolution;
       syncCustomSelect('resolution');
-      renderDurations(false);
+      renderDurations(false,false);
     }
   }
   if(g.generation_options){
@@ -3121,7 +3154,6 @@ function applyVideoReuseSettings(g){
   syncCustomSelect('model');
   syncCustomSelect('resolution');
   syncCustomSelect('duration');
-  updateCost();
 }
 
 async function reuseGeneration(id){
@@ -3144,12 +3176,14 @@ async function reuseGeneration(id){
   m.className='msg muted';
   const reuseCap=normalizedClientCapabilities(currentVideoModel(),'video').image;
   if(g.mode==='text-to-video'||!reuseCap.supported){
+    updateCost({previousGeneration:g});
     m.textContent='Prompt and generation settings reused.';
     return;
   }
 
   // Reference images are reused by pointer; only their list needs the network.
   m.textContent='Prompt and settings reused. Restoring reference images…';
+  updateCost({previousGeneration:g,previewOnly:true});
   b.disabled=true;b.setAttribute('aria-busy','true');
   try{
     const d=await api('/api/generations/'+encodeURIComponent(id),{signal:AbortSignal.timeout(20000)});
@@ -3158,7 +3192,6 @@ async function reuseGeneration(id){
     referenceItems=restored.map((image,index)=>reusedReferenceItem(image,defaultImageRole(reuseCap,index)));
     reusedReferenceGenerationId=referenceItems.length?String(g.id):null;
     renderReferencePreview();
-    updateCost();
     if(referenceItems.length){
       m.textContent='Prompt, settings, and '+referenceItems.length+' reference image'+(referenceItems.length===1?'':'s')+' reused. Drag to reorder or remove any image.';
     }else{
@@ -3169,7 +3202,11 @@ async function reuseGeneration(id){
     m.className='msg err';
     m.textContent=e.name==='TimeoutError'?'Reference images took too long to restore. Upload them again or click Reuse prompt to retry.':e.message;
   }finally{
-    if(token===videoReuseToken){b.removeAttribute('aria-busy');b.disabled=false;}
+    if(token===videoReuseToken){
+      b.removeAttribute('aria-busy');
+      b.disabled=videoSubmissionInFlight||currentVideoModel()?.unavailable===true;
+      updateCost({previousGeneration:g});
+    }
   }
 }
 
