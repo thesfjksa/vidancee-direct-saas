@@ -260,9 +260,13 @@ async function deleteUserImageGeneration(userId, generationId) {
       'UPDATE credit_transactions SET generation_id=NULL WHERE generation_id=? AND user_id=?',
       [generationId, userId],
     );
-    const [tagRows] = await conn.execute('SELECT image_data AS data FROM generation_images WHERE generation_id=? AND LENGTH(image_data)<512 UNION ALL SELECT image_data FROM generation_image_outputs WHERE generation_id=? AND LENGTH(image_data)<512', [generationId, generationId]);
+    const [tagRows] = await conn.execute('SELECT image_data AS data FROM generation_images WHERE generation_id=? AND LENGTH(image_data)<512 UNION ALL SELECT image_data FROM generation_image_outputs WHERE generation_id=? AND LENGTH(image_data)<512 UNION ALL SELECT media_data FROM generation_media WHERE generation_id=? AND LENGTH(media_data)<512', [generationId, generationId, generationId]);
     offloadedTags = tagRows.map(r => r.data);
     await conn.execute('DELETE FROM generation_images WHERE generation_id=?', [generationId]);
+    await conn.execute('DELETE FROM generation_media WHERE generation_id=?', [generationId]);
+    // Explicit cleanup also works for legacy installs without foreign keys.
+    await conn.execute('DELETE FROM generation_image_thumbnails WHERE generation_id=?', [generationId]);
+    await conn.execute('DELETE FROM generation_image_outputs WHERE generation_id=?', [generationId]);
     await conn.execute(
       "DELETE FROM generations WHERE id=? AND user_id=? AND media_type='image'",
       [generationId, userId],
