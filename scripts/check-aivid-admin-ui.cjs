@@ -133,17 +133,17 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  assert.equal(cloudStarts,previousCloudStarts);
  const beforeChecks=checkRequests.length;
  await page.getByRole('button',{name:'Check all Premium models',exact:true}).click();
- await page.locator('#aividAdminMessage').filter({hasText:'6/6 checks passed'}).waitFor();
- assert.equal(checkRequests.length-beforeChecks,6);
+ await page.locator('#aividAdminMessage').filter({hasText:'8/8 checks passed'}).waitFor();
+ assert.equal(checkRequests.length-beforeChecks,8);
  const batch=checkRequests.slice(beforeChecks);
- assert.deepEqual([...new Set(batch.map(v=>v.model))],['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']);
+ assert.deepEqual([...new Set(batch.map(v=>v.model))],['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']);
  assert.ok(batch.every(v=>v.duration===5&&v.aspectRatio==='16:9'));
- assert.deepEqual(batch.map(v=>v.resolution),['480p','720p','480p','720p','480p','720p']);
+ assert.deepEqual(batch.map(v=>v.resolution),['480p','720p','480p','720p','480p','720p','480p','720p']);
  assert.match(await page.locator('#aividAdminMessage').innerText(),/No video was generated and no credits were charged/);
  assert.equal(await page.getByRole('button',{name:'Check all Premium models',exact:true}).isEnabled(),true);
  await page.getByRole('button',{name:'Check reference uploads (no generation)',exact:true}).click();
- await page.locator('#aividAdminMessage').filter({hasText:'3/3 reference checks passed'}).waitFor();
- assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']);
+ await page.locator('#aividAdminMessage').filter({hasText:'4/4 reference checks passed'}).waitFor();
+ assert.deepEqual(referenceChecks.map(v=>v.model),['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']);
  assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('AABBCCDDEEFF001122334455')),false);
  await page.locator('#aividAdminCard').screenshot({path:path.join(artifacts,'rdp-mobile.png')});
  // Exercise actual rendered Admin buttons, confirmation dismissal and refresh.

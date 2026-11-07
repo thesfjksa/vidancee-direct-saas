@@ -5,24 +5,25 @@ const {validateJob,validateSubmission}=require('../src/provider/aivid.js');
 
 test('Premium models have separate IDs, public labels and guarded limits',()=>{
   const ids=SPECS.map(s=>s.id);
-  assert.equal(new Set(ids).size,3);
+  assert.equal(new Set(ids).size,4);
   assert.ok(ids.every(id=>id.startsWith('aivid_')&&isAividModel(id)));
   assert.equal(aividModel('seedance_2.5'),null);
   const catalog=customerCatalog({enabled:true,maxSourceCredits:30,mode:'rdp',rdpDevice:{
     deviceId:'safe-device',tokenHash:'1234',seenAt:new Date().toISOString(),status:'ready'}});
-  assert.equal(catalog.length,3);
+  assert.equal(catalog.length,4);
   assert.ok(catalog.every(m=>m.label.includes('Premium')&&m.dynamicCost===true));
   for(const m of catalog){
     assert.ok(m.capabilities.image.max>0);
     assert.ok(m.durations.length>=12);
+    assert.equal(m.defaultDuration,Math.max(...m.durations.map(d=>d.seconds)));
   }
   const offline=customerCatalog({enabled:true,maxSourceCredits:30,mode:'rdp',
     rdpDevice:{deviceId:'safe-device',tokenHash:'1234',seenAt:'2000-01-01T00:00:00.000Z',status:'ready'}});
-  assert.equal(offline.length,3);
+  assert.equal(offline.length,4);
   assert.ok(offline.every(m=>m.unavailable&&m.ready===false&&/offline/i.test(m.warning)));
   const disabled=customerCatalog({enabled:false,maxSourceCredits:30,mode:'rdp',
     rdpDevice:{deviceId:'safe-device',tokenHash:'1234',seenAt:'2000-01-01T00:00:00.000Z',status:'ready'}});
-  assert.equal(disabled.length,3);
+  assert.equal(disabled.length,4);
   assert.ok(disabled.every(m=>m.unavailable&&/disabled/i.test(m.warning)));
   const unconfigured=customerCatalog(null);
   assert.equal(unconfigured.length,0);
@@ -45,7 +46,7 @@ test('bad premium settings, durations and reference limits fail before submissio
   assert.throws(()=>assertOptions(aividModel('aivid_seedance_2_5'),{duration:31,resolution:'480p'}),/Unsupported/);
   assert.throws(()=>validateJob({model:'aivid_seedance_2_0',prompt:'ok',duration:16,resolution:'480p'}),/duration/);
   assert.throws(()=>validateJob({model:'aivid_seedance_2_5',prompt:'ok',duration:5,resolution:'4K'}),/resolution/);
-  assert.equal(capabilities(SPECS[2]).image.max,30);
+  assert.equal(capabilities(aividModel('aivid_seedance_2_5')).image.max,30);
 });
 
 test('Premium 2.5 does not advertise more video/audio previews than the observed form retains',()=>{

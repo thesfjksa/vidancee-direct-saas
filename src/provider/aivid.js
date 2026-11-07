@@ -267,6 +267,7 @@ function selectedValueMatches(controlText, exactLabel) {
   return text === exactLabel || text.startsWith(exactLabel + ' ');
 }
 const SELECTED_MODEL = Object.freeze({
+  aivid_seedance_2_0_fast: /^Seedance 2\.0 \(Fast\)(?=\s|$)/,
   aivid_seedance_2_0_mini: /^Seedance 2\.0 \(Mini\)(?=\s|$)/,
   // Any parenthesized suffix denotes a different model (Mini, Fast, etc.).
   aivid_seedance_2_0: /^Seedance 2\.0(?!\s*\()(?=\s|$)/,

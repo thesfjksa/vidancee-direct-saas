@@ -224,7 +224,7 @@
   window.checkAividModels = async () => {
     if(busy||active)return;
     busy=true;buttons();
-    const models=[['aivid_seedance_2_0_mini','Seedance 2.0 Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_5','Seedance 2.5']];
+    const models=[['aivid_seedance_2_0_mini','Seedance 2.0 Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_0_fast','Seedance 2.0 Fast'],['aivid_seedance_2_5','Seedance 2.5']];
     const lines=[],total=models.length*2;let passed=0;
     try {
       for(const [model,label] of models)for(const resolution of ['480p','720p']){
@@ -243,7 +243,7 @@
   };
   window.checkAividReferences=async()=>{
     if(busy||active)return;busy=true;buttons();
-    const lines=[],models=[['aivid_seedance_2_0_mini','Seedance Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_5','Seedance 2.5']];let passed=0;
+    const lines=[],models=[['aivid_seedance_2_0_mini','Seedance Mini'],['aivid_seedance_2_0','Seedance 2.0'],['aivid_seedance_2_0_fast','Seedance 2.0 Fast'],['aivid_seedance_2_5','Seedance 2.5']];let passed=0;
     try{
       for(const [model,label] of models){
         message(lines.concat('Checking '+label+' image, video and audio uploads…').join('\n'));
@@ -254,7 +254,7 @@
           lines.push(label+': image, video and audio uploaded; video submission blocked; balance '+data.balanceAfter+' unchanged.');passed++;
         }catch(error){lines.push(label+': FAILED — '+error.message);}
       }
-      message(lines.concat(passed+'/3 reference checks passed. Only synthetic test media is uploaded. No video is submitted or customer wallet charged. Completed reference-based videos still need a paid acceptance test.').join('\n'),passed!==3);
+      message(lines.concat(passed+'/'+models.length+' reference checks passed. Only synthetic test media is uploaded. No video is submitted or customer wallet charged. Completed reference-based videos still need a paid acceptance test.').join('\n'),passed!==models.length);
     }finally{busy=false;buttons();}
   };
 })();

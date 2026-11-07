@@ -349,3 +349,9 @@ test('native collection prefers the exact detail page, falls back to history for
   else {assert.deepEqual(result,{state:'completed',output});assert.equal(downloads,state==='Completed'?1:0);assert.equal(history,state==='Completed'?0:1);}
  }
 });
+
+ test('Fast selection stays distinct from standard and Mini',()=>{
+ const {selectedModelMatches}=require('../src/provider/aivid.js');
+ assert.equal(selectedModelMatches('Seedance 2.0 (Fast) Faster generation with slightly reduced quality.','aivid_seedance_2_0_fast'),true);
+ for(const text of ['Seedance 2.0','Seedance 2.0 (Mini)','Seedance 2.5'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0_fast'),false);
+ });

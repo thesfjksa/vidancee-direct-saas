@@ -15,7 +15,7 @@ async function checkReferenceFlows(context,Client){
       'async function uploadAndPrepare(){try{const ids={image:[],video:[],audio:[]};for(const [kind,id] of [["image","refImages"],["video","refVideos"],["audio","refAudio"]])for(const file of (window.selectedFiles[kind]||[])){'+
       'const p=(await post("/v2/uploads/presigned-url",{fileName:file.name,fileType:file.type,fileSize:file.size})).data;const form=new FormData();for(const [k,v]of Object.entries(p.fields))form.append(k,v);form.append("file",file);'+
       'const uploaded=await fetch(p.url,{method:"POST",body:form});if(!uploaded.ok)throw Error("storage failed");const saved=(await post("/v2/uploads/presigned-save",{fileName:p.fileName,fileSize:file.size,fileType:file.type,filePath:p.key,folderPath:p.folderPath})).data;ids[kind].push(saved.id);}'+
-      'const model={"Seedance 2.0 (Mini)":"seedance-2.0-mini","Seedance 2.0":"seedance-2.0","Seedance 2.5":"seedance-2.5"}[document.getElementById("model").textContent];'+
+      'const model={"Seedance 2.0 (Mini)":"seedance-2.0-mini","Seedance 2.0":"seedance-2.0","Seedance 2.0 (Fast)":"seedance-2.0-fast","Seedance 2.5":"seedance-2.5"}[document.getElementById("model").textContent];'+
       'await post("/v2/generations",{model,prompt:document.querySelector("main textarea").value,duration:Number(document.getElementById("duration").value),resolution:document.getElementById("resolution").textContent,aspectRatio:"16:9",isPublic:!privateToggle.checked,mode:"references",imageIds:ids.image,videoIds:ids.video,audioIds:'+ (mode==='wrong_ids'?'[]':'ids.audio')+'});'+
       '}catch(e){document.getElementById("uploadError").textContent=e.message}}</script>'}));
     await page.route(API+'/**',async route=>{
@@ -39,13 +39,13 @@ async function checkReferenceFlows(context,Client){
     return {page,close:async()=>{await page.close().catch(()=>{})}};
   }});
   const value={prompt:'A blue square uses @image1 @video1 @audio1.',duration:5,resolution:'480p',aspectRatio:'16:9'};
-  for(const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_5']){
+  for(const model of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']){
     const result=await client.checkReferences({...value,model},diagnosticReferences());
     assert.equal(result.generationBlocked,true);assert.equal(result.submitted,false);
     assert.equal(result.balanceBefore,50);assert.equal(result.balanceAfter,50);
     assert.deepEqual(result.uploadedCounts,{image:1,video:1,audio:1});
   }
-  assert.equal(generationRequests,0);assert.equal(saved,9);
+  assert.equal(generationRequests,0);assert.equal(saved,12);
   events.length=0;let reservations=0;
   const result=await client.startVideo(value,diagnosticReferences(),{beforeClick:async()=>{
     assert.deepEqual(events,['presign','storage','save','presign','storage','save','presign','storage','save']);reservations++;
