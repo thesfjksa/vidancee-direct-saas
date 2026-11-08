@@ -66,5 +66,5 @@ test('WXKSAI queue is isolated and customer access SQL is scoped',()=>{
   assert.equal(q.apiKey({wxksaiApiKey:'test'}),'test');
   assert.equal(q.sourceEnabled({wxksaiEnabled:false}),false);
   assert.match(q.queuedSql(),/provider='wxksai'/);
-  assert.match(q.queuedSql(),/COALESCE\(a.enabled,1\)/);
+  assert.match(q.queuedSql(),/COALESCE\(a.enabled,0\)/);
 });
