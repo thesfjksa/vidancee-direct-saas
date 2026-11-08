@@ -1,6 +1,7 @@
 'use strict';
 
 const { ORIGIN } = require('../wxksai_models.js');
+const { prepareWxksaiReferences } = require('../wxksai_references.js');
 const { readBounded, VIDEO_LIMIT } = require('./vercel.js');
 const { fetchPublicMedia } = require('../remote_image.js');
 const { isCompleteMp4 } = require('../mp4_trim.js');
@@ -36,6 +37,7 @@ class WxksaiClient {
     if (!this.apiKey) throw Object.assign(new Error('Configure the WXKSAI API key in Admin.'), { statusCode: 400 });
     if (!/^\/v1\/(?:models|videos(?:\/[a-zA-Z0-9_-]+(?:\/content)?)?)$/.test(path))
       throw new Error('Invalid WXKSAI request path.');
+    const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
     let response;
     try {
       response = await this.fetch(ORIGIN + path, {
@@ -43,9 +45,9 @@ class WxksaiClient {
         headers: {
           authorization: 'Bearer ' + this.apiKey,
           accept: method === 'GET' && path.endsWith('/content') ? 'video/mp4' : 'application/json',
-          ...(body ? { 'content-type': 'application/json' } : {}),
+          ...(body && !multipart ? { 'content-type': 'application/json' } : {}),
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
     } catch (cause) {
       const error = new Error('WXKSAI request failed or timed out. Check task history before retrying a paid submission.');
@@ -77,11 +79,13 @@ class WxksaiClient {
     if (!Array.isArray(body?.data) || !body.data.length) throw new Error('WXKSAI returned an empty model list; the previous catalog was preserved.');
     return body;
   }
-  async startVideo(options) {
+  async startVideo(options, references = []) {
     const modelId = options?.model?.providerModelId;
     if (!modelId || !options?.prompt) throw new Error('WXKSAI needs a supported model and prompt.');
-    // Exactly ONE paid POST: failure or timeout is ambiguous and must never auto-retry.
-    const result = await this.json('/v1/videos', {
+    const multipart = prepareWxksaiReferences(modelId,options,references);
+    // Preflight validates all media before the ONE paid POST. A response timeout
+    // or 5xx can mean the provider accepted the task; never auto-submit twice.
+    const result = await this.json('/v1/videos', multipart || {
       model: modelId, prompt: options.prompt, seconds: String(options.duration),
       resolution: options.resolution, aspect_ratio: options.aspectRatio,
     }, 75000);
