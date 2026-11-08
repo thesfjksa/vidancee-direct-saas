@@ -8,6 +8,13 @@
 
 The owner authorizes the assistant to push and merge every owner-requested repository change into `main` without a separate confirmation. Update this handoff in the same pull request on every change or push. Record what changed, which checks ran, and what still needs deployment or live verification. Wait for applicable CI before merging, verify the result on `main`, and report any unresolved blocker. See [repository instructions](../AGENTS.md).
 
+## 8 November 2026 — WXKSAI provider sidebar click/status regression fix
+
+- Fixed the provider-directory JavaScript mapping: the WXKSAI sidebar button and its card were present in the markup, but the `sources` allowlist omitted `wxksai`. The selector silently ignored clicks, left AIVID visible, and left WXKSAI showing "Checking…". Added `wxksai: 'wxksai'` so both selection and source-status rendering work.
+- Bumped `provider-admin.js` URL cache key from `v=2` to `v=3` to prevent browsers reusing the broken script after deploying the web app.
+- Added desktop Chromium regression coverage for the WXKSAI status, click, panel visibility, unsaved-key retention, and mobile provider selector. Does not turn the provider on, submit paid jobs, or change WXKSAI keys or pricing.
+- Deployment needed: deploy the updated Admin/static assets on the web application and hard-refresh the page; no worker update is needed for this UI-only fix. GitHub CI and merge status should be verified before treating the fix as complete. Live production browser verification is still outstanding.
+
 ## 8 November 2026 — WXKSAI Seedance 2.5 API integration (new)
 
 - Source: [WXKSAI pricing](https://api.wxksai.com/pricing) and [unified V1 developer docs](https://api.wxksai.com/docs/). New backend source `wxksai` is **disabled by default**, with a separate **per-customer opt-in**. Never enable customer charges solely because an upstream model ID appears in the public documentation.
