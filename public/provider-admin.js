@@ -9,7 +9,7 @@
   const sources = {
     aivid: null, argolink: 'argo', api888: 'api888', higgsfield: 'higgsfield',
     longai: 'longai', wxksai: 'wxksai', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
-    vgenv: 'vgenv', fal: 'fal', vibi: 'vibi', enhancer: 'enhancer',
+    vgenv: 'vgenv', fal: 'fal', vibi: 'vibi',
   };
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
   function selectTabs(prefix, current, keys) {
