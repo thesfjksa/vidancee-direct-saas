@@ -198,6 +198,7 @@ const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isWxksaiModel, wxksaiMediaModels } = require('./src/wxksai_models.js');
+const { storedModelId, customerProviderAccess: publicDopeAccess } = require('./src/dope_brand.js');
 const { WxksaiClient } = require('./src/provider/wxksai.js');
 const { LongAiClient } = require('./src/provider/longai.js');
 const { loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck } = require('./src/longai_video_tests.js');
@@ -969,7 +970,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.wxksaiCustomerCreditsPerUsd);
-    generation=await createVideo(user.id,{...body,...quote},{provider:'wxksai',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,model:storedModelId(requestedModel),...quote},{provider:'wxksai',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
@@ -1532,7 +1533,7 @@ const server=http.createServer(async (req,res)=>{
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
         voice:voiceConfig,
         promptEnhancer:promptEnhancerConfig,
-        providerAccess:customerProviderAccess,
+        providerAccess:publicDopeAccess(customerProviderAccess),
         cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
         upscaler:upscalerConfig,
         plans:publicPlans(),
