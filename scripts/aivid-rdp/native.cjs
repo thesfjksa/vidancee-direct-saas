@@ -5,24 +5,32 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function findChrome(env = process.env, exists = existsSync) {
-  const candidates = [env.AIVID_CHROME_PATH, ...[env.PROGRAMFILES || env.ProgramFiles,
-    env['PROGRAMFILES(X86)'] || env['ProgramFiles(x86)'], env.LOCALAPPDATA].filter(Boolean)
-    .map(root => path.win32.join(root, 'Google', 'Chrome', 'Application', 'chrome.exe'))].filter(Boolean);
+function browserLabel(browser) { return browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome'; }
+function findBrowser(browser = 'chrome', env = process.env, exists = existsSync) {
+  if (!['chrome', 'edge'].includes(browser)) throw new Error('Unsupported AIVID browser.');
+  const folder = browser === 'edge' ? ['Microsoft', 'Edge', 'Application', 'msedge.exe'] : ['Google', 'Chrome', 'Application', 'chrome.exe'];
+  const override = browser === 'edge' ? env.AIVID_EDGE_PATH : env.AIVID_CHROME_PATH;
+  const roots = [env.PROGRAMFILES || env.ProgramFiles, env['PROGRAMFILES(X86)'] || env['ProgramFiles(x86)'], env.LOCALAPPDATA];
+  const candidates = [override, ...roots.filter(Boolean).map(root => path.win32.join(root, ...folder))].filter(Boolean);
   const found = candidates.find(exists);
-  if (!found) throw new Error('Google Chrome is not available. Use the Chrome already installed on your RDP.');
+  if (!found) throw new Error(browserLabel(browser) + ' is not installed on this RDP. Install it or select the other browser in Admin.');
   return found;
+}
+function findChrome(env = process.env, exists = existsSync) { return findBrowser('chrome', env, exists); }
+function browserProfile(root, browser = 'chrome') {
+  if (!['chrome', 'edge'].includes(browser)) throw new Error('Unsupported AIVID browser.');
+  return path.join(root, browser === 'edge' ? '.aivid-rdp-edge-profile' : '.aivid-rdp-profile');
 }
 function chromeArguments(profile, debug = false, initialUrl = 'https://aivid.dev/') {
   if (!['https://aivid.dev/', 'about:blank'].includes(initialUrl)) throw new Error('Unsupported browser start page.');
   return ['--user-data-dir=' + path.resolve(profile), '--new-window',
     ...(debug ? ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0'] : []), initialUrl];
 }
-async function startChrome(profile, { debug = false, env = process.env, start = spawn, initialUrl = 'https://aivid.dev/' } = {}) {
+async function startChrome(profile, { browser = 'chrome', debug = false, env = process.env, start = spawn, initialUrl = 'https://aivid.dev/' } = {}) {
   await fs.mkdir(profile, { recursive: true });
-  const child = start(findChrome(env), chromeArguments(profile, debug, initialUrl), { detached: true, stdio: 'ignore', shell: false });
+  const child = start(findBrowser(browser, env), chromeArguments(profile, debug, initialUrl), { detached: true, stdio: 'ignore', shell: false });
   await new Promise((resolve, reject) => {
-    child.once('spawn', resolve); child.once('error', () => reject(new Error('Chrome could not start. Use a writable folder on your RDP.')));
+    child.once('spawn', resolve); child.once('error', () => reject(new Error(browserLabel(browser) + ' could not start. Use a writable folder on your RDP.')));
   });
   child.unref();
 }
@@ -38,14 +46,14 @@ async function debuggerEndpoint(profile, fetchImpl = fetch) {
     return 'ws://127.0.0.1:' + port + target;
   } catch { return null; }
 }
-async function connectNative(profile, { chromium, fetchImpl = fetch, start = startChrome, timeoutMs = 20000 } = {}) {
+async function connectNative(profile, { browser = 'chrome', chromium, fetchImpl = fetch, start = startChrome, timeoutMs = 20000 } = {}) {
   let endpoint = await debuggerEndpoint(profile, fetchImpl);
   if (!endpoint) {
-    await start(profile, { debug: true });
+    await start(profile, { browser, debug: true });
     const deadline = Date.now() + timeoutMs;
     while (!endpoint && Date.now() < deadline) { await pause(250); endpoint = await debuggerEndpoint(profile, fetchImpl); }
   }
-  if (!endpoint) throw new Error('Close the Chrome windows opened by AIVID-Login.exe, then restart AIVID-Agent.exe. Other Chrome windows can stay open.');
+  if (!endpoint) throw new Error('Close the ' + browserLabel(browser) + ' windows opened by AIVID-Login.exe, then restart AIVID-Agent.exe. Other browser windows can stay open.');
   chromium ||= require('playwright-core').chromium;
   let browser;
   try {
@@ -65,7 +73,7 @@ async function connectNative(profile, { chromium, fetchImpl = fetch, start = sta
     return { browser, context, page, close: async () => { await browser.close().catch(() => {}); } };
   } catch {
     if (browser) await browser.close().catch(() => {});
-    throw new Error('The local AIVID Chrome connection failed. Inspect its window on the RDP.');
+    throw new Error('The local AIVID ' + browserLabel(browser) + ' connection failed. Inspect its window on the RDP.');
   }
 }
 function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
@@ -252,4 +260,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { collectSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { collectSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, findBrowser, browserProfile, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
