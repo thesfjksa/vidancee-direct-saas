@@ -8,7 +8,7 @@
   const pages = new Map();
   const sources = {
     aivid: null, argolink: 'argo', api888: 'api888', higgsfield: 'higgsfield',
-    longai: 'longai', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
+    longai: 'longai', wxksai: 'wxksai', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
     vgenv: 'vgenv', fal: 'fal', vibi: 'vibi', enhancer: 'enhancer',
   };
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
