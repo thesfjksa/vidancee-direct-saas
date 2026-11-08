@@ -97,7 +97,7 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSearch').fill('voice');
   assert.equal(await page.locator('[data-source-key]:visible').count(), 1);
   await page.locator('#providerSourceSearch').fill('');
-  assert.equal(await page.locator('[data-source-key]:visible').count(), 13);
+  assert.equal(await page.locator('[data-source-key]:visible').count(), 14);
   await page.getByRole('button', { name: /^LONG AI Seedance/ }).click();
   assert.equal(await page.locator('#longaiEnabled').isChecked(), false);
   assert.equal(await page.locator('#longaiApiKey').inputValue(), '');

@@ -197,6 +197,8 @@ const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validate
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
+const { isWxksaiModel, wxksaiMediaModels } = require('./src/wxksai_models.js');
+const { WxksaiClient } = require('./src/provider/wxksai.js');
 const { LongAiClient } = require('./src/provider/longai.js');
 const { loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck } = require('./src/longai_video_tests.js');
 const { validateRenderRequest, findRenderTest, listRenderTests, hasActiveRenderTest, queueRenderTest } = require('./src/longai_render_tests.js');
@@ -441,11 +443,11 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,key!=='wxksai']));
 }
 // Voice Studio used to be opt-in, so saving any customer's Sources stored
 // "Voice off" unless it was ticked. Clear those once so Voice follows the
@@ -633,6 +635,10 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
+  if(access.wxksai && providerSettings.wxksai.active){
+    const catalog=await safeCatalog('wxksai',()=>publicProviderCatalog('wxksai'));
+    video.push(...catalog.video.filter(model=>isWxksaiModel(model.id)));
+  }
   if(access.longai && providerSettings.longai.active){
     const catalog=await safeCatalog('longai',()=>publicProviderCatalog('longai'));
     video=[...video,...catalog.video.filter(model=>isLongAiModel(model.id))];
@@ -749,6 +755,14 @@ async function quoteModelForUser(userId,body){
   if(mediaType==='video'&&require('./src/aivid_models.js').isAividModel(body.model)){
     if(!access.aivid)throw httpError(403,'Premium models are not enabled for your account.');
     return require('./src/aivid_models.js').quoteAivid(await require('./src/aivid_settings.js').getAividSettings(),body,{preview:true});
+  }
+  if(isWxksaiModel(body.model) && mediaType==='video'){
+    if(!access.wxksai || !providerSettings.wxksai.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('wxksai',String(body.model),'video');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.wxksai.creditsPerUsd);
+    return {cost:quote.cost,isEstimate:false};
   }
   if(isApi888Model(body.model)){
     if(!access.api888||!providerSettings.api888.active)throw httpError(403,'This provider is not enabled.');
@@ -871,7 +885,7 @@ async function referenceVideoLimit(id){
   const premium=aividModel(id);
   if(premium)return aividReferenceVideoLimit(premium);
   if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
-  const provider=isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
+  const provider=isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
   const model=await getProviderModelByPublicId(provider,id,'video').catch(()=>null);
   const caps=model?.referenceCapabilities||{};
@@ -949,6 +963,17 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     });
   }
 
+  if(!cartoonOptions&&isWxksaiModel(requestedModel)){
+    if(!customerAccess.wxksai||!providerSettings.wxksaiEnabled||!providerSettings.wxksaiApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('wxksai',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.wxksaiCustomerCreditsPerUsd);
+    generation=await createVideo(user.id,{...body,...quote},{provider:'wxksai',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
+    });
+  }
   if(!cartoonOptions&&isLongAiModel(requestedModel)){
     if(!customerAccess.longai||!providerSettings.longAiEnabled||!providerSettings.longAiApiKey)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('longai',requestedModel,'video');
@@ -2367,6 +2392,29 @@ const server=http.createServer(async (req,res)=>{
             providerMessage:error.providerMessage||null});
         }
       }
+      if(req.method==='POST'&&routePath==='/admin/wxksai/check'){
+        const settings=await getProviderSettings();
+        if(!settings.wxksaiApiKey)return sendJson(res,400,{ok:false,error:'Save a WXKSAI API key first.'});
+        const live=await new WxksaiClient({apiKey:settings.wxksaiApiKey}).models();
+        const known=wxksaiMediaModels(live);
+        return sendJson(res,200,{ok:true,accessibleModels:live.data.length,supportedModels:known.length});
+      }
+      if(req.method==='POST'&&routePath==='/admin/wxksai/sync'){
+        const settings=await getProviderSettings();
+        if(!settings.wxksaiApiKey)return sendJson(res,400,{ok:false,error:'Save a WXKSAI API key first.'});
+        const live=await new WxksaiClient({apiKey:settings.wxksaiApiKey}).models();
+        const models=wxksaiMediaModels(live);
+        if(!models.length)return sendJson(res,409,{ok:false,error:'The WXKSAI account did not return any supported Seedance 2.5 models. Existing catalog preserved.'});
+        const stored=await listProviderModels('wxksai');
+        await syncProviderModels('wxksai',models);
+        // A newly discovered provider SKU cannot silently begin charging customers.
+        const already=new Set(stored.map(m=>m.providerModelId));
+        const refreshed=await listProviderModels('wxksai');
+        for(const model of refreshed)if(!already.has(model.providerModelId)&&model.enabled)
+          await setProviderModelEnabled('wxksai',model.id,false);
+        return sendJson(res,200,{ok:true,total:models.length,enabled:refreshed.filter(m=>already.has(m.providerModelId)&&m.enabled).length,
+          notice:'Historical CNY prices, not a live quote. Verify your key and prices before enabling a SKU.'});
+      }
       if(req.method==='POST'&&routePath==='/admin/api888/check'){
         requireDatabase();const s=await getProviderSettings();
         const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
@@ -2697,7 +2745,7 @@ const server=http.createServer(async (req,res)=>{
           }
         }
         // Keys and passwords are masked by the activity log.
-        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:body}});
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{})}}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
         let higgsfieldSync=null;
         if(String(body.higgsfieldApiKey||'').trim()){
@@ -2710,7 +2758,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai','wxksai'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         let models=await listProviderModels(provider);
         if(provider==='api888'){
           const health=await loadApi888Health().catch(()=>null);
@@ -2725,7 +2773,7 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','higgsfield','sluice','vidancee'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield','sluice','vidancee','wxksai'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
