@@ -11,7 +11,7 @@ const API = 'https://api.fal.ai/v1';
 const PROVIDER = 'falimg';
 const RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9', '4:5', '5:4'];
 const PRESETS = { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_16_9', '4:3': 'landscape_4_3', '3:4': 'portrait_4_3' };
-const REFERENCE_FIELDS = ['image_urls', 'input_image_urls', 'reference_image_urls', 'image_url', 'input_image_url'];
+// Only URL-string/URL-array fields are supported. The schema parser ignores\n// structured mask/control inputs and avoids inventing missing required fields.\nconst REFERENCE_FIELDS = ['image_urls', 'input_image_urls', 'reference_image_urls',\n  'reference_image_url', 'image_url', 'input_image_url', 'style_reference_images',\n  'reference_images', 'style_image_url'];
 const REFERENCE_LIMIT = 14;
 const REFERENCE_BYTES = 10 * 1024 * 1024;
 // These schemas omit maxItems. fal documents the limits on the model pages.
