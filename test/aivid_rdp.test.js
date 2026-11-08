@@ -271,3 +271,29 @@ test('a cleanup outage preserves the accepted result after a paid submission', a
   await f.service.result(f.device, command.id, { state: 'accepted', providerJobId });
   assert.deepEqual(await waiting, { state: 'accepted', providerJobId });
 });
+
+test('security verification pauses browser checks and leaves queued commands unclaimed', async t => {
+  const f=fixture(),root=await fs.mkdtemp(path.join(os.tmpdir(),'rdp-verification-'));
+  t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  await f.store.insert({id:jobId,deviceId:f.device.deviceId,kind:'preflight',payload:{},expiresAt:Date.now()+10000});
+  let now=0,checks=0;
+  const statuses=[];
+  const agent=new Agent({root,now:()=>now,pause:async()=>{now+=30000;},
+    transport:{request:async(route,options)=>{
+      const status=options.body.status;
+      statuses.push(status);
+      if(statuses.length===4)agent.stopping=true;
+      return f.transport.request(route,options);
+    }},clientFactory:()=>({preflight:async()=>{
+      checks++;
+      throw Object.assign(new Error('Verification required'),{aividCode:'session_verification'});
+    }})});
+  await agent.run();
+  assert.equal(checks,1);
+  assert.deepEqual(statuses,['starting','needs_verification','needs_verification','needs_verification']);
+  assert.equal((await f.store.get(jobId)).state,'queued');
+  const device=await readDevice(f.read);
+  assert.equal(publicDevice(device).status,'needs_verification');
+  await assert.rejects(new AividRdpClient({rdpDevice:device,store:f.store}).preflight(value),{aividCode:'session_verification'});
+  assert.equal(f.store.rows.size,1);
+});

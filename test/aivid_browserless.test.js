@@ -587,3 +587,25 @@ test('native collection uses generation history for the exact job without visiti
  assert.equal(selectedModelMatches('Seedance 2.0 (Fast) Faster generation with slightly reduced quality.','aivid_seedance_2_0_fast'),true);
  for(const text of ['Seedance 2.0','Seedance 2.0 (Mini)','Seedance 2.5'])assert.equal(selectedModelMatches(text,'aivid_seedance_2_0_fast'),false);
  });
+
+test('an AIVID verification page stops browser navigation and preserves an existing collection',async()=>{
+ const {assertNoAividChallenge}=require('../src/provider/aivid.js');
+ let navigation=0,closed=0,visible=true;
+ const page={url:()=> 'https://aivid.dev/',goto:async()=>{navigation++;},getByText:pattern=>{
+  assert.match('Performing security verification',pattern);
+  return {filter:()=>({count:async()=>Number(visible)})};
+ }};
+ const client=new AividBrowserlessClient({connect:async()=>({page,close:async()=>{closed++;}})});
+ await assert.rejects(client.preflight(input),{aividCode:'session_verification'});
+ assert.equal(navigation,0);assert.equal(closed,1);
+ visible=false;
+ await assert.doesNotReject(assertNoAividChallenge(page));
+ const f=fixture({status:'processing',op:{stage:'accepted',providerJobId,collectionFailures:2},
+  configOverrides:{mode:'rdp',rdpDevice:{deviceId:'fixture-device',tokenHash:'paired',status:'ready',seenAt:new Date().toISOString()}}});
+ f.q.clientFactory=()=>({collectVideo:async()=>{throw Object.assign(new Error('verification'),{aividCode:'session_verification'});}});
+ await f.q.runOnce(f.db);
+ assert.equal(f.q.collectionWaitingForAgent,true);
+ assert.equal(JSON.parse(f.job.provider_operation).collectionFailures,2);
+ assert.equal(f.job.provider_job_id,providerJobId);
+ assert.equal(f.stats().refunds,0);assert.equal(f.stats().submissions,0);
+});

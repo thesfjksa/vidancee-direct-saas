@@ -97,6 +97,7 @@ const DIAGNOSTICS = Object.freeze({
   download_security: 'Chrome blocked the video download with a security warning. Review it manually; automatic collection is paused.',
   browser_connection: 'Could not connect to the local Chrome profile. Close the Login Chrome windows, then restart Agent.',
   page_navigation: 'AIVID did not load in time. Check its Chrome tab and the RDP internet connection.',
+  session_verification: 'AIVID requires security verification. On the RDP, close the idle agent and finish verification in AIVID-Login.exe. Close that Chrome window and restart the agent.',
   session_check: 'AIVID sign-in or its generation form is not ready. Inspect the Chrome tab before retrying.',
   session_sign_in: 'AIVID still shows Sign In. Finish sign-in in the Login Chrome window, close it, then restart Agent.',
   session_form_missing: 'No visible prompt editor was found in the AIVID generation area. Check that the Generate page has finished loading.',
@@ -255,10 +256,18 @@ function promptEditors(page) {
   return page.locator('main').first().locator('textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]').filter({ visible: true });
 }
 function sessionFailure(code) { return Object.assign(new Error(diagnosticMessage(code)), { aividCode: code }); }
+async function assertNoAividChallenge(page) {
+  if(!page.url().startsWith(ORIGIN+'/'))return;
+  const challenge=page.getByText(/^(?:Performing security verification|Verify you are human(?: by completing the action below)?)\.?$/i)
+    .filter({visible:true});
+  if(await challenge.count())throw sessionFailure('session_verification');
+}
+
 async function waitForSession(page, { timeoutMs = 45000 } = {}) {
   const deadline = Date.now() + timeoutMs; let stableSince = null, signedOut = false, count = 0;
   do {
     if (new URL(page.url()).origin !== ORIGIN) throw sessionFailure('session_page_left');
+    await assertNoAividChallenge(page);
     signedOut = await page.getByRole('button', { name: 'Sign In', exact: true }).filter({ visible: true }).count() > 0;
     count = await promptEditors(page).count();
     const ready = !signedOut && count === 1;
@@ -605,6 +614,7 @@ async function collectionState(page,{timeoutMs=15000}={}){
   const deadline=Date.now()+timeoutMs;
   do{
     if(new URL(page.url()).origin!==ORIGIN)throw new Error('AIVID collection left the expected site.');
+    await assertNoAividChallenge(page);
     if(await status.count()===1 && await status.isVisible()){
       const text=(await status.innerText()).trim().toLowerCase();
       if(['failed','cancelled','canceled'].includes(text))return 'failed';
@@ -625,7 +635,10 @@ class AividBrowserlessClient {
   }
   async withPage(fn) {
     const session = await step('browser_connection', () => this.connect(this.connectUrl), this.onProgress);
-    try { return await fn(session.page); }
+    try {
+      await assertNoAividChallenge(session.page);
+      return await fn(session.page);
+    }
     finally { await session.close(); } // Retains the persistent session; never DELETE its stop URL.
   }
   async preflight(value, references = []) {
@@ -737,4 +750,4 @@ class AividBrowserlessClient {
 }
 
 module.exports = { AividBrowserlessClient, validateJob, validateSubmission, creditState, providerId, submissionResult,
-  isGenerationResponse, waitForSession, promptEditors, promptValue, normalizePrompt, fillPrompt, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, collectionState, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };
+  isGenerationResponse, waitForSession, assertNoAividChallenge, promptEditors, promptValue, normalizePrompt, fillPrompt, openLoginPage, prepare, installRequestGuard, DIAGNOSTICS, diagnosticCode, diagnosticMessage, selectedValueMatches, selectedModelMatches, collectionState, fileInputKind, readDurationState, durationVerified, setAividDuration, MINI, ID };

@@ -177,7 +177,7 @@ function collectionFailure(code,message){
 
 // Observe the account history GET that the Generate page already makes.
 // Match the provider ID and its MP4 independently before reading the media.
-async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
+async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000,checkChallenge=null}={}) {
   if(!/^[a-z0-9_-]{8,100}$/i.test(String(id)))throw new Error('Invalid AIVID job ID.');
   const generateUrl='https://aivid.dev/generate';
   const readHistory=async(number,action)=>{
@@ -190,12 +190,15 @@ async function collectSavedVideo(page,id,{fetchImpl=fetch,timeoutMs=60000}={}) {
     response.catch(()=>{});
     try {
       await action();
+      await checkChallenge?.(page);
       const result=await response;
       if(page.url()!==generateUrl||!result.ok())throw new Error('Unavailable history.');
       const history=await result.json();
       if(!Array.isArray(history?.data))throw new Error('Invalid history.');
       return history;
-    }catch{
+    }catch(error){
+      if(error?.aividCode==='session_verification')throw error;
+      await checkChallenge?.(page);
       throw collectionFailure('collection_history','AIVID generation history is unavailable.');
     }
   };

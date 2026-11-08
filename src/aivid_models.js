@@ -47,7 +47,10 @@ function unavailableReason(config) {
   if(!config)return 'AIVID connection status could not be read.';
   if(config.enabled!==true)return 'AIVID Premium is disabled in saved Admin settings. Enable Accept queued AIVID jobs and click Save RDP connection.';
   if(!(config.maxSourceCredits>0))return 'AIVID source-credit limit is zero in Admin.';
-  if(config.mode==='rdp')return 'The Windows RDP agent is offline or not ready.';
+  if(config.mode==='rdp'){
+    const device=require('./aivid_rdp.js').publicDevice(config.rdpDevice||{});
+    return device.online&&device.status==='needs_verification'?'AIVID is waiting for security verification by the operator.':'The Windows RDP agent is offline or not ready.';
+  }
   return 'The AIVID browser session is missing or expired.';
 }
 function aividConfigured(config){
