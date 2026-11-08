@@ -127,6 +127,64 @@ test('catalog sync reads generation and edit schemas without the key and falls b
   assert.equal(seen.find(([u])=>u.includes('/models/pricing'))[1],true);
 });
 
+test('fal catalog pairs non-GPT text and edit models only with compatible schemas and separately quoted edit pricing',async()=>{
+  const {fetchFalImageCatalog,FalImageClient}=require('../src/fal_images.js');
+  const textId='fal-ai/flux-2',editId='fal-ai/flux-2/edit';
+  const text=entry(textId,imageSize);
+  const edit=entry(editId,{...imageSize,image_urls:{type:'array',items:{type:'string'}}},['prompt','image_urls']);
+  const records=[
+    {endpoint_id:textId,unit_price:0.03,unit:'image',currency:'USD'},
+    {endpoint_id:editId,unit_price:0.09,unit:'images',currency:'USD'},
+  ];
+  const fetchImpl=async url=>{
+    const u=String(url);
+    if(u.includes('category=text-to-image'))return Response.json({models:[{endpoint_id:textId,metadata:{display_name:'FLUX 2',status:'active'}}]});
+    if(u.includes('category=image-to-image'))return Response.json({models:[{endpoint_id:editId,metadata:{display_name:'FLUX 2 Edit',status:'active'}}]});
+    if(u.includes('expand=openapi'))return Response.json({models:[text,edit]});
+    if(u.includes('/models/pricing'))return Response.json({prices:records.filter(p=>u.includes(encodeURIComponent(p.endpoint_id)) || u.includes(p.endpoint_id))});
+    return new Response('',{status:404});
+  };
+  const catalog=await fetchFalImageCatalog({apiKey:'test',fetchImpl});
+  assert.deepEqual(catalog.map(m=>m.providerModelId),[textId]);
+  const row=catalog[0], model={...row.options,providerModelId:textId,mediaType:'image'};
+  assert.equal(model.adapterSupported,true);
+  assert.deepEqual([model.referenceCapabilities.image.min,model.referenceCapabilities.image.max],[0,4]);
+  assert.equal(model.falImage.edit.endpoint,editId);
+  assert.equal(model.falImage.edit.reference.field,'image_urls');
+  assert.equal(quoteGateway(model,{aspectRatio:'1:1'},1000).cost,30);
+  assert.equal(quoteGateway(model,{aspectRatio:'1:1',previewHasReferences:true},1000).cost,90);
+  const client=new FalImageClient({apiKey:'test'});
+  assert.deepEqual(client.input(model,{prompt:'Edit',aspectRatio:'1:1'},[{url:'https://example.com/ref.png'}]),{
+    prompt:'Edit',image_size:'square_hd',num_images:1,image_urls:['https://example.com/ref.png'],
+  });
+  assert.equal(client.input(model,{prompt:'Generate',aspectRatio:'1:1'}).image_urls,undefined);
+});
+
+test('fal reference pairing refuses variable or missing edit prices and unsupported required fields',()=>{
+  const text=entry('fal-ai/flux-2',imageSize);
+  const edit=entry('fal-ai/flux-2/edit',{...imageSize,image_urls:{type:'array',items:{type:'string'}}},['prompt','image_urls']);
+  const textPrice={unit_price:0.03,unit:'image',currency:'USD'};
+  for(const editPrice of [null,{unit_price:0.001,unit:'megapixels',currency:'USD'},{unit_price:0.1,unit:'image',currency:'CNY'}]){
+    const m=describeFalImageModel(text,textPrice,edit,editPrice);
+    assert.equal(m.options.referenceCapabilities.image.supported,false);
+    assert.equal(m.options.falImage.edit,undefined);
+    assert.equal(m.options.adapterSupported,true);
+  }
+  const masked=entry('fal-ai/flux-2/edit',{...imageSize,image_urls:{type:'array',items:{type:'string'}},mask_url:{type:'string'}},['prompt','image_urls','mask_url']);
+  const bad=describeFalImageModel(text,textPrice,masked,{unit_price:0.09,unit:'image',currency:'USD'});
+  assert.equal(bad.options.referenceCapabilities.image.supported,false);
+  const wrongSizes=entry('fal-ai/flux-2/edit',{image_size:{enum:['square_hd']},image_urls:{type:'array',items:{type:'string'}}},['prompt','image_urls']);
+  const badRatio=describeFalImageModel(text,textPrice,wrongSizes,{unit_price:0.09,unit:'image',currency:'USD'});
+  assert.equal(badRatio.options.referenceCapabilities.image.supported,false);
+});
+test('fal edit pairing discovers exact suffixes, not unlisted or guessed endpoints',()=>{
+  const {editCandidates}=require('../src/fal_images.js');
+  assert.ok(editCandidates('fal-ai/flux-2').includes('fal-ai/flux-2/edit'));
+  assert.ok(editCandidates('fal-ai/kling-image/o3/text-to-image').includes('fal-ai/kling-image/o3/image-to-image'));
+  assert.ok(editCandidates('fal-ai/wan/v2.7').includes('fal-ai/wan/v2.7/edit'));
+  assert.ok(!editCandidates('fal-ai/flux-2').includes('fal-ai/flux-2'));
+});
+
 test('the fal image worker picks up ready jobs on a shorter interval', t=>{
   const {FalImageQueue}=require('../src/fal_image_queue.js');
   const {VercelQueue}=require('../src/vercel_queue.js');
