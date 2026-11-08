@@ -2398,7 +2398,8 @@ const server=http.createServer(async (req,res)=>{
         requireDatabase();
         const model=longAiMediaModel((await readJson(req)).rates);
         const settings=await getProviderSettings();
-        await new LongAiClient({apiKey:settings.longAiApiKey}).verifyModel();
+        // Saving a LONG AI key already verifies model access. Import only stores the local catalog and rates.
+        if(!settings.longAiApiKey)throw httpError(400,'Save a LONG AI API key first.');
         const models=await syncProviderModels('longai',[model]);
         return sendJson(res,200,{ok:true,models});
       }
