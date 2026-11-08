@@ -53,11 +53,11 @@ test('LONG AI checks the exact model with the saved key without starting a gener
   const calls = [];
   const client = new LongAiClient({ apiKey: key, fetchImpl: async (url, opts) => {
     calls.push([url, opts.method, opts.headers.authorization]);
-    return json({ data: [{ id: 'seedance-2.0' }] });
+    return json({ id: 'seedance-2.0' });
   } });
-  await assert.rejects(client.verifyModel(), /does not list seedance-2.0-mini/);
-  assert.deepEqual(calls, [['https://ai.dijinlong.com/v1/models', 'GET', 'Bearer ' + key]]);
-  client.fetch = async () => json({ data: [{ id: MODEL_ID }, { id: 'other-model' }] });
+  await assert.rejects(client.verifyModel(), /does not confirm access to seedance-2.0-mini/);
+  assert.deepEqual(calls, [['https://ai.dijinlong.com/v1/models/seedance-2.0-mini', 'GET', 'Bearer ' + key]]);
+  client.fetch = async () => json({ id: MODEL_ID });
   await client.verifyModel();
 });
 
@@ -73,7 +73,7 @@ test('LONG AI uses HTTPS with a longer explicit deadline for connection checks a
     const request = new EventEmitter();
     request.end = () => {
       const authenticated = Boolean(opts.headers.authorization);
-      const response = Readable.from([Buffer.from(JSON.stringify({ data: [{ id: MODEL_ID }] }))]);
+      const response = Readable.from([Buffer.from(JSON.stringify({ id: MODEL_ID }))]);
       response.statusCode = authenticated ? 200 : 401;
       response.headers = { 'content-type': 'application/json' };
       setImmediate(() => callback(response));
@@ -86,7 +86,7 @@ test('LONG AI uses HTTPS with a longer explicit deadline for connection checks a
   assert.equal(reply.mock.callCount(), 2);
   assert.deepEqual(calls.map(call => [call.url, call.opts.method, call.opts.headers.authorization]), [
     ['https://ai.dijinlong.com/v1/models', 'GET', undefined],
-    ['https://ai.dijinlong.com/v1/models', 'GET', 'Bearer ' + key],
+    ['https://ai.dijinlong.com/v1/models/seedance-2.0-mini', 'GET', 'Bearer ' + key],
   ]);
   assert.ok(calls.every(call => call.opts.signal instanceof AbortSignal));
 });
@@ -106,6 +106,17 @@ test('LONG AI exposes safe timeout codes and sends a paid POST only once', async
     return true;
   });
   assert.equal(calls, 1);
+});
+
+test('LONG AI reports DOM timeout errors during connection and response reads', async () => {
+  const timeout = () => new DOMException('operation timed out', 'TimeoutError');
+  const connect = new LongAiClient({ apiKey: key, fetchImpl: async () => { throw timeout(); } });
+  const read = new LongAiClient({ apiKey: key, fetchImpl: async () => new Response(new ReadableStream({
+    pull(controller) { controller.error(timeout()); },
+  })) });
+  for (const client of [connect, read]) {
+    await assert.rejects(client.verifyModel(), { networkCode: 'TimeoutError', requestMethod: 'GET', timeoutMs: 28000 });
+  }
 });
 
 test('LONG AI saves one task and polls the URL returned by its API', async () => {

@@ -41,8 +41,8 @@ function defaultTransport() {
 }
 
 function networkError(cause, method, timeoutMs) {
-  const rawCode = cause?.cause?.code || cause?.code || cause?.name;
-  const networkCode = /^[A-Za-z][A-Za-z0-9_]{0,49}$/.test(rawCode) ? rawCode : 'UNKNOWN';
+  const codes = [cause?.cause?.code, cause?.code, cause?.name];
+  const networkCode = codes.find(code => typeof code === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,49}$/.test(code)) || 'UNKNOWN';
   const timedOut = ['ABORT_ERR', 'AbortError', 'TimeoutError', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT'].includes(networkCode);
   const message = timedOut ? 'LONG AI connection timed out from the CMMTools server.' :
     'CMMTools could not connect to LONG AI (' + networkCode + ').';
@@ -78,7 +78,12 @@ class LongAiClient {
       throw Object.assign(error(message), { providerStatus: response.status });
     }
     try { return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')), location: response.headers.get('location') }; }
-    catch { throw error('LONG AI returned an invalid API response.'); }
+    catch (cause) {
+      if (cause?.name === 'AbortError' || cause?.name === 'TimeoutError' || cause?.code === 'ABORT_ERR') {
+        throw networkError(cause, body ? 'POST' : 'GET', body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS);
+      }
+      throw error('LONG AI returned an invalid API response.');
+    }
   }
 
   async request(url, body, key) {
@@ -106,9 +111,9 @@ class LongAiClient {
   }
 
   async verifyModel() {
-    const { data } = await this.json('/v1/models');
-    if (!Array.isArray(data?.data) || !data.data.some(model => model?.id === MODEL_ID)) {
-      throw error('The LONG AI key does not list ' + MODEL_ID + '. Check its model permissions.', 400);
+    const { data } = await this.json('/v1/models/' + encodeURIComponent(MODEL_ID));
+    if (data?.id !== MODEL_ID) {
+      throw error('The LONG AI key does not confirm access to ' + MODEL_ID + '. Check its model permissions.', 400);
     }
   }
 
