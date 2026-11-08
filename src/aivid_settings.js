@@ -20,7 +20,8 @@ function configFrom(env, session = {}, saved = null) {
     endpoint: saved?.endpoint || env.BROWSERLESS_ENDPOINT || ENDPOINTS[0],
     // Ignore legacy saved 480/custom rates: AIVID now uses its verified USD source cost.
     customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
-    manualHandoff: saved?.manualHandoff === true, ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
+    manualHandoff: saved?.manualHandoff === true, ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless',
+     rdpBrowser: saved?.rdpBrowser === 'edge' ? 'edge' : 'chrome', session, expiresAt: session.expiresAt || null };
 }
 
 async function getAividSettings() {
@@ -34,7 +35,7 @@ async function getAividSettings() {
 
 function publicConfig(config) {
   return { configured: config.mode === 'rdp' ? Boolean(config.rdpDevice?.tokenHash) : Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
-    manualHandoff: config.manualHandoff === true, mode: config.mode || 'browserless', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
+    manualHandoff: config.manualHandoff === true, mode: config.mode || 'browserless', rdpBrowser:config.rdpBrowser === 'edge' ? 'edge' : 'chrome', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
     endpoint: config.endpoint, ttlDays: config.ttlDays || 1, enabled: config.enabled,
     maxSourceCredits:config.maxSourceCredits,customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
     sourceUsdPerCredit:AIVID_USD_PER_CREDIT,pricingPolicy:'usd_source_cost',expiresAt:config.expiresAt,
@@ -44,6 +45,8 @@ function publicConfig(config) {
 
 function validateConfig(input, current) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Invalid Browserless settings.'), { statusCode: 400 });
+  const rdpBrowser = input.rdpBrowser ?? current.rdpBrowser ?? 'chrome';
+  if (!['chrome', 'edge'].includes(rdpBrowser)) throw Object.assign(new Error('Choose Chrome or Microsoft Edge for Windows RDP.'), { statusCode: 400 });
   const apiKey = input.apiKey === undefined || input.apiKey === '' ? current.apiKey : input.apiKey;
   const mode = input.mode ?? current.mode ?? 'browserless';
   if (!['rdp', 'browserless'].includes(mode)) throw Object.assign(new Error('Choose RDP or Browserless.'), { statusCode: 400 });
@@ -63,7 +66,7 @@ function validateConfig(input, current) {
     throw Object.assign(new Error("Invalid AIVID handoff setting."), { statusCode: 400 });
   // Legacy browser clients might still POST the old editable rate; do not let
   // that override the owner's confirmed USD-at-cost conversion.
-  return { apiKey: apiKey || '', mode, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits,
+  return { apiKey: apiKey || '', mode, rdpBrowser, endpoint, ttlDays, enabled: input.enabled ?? current.enabled ?? false, maxSourceCredits,
     manualHandoff: input.manualHandoff ?? current.manualHandoff ?? false };
 }
 
@@ -81,7 +84,7 @@ async function saveAividSettings(input, { getConfig = getAividSettings, write = 
   catch { persisted = null; }
   if (!persisted || persisted.enabled !== saved.enabled ||
       Number(persisted.maxSourceCredits) !== saved.maxSourceCredits ||
-      persisted.mode !== saved.mode || persisted.manualHandoff !== saved.manualHandoff) {
+      persisted.mode !== saved.mode || persisted.rdpBrowser !== saved.rdpBrowser || persisted.manualHandoff !== saved.manualHandoff) {
     throw Object.assign(new Error('AIVID settings could not be verified in MySQL after saving. Check database write permissions. No paid submissions were enabled.'),{statusCode:503});
   }
   return publicConfig({ ...current, ...saved });
