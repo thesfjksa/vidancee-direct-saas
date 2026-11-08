@@ -33,8 +33,10 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   // WXKSAI is opt-in; existing providers keep their defaults.
   const config = JSON.parse((await page('/api/config')).body);
   assert.equal(config.providerAccess.api888, true);
-  assert.equal(config.providerAccess.wxksai, false);
-  assert.ok(Object.entries(config.providerAccess).every(([source,enabled])=>source==='wxksai'||enabled));
+  assert.equal(config.providerAccess.dope, false);
+  assert.equal(Object.hasOwn(config.providerAccess,'wxksai'), false);
+  assert.doesNotMatch(JSON.stringify(config),/wxksai/i);
+  assert.ok(Object.entries(config.providerAccess).every(([source,enabled])=>source==='dope'||enabled));
   assert.equal(config.providerAccess.vibi, true);
 });
 

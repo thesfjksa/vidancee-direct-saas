@@ -9,39 +9,39 @@ const RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 const everySecond = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
 const SPECS = Object.freeze({
   'seedance-2.5-special2': {
-    name: 'Seedance 2.5 Special2 · WXKSAI', resolution: '1080p',
+    name: 'Seedance 2.5 Special2 · Dope', resolution: '1080p',
     durations: everySecond(5, 30), defaultDuration: 30, priceCny: 2.49, pricingMode: 'clip',
     ratios: [...RATIOS, '21:9'], promptMax: 10000,
   },
   'seedance-2.5-full-720p-9img': {
-    name: 'Seedance 2.5 Full 720p · WXKSAI', resolution: '720p',
+    name: 'Seedance 2.5 Full 720p · Dope', resolution: '720p',
     durations: [5, 10, 15], defaultDuration: 15, priceCny: 2.52, pricingMode: 'clip',
     ratios: ['16:9', '9:16'],
   },
   'seedance-2.5-full-720p-15-30s': {
-    name: 'Seedance 2.5 Full 15–30s · WXKSAI', resolution: '720p',
+    name: 'Seedance 2.5 Full 15–30s · Dope', resolution: '720p',
     durations: [15, 30], defaultDuration: 15, priceCny: 4.9, pricingMode: 'clip',
     ratios: RATIOS,
   },
   'seedance-2.5-bd-2': {
-    name: 'Seedance 2.5 BD2 Full · WXKSAI', resolution: '720p',
+    name: 'Seedance 2.5 BD2 Full · Dope', resolution: '720p',
     durations: everySecond(4, 30), defaultDuration: 15, priceCny: 4.9, pricingMode: 'clip',
     ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
     promptMax: 45000,
   },
   'wan3.0-video': {
-    name: 'Wan 3.0 Standard · WXKSAI', resolution: '720p',
+    name: 'Wan 3.0 Standard · Dope', resolution: '720p',
     resolutions: ['720p', '1080p'],
     durations: everySecond(5, 30), defaultDuration: 5,
     priceCny: 0.247, pricingMode: 'second', ratios: RATIOS,
   },
   'seedance-2.0-full-720p-900': {
-    name: 'Seedance 2.0 Full 720p (900) · WXKSAI', resolution: '720p',
+    name: 'Seedance 2.0 Full 720p (900) · Dope', resolution: '720p',
     durations: [10], defaultDuration: 10,
     priceCny: 2.1, pricingMode: 'clip', ratios: RATIOS,
   },
   'seedance2.5-buff': {
-    name: 'Seedance 2.5 Buff 720p · WXKSAI', resolution: '720p',
+    name: 'Seedance 2.5 Buff 720p · Dope', resolution: '720p',
     durations: everySecond(4, 30), defaultDuration: 10, priceCny: 0.78, pricingMode: 'second',
     ratios: RATIOS,
   },
@@ -77,7 +77,10 @@ function wxksaiReferenceCapabilities(id) {
 }
 
 const publicId = id => 'wxksai_' + id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/,'');
-const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => publicId(key) === id);
+const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => {
+  const legacy = publicId(key);
+  return legacy === id || require('./dope_brand.js').customerModelId(legacy) === id;
+});
 
 function wxksaiMediaModels(live) {
   if (!Array.isArray(live?.data)) throw new Error('WXKSAI did not return an account-scoped model list.');

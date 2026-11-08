@@ -198,6 +198,7 @@ const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isWxksaiModel, wxksaiMediaModels } = require('./src/wxksai_models.js');
+const { storedModelId, customerModelLabel, customerProviderAccess: publicDopeAccess } = require('./src/dope_brand.js');
 const { WxksaiClient } = require('./src/provider/wxksai.js');
 const { LongAiClient } = require('./src/provider/longai.js');
 const { loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck } = require('./src/longai_video_tests.js');
@@ -569,7 +570,12 @@ async function modelDisplayNames(){
   catch{return {};}
 }
 function applyModelNames(studio,models,names){
-  return models.map(m=>{const name=names[studio+':'+m.id];return typeof name==='string'&&name.trim()?{...m,label:name.trim()}:m;});
+  return models.map(m=>{
+    // Prior admin overrides used the historical provider-prefixed public ID.
+    // Preserve them, but never leak that old source name in the customer label.
+    const override=names[studio+':'+m.id] || (m.id.startsWith('dope_') ? names[studio+':'+storedModelId(m.id)] : '');
+    return typeof override==='string'&&override.trim() ? {...m,label:m.id.startsWith('dope_') ? customerModelLabel(override.trim()) : override.trim()} : m;
+  });
 }
 
 async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
@@ -658,6 +664,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
+  if(isWxksaiModel(id))return 'Dope';
   if(require('./src/aivid_models.js').isAividModel(id))return 'AIVID';
   if(isApi888Model(id))return '888API';
   if(isArgoModel(id))return 'ArgoLink';
@@ -679,7 +686,7 @@ async function adminModelNameList(){
   const cartoon=publicPricing().filter(model => CARTOON_MODELS.includes(model.id));
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
-    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||'',
+    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||names[studio+':'+storedModelId(m.id)]||'',
       ...(studio==='video'&&(isArgoModel(m.id)||isHiggsfieldModel(m.id))?{hdEnhance:!hdOff.has(m.id)}:{})});
   }
   return rows;
@@ -969,7 +976,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,providerSettings.wxksaiCustomerCreditsPerUsd);
-    generation=await createVideo(user.id,{...body,...quote},{provider:'wxksai',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,model:storedModelId(requestedModel),...quote},{provider:'wxksai',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
@@ -1532,7 +1539,7 @@ const server=http.createServer(async (req,res)=>{
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
         voice:voiceConfig,
         promptEnhancer:promptEnhancerConfig,
-        providerAccess:customerProviderAccess,
+        providerAccess:publicDopeAccess(customerProviderAccess),
         cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
         upscaler:upscalerConfig,
         plans:publicPlans(),

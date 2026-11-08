@@ -167,6 +167,7 @@ async function syncProviderModels(provider, discoveredModels) {
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
 const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai'];
+const { customerModelId, storedModelId, customerModelLabel } = require('./dope_brand.js');
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -180,7 +181,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
   const base = {
     id: Number(row.id),
     publicModelId: row.public_model_id,
-    label: row.label,
+    label: row.provider === 'wxksai' ? customerModelLabel(row.label) : row.label,
     mediaType: row.media_type,
     enabled: Boolean(row.enabled),
     available: Boolean(row.available),
@@ -306,7 +307,7 @@ async function getProviderModelByPublicId(provider, publicModelId, mediaType) {
     `SELECT * FROM provider_models
      WHERE provider=? AND public_model_id=? AND media_type=? AND enabled=1 AND available=1
      ORDER BY updated_at DESC LIMIT 1`,
-    [String(provider), String(publicModelId), String(mediaType)],
+    [String(provider), provider === 'wxksai' ? storedModelId(publicModelId) : String(publicModelId), String(mediaType)],
   );
   return rows[0] ? serializeProviderModel(rows[0]) : null;
 }
@@ -434,8 +435,8 @@ function publicVideoModel(model) {
   }));
 
   return {
-    id: model.publicModelId,
-    label: hideApi888Name(model.label),
+    id: model.provider === 'wxksai' ? customerModelId(model.publicModelId) : model.publicModelId,
+    label: model.provider === 'wxksai' ? customerModelLabel(model.label) : hideApi888Name(model.label),
     dynamicCost: true,
     defaultResolution: model.defaultResolution || (resolutions[0]?.id || null),
     resolutions,
@@ -611,6 +612,7 @@ async function ensureApi888Catalog(){
 module.exports = {
   // Exported for regression tests: stale saved 888API rows must be blocked at read time.
   serializeProviderModel,
+  publicVideoModel,
   ensureApi888Catalog,
   ensureSluiceCatalog,
   ensureVidanceeCatalog,
