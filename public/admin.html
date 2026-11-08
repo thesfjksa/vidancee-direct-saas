@@ -214,6 +214,7 @@
           <div id="longaiSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="field"><label for="longai480p">480p upstream cost in USD per second</label><input id="longai480p" type="number" min="0" max="100" step="any"></div>
           <div class="field"><label for="longai720p">720p upstream cost in USD per second</label><input id="longai720p" type="number" min="0" max="100" step="any"></div>
+          <button id="longaiCheck" class="secondary" onclick="checkLongAi()">Check server connection</button>
           <button id="longaiImport" class="secondary" onclick="importLongAiModel()">Import Seedance 2.0 Mini</button>
           <div id="longaiActionMsg" class="muted" role="status" style="margin-top:10px"></div>
         </div>
@@ -1368,6 +1369,18 @@ async function loadLongAiPrices(){
       if(field&&!field.value)field.value=tier.cost_per_second;
     }
   }catch(error){message.className='err';message.textContent=error.message;}
+}
+async function checkLongAi(){
+  const button=$('longaiCheck'),message=$('longaiActionMsg');
+  button.disabled=true;
+  message.className='muted';message.textContent='Checking from the CMMTools server…';
+  try{
+    const {providerStatus,elapsedMs}=await api('/admin/longai/check');
+    const reached=providerStatus===200||providerStatus===401;
+    message.className=reached?'ok':'err';
+    message.textContent=(reached?'LONG AI reached':'LONG AI returned an unexpected status')+' · HTTP '+providerStatus+' · '+elapsedMs+' ms';
+  }catch(error){message.className='err';message.textContent=error.message;}
+  finally{button.disabled=false;}
 }
 async function importLongAiModel(){
   const button=$('longaiImport'),message=$('longaiActionMsg');
