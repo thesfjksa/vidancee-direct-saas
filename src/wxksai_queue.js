@@ -11,6 +11,15 @@ class WxksaiQueue extends VercelQueue {
     this.lastProviderPollAt = 0;
   }
   queuedSql() { return super.queuedSql().replace('COALESCE(a.enabled,1)=1','COALESCE(a.enabled,0)=1'); }
+  submitFailureMessage(error) {
+    // A gateway 5xx/timeout can occur after the paid POST reached WXKSAI.
+    // The provider task ID was not returned; do not suggest an automatic retry.
+    if (Number(error?.providerStatus) >= 500 && Number(error?.providerStatus) < 600)
+      return 'WXKSAI returned HTTP ' + error.providerStatus + ' during submission. Task creation is unconfirmed. CMMTools credits were refunded; check WXKSAI task history before retrying.';
+    if (['WXKSAI_TIMEOUT', 'WXKSAI_CONNECTION'].includes(error?.code))
+      return 'WXKSAI did not confirm the video submission (network failure or timeout). CMMTools credits were refunded; check WXKSAI task history before retrying.';
+    return super.submitFailureMessage(error);
+  }
   apiKey(settings) { return settings.wxksaiApiKey; }
   sourceEnabled(settings) { return settings.wxksaiEnabled; }
   maxInflight(settings) { return settings.wxksaiMaxInflight || 2; }
