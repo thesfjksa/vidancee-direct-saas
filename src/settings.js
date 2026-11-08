@@ -13,6 +13,9 @@ const DEFAULTS = {
   vercel_enabled: 'true',
   vercel_max_inflight: '2',
   vercel_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
+  wxksai_api_key: '',
+  wxksai_enabled: 'false',
+  wxksai_max_inflight: '2',
   api888_api_key: '',
   api888_enabled: 'false',
   api888_max_inflight: '2',
@@ -204,6 +207,10 @@ async function getProviderSettings() {
     // Every USD-priced source converts at cost (1 credit = Rs 1, Rs 280 per USD);
     // the profit is in the plan price, so these rates are no longer settings.
     vercelCustomerCreditsPerUsd: CREDITS_PER_USD,
+    wxksaiApiKey: String(read('wxksai_api_key') || '').trim(),
+    wxksaiEnabled: asBool(read('wxksai_enabled')),
+    wxksaiMaxInflight: Math.max(1, Math.min(5,Number(read('wxksai_max_inflight')||2))),
+    wxksaiCustomerCreditsPerUsd: CREDITS_PER_USD,
     api888ApiKey: String(read('api888_api_key') || '').trim(),
     api888Enabled: asBool(read('api888_enabled')),
     api888MaxInflight: Math.max(1,Math.min(10,Number(read('api888_max_inflight')||6))),
@@ -260,6 +267,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.vercelApiKey), configured: Boolean(s.vercelApiKey),
       enabled: s.vercelEnabled, active: Boolean(s.vercelEnabled && s.vercelApiKey),
       maxInflight: s.vercelMaxInflight, customerCreditsPerUsd: s.vercelCustomerCreditsPerUsd,
+    },
+    wxksai: {
+      baseUrl: 'https://api.wxksai.com/v1',
+      apiKeyConfigured: Boolean(s.wxksaiApiKey), configured: Boolean(s.wxksaiApiKey),
+      enabled: s.wxksaiEnabled, active: Boolean(s.wxksaiEnabled && s.wxksaiApiKey),
+      maxInflight: s.wxksaiMaxInflight, creditsPerUsd: s.wxksaiCustomerCreditsPerUsd,
     },
     api888: {
       baseUrl: 'https://888api.xin/v1',
@@ -373,6 +386,20 @@ async function updateProviderSettings(input = {}) {
     const n=Number(input.falCustomerCreditsPerUsd);
     if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('fal.ai credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
     falUpdates.push(['fal_customer_credits_per_usd',String(n)]);
+  }
+  if ('wxksaiEnabled' in input) {
+    if (typeof input.wxksaiEnabled !== 'boolean') throw Object.assign(new Error('WXKSAI enabled must be boolean.'), {statusCode:400});
+    await put('wxksai_enabled',input.wxksaiEnabled?'true':'false');
+  }
+  if ('wxksaiMaxInflight' in input) {
+    const max = Number(input.wxksaiMaxInflight);
+    if (!Number.isInteger(max)||max<1||max>5) throw Object.assign(new Error('WXKSAI inflight limit must be 1–5.'),{statusCode:400});
+    await put('wxksai_max_inflight',String(max));
+  }
+  if (input.clearWxksaiApiKey===true) await del('wxksai_api_key');
+  else if (Object.hasOwn(input,'wxksaiApiKey') && String(input.wxksaiApiKey||'').trim()) {
+    if (typeof input.wxksaiApiKey !== 'string'||input.wxksaiApiKey.length>512||/\s/.test(input.wxksaiApiKey.trim())) throw Object.assign(new Error('Invalid WXKSAI API key.'),{statusCode:400});
+    await put('wxksai_api_key',input.wxksaiApiKey.trim(),true);
   }
   if('api888Enabled' in input) {
     if(typeof input.api888Enabled!=='boolean')throw Object.assign(new Error('888API enabled must be boolean.'),{statusCode:400});
@@ -556,6 +583,7 @@ async function migrateLegacyProviderEnvSettings() {
   secret('vercel_api_key', 'AI_GATEWAY_API_KEY');
   plain('vercel_enabled', 'AI_GATEWAY_ENABLED');
   plain('vercel_max_inflight', 'AI_GATEWAY_MAX_INFLIGHT');
+  secret('wxksai_api_key', 'WXKSAI_API_KEY');
   secret('api888_api_key', 'API888_API_KEY');
   secret('argolink_api_key', 'ARGOLINK_API_KEY');
   secret('higgsfield_api_key', 'HIGGSFIELD_API_KEY');
