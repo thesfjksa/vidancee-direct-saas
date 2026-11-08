@@ -10,6 +10,7 @@ class WxksaiQueue extends VercelQueue {
     this.videoTimeoutMs = 24 * 60 * 60 * 1000;
     this.lastProviderPollAt = 0;
   }
+  queuedSql() { return super.queuedSql().replace('COALESCE(a.enabled,1)=1','COALESCE(a.enabled,0)=1'); }
   apiKey(settings) { return settings.wxksaiApiKey; }
   sourceEnabled(settings) { return settings.wxksaiEnabled; }
   maxInflight(settings) { return settings.wxksaiMaxInflight || 2; }
