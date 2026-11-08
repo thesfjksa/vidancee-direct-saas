@@ -58,10 +58,10 @@ async function connectNative(profile, { browser = 'chrome', chromium, fetchImpl 
   }
   if (!endpoint) throw new Error('Close the ' + name + ' window opened by AIVID-Login.exe, then restart AIVID-Agent.exe. Other browser windows can stay open.');
   chromium ||= require('playwright-core').chromium;
-  let browser;
+  let connection;
   try {
-    browser = await chromium.connectOverCDP(endpoint, { timeout: 15000 });
-    const context = browser.contexts()[0];
+    connection = await chromium.connectOverCDP(endpoint, { timeout: 15000 });
+    const context = connection.contexts()[0];
     if (!context) throw new Error();
     // The managed profile owns one reusable work tab. Guarded submissions
     // navigate it to a blank page before removing request interception.
@@ -73,9 +73,9 @@ async function connectNative(profile, { browser = 'chrome', chromium, fetchImpl 
     }
     // With connectOverCDP, close disconnects the Playwright transport. The browser
     // was launched independently and stays running with its saved profile.
-    return { browser, context, page, close: async () => { await browser.close().catch(() => {}); } };
+    return { browser: connection, context, page, close: async () => { await connection.close().catch(() => {}); } };
   } catch {
-    if (browser) await browser.close().catch(() => {});
+    if (connection) await connection.close().catch(() => {});
     throw new Error('The local AIVID ' + name + ' connection failed. Inspect its window on the RDP.');
   }
 }
