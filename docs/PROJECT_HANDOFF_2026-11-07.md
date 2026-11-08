@@ -8,6 +8,14 @@
 
 The owner authorizes the assistant to push and merge every owner-requested repository change into `main` without a separate confirmation. Update this handoff in the same pull request on every change or push. Record what changed, which checks ran, and what still needs deployment or live verification. Wait for applicable CI before merging, verify the result on `main`, and report any unresolved blocker. See [repository instructions](../AGENTS.md).
 
+## 8 November 2026 — WXKSAI HTTP 502 customer submission: upstream response and safer diagnostics
+
+- Owner screenshot: failed 15-second 720p 16:9 text-only "Seedance 2.5 Full 720p" WXKSAI job with customer-visible `WXKSAI returned HTTP 502.`. The selected 9-image/full-720p SKU supports 15 seconds and 16:9, and the current JSON `POST /v1/videos` schema matches published WXKSAI V1 documentation. This response does **not** establish whether upstream created or charged a task. **No provider task ID, production worker log, WXKSAI history, or charge/refund receipt was supplied.** The likely failure is the upstream gateway, not a demonstrated invalid payload; do not claim service recovered.
+- Improve `WxksaiClient` error metadata: tag upstream HTTP status, request method and stage (submit / poll / download / catalog), capture only a syntactically safe header request ID (or Cloudflare ray) for Admin support correlation. Never save raw upstream error body, key or authorization header.
+- Improve `WxksaiQueue.submitFailureMessage` for upstream 5xx, connection failure and submission timeout: explain that task creation is **unconfirmed** and the user should inspect WXKSAI task history before starting another paid attempt. Existing single-POST / refund flow is unchanged, as are the polling and download retry semantics for accepted tasks.
+- Added no-charge regression tests for a synthetic 502 response, stage and request-ID tagging, one paid POST maximum, refund guidance, no untrusted provider text reflection, and timeout copy.
+- Requires web + standalone worker redeployment for the new diagnostics. Verify GitHub CI and merge; **real WXKSAI video generation remains unverified**, and an actual upstream HTTP 502 cannot be repaired by changing only CMMTools. Check WXKSAI dashboard task history, balance and any upstream request ID before retrying.
+
 ## 8 November 2026 — WXKSAI provider sidebar click/status regression fix
 
 - Fixed the provider-directory JavaScript mapping: the WXKSAI sidebar button and its card were present in the markup, but the `sources` allowlist omitted `wxksai`. The selector silently ignored clicks, left AIVID visible, and left WXKSAI showing "Checking…". Added `wxksai: 'wxksai'` so both selection and source-status rendering work.
