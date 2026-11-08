@@ -207,13 +207,13 @@
         <div class="card provider-source-card" data-provider-source="longai" hidden>
           <div class="source-head"><h3>Video Studio · LONG AI</h3><label class="source-switch"><input id="longaiEnabled" type="checkbox" aria-label="Enable LONG AI" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="longaiEnabledText" class="source-state"></div>
-          <p class="muted">Save a key with access to Seedance 2.0 Mini, then enter the prices in USD per output second and import the model.</p>
+          <p class="muted">Save a key with access to Seedance 2.0 Mini, then enter the upstream costs in USD per output second and import the model. CMMTools calculates the customer credits for a 55% gross margin at the standard credit pack rate.</p>
           <a href="https://ai.dijinlong.com/keys" target="_blank" rel="noopener noreferrer">Open LONG AI API keys</a>
           <div class="field"><label for="longaiApiKey">API key</label><input id="longaiApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"></div>
           <label class="muted"><input id="clearLongAiApiKey" type="checkbox" style="width:auto"> Clear saved key</label>
           <div id="longaiSecretStatus" class="muted" style="margin-top:8px"></div>
-          <div class="field"><label for="longai480p">480p price in USD per second</label><input id="longai480p" type="number" min="0" max="100" step="any"></div>
-          <div class="field"><label for="longai720p">720p price in USD per second</label><input id="longai720p" type="number" min="0" max="100" step="any"></div>
+          <div class="field"><label for="longai480p">480p upstream cost in USD per second</label><input id="longai480p" type="number" min="0" max="100" step="any"></div>
+          <div class="field"><label for="longai720p">720p upstream cost in USD per second</label><input id="longai720p" type="number" min="0" max="100" step="any"></div>
           <button id="longaiImport" class="secondary" onclick="importLongAiModel()">Import Seedance 2.0 Mini</button>
           <div id="longaiActionMsg" class="muted" role="status" style="margin-top:10px"></div>
         </div>

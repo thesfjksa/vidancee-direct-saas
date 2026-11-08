@@ -6,6 +6,7 @@ const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
 const { DEFAULT_VERCEL_CREDITS_PER_USD } = require('./vercel_models.js');
 const { CREDITS_PER_USD, CREDITS_PER_CNY } = require('./billing.js');
+const { LONG_AI_CUSTOMER_CREDITS_PER_USD } = require('./longai_models.js');
 
 const DEFAULTS = {
   vercel_api_key: '',
@@ -216,7 +217,7 @@ async function getProviderSettings() {
     higgsfieldCustomerCreditsPerUsd: CREDITS_PER_USD,
     longAiApiKey: String(read('longai_api_key') || '').trim(),
     longAiEnabled: asBool(read('longai_enabled')),
-    longAiCustomerCreditsPerUsd: CREDITS_PER_USD,
+    longAiCustomerCreditsPerUsd: LONG_AI_CUSTOMER_CREDITS_PER_USD,
     sluiceApiKey: String(read('sluice_api_key') || '').trim(),
     sluiceEnabled: asBool(read('sluice_enabled')),
     sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),

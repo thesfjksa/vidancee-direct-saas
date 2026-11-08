@@ -1,9 +1,16 @@
 'use strict';
 
+const { PKR_PER_USD, PRICE_INCREASE } = require('./billing.js');
+const { RS_PER_CREDIT } = require('./plans.js');
+
 const API_ORIGIN = 'https://ai.dijinlong.com';
 const MODEL_ID = 'seedance-2.0-mini';
 const PUBLIC_ID = 'longai_seedance_2_0_mini';
 const RESOLUTIONS = ['480p', '720p'];
+const TARGET_GROSS_MARGIN = 0.55;
+// Quotes and debits already apply PRICE_INCREASE after the base quote.
+const LONG_AI_CUSTOMER_CREDITS_PER_USD =
+  PKR_PER_USD / (RS_PER_CREDIT * (1 - TARGET_GROSS_MARGIN) * PRICE_INCREASE);
 const isLongAiModel = id => id === PUBLIC_ID;
 
 function longAiMediaModel(rates) {
@@ -29,4 +36,4 @@ function longAiMediaModel(rates) {
   };
 }
 
-module.exports = { API_ORIGIN, MODEL_ID, PUBLIC_ID, isLongAiModel, longAiMediaModel };
+module.exports = { API_ORIGIN, MODEL_ID, PUBLIC_ID, LONG_AI_CUSTOMER_CREDITS_PER_USD, isLongAiModel, longAiMediaModel };

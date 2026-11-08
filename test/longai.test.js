@@ -4,8 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { LongAiClient } = require('../src/provider/longai.js');
 const { LongAiQueue } = require('../src/longai_queue.js');
-const { longAiMediaModel, PUBLIC_ID, MODEL_ID, isLongAiModel } = require('../src/longai_models.js');
+const { longAiMediaModel, PUBLIC_ID, MODEL_ID, LONG_AI_CUSTOMER_CREDITS_PER_USD, isLongAiModel } = require('../src/longai_models.js');
 const { quoteGateway, validateReferences } = require('../src/vercel_models.js');
+const { PKR_PER_USD, applyPriceRate, priceRate } = require('../src/billing.js');
+const { PLANS } = require('../src/plans.js');
 const { fetchPublicMedia } = require('../src/remote_image.js');
 
 const key = 'fixture-key';
@@ -24,6 +26,24 @@ test('LONG AI only exposes Seedance 2.0 Mini, with resolution-specific prices an
   assert.throws(() => quoteGateway(model, { ...options, resolution: '1080p' }), /Unsupported resolution/);
   assert.throws(() => validateReferences(model, { images: [{}] }), /Unsupported image/);
   assert.throws(() => longAiMediaModel({ '480p': 0.01 }), /720p/);
+});
+
+test('LONG AI standard credit charges target 55% gross margin across plans and resolutions', () => {
+  const row = longAiMediaModel({ '480p': '0.01', '720p': 0.02 });
+  const model = { ...row, ...row.options };
+  for (const [resolution, rate] of [['480p', 0.01], ['720p', 0.02]]) {
+    for (const duration of model.durations) {
+      const quote = quoteGateway(model, { ...options, duration, resolution }, LONG_AI_CUSTOMER_CREDITS_PER_USD);
+      assert.equal(quote.sourceUsd, rate * duration);
+      const charge = applyPriceRate(quote.cost, priceRate(null));
+      for (const plan of Object.values(PLANS)) {
+        const revenuePkr = charge * plan.pricePkr / plan.credits;
+        const target = (quote.sourceUsd * PKR_PER_USD) / 0.45;
+        assert.ok(revenuePkr >= target - 1e-10);
+        assert.ok(revenuePkr - target <= 1.05 * plan.pricePkr / plan.credits + 1e-10);
+      }
+    }
+  }
 });
 
 test('LONG AI checks the exact model with the saved key without starting a generation', async () => {
