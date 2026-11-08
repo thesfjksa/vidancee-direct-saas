@@ -79,6 +79,18 @@ const { chromium } = require('playwright-core');
   await page.locator('#aividKeyStatus').filter({ hasText: 'No Browserless key' }).waitFor();
   assert.equal(await page.locator('[data-provider-source]:visible').count(), 1);
   assert.equal(requests.some(url => url === '/admin/model-names' || url === '/admin/provider-models?provider=vercel'), false);
+  // Regression: WXKSAI's directory entry must be selectable and never remain at "Checking…".
+  const wxksaiNav = page.locator('[data-source-key="wxksai"]');
+  await page.locator('#provider-nav-status-wxksai').filter({ hasText: 'Needs setup' }).waitFor();
+  await wxksaiNav.click();
+  assert.equal(await page.locator('[data-provider-source="wxksai"]').isVisible(), true);
+  assert.equal(await page.locator('#aividAdminCard').isVisible(), false);
+  assert.equal(await wxksaiNav.getAttribute('aria-pressed'), 'true');
+  await page.locator('#wxksaiApiKey').fill('private-unsaved-wxksai-fixture');
+  await page.locator('[data-source-key="aivid"]').click();
+  await wxksaiNav.click();
+  assert.equal(await page.locator('#wxksaiApiKey').inputValue(), 'private-unsaved-wxksai-fixture');
+  await page.locator('[data-source-key="aivid"]').click();
   await page.screenshot({ path: path.join(artifacts, 'connections-desktop.png'), fullPage: true });
 
   await page.getByRole('button', { name: /^888API Video/ }).click();
@@ -168,6 +180,9 @@ const { chromium } = require('playwright-core');
   await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   assert.equal(await page.locator('#argoApiKey').inputValue(), 'private-unsaved-fixture');
   await page.setViewportSize({ width: 390, height: 900 });
+  await page.locator('#providerSourceSelect').selectOption('wxksai');
+  assert.equal(await page.locator('[data-provider-source="wxksai"]').isVisible(), true);
+  assert.equal(await page.locator('#wxksaiApiKey').inputValue(), 'private-unsaved-wxksai-fixture');
   await page.locator('#providerSourceSelect').selectOption('aivid');
   assert.equal(await page.locator('[data-provider-source]:visible').count(), 1);
   assert.equal(await page.locator('#aividAdminCard').isVisible(), true);
