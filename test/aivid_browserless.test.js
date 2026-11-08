@@ -592,7 +592,11 @@ test('an AIVID verification page stops browser navigation and preserves an exist
  const {assertNoAividChallenge}=require('../src/provider/aivid.js');
  let navigation=0,closed=0,visible=true;
  const page={url:()=> 'https://aivid.dev/',goto:async()=>{navigation++;},getByText:pattern=>{
-  assert.match('Performing security verification',pattern);
+  for(const heading of ['Performing security verification','Verify you are human',
+   'Verifying you are human. This may take a few seconds.']){
+   assert.match(heading,pattern);
+  }
+  assert.doesNotMatch('How to verify you are human',pattern);
   return {filter:()=>({count:async()=>Number(visible)})};
  }};
  const client=new AividBrowserlessClient({connect:async()=>({page,close:async()=>{closed++;}})});

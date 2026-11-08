@@ -258,7 +258,7 @@ function promptEditors(page) {
 function sessionFailure(code) { return Object.assign(new Error(diagnosticMessage(code)), { aividCode: code }); }
 async function assertNoAividChallenge(page) {
   if(!page.url().startsWith(ORIGIN+'/'))return;
-  const challenge=page.getByText(/^(?:Performing security verification|Verify you are human(?: by completing the action below)?)\.?$/i)
+  const challenge=page.getByText(/^(?:Performing security verification|Verify you are human(?: by completing the action below)?|Verifying you are human(?:\. This may take a few seconds)?)\.?$/i)
     .filter({visible:true});
   if(await challenge.count())throw sessionFailure('session_verification');
 }
