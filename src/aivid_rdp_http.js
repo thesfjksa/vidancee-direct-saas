@@ -22,9 +22,12 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
     }
     if (path === '/api/aivid-rdp/poll' && req.method === 'POST') {
       const input = await readJson(req);
-      const result = await api.poll(device, input.status);
       const config = await api.getConfig();
-      json(res, 200, { ok: true, ...result, browser: config.rdpBrowser === 'edge' ? 'edge' : 'chrome' }); return true;
+      const browser = config.rdpBrowser === 'edge' ? 'edge' : 'chrome';
+      // Do not claim a command while the agent still owns the other browser.
+      const switching = input.browser && input.browser !== browser;
+      const result = switching ? { command: null } : await api.poll(device, input.status);
+      json(res, 200, { ok: true, ...result, browser }); return true;
     }
     if(req.method==='GET'&&(path==='/api/aivid-rdp/runtime'||path==='/api/aivid-rdp/runtime/file')){
       const {manifest,files}=require('./aivid_runtime.js').runtime();
