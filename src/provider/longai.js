@@ -13,6 +13,7 @@ const outputUrl = job => job?.video_url || job?.output?.video_url || job?.output
 
 const READ_TIMEOUT_MS = 28000;
 const SUBMIT_TIMEOUT_MS = 60000;
+const ERROR_BODY_LIMIT = 4096;
 
 // Use a single explicit deadline that includes connecting and reading. The
 // default fetch transport can abort the connection separately at ~10 s.
@@ -72,10 +73,25 @@ class LongAiClient {
     if (target.origin !== API_ORIGIN || !path.startsWith('/')) throw error('Invalid LONG AI API path.');
     const response = await this.request(target.href, body, this.apiKey);
     if (!response.ok) {
+      let code;
+      if (response.status === 503 && response.headers.get('content-type')?.includes('application/json')) {
+        // Classify known provider errors without logging or displaying their raw bodies.
+        try {
+          const data = JSON.parse((await readBounded(response, ERROR_BODY_LIMIT)).toString('utf8'));
+          const detail = data?.error?.message ?? data?.message;
+          if (typeof detail === 'string' && /no upstream provider serves it|no available OpenAI accounts supporting model/i.test(detail)) {
+            code = 'LONG_AI_NO_UPSTREAM';
+          }
+        } catch {}
+      }
       await response.body?.cancel().catch(() => {});
       const message = response.status === 401 || response.status === 403 ? 'LONG AI rejected this API key or its model access.' :
         'LONG AI returned HTTP ' + response.status + '.';
-      throw Object.assign(error(message), { providerStatus: response.status });
+      const requestId = response.headers.get('x-request-id') || '';
+      const providerRequestId = /^[a-z\d][a-z\d._-]{0,95}$/i.test(requestId) && !/^sk[-_]/i.test(requestId) ? requestId : undefined;
+      throw Object.assign(error(message), {
+        providerStatus: response.status, providerRequestId, code, requestMethod: body ? 'POST' : 'GET',
+      });
     }
     try { return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')), location: response.headers.get('location') }; }
     catch (cause) {
