@@ -11,15 +11,40 @@ test('LONG AI import saves the local model using an already verified key during 
   process.env.WORKER_ENABLED = 'false';
 
   let savedKey = '';
+  let paidEnabled = false;
+  let visibleModel;
+  let renderTableReady = false;
+  let queuedRender;
   const db = require('../src/db.js');
   t.mock.method(db, 'dbConfigured', () => true);
   t.mock.method(db, 'initDb', () => new Promise(() => {}));
-  t.mock.method(db, 'getPool', () => ({ async execute(sql) {
-    assert.match(sql, /FROM longai_render_tests/);
-    throw Object.assign(new Error('Optional render table is not created.'), { code: 'ER_NO_SUCH_TABLE' });
-  } }));
+  const renderDb = {
+    async query(sql) {
+      if (sql.startsWith('SELECT GET_LOCK')) return [[{ acquired: 1 }]];
+      assert.match(sql, /SELECT RELEASE_LOCK|SELECT 1 FROM longai_render_tests LIMIT 0/);
+      return [[]];
+    },
+    async getConnection() { return renderDb; },
+    release() {},
+    async execute(sql, args) {
+      if (!renderTableReady) {
+        assert.match(sql, /FROM longai_render_tests/);
+        throw Object.assign(new Error('Optional render table is not created.'), { code: 'ER_NO_SUCH_TABLE' });
+      }
+      if (sql.startsWith('INSERT INTO longai_render_tests')) {
+        queuedRender = { id: args[0], model: args[1], status: 'queued' };
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.startsWith('UPDATE longai_render_tests')) return [{ affectedRows: 0 }];
+      assert.match(sql, /SELECT.*FROM longai_render_tests/s);
+      return [queuedRender ? [queuedRender] : []];
+    },
+  };
+  t.mock.method(db, 'getPool', () => renderDb);
   const settings = require('../src/settings.js');
-  t.mock.method(settings, 'getProviderSettings', async () => ({ longAiApiKey: savedKey }));
+  t.mock.method(settings, 'getProviderSettings', async () => ({
+    longAiApiKey: savedKey, longAiEnabled: paidEnabled, allowProviderCharges: paidEnabled,
+  }));
   const imports = [];
   const catalog = require('../src/provider_models.js');
   t.mock.method(catalog, 'syncProviderModels', async (provider, models) => {
@@ -27,7 +52,8 @@ test('LONG AI import saves the local model using an already verified key during 
     return models;
   });
   const { LongAiClient } = require('../src/provider/longai.js');
-  const verify = t.mock.method(LongAiClient.prototype, 'verifyModel', async () => {
+  const verify = t.mock.method(LongAiClient.prototype, 'verifyModel', async id => {
+    if (visibleModel && id === visibleModel) return;
     throw new Error('LONG AI connection timed out from the CMMTools server.');
   });
 
@@ -88,4 +114,21 @@ test('LONG AI import saves the local model using an already verified key during 
   });
   assert.equal((await paid({})).status, 400);
   assert.equal((await paid({ id: '12345678-1234-4abc-8abc-123456789abc', model: 'kling-2.5', confirmPaid: true })).status, 409);
+  paidEnabled = true;
+  const blocked = await paid({ id: '12345678-1234-4abc-8abc-123456789abc', model: 'kling-2.5', confirmPaid: true });
+  assert.equal(blocked.status, 409);
+  assert.match((await blocked.json()).error, /Check the model with the saved key/);
+  visibleModel = 'kling-2.5';
+  model.searchParams.set('model', visibleModel);
+  const visible = await (await fetch(model, { headers })).json();
+  assert.equal(visible.status, 'visible');
+  assert.ok(visible.renderProof.expiresAt > Date.now());
+  assert.match(visible.renderProof.signature, /^[a-z0-9_-]{43}$/i);
+  renderTableReady = true;
+  const accepted = await paid({
+    id: '12345678-1234-4abc-8abc-123456789abc', model: visibleModel, confirmPaid: true, renderProof: visible.renderProof,
+  });
+  assert.equal(accepted.status, 202);
+  assert.deepEqual((await accepted.json()).test, queuedRender);
+  assert.equal(queuedRender.model, visibleModel);
 });

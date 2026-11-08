@@ -1,7 +1,11 @@
 'use strict';
 
+const { createHmac, timingSafeEqual } = require('node:crypto');
+
 const SNAPSHOT_DATE = '2026-11-08';
 const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,190}$/i;
+const KEY_CHECK_TTL_MS = 5 * 60 * 1000;
+const RETRYABLE_READ_TIMEOUTS = new Set(['ABORT_ERR', 'AbortError', 'TimeoutError', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT']);
 const SNAPSHOT_IDS = [
   'flux-3-video', 'hailuo-03', 'hailuo-2_3', 'hailuo-2_3-fast', 'happy-horse', 'happy-horse-1.1',
   'kling-2.5', 'kling-2.5-turbo-standard', 'kling-2.6', 'kling-3.0', 'kling-3.0-turbo',
@@ -60,7 +64,13 @@ async function checkVideoModel(client, id) {
   }
   const started = Date.now();
   try {
-    await client.verifyModel(id, 12000);
+    try {
+      await client.verifyModel(id, 12000);
+    } catch (error) {
+      if (!RETRYABLE_READ_TIMEOUTS.has(error.networkCode)) throw error;
+      // A model lookup is read-only. Give intermittent LONG AI timeouts one more chance.
+      await client.verifyModel(id, 8000);
+    }
     return { id, status: 'visible', elapsedMs: Date.now() - started };
   } catch (error) {
     return {
@@ -74,4 +84,22 @@ async function checkVideoModel(client, id) {
   }
 }
 
-module.exports = { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel, MODEL_ID };
+function keyCheckSignature(secret, apiKey, model, expiresAt) {
+  return createHmac('sha256', secret)
+    .update(JSON.stringify(['longai-render-key-check', apiKey, model, expiresAt]))
+    .digest('base64url');
+}
+
+function signVideoKeyCheck(secret, apiKey, model, now = Date.now()) {
+  const expiresAt = now + KEY_CHECK_TTL_MS;
+  return { expiresAt, signature: keyCheckSignature(secret, apiKey, model, expiresAt) };
+}
+
+function verifyVideoKeyCheck(secret, apiKey, model, proof, now = Date.now()) {
+  if (!Number.isSafeInteger(proof?.expiresAt) || proof.expiresAt <= now || proof.expiresAt > now + KEY_CHECK_TTL_MS ||
+      typeof proof.signature !== 'string' || !/^[a-z0-9_-]{43}$/i.test(proof.signature)) return false;
+  const expected = keyCheckSignature(secret, apiKey, model, proof.expiresAt);
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(proof.signature));
+}
+
+module.exports = { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck, MODEL_ID };

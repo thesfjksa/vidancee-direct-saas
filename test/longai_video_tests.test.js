@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { LongAiClient } = require('../src/provider/longai.js');
-const { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel } = require('../src/longai_video_tests.js');
+const { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel,
+  signVideoKeyCheck, verifyVideoKeyCheck } = require('../src/longai_video_tests.js');
 
 const marketplace = `
   <h2>图像生成1 个模型</h2>
@@ -61,4 +62,26 @@ test('LONG AI video tests use GET, keep the key off the public marketplace reque
   assert.deepEqual(calls[0], { path: '/model-plaza', method: 'GET', authorization: undefined });
   assert.ok(calls.slice(1).every(call => call.method === 'GET' && call.path.startsWith('/v1/models/') &&
     call.authorization === 'Bearer fixture-key'));
+});
+
+test('LONG AI retries a timed-out key lookup once and binds the successful check to the key and model', async () => {
+  const attempts = [];
+  const model = 'seedance-2.0-mini';
+  const apiKey = 'fixture-key';
+  const secret = 'fixture-admin';
+  const now = 1_800_000_000_000;
+  const result = await checkVideoModel({ async verifyModel(id, deadline) {
+    assert.equal(id, model);
+    attempts.push(deadline);
+    if (attempts.length === 1) throw Object.assign(new Error('Timeout'), { networkCode: 'ABORT_ERR' });
+  } }, model);
+  assert.equal(result.status, 'visible');
+  assert.deepEqual(attempts, [12000, 8000]);
+
+  const proof = signVideoKeyCheck(secret, apiKey, model, now);
+  assert.equal(verifyVideoKeyCheck(secret, apiKey, model, proof, now), true);
+  assert.equal(verifyVideoKeyCheck(secret, apiKey, model, proof, proof.expiresAt), false);
+  assert.equal(verifyVideoKeyCheck(secret, 'changed-key', model, proof, now), false);
+  assert.equal(verifyVideoKeyCheck(secret, apiKey, 'wan-3.0', proof, now), false);
+  assert.equal(verifyVideoKeyCheck(secret, apiKey, model, { ...proof, expiresAt: proof.expiresAt - 1 }, now), false);
 });

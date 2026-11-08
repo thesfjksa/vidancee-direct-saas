@@ -14,6 +14,7 @@ const { chromium } = require('playwright-core');
   const errors = [], requests = [], writes = [];
   let api888Imports=0, longAiImport=null;
   let renderTest = null, paidRequests = 0;
+  const renderProof = { expiresAt: Date.now() + 5 * 60 * 1000, signature: 'fixture-proof' };
   page.on('pageerror', error => errors.push(error.message));
   const names = Array.from({ length: 35 }, (_, i) => ({ key: 'video:example_' + i, id: 'example_' + i,
     studio: 'video', vendor: 'Example provider', defaultName: 'Example model ' + i, name: '', hdEnhance: true }));
@@ -36,22 +37,24 @@ const { chromium } = require('playwright-core');
     if (pathname === '/admin/longai/check') { assert.equal(request.method(), 'GET'); return json({ providerStatus: 401, elapsedMs: 125 }); }
     if (pathname === '/admin/longai/import') { assert.equal(request.method(), 'POST'); longAiImport = request.postDataJSON(); return json({ models: [] }); }
     if (pathname === '/admin/longai/video-tests') return json({
-      source: 'marketplace', fetchedAt: '2026-11-08T08:00:00Z', keyConfigured: true,
+      source: 'snapshot', snapshotDate: '2026-11-08', keyConfigured: true,
       models: [{ id: 'seedance-2.0-mini', sellers: 1 }, { id: 'kling-video-o-1', sellers: 2 }, { id: 'zero-video', sellers: 0 }],
     });
     if (pathname === '/admin/longai/video-tests/model') {
       assert.equal(request.method(), 'GET');
       const id = url.searchParams.get('model');
-      return json({ id, status: id === 'seedance-2.0-mini' ? 'visible' : 'not_visible', elapsedMs: 25 });
+      return json(id === 'seedance-2.0-mini' ? { id, status: 'visible', elapsedMs: 25, renderProof } :
+        { id, status: 'not_visible', elapsedMs: 25 });
     }
     if (pathname === '/admin/longai/video-tests/renders') {
       if (request.method() === 'GET') return json({ tests: renderTest ? [renderTest] : [], paidEnabled: true });
       assert.equal(request.method(), 'POST');
       paidRequests++;
-      const { id, model, confirmPaid } = request.postDataJSON();
+      const { id, model, confirmPaid, renderProof: submittedProof } = request.postDataJSON();
       assert.match(id, /^[a-f0-9-]{36}$/i);
       assert.equal(model, 'seedance-2.0-mini');
       assert.equal(confirmPaid, true);
+      assert.deepEqual(submittedProof, renderProof);
       renderTest = { id, model, status: 'verified', taskId: 'fixture_task', diagnostic: 'Completed and verified a full MP4.' };
       return json({ test: { id, model, status: 'queued' } });
     }
@@ -110,8 +113,12 @@ const { chromium } = require('playwright-core');
   await page.locator('#longAiVideoProgress').filter({ hasText: '2 of 3 video models have a listed seller' }).waitFor();
   assert.equal(await page.locator('#longAiVideoRows tr').count(), 3);
   assert.equal(await page.locator('#longAiVideoRows').getByText('None listed', { exact: true }).count(), 1);
+  const paidButton = page.getByRole('button', { name: 'Paid render test for seedance-2.0-mini', exact: true });
+  assert.equal(await paidButton.isDisabled(), true);
   await page.getByRole('button', { name: 'Check all models with sellers', exact: true }).click();
   await page.locator('#longAiVideoProgress').filter({ hasText: '2 of 2 checked · 1 visible to the saved key' }).waitFor();
+  assert.equal(await paidButton.isEnabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Paid render test for kling-video-o-1', exact: true }).isDisabled(), true);
   assert.deepEqual(requests.filter(url => url.startsWith('/admin/longai/video-tests/model?')).sort(), [
     '/admin/longai/video-tests/model?model=kling-video-o-1',
     '/admin/longai/video-tests/model?model=seedance-2.0-mini',
@@ -119,7 +126,6 @@ const { chromium } = require('playwright-core');
   await page.getByRole('button', { name: 'Check key for zero-video', exact: true }).click();
   await page.locator('#longAiVideoProgress').filter({ hasText: '1 of 1 checked · 0 visible to the saved key' }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Paid render test for zero-video', exact: true }).isDisabled(), true);
-  const paidButton = page.getByRole('button', { name: 'Paid render test for seedance-2.0-mini', exact: true });
   page.once('dialog', dialog => dialog.dismiss());
   await paidButton.click();
   assert.equal(paidRequests, 0);
