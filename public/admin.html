@@ -120,7 +120,7 @@
       <div class="top">
         <div>
           <h2>LONG AI video tests</h2>
-          <p class="muted">Check public seller listings and whether the saved LONG AI key can see each model. These checks use no credits. A visible model can still fail a paid render.</p>
+          <p class="muted">Seller and key checks use no credits. A paid render submits one text-only sample with the model’s default settings and can charge the saved LONG AI account.</p>
         </div>
         <button class="secondary" id="longAiVideoRefresh" type="button">Refresh marketplace</button>
       </div>
@@ -130,8 +130,9 @@
       </div>
       <p id="longAiVideoSource" class="muted"></p>
       <p id="longAiVideoProgress" class="muted" role="status"></p>
+      <p id="longAiRenderProgress" class="muted" role="status"></p>
       <div class="tablewrap"><table>
-        <thead><tr><th scope="col">Model ID</th><th scope="col">Listed sellers</th><th scope="col">Saved key check</th><th scope="col">Action</th></tr></thead>
+        <thead><tr><th scope="col">Model ID</th><th scope="col">Listed sellers</th><th scope="col">Saved key check</th><th scope="col">Latest render test</th><th scope="col">Actions</th></tr></thead>
         <tbody id="longAiVideoRows"></tbody>
       </table></div>
     </div>
@@ -1541,6 +1542,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=1"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=2"></script></body></html>
 
 

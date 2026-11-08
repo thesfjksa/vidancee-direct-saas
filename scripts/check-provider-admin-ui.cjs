@@ -7,9 +7,13 @@ const { chromium } = require('playwright-core');
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+  await page.addInitScript(() => {
+    if (!crypto.randomUUID) Object.defineProperty(crypto, 'randomUUID', { value: () => '12345678-1234-4abc-8abc-123456789abc' });
+  });
   const artifacts = 'artifacts/provider-admin-ui'; fs.mkdirSync(artifacts, { recursive: true });
   const errors = [], requests = [], writes = [];
   let api888Imports=0, longAiImport=null;
+  let renderTest = null, paidRequests = 0;
   page.on('pageerror', error => errors.push(error.message));
   const names = Array.from({ length: 35 }, (_, i) => ({ key: 'video:example_' + i, id: 'example_' + i,
     studio: 'video', vendor: 'Example provider', defaultName: 'Example model ' + i, name: '', hdEnhance: true }));
@@ -39,6 +43,17 @@ const { chromium } = require('playwright-core');
       assert.equal(request.method(), 'GET');
       const id = url.searchParams.get('model');
       return json({ id, status: id === 'seedance-2.0-mini' ? 'visible' : 'not_visible', elapsedMs: 25 });
+    }
+    if (pathname === '/admin/longai/video-tests/renders') {
+      if (request.method() === 'GET') return json({ tests: renderTest ? [renderTest] : [], paidEnabled: true });
+      assert.equal(request.method(), 'POST');
+      paidRequests++;
+      const { id, model, confirmPaid } = request.postDataJSON();
+      assert.match(id, /^[a-f0-9-]{36}$/i);
+      assert.equal(model, 'seedance-2.0-mini');
+      assert.equal(confirmPaid, true);
+      renderTest = { id, model, status: 'verified', taskId: 'fixture_task', diagnostic: 'Completed and verified a full MP4.' };
+      return json({ test: { id, model, status: 'queued' } });
     }
     if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
     if (pathname === '/admin/model-names') return json({ models: names });
@@ -103,6 +118,15 @@ const { chromium } = require('playwright-core');
   ]);
   await page.getByRole('button', { name: 'Check key for zero-video', exact: true }).click();
   await page.locator('#longAiVideoProgress').filter({ hasText: '1 of 1 checked · 0 visible to the saved key' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Paid render test for zero-video', exact: true }).isDisabled(), true);
+  const paidButton = page.getByRole('button', { name: 'Paid render test for seedance-2.0-mini', exact: true });
+  page.once('dialog', dialog => dialog.dismiss());
+  await paidButton.click();
+  assert.equal(paidRequests, 0);
+  page.once('dialog', dialog => dialog.accept());
+  await paidButton.click();
+  await page.locator('#longAiVideoRows').getByText(/Render verified.*fixture_task/).waitFor();
+  assert.equal(paidRequests, 1);
   await page.getByRole('button', { name: 'Provider', exact: true }).click();
 
   await page.getByRole('tab', { name: 'Models', exact: true }).click();

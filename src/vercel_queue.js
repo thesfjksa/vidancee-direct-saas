@@ -50,6 +50,7 @@ class VercelQueue {
   apiKey(s){return s.vercelApiKey||'';}
   sourceEnabled(s){return Boolean(s.vercelEnabled);}
   maxInflight(s){return s.vercelMaxInflight||2;}
+  reservedSlots(){return 0;}
   async runOnce(db=getPool(),settings=null) {
     const current=settings||await this.getSettings();
     const fingerprint=this.apiKey(current);
@@ -87,7 +88,7 @@ class VercelQueue {
       const [[lock]]=await conn.query(`SELECT GET_LOCK('cmm_${provider}_queue',0) AS acquired`);
       locked=Number(lock?.acquired)===1;if(!locked)return;
       const [[active]]=await conn.query(`SELECT COUNT(*) AS total FROM generations WHERE provider='${provider}' AND status IN ('submitting','submitted','processing')`);
-      let slots=Math.max(0,maxInflight-Number(active?.total||0));if(!slots)return;
+      let slots=Math.max(0,maxInflight-Number(active?.total||0)-await this.reservedSlots(conn));if(!slots)return;
       const [queued]=await conn.query(this.queuedSql());
       for(const job of queued) {
         if(slots<=0)break;

@@ -125,7 +125,7 @@ function wakeWhileJobsRun() {
   setInterval(async()=>{
     try {
       const [[row]]=await getPool().query("SELECT 1 AS active FROM generations WHERE status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 1");
-      if(row)wakeWorker();
+      if(row||await hasActiveRenderTest(getPool()))wakeWorker();
     } catch {}
   },60000).unref();
 }
@@ -199,6 +199,7 @@ const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { LongAiClient } = require('./src/provider/longai.js');
 const { loadVideoMarketplace, checkVideoModel } = require('./src/longai_video_tests.js');
+const { validateRenderRequest, findRenderTest, listRenderTests, hasActiveRenderTest, queueRenderTest } = require('./src/longai_render_tests.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
 const { isVidanceeModel, vidanceeMediaModels, vidanceeCreditsForDuration } = require('./src/vidancee_models.js');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
@@ -2406,6 +2407,32 @@ const server=http.createServer(async (req,res)=>{
         if(!settings.longAiApiKey)throw httpError(400,'Save a LONG AI API key first.');
         const result=await checkVideoModel(new LongAiClient({apiKey:settings.longAiApiKey}),url.searchParams.get('model'));
         return sendJson(res,200,{ok:true,...result});
+      }
+      if(routePath==='/admin/longai/video-tests/renders'&&req.method==='GET'){
+        requireDatabase();
+        const settings=await getProviderSettings();
+        const tests=await listRenderTests(getPool());
+        if(tests.some(test=>['queued','submitting','accepted'].includes(test.status)))wakeGenerationWorker(req);
+        return sendJson(res,200,{ok:true,tests,paidEnabled:Boolean(settings.allowProviderCharges&&settings.longAiEnabled&&settings.longAiApiKey)});
+      }
+      if(routePath==='/admin/longai/video-tests/renders'&&req.method==='POST'){
+        requireDatabase();
+        const body=await readJson(req);
+        validateRenderRequest(body);
+        const replay=await findRenderTest(getPool(),body.id,body.model);
+        if(replay)return sendJson(res,202,{ok:true,test:replay});
+        const settings=await getProviderSettings();
+        if(!settings.allowProviderCharges||!settings.longAiEnabled||!settings.longAiApiKey){
+          throw httpError(409,'Enable LONG AI and paid provider submissions with a saved key first.');
+        }
+        const market=await loadVideoMarketplace(new LongAiClient());
+        if(market.source!=='marketplace')throw httpError(503,'Refresh the live LONG AI marketplace before starting a paid render.');
+        if(!market.models.some(model=>model.id===body.model&&model.sellers>0)){
+          throw httpError(409,'LONG AI does not currently list a seller for this video model.');
+        }
+        const test=await queueRenderTest(getPool(),body,settings.longAiApiKey);
+        wakeGenerationWorker(req);
+        return sendJson(res,202,{ok:true,test});
       }
       if(req.method==='POST'&&routePath==='/admin/longai/import'){
         requireDatabase();

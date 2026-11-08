@@ -2,6 +2,9 @@
 
 const { VercelQueue, savedOptions } = require('./vercel_queue.js');
 const { LongAiClient } = require('./provider/longai.js');
+const { getPool } = require('./db.js');
+const { logActivity } = require('./activity_log.js');
+const { hasRunningRenderTest, runRenderTest } = require('./longai_render_tests.js');
 
 class LongAiQueue extends VercelQueue {
   constructor(options = {}) {
@@ -12,6 +15,17 @@ class LongAiQueue extends VercelQueue {
   apiKey(settings) { return settings.longAiApiKey; }
   sourceEnabled(settings) { return settings.longAiEnabled; }
   maxInflight() { return 1; }
+  async reservedSlots(db) { return Number(await hasRunningRenderTest(db)); }
+
+  async runOnce(db = getPool(), settings = null) {
+    await super.runOnce(db, settings);
+    if (!this.client || this.renderTestTask) return;
+    this.renderTestTask = runRenderTest(db, this.client, this.sourceReady && !this.stopped)
+      .catch(error => logActivity({ level: 'error', category: 'provider', event: 'longai.render_test_failed',
+        provider: 'longai', message: 'The LONG AI test worker could not update the test.',
+        details: /^[A-Z0-9_]{1,60}$/.test(error.code || '') ? { code: error.code } : null }))
+      .finally(() => { this.renderTestTask = null; });
+  }
 
   submitFailureMessage(error) {
     if (error.providerStatus === 503) {
