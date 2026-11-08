@@ -47,6 +47,35 @@ const SPECS = Object.freeze({
   },
 });
 
+// Caps follow the published V1 model contracts, not the common endpoint's
+// theoretical capabilities. The Buff video/audio count is intentionally 1
+// until the provider publishes a numerical maximum for those two media types.
+const REFERENCE_SPECS = Object.freeze({
+  'seedance-2.5-special2': { images: 9, videos: 0, audios: 3 },
+  'seedance-2.5-full-720p-9img': { images: 9, videos: 0, audios: 0 },
+  'seedance-2.5-full-720p-15-30s': { images: 9, videos: 0, audios: 0 },
+  'seedance-2.5-bd-2': { images: 30, videos: 10, audios: 10, total: 30, totalSeconds: 30 },
+  'wan3.0-video': { images: 10, videos: 5, audios: 5 },
+  'seedance-2.0-full-720p-900': { images: 9, videos: 0, audios: 0 },
+  'seedance2.5-buff': { images: 30, videos: 1, audios: 1 },
+});
+const MIB = 1024 * 1024;
+function wxksaiReferenceCapabilities(id) {
+  const ref = REFERENCE_SPECS[id];
+  if (!ref) return { textOnly: true, totalMax: 0, image: { supported: false, max: 0 }, video: { supported: false, max: 0 }, audio: { supported: false, max: 0 } };
+  const kind = (max, roles, maxBytes, formats) => ({
+    supported: max > 0, max, min: 0, roles: max > 0 ? roles : [],
+    maxBytes, formats,
+  });
+  return {
+    textOnly: true,
+    totalMax: ref.total || ref.images + ref.videos + ref.audios,
+    image: kind(ref.images, ['image_references'], 20 * MIB, ['jpg', 'jpeg', 'png', 'webp']),
+    video: kind(ref.videos, ['video_references'], 25 * MIB, ['mp4']),
+    audio: kind(ref.audios, ['audio_references'], 15 * MIB, ['mp3', 'wav']),
+  };
+}
+
 const publicId = id => 'wxksai_' + id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/,'');
 const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => publicId(key) === id);
 
@@ -58,6 +87,7 @@ function wxksaiMediaModels(live) {
     const pricing = spec.pricingMode === 'clip'
       ? { video_duration_prices: spec.durations.map(duration => ({ duration, cost: priceUsd })) }
       : { video_duration_pricing: (spec.resolutions || [spec.resolution]).map(resolution => ({ resolution, cost_per_second: priceUsd })) };
+    const referenceCapabilities = wxksaiReferenceCapabilities(id);
     return {
       providerModelId: id, publicModelId: publicId(id), label: spec.name, mediaType: 'video',
       options: {
@@ -67,14 +97,16 @@ function wxksaiMediaModels(live) {
         aspectRatios: spec.ratios, defaultDuration: spec.defaultDuration,
         defaultResolution: spec.resolution, defaultAspectRatio: '16:9',
         inputLimits: { text: { max_chars: Math.min(20000,spec.promptMax||10000) } },
-        supportedOperations: ['text-to-video'],
-        // Deliberate first-release guard: provider supports references on some
-        // models, but JSON reference URLs are not universally supported.
-        // Do not expose reference selectors until verified multipart handling exists.
-        referenceCapabilities: { textOnly: true, totalMax: 0 },
+        supportedOperations: ['text-to-video', 'reference-to-video'],
+        referenceCapabilities,
+        mediaRoles: [
+          ...referenceCapabilities.image.roles,
+          ...referenceCapabilities.video.roles,
+          ...referenceCapabilities.audio.roles,
+        ],
       },
     };
   });
 }
 
-module.exports = { ORIGIN, SPECS, publicId, isWxksaiModel, wxksaiMediaModels };
+module.exports = { ORIGIN, SPECS, REFERENCE_SPECS, wxksaiReferenceCapabilities, publicId, isWxksaiModel, wxksaiMediaModels };
