@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "CMMTools AIVID Handoff",
+  "version": "1.0.0",
+  "minimum_chrome_version": "106",
+  "description": "Fill the AIVID form from a copied CMMTools Admin request.",
+  "permissions": ["activeTab", "scripting", "clipboardRead"],
+  "host_permissions": ["https://cmmtools.site/*"],
+  "action": {"default_popup": "popup.html"}
+}

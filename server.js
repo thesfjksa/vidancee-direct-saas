@@ -905,7 +905,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     validateAividVideoReferences(body.videos,aividReferenceVideoLimit(spec));
     const quote=await quoteAivid(config,body);
     generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
-      defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),
+      defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),aividManualHandoff:config.manualHandoff,
       validatePreparedReferences:({images,videos,audios})=>require('./src/provider/aivid.js').validateJob(body,[...images,...videos.map(r=>({...r,kind:'video'})),...audios.map(r=>({...r,kind:'audio'}))]),
       costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',maxCustomerCredits:body.maxCustomerCredits,
       generationOptions:{quotedSourceCredits:quote.sourceCredits,sourceUsd:quote.sourceUsd,sourceUsdPerAividCredit:0.12,model:requestedModel}});
@@ -2147,6 +2147,18 @@ const server=http.createServer(async (req,res)=>{
       return proxyMedia(req,res,row,type==='poster'?'poster':'video');
     }
 
+    const manualPacket = routePath.match(/^\/admin\/aivid\/manual\/packet(?:\/(\d{1,2}))?$/);
+    if (req.method === 'GET' && manualPacket) {
+      requireDatabase();
+      const {readPacket} = require('./src/aivid_manual.js');
+      const position = manualPacket[1] === undefined ? undefined : Number(manualPacket[1]);
+      const data = await readPacket(getPool(), adminToken, req.headers.authorization, position);
+      if (position === undefined) return sendJson(res, 200, {ok:true,...data});
+      res.writeHead(200, {'content-type':data.mime_type,'content-length':data.media_data.length,
+        'cache-control':'no-store','x-content-type-options':'nosniff','content-disposition':'attachment'});
+      return res.end(data.media_data);
+    }
+
     if (routePath.startsWith('/admin/')) {
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
@@ -2524,6 +2536,27 @@ const server=http.createServer(async (req,res)=>{
         const result=await require('./src/aivid_queue.js').withAividLock(getPool(),()=>new Client(config).checkReferences(value,imageOnly?diagnosticImageReferences():diagnosticReferences()));
         if(!result)throw httpError(409,'The AIVID browser is busy.');
         return sendJson(res,200,{ok:true,...result});
+      }
+      if (req.method === 'GET' && routePath === '/admin/aivid/manual/extension') {
+        const zip = new (require('yazl').ZipFile)();
+        for (const name of ['manifest.json','popup.html','popup.js','fill.js']) {
+          zip.addFile(path.join(__dirname,'scripts','aivid-handoff-extension',name),name);
+        }
+        zip.on('error', error => res.destroy(error));
+        res.writeHead(200, {'content-type':'application/zip','cache-control':'no-store',
+          'content-disposition':'attachment; filename="cmmtools-aivid-handoff.zip"'});
+        zip.outputStream.pipe(res);
+        zip.end();
+        return;
+      }
+      const manualAction = routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/(copy-request|deliver-video)$/);
+      if (req.method === 'POST' && manualAction) {
+        requireDatabase();
+        const {copyRequest, readMp4, deliverVideo} = require('./src/aivid_manual.js');
+        const id = manualAction[1];
+        if (manualAction[2] === 'copy-request') return sendJson(res, 200, {ok:true,...await copyRequest(getPool(),adminToken,id)});
+        const result = await deliverVideo(getPool(), id, await readMp4(req));
+        return sendJson(res, 200, {ok:true,...result});
       }
       const aividManage=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/(cancel|delete)$/i);
       if(req.method==='POST'&&aividManage){
@@ -3030,6 +3063,7 @@ const server=http.createServer(async (req,res)=>{
           provider:row.provider,
           media_type:row.media_type || 'video',
           provider_job_id:row.provider_job_id,
+          manualHandoff:row.provider==='aivid'?require('./src/aivid_manual.js').activeStage(row):null,
           collectionPaused:row.provider==='aivid'&&require('./src/aivid_queue.js').operation(row).collectionPaused===true,
         }))});
       }

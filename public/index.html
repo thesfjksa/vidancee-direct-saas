@@ -2334,7 +2334,7 @@ function filteredGenerations(){
 function generationFingerprint(g){
   return JSON.stringify([
     g.id,g.status,g.has_video,g.video_url,g.has_poster,g.poster_url,
-    g.credits_cost,g.model,g.duration,g.resolution,g.aspect_ratio,g.prompt,g.error_message
+    g.credits_cost,g.model,g.duration,g.resolution,g.aspect_ratio,g.prompt,g.error_message,g.awaiting_delivery
   ]);
 }
 
@@ -3184,7 +3184,7 @@ async function createGeneration(){
     if(sameItems(videoReferenceItems,sent.videos))clearVideoReferenceItems();
     if(sameItems(audioReferenceItems,sent.audios))clearAudioReferenceItems();
     m.className='msg ok';
-    m.textContent='Generation queued.';
+    m.textContent=d.generation?.awaiting_delivery?'Video request sent. The finished video will appear here.':'Generation queued.';
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
   }catch(e){
     m.className='msg err';
@@ -3413,7 +3413,7 @@ function jobCard(g){
     media='<div class="job-media" style="aspect-ratio:'+aspect+'"><img src="'+g.poster_url+'"></div>';
   }else{
     media='<div class="job-media job-placeholder" style="aspect-ratio:'+aspect+'">'+
-      (['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
+      (g.awaiting_delivery?'<span class="badge processing">Awaiting delivery</span>':['queued','submitting','submitted','processing'].includes(g.status)?'<div class="spinner"></div>':'<span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span>')+
       '</div>';
   }
 

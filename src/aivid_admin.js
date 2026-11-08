@@ -63,7 +63,7 @@ class AividAdminService {
     return result;
   }
   async assertReplaceable() {
-    const [[row]] = await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL");
+    const [[row]] = await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL AND (provider_operation IS NULL OR provider_operation NOT LIKE '{\"stage\":\"manual_%')");
     if (Number(row?.total || 0)) throw problem('AIVID has outstanding generations. Reuse its saved session until those jobs are resolved.', 409);
   }
   async startLogin({ replaceSession = false } = {}) {

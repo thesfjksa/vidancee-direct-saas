@@ -14,7 +14,8 @@
     const ready=enabled&&ceiling>0&&agent;
     savedState().textContent='Saved in Admin: '+(enabled?'Enabled':'Disabled')+
       ' · Maximum '+ceiling+' AIVID credits/video · Agent '+(agent?'ready':'not ready')+
-      (ready?' · Premium submissions ready':' · Premium submissions paused');
+      (ready?' · Premium submissions ready':' · Premium submissions paused')+
+      (data.manualHandoff?' · Admin submits new requests by hand':'');
     savedState().className=ready?'ok': 'muted';
   }
   window.markAividSettingsDirty=()=>{
@@ -115,6 +116,7 @@
       el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
       el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit);
       el('aividRdpEnabled').checked = data.enabled === true;
+      el('aividManualHandoff').checked = data.manualHandoff === true;
       paintSavedState(data);
       configured = savedMode === 'rdp' ? data.rdp?.paired === true : data.apiKeyConfigured || data.configured;
       window.updateAividTransport();
@@ -148,16 +150,18 @@
     try {
       const expectedEnabled=el('aividRdpEnabled').checked;
       const expectedCeiling=Number(el('aividRdpCeiling').value);
+      const expectedHandoff=el('aividManualHandoff').checked;
       const saved=await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
         mode: el('aividTransport').value,
-        enabled: el('aividRdpEnabled').checked, maxSourceCredits: Number(el('aividRdpCeiling').value),
+        manualHandoff: expectedHandoff, enabled: expectedEnabled, maxSourceCredits: Number(el('aividRdpCeiling').value),
         apiKey: el('aividBrowserlessKey').value.trim(), endpoint: el('aividBrowserlessRegion').value,
         ttlDays: Number(el('aividSessionDays').value),
       }) });
       el('aividBrowserlessKey').value = '';
       const verified=await window.loadAividAdmin({strict:true});
       if(saved.enabled!==expectedEnabled || Number(saved.maxSourceCredits)!==expectedCeiling ||
-         verified.enabled!==expectedEnabled || Number(verified.maxSourceCredits)!==expectedCeiling)
+         verified.enabled!==expectedEnabled || Number(verified.maxSourceCredits)!==expectedCeiling ||
+         Boolean(saved.manualHandoff)!==expectedHandoff || Boolean(verified.manualHandoff)!==expectedHandoff)
         throw new Error('Saved AIVID state differs from your settings. Refresh Admin and check database write access.');
       message(savedMode === 'rdp'
         ? 'Saved and verified: AIVID '+(expectedEnabled?'enabled':'disabled')+
