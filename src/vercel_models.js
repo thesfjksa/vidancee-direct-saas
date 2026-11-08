@@ -340,7 +340,11 @@ function validateReferences(model,input={}) {
       if (c.formats?.length&&!c.formats.includes(format)&&!(format==='jpeg'&&c.formats.includes('jpg'))) fail('Unsupported reference '+kind+' format for this model.');
     }
   }
-  if (images.length+videos.length+audios.length+reused>caps.totalMax) fail('Too many total reference files for this model.');
+  // WXKSAI BD2 counts every media type in its combined 30-file quota.
+  // Preserve established caps for other providers (some exclude audio from
+  // the combined image/video quota).
+  const combined=images.length+videos.length+reused+(model.provider==='wxksai'?audios.length:0);
+  if (combined>caps.totalMax) fail('Too many total reference files for this model.');
   if (model.provider==='wxksai' && model.providerModelId==='seedance-2.5-bd-2') {
     const imageCount=images.length+reused;
     if (Number(input.duration)===4 && (imageCount>9 || videos.length || audios.length))
