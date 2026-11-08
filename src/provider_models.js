@@ -223,6 +223,19 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     base.inputSchema = safeJson(row.input_schema, {});
   }
   if(row.provider==='vercel')applyModelFixups(base);
+  if(row.provider==='wxksai' && row.media_type==='video' && base.adapterSupported) {
+    // Existing imports were persisted as text-only. Apply the now-verified V1
+    // reference contract on read, without requiring a risky DB re-import,
+    // changing user permissions, source prices, or enabling any model.
+    const { wxksaiReferenceCapabilities } = require('./wxksai_models.js');
+    base.referenceCapabilities = wxksaiReferenceCapabilities(row.provider_model_id);
+    base.mediaRoles = [
+      ...base.referenceCapabilities.image.roles,
+      ...base.referenceCapabilities.video.roles,
+      ...base.referenceCapabilities.audio.roles,
+    ];
+    base.supportedOperations = ['text-to-video', 'reference-to-video'];
+  }
   if(row.provider==='falimg'&&row.media_type==='image'&&base.enabled&&base.available){
     require('./fal_images.js').applySavedGptEdit(base,row.provider_model_id);
   }
