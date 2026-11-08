@@ -1,12 +1,36 @@
 'use strict';
-const path = require('node:path');
-const { startChrome } = require('./native.cjs');
-async function main() {
-  if (process.platform !== 'win32') throw new Error('Use this launcher on your Windows RDP.');
-  await startChrome(path.join(__dirname, '.aivid-rdp-profile'));
-  console.log('Ordinary Chrome opened for manual AIVID / Google sign-in. No automation or debugging is active.');
-  console.log('Finish signing in to aivid.dev. Then close this AIVID Chrome window once and start AIVID-Agent.exe.');
-  console.log('The agent will keep Chrome running afterwards. Your normal Chrome profile is not copied.');
+
+const { browserName, browserProfile, debuggerEndpoint, startBrowser } = require('./native.cjs');
+const { loadConfig, Transport } = require('./agent.cjs');
+
+async function selectedBrowser(root) {
+  let config;
+  try { config = await loadConfig(root); }
+  catch (error) {
+    // Preserve the Chrome login used before pairing a new installation.
+    if (error.code === 'ENOENT') return 'chrome';
+    throw new Error('Could not read the saved pairing. Start AIVID-Agent.exe to check pairing before signing in.');
+  }
+  try {
+    const result = await new Transport(config.origin, config.token).request('/browser', { method: 'GET' });
+    if (!['chrome', 'edge'].includes(result.browser)) throw new Error('Admin returned an invalid AIVID browser.');
+    return result.browser;
+  } catch (error) {
+    if (error.statusCode === 404) return 'chrome'; // Server predates browser selection.
+    throw error;
+  }
 }
-if (require.main === module) main().catch(() => { console.error('Could not open the login browser. Check that Chrome exists and this folder is writable.'); process.exitCode = 1; });
-module.exports = { main };
+
+async function main() {
+  if (process.platform !== 'win32') throw new Error('Run AIVID-Login.exe on your Windows RDP.');
+  const browser = await selectedBrowser(__dirname);
+  const profile = browserProfile(__dirname, browser);
+  if (await debuggerEndpoint(profile)) throw new Error('Close the AIVID window in ' + browserName(browser) + ' before opening the login launcher.');
+  await startBrowser(profile, { browser });
+  console.log(browserName(browser) + ' opened for manual AIVID / Google sign-in. Use the same AIVID account as before.');
+  console.log('Finish signing in, close this AIVID browser window, then start AIVID-Agent.exe.');
+}
+if (require.main === module) main().catch(error => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

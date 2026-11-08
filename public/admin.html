@@ -159,7 +159,8 @@
           <p class="muted">Choose a duration supported by your Browserless plan. The key and browser session are encrypted after saving.</p>
           </div>
           <div id="aividRdpFields" hidden>
-            <p class="muted">On your RDP, use AIVID-Login.exe to sign in once, close that login Chrome window, then start AIVID-Agent.exe. The agent keeps Chrome open and connects to CMMTools over HTTPS.</p>
+            <div class="field"><label for="aividRdpBrowser">Windows browser</label><select id="aividRdpBrowser" onchange="markAividSettingsDirty()"><option value="chrome">Google Chrome</option><option value="edge">Microsoft Edge</option></select></div>
+            <p class="muted">Save to switch the idle agent. Each browser keeps its own AIVID sign-in. If sign-in is needed, close the idle agent and its selected browser window, open AIVID-Login.exe from the latest package, and sign in to the same AIVID account. Close the login window, then restart AIVID-Agent.exe.</p>
             <p id="aividRdpStatus" class="muted" role="status">Save RDP mode, then pair the agent.</p>
             <button id="aividPairButton" class="secondary" type="button" onclick="pairAividRdp()">Generate pairing code</button>
             <div id="aividPairCopyRow" hidden style="margin-top:12px"><label for="aividPairCodeInput">One-time pairing code</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="aividPairCodeInput" readonly autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button id="aividCopyCodeButton" class="secondary" type="button" onclick="copyAividRdpCode()">Copy code</button></div></div>
@@ -1608,6 +1609,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=6"></script><script src="/longai-admin.js?v=3"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=7"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 

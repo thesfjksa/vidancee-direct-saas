@@ -62,6 +62,8 @@ function fixture() {
 test('RDP configuration accepts no Browserless key and exposes no agent credential', () => {
   const config = validateConfig({ mode: 'rdp' }, { apiKey: '', endpoint: 'https://production-sfo.browserless.io' });
   assert.equal(config.mode, 'rdp'); assert.equal(config.apiKey, ''); assert.equal(config.enabled, false);
+  assert.equal(config.rdpBrowser, 'chrome');
+  assert.throws(() => validateConfig({rdpBrowser:'firefox'},config), {statusCode:400});
   const status = publicConfig({ ...config, rdpDevice: { deviceId: jobId, tokenHash: 'private-hash' } });
   assert.equal(status.configured, true); assert.equal(status.rdp.paired, true);
   assert.doesNotMatch(JSON.stringify(status), /private-hash/);
@@ -91,6 +93,17 @@ test('pairing rechecks outstanding work when consuming a previously generated co
   await assert.rejects(f.service.pair(pairing.code), /outstanding AIVID jobs/);
   assert.equal((await readDevice(f.read)).deviceId, f.device.deviceId);
   assert.ok(f.records.get(PAIR_KEY), 'the code remains available after the conflicting job is resolved');
+});
+test('a legacy Chrome heartbeat cannot claim work after Admin switches to Edge', async () => {
+  const f = fixture();
+  f.service.getConfig = async () => ({ mode: 'rdp', rdpBrowser: 'edge' });
+  const device = await f.service.authorize('Bearer ' + f.token);
+  await f.store.insert({ id: jobId, deviceId: device.deviceId, kind: 'submit', payload: {}, expiresAt: Date.now() + 10000 });
+  assert.deepEqual(await f.service.poll(device, 'ready'), { command: null, browser: 'edge' });
+  assert.equal(publicDevice(await readDevice(f.read), Date.now(), 'edge').status, 'switching_browser');
+  assert.deepEqual(await f.service.poll(device, 'starting', 'edge'), { command: null, browser: 'edge' });
+  assert.equal((await f.service.poll(device, 'ready', 'edge')).command.id, jobId);
+  assert.equal(publicDevice(await readDevice(f.read), Date.now(), 'edge').status, 'ready');
 });
 test('one command can be claimed once, and login-required agents can only claim preflight', async () => {
   const f = fixture();

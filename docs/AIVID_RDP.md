@@ -51,10 +51,13 @@ path. Temporary commands/chunks are consumed on success or pruned after a day.
 Preflight never generates or debits a wallet. The default source ceiling is 0,
 and new submissions are blocked until Admin enables AIVID and sets a positive ceiling. **The three AIVID Premium models are now registered for customer Video Studio**, but only when the provider has been configured and the customer's AIVID source grant permits access; readiness controls whether Generate is enabled. Real paid generation/reference behavior for each model remains unverified. Existing unrelated providers remain unchanged.
 
-Native Chrome uses an isolated profile and an ephemeral loopback debugging port.
-Manual login has no debugging, `--enable-automation`, `--no-sandbox`, security
-disabling flags, or regular-profile copying. Closing the Playwright CDP transport
-leaves independently launched Chrome running; this is tested on Windows.
+Choose **Google Chrome** or **Microsoft Edge** under **Admin → Provider → AIVID
+→ Windows browser** and save. The managed agent switches between commands and
+checks the selected browser before accepting paid work. Use the complete 3.1.0
+package for the matching login launcher. The two browsers have separate profiles
+and both use an ephemeral loopback debugging port. Manual login starts without
+debugging or security overrides. See the [Windows package instructions](../scripts/aivid-rdp/README.md)
+for the first Edge sign-in.
 
 The owner confirmed ordinary Chrome Google/AIVID login works on the RDP. That
 does not establish that the new dedicated profile, production queue, downloads,

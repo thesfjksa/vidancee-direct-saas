@@ -10,9 +10,11 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
   process.env.AIVID_ENABLED = 'false';
   const dbModule = require('../src/db.js'), original = { ...dbModule };
   const settings = new Map();
+  let outstandingAivid = 0;
   const execute = async (sql, args = []) => {
     if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }]];
     if (sql.includes('RELEASE_LOCK')) return [[{}]];
+    if (sql.startsWith("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid'")) return [[{ total:outstandingAivid }]];
     if (sql.startsWith('SELECT setting_key')) return [[...settings.values()]];
     if (sql.startsWith('INSERT INTO app_settings')) {
       settings.set(args[0], { setting_key: args[0], setting_value: args[1], is_secret: args[2] });
@@ -89,6 +91,17 @@ test('AIVID diagnostics require admin auth and never expose session credentials'
   const raw = await require('../src/settings.js').getSettingValue('aivid_browserless_config');
   assert.equal(JSON.parse(raw).apiKey, 'private-browserless-test-key');
   assert.equal(JSON.parse(raw).ttlDays, 7);
+  const selectBrowser = rdpBrowser => fetch(origin + '/admin/aivid/settings', {method:'POST', headers,
+    body:JSON.stringify({mode:'rdp', rdpBrowser})});
+  assert.equal((await selectBrowser('chrome')).status, 200);
+  outstandingAivid = 1;
+  const blocked = await selectBrowser('edge');
+  assert.equal(blocked.status, 409);
+  assert.match((await blocked.json()).error, /outstanding automatic AIVID jobs/);
+  outstandingAivid = 0;
+  const switched = await selectBrowser('edge');
+  assert.equal(switched.status, 200);
+  assert.equal((await switched.json()).rdpBrowser, 'edge');
   const script = await fetch(origin + '/aivid-admin.js?v=1');
   assert.equal(script.status, 200); assert.match(script.headers.get('content-type'), /javascript/);
 });

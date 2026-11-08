@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { chromeArguments, debuggerEndpoint, takeLock, downloadNative } = require('../native.cjs');
+const { findBrowser, browserProfile, browserArguments, debuggerEndpoint, takeLock, downloadNative } = require('../native.cjs');
 const { origin, Transport, loadConfig, saveConfig, readPairingInput } = require('../agent.cjs');
 const { Readable } = require('node:stream');
 test('Windows dialog pairing input is bounded, validated and never included in errors', async () => {
@@ -15,10 +15,20 @@ test('Windows dialog pairing input is bounded, validated and never included in e
     await assert.rejects(readPairingInput(Readable.from([input])), error => { assert.doesNotMatch(error.message, new RegExp(code)); return true; });
   await assert.rejects(readPairingInput(Readable.from(['http://cmmtools.site\n' + code])), /HTTPS/);
 });
+test('browser discovery uses the selected executable and keeps the existing Chrome profile separate', () => {
+  const env = { 'ProgramFiles(x86)': 'C:\\Program Files (x86)', AIVID_CHROME_PATH: 'D:\\chrome.exe' };
+  const edge = path.win32.join(env['ProgramFiles(x86)'], 'Microsoft', 'Edge', 'Application', 'msedge.exe');
+  const exists = candidate => [edge, env.AIVID_CHROME_PATH].includes(candidate);
+  assert.equal(findBrowser('edge', env, exists), edge);
+  assert.equal(findBrowser('chrome', env, exists), env.AIVID_CHROME_PATH);
+  assert.throws(() => findBrowser('edge', env, candidate => candidate === env.AIVID_CHROME_PATH), /Microsoft Edge is not installed/);
+  assert.equal(browserProfile('agent', 'chrome'), path.join('agent', '.aivid-rdp-profile'));
+  assert.equal(browserProfile('agent', 'edge'), path.join('agent', '.aivid-rdp-edge-profile'));
+});
 test('manual login has no automation or debugging flags; automation binds only to loopback', () => {
-  const login = chromeArguments('./private-profile');
+  const login = browserArguments('./private-profile');
   assert.doesNotMatch(login.join(' '), /debugging|enable-automation|no-sandbox|disable-web-security|remote-allow-origins/);
-  const agent = chromeArguments('./private-profile', true);
+  const agent = browserArguments('./private-profile', true);
   assert.ok(agent.includes('--remote-debugging-address=127.0.0.1')); assert.ok(agent.includes('--remote-debugging-port=0'));
   assert.doesNotMatch(agent.join(' '), /0\.0\.0\.0|enable-automation|no-sandbox|disable-web-security|remote-allow-origins/);
 });
@@ -61,6 +71,28 @@ test('native download validates the MP4 header and deletes only its temporary do
   await assert.rejects(downloadNative(page), /valid MP4/); assert.equal(deleted, 2);
 });
 
+test('the idle agent preflights the browser selected in Admin before using it', async t => {
+  const { Agent } = require('../agent.cjs');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'aivid-switch-browser-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const checked = [], advertised = [];
+  let agent;
+  const transport = { request: async (route, { body }) => {
+    assert.equal(route, '/poll');
+    advertised.push(body);
+    if (body.status === 'starting') return { browser: 'chrome', command: null };
+    if (body.browser === 'chrome') return { browser: 'edge', command: null };
+    agent.stopping = true;
+    return { browser: 'edge', command: null };
+  } };
+  agent = new Agent({ root, transport, pause: async () => {},
+    clientFactory: () => ({ preflight: async () => checked.push(agent.browser) }) });
+  await agent.run();
+  assert.deepEqual(checked, ['chrome', 'edge']);
+  assert.deepEqual(advertised, [
+    { status: 'starting', browser: 'chrome' }, { status: 'ready', browser: 'chrome' }, { status: 'ready', browser: 'edge' }
+  ]);
+});
 test('job-specific errors leave the agent available for the next poll',async t=>{
   const {Agent}=require('../agent.cjs');
   for(const kind of ['collect','preflight']){

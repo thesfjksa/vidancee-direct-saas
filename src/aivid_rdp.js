@@ -90,20 +90,25 @@ async function readDevice(read = getSettingValue) {
   const value = parse(device), heartbeat = parse(beat);
   return { ...value, ...(heartbeat.deviceId === value.deviceId ? heartbeat : {}) };
 }
-function publicDevice(device, now = Date.now()) {
+function publicDevice(device, now = Date.now(), selectedBrowser = 'chrome') {
   const age = now - Date.parse(device.seenAt);
+  const online = Number.isFinite(age) && age >= 0 && age < 45000;
+  const browser = device.browser === 'edge' ? 'edge' : 'chrome';
+  const status = RDP_STATUSES.includes(device.status) ? device.status : 'offline';
   return { paired: Boolean(device.deviceId && device.tokenHash), deviceId: device.deviceId || null,
-    online: Number.isFinite(age) && age >= 0 && age < 45000,
-    seenAt: device.seenAt || null, status: RDP_STATUSES.includes(device.status) ? device.status : 'offline' };
+    online, browser, seenAt: device.seenAt || null,
+    status: online && browser !== selectedBrowser ? 'switching_browser' : status };
 }
 
 class AividRdpClient {
-  constructor({ rdpDevice, maxSourceCredits = 0, store, now = Date.now, delay = pause } = {}) {
-    this.device = rdpDevice; this.maxSourceCredits = maxSourceCredits; this.store = store || new RdpStore(); this.now = now; this.delay = delay;
+  constructor({ rdpDevice, rdpBrowser, maxSourceCredits = 0, store, now = Date.now, delay = pause } = {}) {
+    this.device = rdpDevice; this.browser = rdpBrowser; this.maxSourceCredits = maxSourceCredits; this.store = store || new RdpStore(); this.now = now; this.delay = delay;
   }
   async run(kind, payload, { beforeClick, references = [], generationId = null, timeoutMs = 180000 } = {}) {
     if (!this.device?.deviceId || !this.device?.tokenHash) throw failure('Pair the Windows RDP agent in Admin first.', 503);
-    const device=publicDevice(this.device,this.now());
+    const device=publicDevice(this.device,this.now(),this.browser);
+    if(device.status==='switching_browser')
+      throw failure('The Windows agent has not opened the selected browser yet. Check the RDP agent and sign in there if needed.',503);
     if(device.online&&device.status==='needs_verification')
       throw Object.assign(failure(diagnosticMessage('session_verification'),503),{aividCode:'session_verification'});
     const command = { id: crypto.randomUUID(), deviceId: this.device.deviceId, generationId, kind,
@@ -223,15 +228,19 @@ class AividRdpService {
     if (!token) throw failure('RDP agent authentication required.', 401);
     const device = await readDevice(this.read);
     if (!matches(device.tokenHash, hash(token))) throw failure('RDP agent authentication required.', 401);
-    if ((await this.getConfig()).mode !== 'rdp') throw failure('RDP mode is not active.', 409);
-    return device;
+    const config = await this.getConfig();
+    if (config.mode !== 'rdp') throw failure('RDP mode is not active.', 409);
+    return { ...device, selectedBrowser: config.rdpBrowser || 'chrome' };
   }
-  async poll(device, status) {
+  async poll(device, status, browser = 'chrome') {
     if (!RDP_STATUSES.includes(status)) throw failure('Invalid RDP status.');
-    await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status, seenAt: new Date(this.now()).toISOString() }));
-    if (['busy', 'starting', 'needs_verification'].includes(status)) return { command: null };
+    if (!['chrome', 'edge'].includes(browser)) throw failure('Invalid RDP browser.');
+    await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status, browser, seenAt: new Date(this.now()).toISOString() }));
+    const selectedBrowser = device.selectedBrowser || 'chrome';
+    if (browser !== selectedBrowser || ['busy', 'starting', 'needs_verification'].includes(status))
+      return { command: null, browser: selectedBrowser };
     const command = await this.store.claim(device.deviceId, status !== 'ready');
-    return { command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
+    return { browser: selectedBrowser, command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
   }
   async command(device, id) {
     if (!UUID.test(id)) throw failure('Invalid RDP operation.');
