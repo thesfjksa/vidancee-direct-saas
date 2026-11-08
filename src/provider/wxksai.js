@@ -10,12 +10,19 @@ function safeId(value) {
   if (!/^[a-zA-Z0-9_-]{1,191}$/.test(id)) throw new Error('WXKSAI did not provide a valid task ID.');
   return id;
 }
-function providerError(status) {
+function providerError(status, { response, method = 'GET', path = '' } = {}) {
   const error = new Error(status === 401 || status === 403
     ? 'WXKSAI rejected the saved API key or model access.'
     : 'WXKSAI returned HTTP ' + status + '.');
   error.providerStatus = status;
   error.statusCode = 502;
+  error.code = 'WXKSAI_UPSTREAM_HTTP';
+  error.requestMethod = method;
+  error.recoveryStage = method === 'POST' && path === '/v1/videos' ? 'submit'
+    : path.endsWith('/content') ? 'download' : path.startsWith('/v1/videos/') ? 'poll' : 'catalog';
+  // Safe correlation only: never log the upstream body, key, or request URL.
+  const requestId = response?.headers?.get?.('x-request-id') || response?.headers?.get?.('cf-ray') || '';
+  if (/^[a-zA-Z0-9._:-]{4,128}$/.test(requestId)) error.providerRequestId = requestId;
   return error;
 }
 
@@ -52,13 +59,13 @@ class WxksaiClient {
     }
     if (response.status < 300 && !response.ok) {
       await response.body?.cancel?.().catch(()=>{});
-      throw providerError(response.status);
+      throw providerError(response.status, { response, method, path });
     }
     return response;
   }
   async json(path, body, timeoutMs) {
     const response = await this.request(path,{method:body?'POST':'GET',body,timeoutMs:timeoutMs||(body?75000:40000)});
-    if (!response.ok) { await response.body?.cancel?.().catch(()=>{}); throw providerError(response.status); }
+    if (!response.ok) { await response.body?.cancel?.().catch(()=>{}); throw providerError(response.status, { response, method: body ? 'POST' : 'GET', path }); }
     try {
       return JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8'));
     } catch {
@@ -107,7 +114,7 @@ class WxksaiClient {
         throw new Error('WXKSAI returned an unsafe media download link.');
       bytes = await this.fetchMedia(target.href,{accept:'video/mp4',maxBytes:VIDEO_LIMIT,timeoutMs:90000});
     } else {
-      if (!response.ok) throw providerError(response.status);
+      if (!response.ok) throw providerError(response.status, { response, method: 'GET', path: '/v1/videos/' + id + '/content' });
       bytes = await readBounded(response, VIDEO_LIMIT);
     }
     if (!isCompleteMp4(bytes)) throw new Error('WXKSAI output did not contain a complete MP4.');
