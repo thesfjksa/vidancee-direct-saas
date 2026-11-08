@@ -57,7 +57,7 @@ function wxksaiMediaModels(live) {
     const priceUsd = spec.priceCny / CNY_PER_USD;
     const pricing = spec.pricingMode === 'clip'
       ? { video_duration_prices: spec.durations.map(duration => ({ duration, cost: priceUsd })) }
-      : { video_duration_pricing: [{ resolution: spec.resolution, cost_per_second: priceUsd }] };
+      : { video_duration_pricing: (spec.resolutions || [spec.resolution]).map(resolution => ({ resolution, cost_per_second: priceUsd })) };
     return {
       providerModelId: id, publicModelId: publicId(id), label: spec.name, mediaType: 'video',
       options: {
