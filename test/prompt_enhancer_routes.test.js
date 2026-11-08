@@ -1,116 +1,73 @@
+'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const { once } = require('node:events');
-const { GEMINI_ENHANCER_MODEL } = require('../src/prompt_enhancer.js');
 
-test('enhancement HTTP routes enforce auth/settings, encrypt keys, preserve credits and use Gemini', async t => {
-  process.env.PORT = '0'; process.env.HOST = '127.0.0.1'; process.env.WORKER_ENABLED = 'false'; process.env.ADMIN_TOKEN = 'test-admin-only';
-  const values = new Map();
-  const users = new Map([1, 2, 3].map(id => [id, { id, email: 'user'+id+'@example.com', credits: 2000, status: 'active', plan_code: 'pro' }]));
-  async function execute(sql, args = []) {
-    if (sql.startsWith('CREATE')) return [[]];
-    if (sql.includes('SELECT setting_key')) return [[...values.values()]];
-    if (sql.includes('INSERT INTO app_settings')) { values.set(args[0], { setting_key: args[0], setting_value: args[1], is_secret: args[2] }); return [{ affectedRows: 1 }]; }
-    if (sql.includes('DELETE FROM app_settings')) { values.delete(args[0]); return [{ affectedRows: 1 }]; }
-    if (sql.startsWith('SELECT provider,enabled')) return [[]];
-    throw Error('Unexpected SQL (enhancement must not alter customer credits): '+sql);
-  }
-  const dbModule = require('../src/db.js'); const originalDb = { ...dbModule };
-  Object.assign(dbModule, { dbConfigured: () => true, getPool: () => ({ query: execute, execute }), initDb: async () => true, dbHealth: async () => ({ connected: true }) });
-  const auth = require('../src/auth.js'); const originalAuth = { ...auth };
-  auth.userFromRequest = async req => users.get(Number(req.headers['x-test-user'] || 1));
-  auth.requireUser = async req => { const user = await auth.userFromRequest(req); if (!user) throw Object.assign(Error('Authentication required.'), { statusCode: 401 }); return user; };
-  const realFetch = globalThis.fetch; let calls = 0; let mode = 'ok',release;
-  globalThis.fetch = async (url, options) => {
-    assert.match(url, /^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-3\.8-flash/);
-    assert.equal(options.headers['x-goog-api-key'], 'test-gemini-secret');
-    if (options.method === 'GET') return Response.json({ name: 'models/'+GEMINI_ENHANCER_MODEL, supportedGenerationMethods: ['generateContent'] });
-    calls++;
-    if(mode==='slow')await new Promise(resolve=>{release=resolve;});
-    if (mode === 'fail') return Response.json({ error: 'test-gemini-secret' }, { status: 503 });
-    if (mode === 'blocked') return Response.json({ promptFeedback: { blockReason: 'SAFETY' } });
-    const body = JSON.parse(options.body);
-    if (!['low', 'medium', 'high'].includes(body.generationConfig.thinkingConfig.thinkingLevel)) {
-      return Response.json({ error: { status: 'INVALID_ARGUMENT', message: 'Unsupported thinking level' } }, { status: 400 });
-    }
-    assert.equal(JSON.parse(body.contents[0].parts[0].text).prompt, 'A child dancing');
-    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'A realistic child dancing in a quiet street.' }] } }] });
-  };
-  const server = require('../server.js');
-  t.after(async () => { await new Promise(resolve => server.close(resolve)); globalThis.fetch = realFetch; Object.assign(dbModule, originalDb); Object.assign(auth, originalAuth); });
-  if (!server.listening) await once(server, 'listening');
-  const origin = 'http://127.0.0.1:'+server.address().port;
-  async function request(path, { admin = false, method = 'GET', body, user = 1 } = {}) {
-    const response = await realFetch(origin+path, { method, headers: { 'x-test-user': String(user), ...(admin ? { 'x-admin-token': 'test-admin-only' } : {}), ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    return { status: response.status, data: await response.json() };
-  }
-  const input = { prompt: 'A child dancing', mediaType: 'image', aspectRatio: '1:1' };
-  assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input, user: 0 })).status,401);
-  assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,503);
-  assert.equal((await request('/admin/prompt-enhancer/check', { method: 'POST' })).status,401);
-  const saved = await request('/admin/provider-settings', { admin: true, method: 'POST', body: { promptEnhancerApiKey: 'test-gemini-secret', promptEnhancerEnabled: true, allowProviderCharges: true } });
-  assert.equal(saved.status,200); assert.equal(saved.data.settings.promptEnhancer.active,true);
-  assert.equal(saved.data.settings.promptEnhancer.model,GEMINI_ENHANCER_MODEL);
-  assert.equal(JSON.stringify(saved.data).includes('test-gemini-secret'),false);
-  assert.match(values.get('prompt_enhancer_gemini_api_key').setting_value,/^v1:/);
-  assert.equal(values.get('prompt_enhancer_gemini_api_key').is_secret,1);
-  const config = await request('/api/config'); assert.equal(config.data.promptEnhancer.enabled,true);
-  assert.equal(config.data.promptEnhancer.revision,5);
-  assert.equal(config.data.promptEnhancer.timeoutMs,120000);
-  assert.equal(config.data.promptEnhancer.async,true);
-  assert.equal(JSON.stringify(config.data).includes('gemini'),false);
-  assert.equal((await request('/admin/prompt-enhancer/check', { admin: true, method: 'POST' })).status,200);
-  for (const mediaType of ['image','video']) {
-    const result = await request('/api/prompts/enhance', { method: 'POST', body: { ...input, mediaType } });
-    assert.equal(result.status,200); assert.equal(result.data.prompt,'A realistic child dancing in a quiet street.');
-  }
-  assert.equal(calls,2); assert.equal(users.get(1).credits,2000);
-  for (const body of [{ ...input, prompt: '' }, { ...input, mediaType: 'audio' }, { ...input, prompt: 'x'.repeat(8001) }]) {
-    assert.equal((await request('/api/prompts/enhance', { method: 'POST', body })).status,400);
-  }
-  assert.equal(calls,2);
-  users.get(2).status = 'disabled';
-  assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input, user: 2 })).status,403);
-  users.get(2).status = 'active'; mode = 'fail';
-  const failure = await request('/api/prompts/enhance', { method: 'POST', body: input, user: 2 });
-  assert.equal(failure.status,502); assert.equal(JSON.stringify(failure.data).includes('test-gemini-secret'),false);
-  assert.match(failure.data.error,/temporarily unavailable \(HTTP 503\)/);
-  mode = 'blocked'; assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input, user: 2 })).status,422); mode = 'ok';
-  for (let i=0;i<4;i++) assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,200);
-  assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,429);
-  const before=calls,asyncInput={...input,async:true,requestId:'00000000-0000-4000-8000-000000000001'};
-  mode='slow';
-  const started=await request('/api/prompts/enhance',{method:'POST',body:asyncInput,user:3});
-  assert.equal(started.status,202);assert.equal(started.data.status,'processing');
-  const jobPath='/api/prompts/enhance/'+started.data.jobId;
-  assert.equal((await request(jobPath,{user:3})).data.status,'processing');
-  // Recover an accepted POST whose HTTP response was lost, using a read-only lookup.
-  const recoveryPath='/api/prompts/enhance/requests/'+asyncInput.requestId;
-  const recovered=await request(recoveryPath,{user:3});
-  assert.equal(recovered.status,200);assert.equal(recovered.data.jobId,started.data.jobId);
-  assert.equal(recovered.data.status,'processing');assert.equal(calls,before+1);
-  assert.equal((await request(recoveryPath,{user:2})).status,404);
-  assert.equal((await request(recoveryPath,{user:0})).status,401);
+const studio = fs.readFileSync(require.resolve('../public/index.html'), 'utf8');
+const admin = fs.readFileSync(require.resolve('../public/admin.html'), 'utf8');
+const adminNav = fs.readFileSync(require.resolve('../public/provider-admin.js'), 'utf8');
+const settings = fs.readFileSync(require.resolve('../src/settings.js'), 'utf8');
 
-  assert.equal((await request(jobPath,{user:2})).status,404);
-  assert.equal((await request(jobPath,{user:0})).status,401);
-  assert.equal((await request('/api/prompts/enhance',{method:'POST',body:asyncInput,user:3})).data.jobId,started.data.jobId);
-  assert.equal(calls,before+1);
-  assert.equal((await request('/api/prompts/enhance',{method:'POST',body:{...asyncInput,prompt:'Different'},user:3})).status,409);
-  users.get(3).status='disabled';assert.equal((await request(recoveryPath,{user:3})).status,403);assert.equal((await request(jobPath,{user:3})).status,403);users.get(3).status='active';
-  mode='ok';release();
-  let completed;
-  for(let i=0;i<20;i++){completed=await request(jobPath,{user:3});if(completed.data.status==='completed')break;await new Promise(r=>setImmediate(r));}
-  assert.equal(completed.data.status,'completed');assert.match(completed.data.prompt,/realistic child/);
-  assert.deepEqual((await request(recoveryPath,{user:3})).data,completed.data);
-  const replay=await request('/api/prompts/enhance',{method:'POST',body:asyncInput,user:3});
-  assert.equal(replay.status,200);assert.equal(replay.data.status,'completed');assert.equal(calls,before+1);
-  assert.equal(users.get(3).credits,2000);
-  for (const settings of [{ promptEnhancerEnabled: false }, { promptEnhancerEnabled: true, allowProviderCharges: false }, { allowProviderCharges: true, clearPromptEnhancerApiKey: true }]) {
-    await request('/admin/provider-settings', { admin: true, method: 'POST', body: settings });
-    assert.equal((await request('/api/config')).data.promptEnhancer.enabled,false);
-    assert.equal((await request('/api/prompts/enhance', { method: 'POST', body: input })).status,503);
+test('prompt enhancer is absent from customer and Admin controls, models, and settings', () => {
+  for (const [file, body] of [
+    ['studio',studio],['admin',admin],['Admin navigation',adminNav],['provider settings',settings],
+  ]) {
+    assert.doesNotMatch(body, /prompt[-_ ]?enhanc|Prompt enhancer|GeminiPromptEnhancer|enhancerEnabled|enhancerApiKey|enhancedPromptCache/i, file);
   }
-  assert.equal(values.has('prompt_enhancer_gemini_api_key'),false); assert.equal(users.get(1).credits,2000);
-  assert.equal((await request(jobPath,{user:3})).data.status,'completed');
+  assert.match(studio,/id="prompt"/);
+  assert.match(studio,/id="imagePrompt"/);
+  assert.match(admin,/data-provider-source="vibi"/);
+  assert.match(admin,/data-provider-source="fal"/);
+  assert.match(adminNav,/aivid: null/);
+  assert.match(settings,/allow_provider_charges/);
+  assert.equal(Object.hasOwn(require('../src/settings.js').DEFAULTS || {}, 'prompt_enhancer_enabled'),false);
+});
+
+test('original image/video prompts reach generation unchanged without an enhancement network request', () => {
+  const start=studio.indexOf('function prepareGenerationPrompt(kind){');
+  const end=studio.indexOf('async function createImageGeneration(){',start);
+  assert.ok(start>=0 && end>start);
+  const calls=[];
+  const fields={imagePrompt:{value:'  Keep @Image1 exactly as written.\n'},prompt:{value:'  A cat moves past @Video1.\n'}};
+  const ctx=vm.createContext({ $: id=>{calls.push(id);return fields[id];} });
+  vm.runInContext(studio.slice(start,end),ctx);
+  assert.equal(ctx.prepareGenerationPrompt('image'),fields.imagePrompt.value);
+  assert.equal(ctx.prepareGenerationPrompt('video'),fields.prompt.value);
+  assert.deepEqual(calls,['imagePrompt','prompt']);
+  fields.imagePrompt.value='  ';
+  assert.throws(()=>ctx.prepareGenerationPrompt('image'),/Enter a prompt before generating/);
+  assert.doesNotMatch(studio,/\/api\/prompts\/enhance/);
+});
+
+test('retired enhancement APIs return 410 without credentials or provider calls; public config contains no enhancer', async t => {
+  process.env.PORT='0';
+  process.env.HOST='127.0.0.1';
+  process.env.WORKER_ENABLED='false';
+  const db=require('../src/db.js');
+  const oldConfigured=db.dbConfigured;
+  db.dbConfigured=()=>false;
+  const server=require('../server.js');
+  t.after(async()=>{
+    server.closeAllConnections();
+    await new Promise(resolve=>server.close(resolve));
+    db.dbConfigured=oldConfigured;
+  });
+  if(!server.listening)await once(server,'listening');
+  const origin='http://127.0.0.1:'+server.address().port;
+  const publicConfig=await (await fetch(origin+'/api/config')).json();
+  assert.equal(Object.hasOwn(publicConfig,'promptEnhancer'),false);
+  for(const [method,path] of [
+    ['POST','/api/prompts/enhance'],
+    ['GET','/api/prompts/enhance/00000000-0000-4000-8000-000000000001'],
+    ['GET','/api/prompts/enhance/requests/00000000-0000-4000-8000-000000000001'],
+  ]) {
+    const response=await fetch(origin+path,{method,headers:{'content-type':'application/json'},
+      ...(method==='POST'?{body:JSON.stringify({prompt:'A sunrise',mediaType:'image'})}:{})});
+    assert.equal(response.status,410,path);
+    const body=await response.json();
+    assert.equal(body.ok,false);
+    assert.match(body.error,/no longer available/i);
+  }
 });
