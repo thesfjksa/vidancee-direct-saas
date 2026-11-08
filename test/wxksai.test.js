@@ -33,6 +33,21 @@ test('WXKSAI per-second rate scales correctly',()=>{
   assert.equal(cost(10),Math.ceil(0.78*10/CNY_PER_USD*CREDITS_PER_USD));
   assert.ok(cost(30)>cost(4));
 });
+test('WXKSAI Wan 3.0 is priced per second at either 720p or 1080p',()=>{
+  const model=modelFor('wan3.0-video');
+  for(const resolution of ['720p','1080p']){
+    const value=quoteGateway(model,{duration:30,resolution,aspectRatio:'9:16'},CREDITS_PER_USD);
+    assert.equal(value.cost,Math.ceil(0.247*30/CNY_PER_USD*CREDITS_PER_USD));
+  }
+  assert.throws(()=>quoteGateway(model,{duration:31}),/Unsupported duration/);
+});
+test('WXKSAI Seedance 2.0 900 is fixed at ten seconds and ¥2.1 per clip',()=>{
+  const model=modelFor('seedance-2.0-full-720p-900');
+  assert.equal(quoteGateway(model,{duration:10,resolution:'720p'},CREDITS_PER_USD).cost,
+    Math.ceil(2.1/CNY_PER_USD*CREDITS_PER_USD));
+  assert.throws(()=>quoteGateway(model,{duration:15}),/Unsupported duration/);
+  assert.throws(()=>quoteGateway(model,{resolution:'1080p'}),/Unsupported resolution/);
+});
 test('WXKSAI model and task API use one paid POST and exact task status',async()=>{
   const calls=[];
   const client=new WxksaiClient({apiKey:'test-key',fetchImpl:async(url,options)=>{
