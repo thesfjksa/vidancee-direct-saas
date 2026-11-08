@@ -15,6 +15,10 @@ function hideVendors(text) {
     .replace(/\b(?:CREATEPULSE|VIDANCEE|VGENV|ARGOLINK|SMARTAIPI|VERCEL|FAL|VIBI|GEMINI|YOTTA|HIGGSFIELD|SLUICE)_[A-Z_]+\b/g, 'service setting')
     .replace(/\bAPI888_[A-Z_]+\b/g, 'service setting')
     .replace(/\bapi888_(?=[a-z0-9])/gi, '')
+    // WXKSAI is branded as Dope for customers, including historical failures
+    // already stored in the database before the white-label rollout.
+    .replace(/\bwxksai_([a-z0-9_]+)/gi, (_, suffix) => 'dope_' + suffix)
+    .replace(/wxksai/gi, 'Dope')
     // "This 888API model" reads better as "This model" than with a stand-in.
     .replace(/\b(?:888[\s-]*API|API[\s-]*888)\s+(?=(?:model|image|video|audio|output|references?|task|request|operation|key|token|balance)\b)/gi, '')
     .replace(/^[a-z]/, c => c.toUpperCase())
