@@ -29,6 +29,17 @@ const SPECS = Object.freeze({
     ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
     promptMax: 45000,
   },
+  'wan3.0-video': {
+    name: 'Wan 3.0 Standard · WXKSAI', resolution: '720p',
+    resolutions: ['720p', '1080p'],
+    durations: everySecond(5, 30), defaultDuration: 5,
+    priceCny: 0.247, pricingMode: 'second', ratios: RATIOS,
+  },
+  'seedance-2.0-full-720p-900': {
+    name: 'Seedance 2.0 Full 720p (900) · WXKSAI', resolution: '720p',
+    durations: [10], defaultDuration: 10,
+    priceCny: 2.1, pricingMode: 'clip', ratios: RATIOS,
+  },
   'seedance2.5-buff': {
     name: 'Seedance 2.5 Buff 720p · WXKSAI', resolution: '720p',
     durations: everySecond(4, 30), defaultDuration: 10, priceCny: 0.78, pricingMode: 'second',
@@ -52,7 +63,7 @@ function wxksaiMediaModels(live) {
       options: {
         catalogVerified: true, adapterSupported: true, gatewayType: 'video',
         pricing, wxksai: { priceCny: spec.priceCny, pricingMode: spec.pricingMode, priceCheckedAt: '2026-11-08' },
-        durations: spec.durations, resolutions: [spec.resolution],
+        durations: spec.durations, resolutions: spec.resolutions || [spec.resolution],
         aspectRatios: spec.ratios, defaultDuration: spec.defaultDuration,
         defaultResolution: spec.resolution, defaultAspectRatio: '16:9',
         inputLimits: { text: { max_chars: Math.min(20000,spec.promptMax||10000) } },
