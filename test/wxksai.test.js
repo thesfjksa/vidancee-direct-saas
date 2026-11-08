@@ -75,6 +75,38 @@ test('WXKSAI API failures never auto-submit a second paid request',async()=>{
   await assert.rejects(client.startVideo({model:{providerModelId:'seedance-2.5-special2'},prompt:'P',duration:5,resolution:'1080p',aspectRatio:'16:9'}),/failed or timed out/);
   assert.equal(submissions,1);
 });
+test('WXKSAI 502 during paid submission is unconfirmed and carries safe diagnostic metadata',async()=>{
+  let submissions=0;
+  const client=new WxksaiClient({apiKey:'test',fetchImpl:async(_url,options)=>{
+    assert.equal(options.method,'POST');
+    submissions++;
+    return new Response(JSON.stringify({error:'untrusted upstream text'}),{
+      status:502,headers:{'x-request-id':'wx-502-abc','content-type':'application/json'},
+    });
+  }});
+  let error;
+  try{
+    await client.startVideo({model:{providerModelId:'seedance-2.5-full-720p-9img'},prompt:'Cartoon walks',duration:15,resolution:'720p',aspectRatio:'16:9'});
+  }catch(e){error=e;}
+  assert.equal(submissions,1);
+  assert.ok(error);
+  assert.equal(error.providerStatus,502);
+  assert.equal(error.code,'WXKSAI_UPSTREAM_HTTP');
+  assert.equal(error.recoveryStage,'submit');
+  assert.equal(error.requestMethod,'POST');
+  assert.equal(error.providerRequestId,'wx-502-abc');
+  const message=new WxksaiQueue().submitFailureMessage(error);
+  assert.match(message,/HTTP 502/);
+  assert.match(message,/Task creation is unconfirmed/);
+  assert.match(message,/credits were refunded/);
+  assert.match(message,/check WXKSAI task history before retrying/);
+  assert.doesNotMatch(message,/untrusted upstream text/);
+});
+test('WXKSAI submission timeouts warn against duplicate paid jobs',()=>{
+  const message=new WxksaiQueue().submitFailureMessage({code:'WXKSAI_TIMEOUT'});
+  assert.match(message,/did not confirm/);
+  assert.match(message,/before retrying/);
+});
 test('WXKSAI queue is isolated and customer access SQL is scoped',()=>{
   const q=new WxksaiQueue();
   assert.equal(q.provider,'wxksai');
