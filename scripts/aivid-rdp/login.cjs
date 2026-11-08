@@ -1,12 +1,17 @@
 'use strict';
 const path = require('node:path');
-const { startChrome } = require('./native.cjs');
+const { startBrowser } = require('./native.cjs');
+const { Transport, loadConfig } = require('./agent.cjs');
 async function main() {
   if (process.platform !== 'win32') throw new Error('Use this launcher on your Windows RDP.');
-  await startChrome(path.join(__dirname, '.aivid-rdp-profile'));
-  console.log('Ordinary Chrome opened for manual AIVID / Google sign-in. No automation or debugging is active.');
-  console.log('Finish signing in to aivid.dev. Then close this AIVID Chrome window once and start AIVID-Agent.exe.');
-  console.log('The agent will keep Chrome running afterwards. Your normal Chrome profile is not copied.');
+  const config = await loadConfig(__dirname);
+  const selected = await new Transport(config.origin, config.token).request('/browser', { method: 'GET' });
+  const browser = selected.browser === 'edge' ? 'edge' : 'chrome';
+  const name = browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome';
+  await startBrowser(path.join(__dirname, browser === 'edge' ? '.aivid-rdp-edge-profile' : '.aivid-rdp-profile'), { browser });
+  console.log('Ordinary ' + name + ' opened for manual AIVID / Google sign-in. No automation or debugging is active.');
+  console.log('Finish signing in to aivid.dev. Then close this AIVID ' + name + ' window once and start AIVID-Agent.exe.');
+  console.log('The agent will keep ' + name + ' running afterwards. Your normal browser profile is not copied.');
 }
-if (require.main === module) main().catch(() => { console.error('Could not open the login browser. Check that Chrome exists and this folder is writable.'); process.exitCode = 1; });
+if (require.main === module) main().catch(() => { console.error('Could not open the selected login browser. Check that the agent is paired, the CMMTools connection works, the selected browser is installed and this folder is writable.'); process.exitCode = 1; });
 module.exports = { main };

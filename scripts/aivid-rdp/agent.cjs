@@ -62,14 +62,15 @@ async function saveConfig(root, value, codec = protect) {
 class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
     this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
-    this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
+    this.browser = 'chrome';
+    this.connect = connect || (() => connectNative(path.join(root, this.browser === 'edge' ? '.aivid-rdp-edge-profile' : '.aivid-rdp-profile'), { browser: this.browser }));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: (page,id) => collectSavedVideo(page,id,{checkChallenge:adapter.assertNoAividChallenge}), maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
       onBlockedRequest: ({method, hostname, path}) =>
         console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
   }
   async check() {
-    console.log('Opening saved Chrome and checking AIVID. No video will be generated.');
+    console.log('Opening saved ' + (this.browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome') + ' and checking AIVID. No video will be generated.');
     try {
       await this.clientFactory(0).preflight({ prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' });
       this.status = 'ready'; console.log('AIVID session ready. No video was generated.');
@@ -155,6 +156,10 @@ class Agent {
         const heartbeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
         try { await this.check(); } finally { clearInterval(heartbeat); }
       };
+      try {
+        const selection = await this.transport.request('/browser', { method: 'GET' });
+        this.browser = selection.browser === 'edge' ? 'edge' : 'chrome';
+      } catch { console.log('Browser selection unavailable; using Chrome until server settings can be read.'); }
       await checkSession();
       let nextSessionCheck = this.now() + 30000;
       let releaseCheckedAt=0,initialRelease=process.env.AIVID_RUNTIME_VERSION||null;
@@ -175,7 +180,14 @@ class Agent {
             await checkSession();
             nextSessionCheck = this.now() + 30000;
           }
-          const { command } = await this.transport.request('/poll', { body: { status: this.status } });
+          const { command, browser } = await this.transport.request('/poll', { body: { status: this.status, browser: this.browser } });
+          if (browser && ['chrome', 'edge'].includes(browser) && browser !== this.browser && this.status !== 'busy') {
+            this.browser = browser;
+            this.status = 'starting';
+            await checkSession();
+            nextSessionCheck = this.now() + 30000;
+            continue;
+          }
           if (command) {
             const previous = this.status;
             this.status = 'busy';

@@ -16,9 +16,18 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
       json(res, 200, { ok: true, ...await api.pair(input.code) }); return true;
     }
     const device = await api.authorize(req.headers.authorization);
+    if (path === '/api/aivid-rdp/browser' && req.method === 'GET') {
+      const config = await api.getConfig();
+      json(res, 200, { browser: config.rdpBrowser === 'edge' ? 'edge' : 'chrome' }); return true;
+    }
     if (path === '/api/aivid-rdp/poll' && req.method === 'POST') {
       const input = await readJson(req);
-      json(res, 200, { ok: true, ...await api.poll(device, input.status) }); return true;
+      const config = await api.getConfig();
+      const browser = config.rdpBrowser === 'edge' ? 'edge' : 'chrome';
+      // Do not claim a command while the agent still owns the other browser.
+      const switching = input.browser && input.browser !== browser;
+      const result = switching ? await api.poll(device, 'starting') : await api.poll(device, input.status);
+      json(res, 200, { ok: true, ...result, browser }); return true;
     }
     if(req.method==='GET'&&(path==='/api/aivid-rdp/runtime'||path==='/api/aivid-rdp/runtime/file')){
       const {manifest,files}=require('./aivid_runtime.js').runtime();

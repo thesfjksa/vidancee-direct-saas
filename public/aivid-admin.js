@@ -113,6 +113,7 @@
     try {
       const data = await api('/admin/aivid/status');
       savedMode = data.mode || 'browserless'; el('aividTransport').value = savedMode;
+       el('aividRdpBrowser').value = data.rdpBrowser === 'edge' ? 'edge' : 'chrome';
       el('aividRdpCeiling').value = String(data.maxSourceCredits || 0);
       el('aividCustomerRate').value = String(data.customerCreditsPerSourceCredit);
       el('aividRdpEnabled').checked = data.enabled === true;
@@ -133,11 +134,11 @@
         const rdp = data.rdp || {};
         el('aividRdpStatus').textContent = !rdp.paired ? 'No RDP agent paired yet.' :
           (rdp.online ? (rdp.status==='needs_verification'
-            ? 'AIVID verification required. Close the idle Agent, finish verification in AIVID-Login.exe on your RDP, close its Chrome window, then restart the Agent.'
+            ? 'AIVID verification required. Close the idle Agent, finish verification in AIVID-Login.exe on your RDP, close its selected browser window, then restart the Agent.'
             : 'Agent online: ' + rdp.status.replaceAll('_', ' ')) : 'Agent offline. Start AIVID-Agent.exe on your RDP.') +
           (rdp.seenAt ? ' Last seen ' + new Date(rdp.seenAt).toLocaleString() + '.' : '');
         el('aividConnectionBadge').textContent = rdp.online ? 'RDP online' : rdp.paired ? 'RDP offline' : 'Pair RDP agent';
-        el('aividSessionStatus').textContent = 'Sign-in stays in Chrome on your RDP. Browserless is not used in RDP mode.';
+        el('aividSessionStatus').textContent = 'Sign-in stays in ' + (data.rdpBrowser === 'edge' ? 'Microsoft Edge' : 'Google Chrome') + ' on your RDP. Browserless is not used in RDP mode.';
       }
       if (savedMode !== 'rdp' && data.sessionExpired && !active) el('aividConnectionBadge').textContent = 'Session expired';
       if (active) await pollLogin();
@@ -151,8 +152,9 @@
       const expectedEnabled=el('aividRdpEnabled').checked;
       const expectedCeiling=Number(el('aividRdpCeiling').value);
       const expectedHandoff=el('aividManualHandoff').checked;
+       const expectedBrowser=el('aividRdpBrowser').value;
       const saved=await api('/admin/aivid/settings', { method: 'POST', body: JSON.stringify({
-        mode: el('aividTransport').value,
+        mode: el('aividTransport').value, rdpBrowser: expectedBrowser,
         manualHandoff: expectedHandoff, enabled: expectedEnabled, maxSourceCredits: Number(el('aividRdpCeiling').value),
         apiKey: el('aividBrowserlessKey').value.trim(), endpoint: el('aividBrowserlessRegion').value,
         ttlDays: Number(el('aividSessionDays').value),
@@ -161,11 +163,12 @@
       const verified=await window.loadAividAdmin({strict:true});
       if(saved.enabled!==expectedEnabled || Number(saved.maxSourceCredits)!==expectedCeiling ||
          verified.enabled!==expectedEnabled || Number(verified.maxSourceCredits)!==expectedCeiling ||
-         Boolean(saved.manualHandoff)!==expectedHandoff || Boolean(verified.manualHandoff)!==expectedHandoff)
+         Boolean(saved.manualHandoff)!==expectedHandoff || Boolean(verified.manualHandoff)!==expectedHandoff ||
+          saved.rdpBrowser!==expectedBrowser || verified.rdpBrowser!==expectedBrowser)
         throw new Error('Saved AIVID state differs from your settings. Refresh Admin and check database write access.');
       message(savedMode === 'rdp'
         ? 'Saved and verified: AIVID '+(expectedEnabled?'enabled':'disabled')+
-          ', maximum '+expectedCeiling+' source credits/video. '+(expectedCeiling<=0?'A credit ceiling of 0 still blocks generation.':'Refresh customer Video Studio.')
+          ', browser '+(expectedBrowser==='edge'?'Microsoft Edge':'Google Chrome')+', maximum '+expectedCeiling+' source credits/video. '+(expectedCeiling<=0?'A credit ceiling of 0 still blocks generation.':'Refresh customer Video Studio.')
         : 'Browserless settings saved and verified.');
     } catch (error) { message(error.message, true); }
     finally { busy = false; buttons(); }
