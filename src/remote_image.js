@@ -47,44 +47,55 @@ function imageType(data) {
 
 const fail = message => Object.assign(new Error(message), { statusCode: 400 });
 
-function getOnce(url, { timeoutMs, maxBytes, lookup, ca }) {
+function getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel }) {
   return new Promise((resolve, reject) => {
     const host = url.hostname.replace(/^\[|\]$/g, '');
-    if (net.isIP(host) && !isPublicAddress(host)) return reject(fail('This image link points to a private address.'));
-    const request = https.get(url, { lookup, ca, timeout: timeoutMs, headers: { 'user-agent': 'CMM Tools image fetcher', accept: 'image/*' } }, response => {
+    if (net.isIP(host) && !isPublicAddress(host)) return reject(fail('This ' + label + ' link points to a private address.'));
+    const request = https.get(url, { lookup, ca, signal, timeout: timeoutMs, ...(label === 'video' ? { agent: false } : {}), headers: { 'user-agent': 'CMM Tools ' + label + ' fetcher', accept } }, response => {
       const status = response.statusCode || 0;
       if (status >= 300 && status < 400 && response.headers.location) { response.resume(); return resolve({ redirect: response.headers.location }); }
-      if (status !== 200) { response.resume(); return reject(fail('The image link returned HTTP ' + status + '.')); }
-      if (Number(response.headers['content-length']) > maxBytes) { response.destroy(); return reject(fail('The image is larger than 15 MB.')); }
+      if (status !== 200) { response.resume(); return reject(fail('The ' + label + ' link returned HTTP ' + status + '.')); }
+      if (Number(response.headers['content-length']) > maxBytes) { response.destroy(); return reject(fail('The ' + label + ' is larger than ' + sizeLabel + '.')); }
       const chunks = []; let total = 0;
       response.on('data', chunk => {
         total += chunk.length;
-        if (total > maxBytes) { response.destroy(); reject(fail('The image is larger than 15 MB.')); return; }
+        if (total > maxBytes) { response.destroy(); reject(fail('The ' + label + ' is larger than ' + sizeLabel + '.')); return; }
         chunks.push(chunk);
       });
       response.on('end', () => resolve({ data: Buffer.concat(chunks, total) }));
-      response.on('error', () => reject(fail('The image download was interrupted.')));
+      response.on('error', () => reject(fail('The ' + label + ' download was interrupted.')));
     });
-    request.on('timeout', () => request.destroy(fail('The image link took too long to respond.')));
-    request.on('error', error => reject(error?.statusCode ? error : fail(error?.code === 'EADDRBLOCKED' ? 'This image link points to a private address.' : 'The image link could not be opened.')));
+    request.on('timeout', () => request.destroy(fail('The ' + label + ' link took too long to respond.')));
+    request.on('error', error => reject(error?.statusCode ? error : fail(error?.code === 'EADDRBLOCKED' ? 'This ' + label + ' link points to a private address.' : 'The ' + label + ' link could not be opened.')));
   });
 }
 
 // lookup and ca are replaceable for tests only.
-async function fetchPublicImage(link, { timeoutMs = 20000, maxBytes = MAX_IMAGE_BYTES, lookup = guardedLookup, ca } = {}) {
+async function publicMedia(link, { timeoutMs, maxBytes, lookup = guardedLookup, ca, accept, label, sizeLabel }) {
   let url;
-  try { url = new URL(String(link)); } catch { throw fail('The image link is not a valid URL.'); }
+  try { url = new URL(String(link)); } catch { throw fail('The ' + label + ' link is not a valid URL.'); }
+  const signal = label === 'video' ? AbortSignal.timeout(timeoutMs) : undefined;
   for (let hop = 0; hop <= 3; hop++) {
-    if (url.protocol !== 'https:') throw fail('Image links must start with https://.');
-    if (url.username || url.password) throw fail('Image links cannot contain a username or password.');
-    const out = await getOnce(url, { timeoutMs, maxBytes, lookup, ca });
+    if (url.protocol !== 'https:' || (label === 'video' && url.port)) throw fail(label === 'image' ? 'Image links must start with https://.' : 'Use an HTTPS video link.');
+    if (url.username || url.password) throw fail(label === 'image' ? 'Image links cannot contain a username or password.' : 'The video link cannot contain a username or password.');
+    const out = await getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel });
     if (out.redirect) { url = new URL(out.redirect, url); continue; }
-    const mimeType = imageType(out.data);
-    if (!mimeType) throw fail('The link is not a JPEG, PNG or WebP image.');
-    const name = decodeURIComponent(url.pathname.split('/').pop() || '').replace(/[^\w.-]+/g, '_').slice(0, 100) || 'reference-image';
-    return { filename: name, mimeType, data: out.data };
+    return { url, data: out.data };
   }
-  throw fail('The image link redirected too many times.');
+  throw fail('The ' + label + ' link redirected too many times.');
 }
 
-module.exports = { fetchPublicImage, isPublicAddress, imageType, MAX_IMAGE_BYTES };
+async function fetchPublicImage(link, { timeoutMs = 20000, maxBytes = MAX_IMAGE_BYTES, lookup, ca } = {}) {
+  const { url, data } = await publicMedia(link, { timeoutMs, maxBytes, lookup, ca, accept: 'image/*', label: 'image', sizeLabel: '15 MB' });
+  const mimeType = imageType(data);
+  if (!mimeType) throw fail('The link is not a JPEG, PNG or WebP image.');
+  const name = decodeURIComponent(url.pathname.split('/').pop() || '').replace(/[^\w.-]+/g, '_').slice(0, 100) || 'reference-image';
+  return { filename: name, mimeType, data };
+}
+
+async function fetchPublicMedia(link, { timeoutMs, maxBytes, accept }) {
+  const { data } = await publicMedia(link, { timeoutMs, maxBytes, accept, label: 'video', sizeLabel: Math.ceil(maxBytes / 1048576) + ' MB' });
+  return data;
+}
+
+module.exports = { fetchPublicImage, fetchPublicMedia, isPublicAddress, imageType, MAX_IMAGE_BYTES };

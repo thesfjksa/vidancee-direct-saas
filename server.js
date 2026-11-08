@@ -196,6 +196,8 @@ const { perSecondPrices } = require('./src/per_second_prices.js');
 const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validateHiggsfieldReferences } = require('./src/higgsfield_models.js');
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
+const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
+const { LongAiClient } = require('./src/provider/longai.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
 const { isVidanceeModel, vidanceeMediaModels, vidanceeCreditsForDuration } = require('./src/vidancee_models.js');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
@@ -437,7 +439,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
@@ -629,6 +631,10 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
+  if(access.longai && providerSettings.longai.active){
+    const catalog=await safeCatalog('longai',()=>publicProviderCatalog('longai'));
+    video=[...video,...catalog.video.filter(model=>isLongAiModel(model.id))];
+  }
   // Omni Flash on Vidancee: a flat price per clip length, at cost.
   if(access.vidancee && providerSettings.vidancee.active){
     const catalog=await safeCatalog('vidancee',()=>publicProviderCatalog('vidancee',{creditsPerUsd:providerSettings.vidancee.customerCreditsPerUsd}));
@@ -761,6 +767,14 @@ async function quoteModelForUser(userId,body){
     const model=await getProviderModelByPublicId('sluice',String(body.model),'video');
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
     const quote=quoteGateway(model,body,providerSettings.sluice.customerCreditsPerUsd);
+    return {cost:quote.cost,isEstimate:quote.isEstimate};
+  }
+  if(isLongAiModel(body.model)&&mediaType==='video'){
+    if(!access.longai||!providerSettings.longai.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('longai',body.model,'video');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.longai.customerCreditsPerUsd);
     return {cost:quote.cost,isEstimate:quote.isEstimate};
   }
   if(isVidanceeModel(body.model)&&mediaType==='video'){
@@ -930,6 +944,18 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     generation=await createVideo(user.id,{...body,...quote},{provider:'sluice',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model,...(cartoonOptions||{})},
+    });
+  }
+
+  if(!cartoonOptions&&isLongAiModel(requestedModel)){
+    if(!customerAccess.longai||!providerSettings.longAiEnabled||!providerSettings.longAiApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('longai',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,providerSettings.longAiCustomerCreditsPerUsd);
+    generation=await createVideo(user.id,{...body,...quote},{provider:'longai',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd,providerCostUnit:'usd',generationOptions:{...quote,model},
     });
   }
 
@@ -1379,7 +1405,7 @@ const server=http.createServer(async (req,res)=>{
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active || providerSettings.longai.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -2364,6 +2390,14 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('argolink',argoMediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='POST'&&routePath==='/admin/longai/import'){
+        requireDatabase();
+        const model=longAiMediaModel((await readJson(req)).rates);
+        const settings=await getProviderSettings();
+        await new LongAiClient({apiKey:settings.longAiApiKey}).verifyModel();
+        const models=await syncProviderModels('longai',[model]);
+        return sendJson(res,200,{ok:true,models});
+      }
       if(req.method==='POST'&&routePath==='/admin/sluice/check'){
         requireDatabase();const s=await getProviderSettings();
         return sendJson(res,200,{ok:true,balance:await new SluiceClient({apiKey:s.sluiceApiKey}).balance()});
@@ -2594,7 +2628,7 @@ const server=http.createServer(async (req,res)=>{
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         let models=await listProviderModels(provider);
         if(provider==='api888'){
           const health=await loadApi888Health().catch(()=>null);
@@ -2679,6 +2713,7 @@ const server=http.createServer(async (req,res)=>{
             vercel:providerSettings.vercel.enabled,
             argolink:providerSettings.argolink.enabled,
             higgsfield:providerSettings.higgsfield.enabled,
+            longai:providerSettings.longai.enabled,
             sluice:providerSettings.sluice.enabled,
             vidancee:providerSettings.vidancee.enabled,
             fal:providerSettings.fal.enabled,
@@ -2690,6 +2725,7 @@ const server=http.createServer(async (req,res)=>{
             vercel:providerSettings.vercel.active,
             argolink:providerSettings.argolink.active,
             higgsfield:providerSettings.higgsfield.active,
+            longai:providerSettings.longai.active,
             sluice:providerSettings.sluice.active,
             vidancee:providerSettings.vidancee.active,
             fal:providerSettings.fal.active,
