@@ -126,12 +126,6 @@
               <label class="block-title" for="prompt">Prompt</label>
               <textarea id="prompt" placeholder="Describe the scene, subject, action, camera movement, lighting and mood. Type @ to mention a reference file." aria-describedby="promptCount"></textarea>
               <div id="promptCount" class="prompt-count" aria-live="polite"></div>
-              <label class="prompt-enhancer" for="videoPromptEnhancer">
-                <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
-                <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="videoEnhancerNote">Adds detail before generation</small></span>
-                <input id="videoPromptEnhancer" type="checkbox" role="switch" onchange="updateEnhancerNote('video')" aria-describedby="videoEnhancerNote">
-                <span class="enhancer-track" aria-hidden="true"></span>
-              </label>
 
               <label class="meta" for="model">Model</label>
               <select id="model" onchange="handleVideoModelChange()"></select>
@@ -212,12 +206,6 @@
               <label class="block-title" for="imagePrompt">Prompt</label>
               <textarea id="imagePrompt" placeholder="Describe the image, composition, subject, lighting, style and details. Type @ to mention a reference image." aria-describedby="imagePromptCount"></textarea>
               <div id="imagePromptCount" class="prompt-count" aria-live="polite"></div>
-              <label class="prompt-enhancer" for="imagePromptEnhancer">
-                <svg class="enhancer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>
-                <span class="enhancer-copy"><strong>Prompt enhancer</strong><small id="imageEnhancerNote">Adds detail before generation</small></span>
-                <input id="imagePromptEnhancer" type="checkbox" role="switch" onchange="updateEnhancerNote('image')" aria-describedby="imageEnhancerNote">
-                <span class="enhancer-track" aria-hidden="true"></span>
-              </label>
 
               <label class="meta" for="imageModel">Model</label>
               <select id="imageModel" onchange="handleImageModelChange()"></select>
@@ -709,7 +697,6 @@ function enterApp(){
   renderConfig();
   renderImageConfig();
   renderVoiceConfig();
-  renderPromptEnhancer();
   setupReferenceDrop();
   setupPromptMentions();
   for(const id of ['prompt','imagePrompt'])$(id)?.addEventListener('input',updatePromptCounts);
@@ -2570,97 +2557,11 @@ function setupImageGenerationDrop(){
   });
 }
 
-const enhancedPromptCache={image:null,video:null};
-const pendingEnhancementRequests={image:null,video:null};
-
-function updateEnhancerNote(kind){
-  const toggle=$(kind+'PromptEnhancer');
-  $(kind+'EnhancerNote').textContent=toggle.disabled?'Currently unavailable':toggle.checked?'On · adds detail before generation':'Off · use your prompt as written';
-}
-
-function renderPromptEnhancer(){
-  for(const kind of ['image','video']){
-    const toggle=$(kind+'PromptEnhancer');
-    toggle.disabled=!config.promptEnhancer?.enabled;
-    if(toggle.disabled)toggle.checked=false;
-    updateEnhancerNote(kind);
-  }
-}
-
-async function prepareGenerationPrompt(kind,message){
-  const input=$(kind==='image'?'imagePrompt':'prompt'),original=input.value;
-  if(!original.trim())throw new Error('Enter a prompt before generating.');
-  if(!$(kind+'PromptEnhancer').checked)return original;
-  const request={prompt:original,mediaType:kind,
-    aspectRatio:$(kind==='image'?'imageRatio':'ratio').value,
-    imageReferences:kind==='image'?imageReferenceItems.length:referenceItems.length,
-    videoReferences:kind==='video'?videoReferenceItems.length:0,
-    ...(kind==='video'?{duration:Number($('duration').value)}:{})};
-  const context=JSON.stringify({...request,prompt:undefined});
-  const cached=enhancedPromptCache[kind];
-  if(cached?.prompt===original&&cached.context===context)return original;
-  message.textContent='Enhancing your prompt…';
-  let pending=pendingEnhancementRequests[kind];
-  if(pending?.original!==original||pending.context!==context){
-    pending={original,context,requestId:crypto.randomUUID()};pendingEnhancementRequests[kind]=pending;
-  }
-  let result,lastReadError=null;
-  const started=Date.now(),deadline=started+(config.promptEnhancer?.timeoutMs||120000)+60000;
-  try{
-    if(!pending.jobId&&!pending.recovering){
-      try{
-        result=await api('/api/prompts/enhance',{method:'POST',body:JSON.stringify({...request,async:true,requestId:pending.requestId}),signal:AbortSignal.timeout(30000)});
-        pending.jobId=result.jobId;
-        if(!pending.jobId&&typeof result.prompt!=='string'){
-          pending.recovering=true;
-          lastReadError=new Error('The server returned an invalid enhancement response.');
-        }
-      }catch(e){
-        if(e.name!=='TimeoutError'&&e.name!=='TypeError'&&!(e.status>=500))throw e;
-        // A lost acknowledgement does not mean the paid job failed to start.
-        // Recover it using GET and the same request ID; never repeat POST automatically.
-        pending.recovering=true;lastReadError=e;
-      }
-    }
-    const recoveryDeadline=Date.now()+45000;
-    while(pending.jobId||pending.recovering){
-      if(result?.status==='completed')break;
-      if(result?.status==='failed'){
-        pendingEnhancementRequests[kind]=null;
-        throw new Error(result.error||'Prompt enhancement failed. Your prompt has been kept.');
-      }
-      if(Date.now()>=deadline){
-        throw new Error(lastReadError?'Connection to the site was interrupted while checking enhancement. Generate again to resume it. Your prompt has been kept.':'Enhancement is still processing. Generate again to resume it. Your prompt has been kept.');
-      }
-      if(pending.recovering)message.textContent='Reconnecting to your enhancement…';
-      else if(Date.now()-started>10000)message.textContent='Still enhancing your prompt… this can take up to 2 minutes.';
-      await new Promise(resolve=>setTimeout(resolve,1500));
-      const statusPath=pending.jobId?'/api/prompts/enhance/'+encodeURIComponent(pending.jobId):'/api/prompts/enhance/requests/'+encodeURIComponent(pending.requestId);
-      try{
-        result=await api(statusPath,{signal:AbortSignal.timeout(20000)});
-        if(!result.jobId||!['processing','completed','failed'].includes(result.status))throw new Error('The server returned an invalid enhancement status. Your prompt has been kept.');
-        pending.jobId=result.jobId;pending.recovering=false;lastReadError=null;
-      }catch(e){
-        if(pending.recovering&&e.status===404){
-          if(Date.now()<recoveryDeadline)continue;
-          pending.recovering=false;
-          throw new Error('The server did not confirm your enhancement request. Generate again to retry it. Your prompt has been kept.');
-        }
-        if(e.status&&e.status<500)throw e;
-        if(e.name!=='TimeoutError'&&e.name!=='TypeError'&&!e.status)throw e;
-        lastReadError=e; // Retry only status reads, never the paid enhancement.
-      }
-    }
-  }catch(e){
-    if(e.status&&e.status<500)pendingEnhancementRequests[kind]=null;
-    throw e;
-  }
-  if(typeof result.prompt!=='string'||!result.prompt.trim())throw new Error('Prompt enhancer returned an empty prompt.');
-  if(input.value!==original)throw new Error('Your prompt changed during enhancement. Generate again with the updated text.');
-  input.value=result.prompt;
-  pendingEnhancementRequests[kind]=null;
-  enhancedPromptCache[kind]={prompt:result.prompt,context};
-  return result.prompt;
+function prepareGenerationPrompt(kind){
+  const prompt=$(kind==='image'?'imagePrompt':'prompt').value;
+  if(!prompt.trim())throw new Error('Enter a prompt before generating.');
+  // Generation always uses the user's exact prompt without third-party rewriting.
+  return prompt;
 }
 
 async function createImageGeneration(){
@@ -2694,7 +2595,7 @@ async function createImageGeneration(){
     const d=await api('/api/image-generations',{method:'POST',body:form});
     me=d.user;syncUser();
     // Clear only what was sent; keep anything typed or added meanwhile.
-    if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;updatePromptCounts();}
+    if($('imagePrompt').value===sentPrompt){$('imagePrompt').value='';updatePromptCounts();}
     if(sameItems(imageReferenceItems,sentRefs)){
       clearImageReferenceItems();
       if(currentImageModel()?.referencePricing)updateImageCost();
@@ -2719,7 +2620,6 @@ async function reuseImageGeneration(id){
   const notes=[];
   clearImageReferenceItems();
   $('imagePrompt').value=g.prompt||'';updatePromptCounts();
-  enhancedPromptCache.image=null;pendingEnhancementRequests.image=null;
   if([...$('imageModel').options].some(o=>o.value===g.model))$('imageModel').value=g.model;
   else notes.push('The original model is unavailable; choose an available model.');
   renderImageRatios();renderImageReferenceControls(false);
@@ -3179,7 +3079,7 @@ async function createGeneration(){
     me=d.user;syncUser();
     showReferenceNotices(d.generation?.reference_notices);
     // Clear only what was sent; keep anything typed or added meanwhile.
-    if($('prompt').value===sent.prompt){$('prompt').value='';enhancedPromptCache.video=null;pendingEnhancementRequests.video=null;updatePromptCounts();}
+    if($('prompt').value===sent.prompt){$('prompt').value='';updatePromptCounts();}
     if(sameItems(referenceItems,sent.refs))clearReferenceItems();
     if(sameItems(videoReferenceItems,sent.videos))clearVideoReferenceItems();
     if(sameItems(audioReferenceItems,sent.audios))clearAudioReferenceItems();

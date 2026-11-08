@@ -46,9 +46,6 @@ const Busboy = require('busboy');
 const { SmartAipiClient, validateSmartReference } = require('./src/provider/smartaipi.js');
 const { smartImageModel, smartImageQuote, publicSmartImagePricing, SMART_IMAGE_REFS, SMART_IMAGE_MODELS } = require('./src/smartaipi_images.js');
 const { VibiClient } = require('./src/provider/vibi.js');
-const { GeminiPromptEnhancer, PromptEnhancementGate, PromptEnhancementJobs, ENHANCEMENT_TIMEOUT_MS, normalizeEnhancement } = require('./src/prompt_enhancer.js');
-const promptEnhancementGate = new PromptEnhancementGate();
-const promptEnhancementJobs = new PromptEnhancementJobs({gate:promptEnhancementGate});
 const { WorkerWakeup } = require('./src/worker_wakeup.js');
 const { RuntimeDiagnostics, recordBoot, listBoots, routeLabel } = require('./src/runtime_diagnostics.js');
 const { normalizeCartoonRequest, publicCartoonConfig, CARTOON_MODELS } = require('./src/cartoon.js');
@@ -1502,7 +1499,6 @@ const server=http.createServer(async (req,res)=>{
       let imagePricing=[];
       let cartoonPricing=[];
       let voiceConfig={enabled:false};
-      let promptEnhancerConfig={enabled:false,maxPromptChars:8000,revision:5,async:true,timeoutMs:ENHANCEMENT_TIMEOUT_MS};
       let customerProviderAccess=defaultCustomerProviderAccess();
       let cartoonEnabled=false;
       let upscalerConfig=publicUpscalerConfig(false);
@@ -1512,7 +1508,6 @@ const server=http.createServer(async (req,res)=>{
           const currentUser=await userFromRequest(req);
           if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
-          promptEnhancerConfig.enabled=Boolean(currentUser?.status==='active' && providerSettings.promptEnhancer.active);
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
           const names=await modelDisplayNames().catch(()=>({}));
           cartoonPricing=applyModelNames('cartoon',[
@@ -1549,7 +1544,6 @@ const server=http.createServer(async (req,res)=>{
         imagePricing,
         imageAspectRatios:IMAGE_ASPECT_RATIOS,
         voice:voiceConfig,
-        promptEnhancer:promptEnhancerConfig,
         providerAccess:publicDopeAccess(customerProviderAccess),
         cartoon:publicCartoonConfig(cartoonEnabled,cartoonPricing),
         upscaler:upscalerConfig,
@@ -1558,45 +1552,10 @@ const server=http.createServer(async (req,res)=>{
       });
     }
 
-    if (req.method==='POST' && routePath==='/api/prompts/enhance') {
-      requireDatabase();
-      const user=await requireUser(req);
-      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
-      const settings=await getProviderSettings();
-      if(!settings.allowProviderCharges || !settings.promptEnhancerEnabled || !settings.promptEnhancerApiKey) {
-        return sendJson(res,503,{ok:false,error:'Prompt enhancer is currently unavailable. Turn it off to use your original prompt.'});
-      }
-      const body=await readJson(req);
-      normalizeEnhancement(body); // Reject invalid input before consuming a request slot.
-      if(body.async===true) {
-        // Failures are logged (without the prompt) so they can be diagnosed.
-        const job=promptEnhancementJobs.start(user.id,body,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body).catch(error=>{
-          logActivity({level:'warn',category:'provider',event:'enhancer.failed',userId:user.id,provider:'gemini',message:error.message,details:{statusCode:error.statusCode,mediaType:body.mediaType}});
-          throw error;
-        }));
-        return sendJson(res,job.status==='processing'?202:200,{ok:true,...job});
-      }
-      const result=await promptEnhancementGate.run(user.id,()=>new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).enhance(body));
-      return sendJson(res,200,{ok:true,...result});
-    }
-
-    const enhancementRequestMatch=routePath.match(/^\/api\/prompts\/enhance\/requests\/([a-f0-9-]{36})$/i);
-    if (req.method==='GET' && enhancementRequestMatch) {
-      requireDatabase();
-      const user=await requireUser(req);
-      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
-      const job=promptEnhancementJobs.getByRequest(user.id,enhancementRequestMatch[1]);
-      if(!job)return sendJson(res,404,{ok:false,error:'The enhancement request could not be found. Your prompt has been kept.'});
-      return sendJson(res,200,{ok:true,...job});
-    }
-
-    if (req.method==='GET' && /^\/api\/prompts\/enhance\/[a-f0-9-]{36}$/i.test(routePath)) {
-      requireDatabase();
-      const user=await requireUser(req);
-      if(user.status!=='active')return sendJson(res,403,{ok:false,error:'Your account is not active.'});
-      const job=promptEnhancementJobs.get(user.id,routePath.split('/').pop());
-      if(!job)return sendJson(res,404,{ok:false,error:'This enhancement expired or the service restarted. Your prompt has been kept. Generate again to retry.'});
-      return sendJson(res,200,{ok:true,...job});
+    // Explicitly retire the old routes so cached clients receive JSON instead
+    // of falling through to the web app. Never call the former Gemini service.
+    if (routePath === '/api/prompts/enhance' || routePath.startsWith('/api/prompts/enhance/')) {
+      return sendJson(res,410,{ok:false,error:'Prompt enhancement is no longer available. Use your original prompt.'});
     }
 
     if (req.method==='POST' && routePath==='/api/model-cost') {
@@ -2320,12 +2279,9 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,connected:true,creditBalance:Number(me.credit_balance||0),account:me.email||null});
       }
 
-      if (req.method==='POST' && routePath==='/admin/prompt-enhancer/check') {
-        requireDatabase();
-        const settings=await getProviderSettings();
-        if(!settings.promptEnhancerApiKey)return sendJson(res,400,{ok:false,error:'Prompt enhancer API key is not configured.'});
-        const result=await new GeminiPromptEnhancer({apiKey:settings.promptEnhancerApiKey}).check();
-        return sendJson(res,200,{ok:true,...result});
+      // Retired Admin endpoint: no stored Gemini credentials are read.
+      if (routePath==='/admin/prompt-enhancer/check') {
+        return sendJson(res,410,{ok:false,error:'Prompt enhancement has been removed.'});
       }
 
       if(req.method==='POST'&&routePath==='/admin/vercel/check'){

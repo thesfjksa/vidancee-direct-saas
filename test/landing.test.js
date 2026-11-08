@@ -38,5 +38,6 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.doesNotMatch(JSON.stringify(config),/wxksai/i);
   assert.ok(Object.entries(config.providerAccess).every(([source,enabled])=>source==='dope'||enabled));
   assert.equal(config.providerAccess.vibi, true);
+  assert.equal(Object.hasOwn(config,'promptEnhancer'),false);
 });
 
