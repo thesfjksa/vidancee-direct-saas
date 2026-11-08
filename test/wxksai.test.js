@@ -107,6 +107,108 @@ test('WXKSAI submission timeouts warn against duplicate paid jobs',()=>{
   assert.match(message,/did not confirm/);
   assert.match(message,/before retrying/);
 });
+test('WXKSAI advertises exact per-model reference kinds and does not enable unsupported media',()=>{
+  const expected={
+    'seedance-2.5-special2':[9,0,3],
+    'seedance-2.5-full-720p-9img':[9,0,0],
+    'seedance-2.5-full-720p-15-30s':[9,0,0],
+    'seedance-2.5-bd-2':[30,10,10],
+    'wan3.0-video':[10,5,5],
+    'seedance-2.0-full-720p-900':[9,0,0],
+    'seedance2.5-buff':[30,1,1], // Conservative pending provider numeric media caps
+  };
+  for(const [id,limits] of Object.entries(expected)){
+    const model=modelFor(id);
+    assert.deepEqual(['image','video','audio'].map(kind=>model.referenceCapabilities[kind].max),limits);
+    assert.deepEqual(model.referenceCapabilities.video.supported,limits[1]>0);
+    assert.deepEqual(model.referenceCapabilities.audio.supported,limits[2]>0);
+    assert.ok(model.mediaRoles.includes('image_references'));
+    assert.ok(model.supportedOperations.includes('reference-to-video'));
+    assert.equal(model.referenceCapabilities.textOnly,true); // text-only still works
+  }
+});
+test('WXKSAI image refs go through multipart images field without JSON content type',async()=>{
+  const calls=[];
+  const client=new WxksaiClient({apiKey:'test',fetchImpl:async(_url,options)=>{
+    calls.push(options);
+    return new Response('{"id":"task_img"}',{status:200,headers:{'content-type':'application/json'}});
+  }});
+  const image=Buffer.from('89504e470d0a1a0a','hex');
+  const options={model:{providerModelId:'seedance-2.5-full-720p-9img'},
+    prompt:'Keep the subject',duration:15,resolution:'720p',aspectRatio:'16:9'};
+  const op=await client.startVideo(options,[{kind:'image',mimeType:'image/png',filename:'subject.png',data:image}]);
+  assert.equal(op.requestId,'task_img');
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].method,'POST');
+  assert.equal(calls[0].headers['content-type'],undefined);
+  assert.equal(calls[0].body instanceof FormData,true);
+  assert.equal(calls[0].body.get('model'),'seedance-2.5-full-720p-9img');
+  assert.equal(calls[0].body.get('seconds'),'15');
+  assert.equal(calls[0].body.getAll('images').length,1);
+  assert.equal(calls[0].body.getAll('videos').length,0);
+  assert.equal(calls[0].body.getAll('audios').length,0);
+  assert.equal(Buffer.from(await calls[0].body.get('images').arrayBuffer()).equals(image),true);
+});
+test('WXKSAI Special2 sends image/audio but rejects video refs before a paid request',async()=>{
+  let posts=0;
+  const client=new WxksaiClient({apiKey:'test',fetchImpl:async(_url,options)=>{
+    posts++;return new Response('{"id":"task_special"}',{status:200});
+  }});
+  const options={model:{providerModelId:'seedance-2.5-special2'},prompt:'P',duration:10,resolution:'1080p',aspectRatio:'16:9'};
+  const audio=Buffer.alloc(44+16000);
+  audio.write('RIFF',0);audio.writeUInt32LE(16036,4);audio.write('WAVE',8);
+  audio.write('fmt ',12);audio.writeUInt32LE(16,16);audio.writeUInt16LE(1,20);
+  audio.writeUInt16LE(1,22);audio.writeUInt32LE(8000,24);audio.writeUInt32LE(8000,28);
+  audio.writeUInt16LE(1,32);audio.writeUInt16LE(8,34);
+  audio.write('data',36);audio.writeUInt32LE(16000,40);
+  const ref={kind:'audio',filename:'music.wav',mimeType:'audio/wav',data:audio};
+  assert.equal((await client.startVideo(options,[ref])).requestId,'task_special');
+  assert.equal(posts,1);
+  await assert.rejects(client.startVideo(options,[{kind:'video',filename:'clip.mp4',mimeType:'video/mp4',data:Buffer.alloc(48)}]),/does not support/);
+  assert.equal(posts,1);
+});
+test('WXKSAI BD2 supplies real multipart media durations and fails closed before billing',async()=>{
+  const posts=[];
+  const client=new WxksaiClient({apiKey:'test',fetchImpl:async(_url,options)=>{
+    posts.push(options);return new Response('{"id":"task_bd2"}',{status:200});
+  }});
+  const video=Buffer.alloc(48);video.write('mvhd',4);video.writeUInt32BE(1000,20);video.writeUInt32BE(3000,24);
+  const audio=Buffer.alloc(44+16000);
+  audio.write('RIFF',0);audio.writeUInt32LE(16036,4);audio.write('WAVE',8);
+  audio.write('fmt ',12);audio.writeUInt32LE(16,16);audio.writeUInt16LE(1,20);
+  audio.writeUInt16LE(1,22);audio.writeUInt32LE(8000,24);audio.writeUInt32LE(8000,28);
+  audio.writeUInt16LE(1,32);audio.writeUInt16LE(8,34);
+  audio.write('data',36);audio.writeUInt32LE(16000,40);
+  const opts={model:{providerModelId:'seedance-2.5-bd-2'},prompt:'Dance',duration:5,resolution:'720p',aspectRatio:'9:16'};
+  const refs=[
+    {kind:'video',filename:'motion.mp4',mimeType:'video/mp4',data:video},
+    {kind:'audio',filename:'sound.wav',mimeType:'audio/wav',data:audio},
+  ];
+  await client.startVideo(opts,refs);
+  assert.equal(posts.length,1);
+  assert.deepEqual(JSON.parse(posts[0].body.get('reference_durations')),{videos:[3],audios:[2]});
+  assert.equal(posts[0].body.getAll('videos').length,1);
+  assert.equal(posts[0].body.getAll('audios').length,1);
+  await assert.rejects(client.startVideo({...opts,duration:4},refs),/at least 5 seconds/);
+  await assert.rejects(client.startVideo(opts,[{...refs[0],data:Buffer.alloc(48)}]),/readable duration/);
+  assert.equal(posts.length,1); // no paid POST for invalid media
+});
+test('WXKSAI audio MP3 frame counting determines duration without trusting a client hint',()=>{
+  const { mp3Seconds }=require('../src/wxksai_references.js');
+  const frame=Buffer.alloc(313);frame.set([0xff,0xfb,0x70,0x00],0);
+  const data=Buffer.concat(Array.from({length:120},()=>frame));
+  assert.ok(mp3Seconds(data)>3&&mp3Seconds(data)<4);
+  assert.equal(mp3Seconds(Buffer.from('not an mp3')),null);
+});
+test('WXKSAI worker hydrates references from generation storage before submission',async()=>{
+  const rows=[{media_kind:'image',media_role:'image_references',filename:'face.png',mime_type:'image/png',media_data:Buffer.from([137,80,78,71])}];
+  const q=new WxksaiQueue();
+  const files=await q.referenceFiles({execute:async()=>[rows]},{id:'synthetic-generation'});
+  assert.equal(files.length,1);
+  assert.equal(files[0].kind,'image');
+  assert.equal(files[0].filename,'face.png');
+  assert.equal(Buffer.isBuffer(files[0].data),true);
+});
 test('WXKSAI queue is isolated and customer access SQL is scoped',()=>{
   const q=new WxksaiQueue();
   assert.equal(q.provider,'wxksai');
