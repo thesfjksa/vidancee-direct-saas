@@ -31,3 +31,17 @@ test('Browser admin UI displays saved state distinct from changed checkbox and r
   assert.match(ui,/const verified=await window\.loadAividAdmin\(\{strict:true\}\)/);
   assert.match(ui,/verified\.enabled!==expectedEnabled/);
 });
+
+test('Windows browser is validated, persisted, and returned in public admin configuration',async()=>{
+  const {validateConfig,publicConfig,configFrom}=require('../src/aivid_settings.js');
+  assert.equal(configFrom({}, {}, null).rdpBrowser,'chrome');
+  assert.equal(configFrom({}, {}, {rdpBrowser:'edge'}).rdpBrowser,'edge');
+  const current=sample(),db=new Map();
+  assert.throws(()=>validateConfig({mode:'rdp',rdpBrowser:'firefox'},current),/Choose Chrome or Microsoft Edge/);
+  const saved=await saveAividSettings({mode:'rdp',rdpBrowser:'edge',enabled:true,maxSourceCredits:10},{
+    getConfig:async()=>current,write:async(k,v)=>db.set(k,v),read:async(k,d)=>db.get(k)||d
+  });
+  assert.equal(saved.rdpBrowser,'edge');
+  assert.equal(JSON.parse(db.get(CONFIG_KEY)).rdpBrowser,'edge');
+  assert.equal(publicConfig({...current,rdpBrowser:'edge'}).rdpBrowser,'edge');
+});
