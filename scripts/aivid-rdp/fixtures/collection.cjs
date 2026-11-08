@@ -11,7 +11,7 @@ async function checkCollection(context,Client){
       if(route.request().method()!=='GET'){mutations++;return route.abort();}
       if(route.request().url()!==url)return route.fulfill({status:404,body:''});
       const detail='<dl><dt>Status</dt><dd>'+({processing:'Processing',failed:'Failed',completed:'Completed',unknown:'Unexpected'}[mode]||'Completed')+'</dd></dl><button>Download Video</button>';
-      return route.fulfill({contentType:'text/html',body:mode==='missing'?'<main>Video not found.</main>':mode==='loading'?'<main id="body">Loading...</main><script>setTimeout(()=>document.getElementById("body").innerHTML='+JSON.stringify(detail)+',100)</script>':'<main>'+detail+'</main>'});
+      return route.fulfill({contentType:'text/html',body:mode==='verification'?'<main><h2>Verifying you are human. This may take a few seconds.</h2></main>':mode==='missing'?'<main>Video not found.</main>':mode==='loading'?'<main id="body">Loading...</main><script>setTimeout(()=>document.getElementById("body").innerHTML='+JSON.stringify(detail)+',100)</script>':'<main>'+detail+'</main>'});
     });
     return {page,close:async()=>{await page.close()}};
   },download:async page=>{assert.equal(page.url(),url);downloads++;return{data:clip,mimeType:'video/mp4'}}});
@@ -21,8 +21,10 @@ async function checkCollection(context,Client){
   assert.equal(downloads,2);
   mode='failed';assert.deepEqual(await client.collectVideo(id),{state:'failed'});
   mode='unknown';await assert.rejects(client.collectVideo(id),/not recognized/);
+  mode='verification';await assert.rejects(client.collectVideo(id),{aividCode:'session_verification'});
+  assert.equal(downloads,2);
   const historyClient=new Client({
-    connect:async()=>({page:{goto:()=>assert.fail('RDP must use generation history')},close:async()=>{}}),
+    connect:async()=>({page:{url:()=> 'about:blank',goto:()=>assert.fail('RDP must use generation history')},close:async()=>{}}),
     collectFromHistory:async(_page,jobId)=>{assert.equal(jobId,id);return {state:'pending'};},
   });
   assert.deepEqual(await historyClient.collectVideo(id),{state:'pending'});
