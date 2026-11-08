@@ -67,11 +67,11 @@ class LongAiClient {
     this.fetchMedia = fetchMedia;
   }
 
-  async json(path, body) {
+  async json(path, body, timeoutMs = body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS) {
     if (!this.apiKey) throw error('Save a LONG AI API key first.', 400);
     const target = new URL(API_ORIGIN + path);
     if (target.origin !== API_ORIGIN || !path.startsWith('/')) throw error('Invalid LONG AI API path.');
-    const response = await this.request(target.href, body, this.apiKey);
+    const response = await this.request(target.href, body, this.apiKey, { timeoutMs });
     if (!response.ok) {
       let code;
       if (response.status === 503 && response.headers.get('content-type')?.includes('application/json')) {
@@ -96,19 +96,21 @@ class LongAiClient {
     try { return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')), location: response.headers.get('location') }; }
     catch (cause) {
       if (cause?.name === 'AbortError' || cause?.name === 'TimeoutError' || cause?.code === 'ABORT_ERR') {
-        throw networkError(cause, body ? 'POST' : 'GET', body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS);
+        throw networkError(cause, body ? 'POST' : 'GET', timeoutMs);
       }
       throw error('LONG AI returned an invalid API response.');
     }
   }
 
-  async request(url, body, key) {
+  async request(url, body, key, {
+    timeoutMs = body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS,
+    accept = 'application/json',
+  } = {}) {
     const method = body ? 'POST' : 'GET';
-    const timeoutMs = body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS;
     try {
       return await this.fetch(url, {
         method,
-        headers: { accept: 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}),
+        headers: { accept, ...(key ? { authorization: 'Bearer ' + key } : {}),
           ...(body ? { 'content-type': 'application/json' } : {}) },
         body: body ? JSON.stringify(body) : undefined,
         redirect: 'error',
@@ -126,11 +128,22 @@ class LongAiClient {
     return { providerStatus: response.status, elapsedMs: Date.now() - start };
   }
 
-  async verifyModel() {
-    const { data } = await this.json('/v1/models/' + encodeURIComponent(MODEL_ID));
-    if (data?.id !== MODEL_ID) {
-      throw error('The LONG AI key does not confirm access to ' + MODEL_ID + '. Check its model permissions.', 400);
+  async verifyModel(modelId = MODEL_ID, timeoutMs = READ_TIMEOUT_MS) {
+    const { data } = await this.json('/v1/models/' + encodeURIComponent(modelId), undefined, timeoutMs);
+    if (data?.id !== modelId) {
+      throw error('The LONG AI key does not confirm access to ' + modelId + '. Check its model permissions.', 400);
     }
+  }
+
+  async videoMarketplace() {
+    const response = await this.request(API_ORIGIN + '/model-plaza', undefined, undefined, {
+      timeoutMs: 8000, accept: 'text/html',
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw error('LONG AI marketplace returned HTTP ' + response.status + '.');
+    }
+    return (await readBounded(response, 1024 * 1024)).toString('utf8');
   }
 
   async startVideo(options) {

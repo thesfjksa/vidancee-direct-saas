@@ -198,6 +198,7 @@ const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { LongAiClient } = require('./src/provider/longai.js');
+const { loadVideoMarketplace, checkVideoModel } = require('./src/longai_video_tests.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
 const { isVidanceeModel, vidanceeMediaModels, vidanceeCreditsForDuration } = require('./src/vidancee_models.js');
 const { VidanceeClient } = require('./src/provider/vidancee.js');
@@ -1243,6 +1244,7 @@ const server=http.createServer(async (req,res)=>{
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
       '/provider-admin.js':['provider-admin.js','text/javascript; charset=utf-8'],
+      '/longai-admin.js':['longai-admin.js','text/javascript; charset=utf-8'],
       '/assets/cmmtools-logo.png':['assets/cmmtools-logo.png','image/png'],
       '/assets/cmmtools-logo-sm.png':['assets/cmmtools-logo-sm.png','image/png'],
       '/assets/cmmtools-icon.png':['assets/cmmtools-icon.png','image/png'],
@@ -2392,6 +2394,17 @@ const server=http.createServer(async (req,res)=>{
       }
       if(req.method==='GET'&&routePath==='/admin/longai/check'){
         const result=await new LongAiClient().checkReachability();
+        return sendJson(res,200,{ok:true,...result});
+      }
+      if(req.method==='GET'&&routePath==='/admin/longai/video-tests'){
+        const settings=await getProviderSettings();
+        const market=await loadVideoMarketplace(new LongAiClient());
+        return sendJson(res,200,{ok:true,...market,keyConfigured:Boolean(settings.longAiApiKey)});
+      }
+      if(req.method==='GET'&&routePath==='/admin/longai/video-tests/model'){
+        const settings=await getProviderSettings();
+        if(!settings.longAiApiKey)throw httpError(400,'Save a LONG AI API key first.');
+        const result=await checkVideoModel(new LongAiClient({apiKey:settings.longAiApiKey}),url.searchParams.get('model'));
         return sendJson(res,200,{ok:true,...result});
       }
       if(req.method==='POST'&&routePath==='/admin/longai/import'){

@@ -6,7 +6,7 @@
 <div id="loginBox" class="card login"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div class="brand">CMM Tools Admin</div><p class="muted">Enter the private admin token configured in hPanel.</p><input id="tokenInput" type="password" style="width:100%" placeholder="ADMIN_TOKEN"><button class="btn" style="width:100%;margin-top:10px" onclick="adminLogin()">Open dashboard</button><div id="loginMsg" class="muted" style="margin-top:10px"></div></div>
 <div id="adminApp" class="hide">
   <div class="top"><div class="admin-brand"><img class="brand-logo" src="/assets/cmmtools-logo-sm.png" alt="CMM Tools"><div><div class="brand">Admin console</div><div class="muted">Production control center</div></div></div><button class="secondary" onclick="adminLogout()">Lock admin</button></div>
-  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="storage" onclick="tab('storage',this)">Storage</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button><button data-tab="activity" onclick="tab('activity',this)">Activity</button><button data-tab="aividHistory" onclick="tab('aividHistory',this)">AIVID History</button></div>
+  <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="users" onclick="tab('users',this)">Users</button><button data-tab="generations" onclick="tab('generations',this)">Generations</button><button data-tab="plans" onclick="tab('plans',this)">Plans</button><button data-tab="credits" onclick="tab('credits',this)">Credit ledger</button><button data-tab="storage" onclick="tab('storage',this)">Storage</button><button data-tab="provider" onclick="tab('provider',this)">Provider</button><button data-tab="activity" onclick="tab('activity',this)">Activity</button><button data-tab="aividHistory" onclick="tab('aividHistory',this)">AIVID History</button><button data-tab="longAiVideoTests" onclick="tab('longAiVideoTests',this)">LONG AI Video Tests</button></div>
 
   <section id="overview" class="section active"><div class="grid"><div class="card"><div class="muted">Users</div><div id="sUsers" class="n">0</div></div><div class="card"><div class="muted">Generations</div><div id="sGen" class="n">0</div></div><div class="card"><div class="muted">In progress</div><div id="sActive" class="n">0</div></div><div class="card"><div class="muted">Completed</div><div id="sCompleted" class="n">0</div></div></div><div class="card"><h2>Server health</h2><div id="healthInfo" class="muted">Loading...</div></div><div class="card"><h2>System</h2><pre id="systemInfo">Loading...</pre></div></section>
 
@@ -115,6 +115,28 @@
     </div>
   </section>
 
+  <section id="longAiVideoTests" class="section">
+    <div class="card">
+      <div class="top">
+        <div>
+          <h2>LONG AI video tests</h2>
+          <p class="muted">Check public seller listings and whether the saved LONG AI key can see each model. These checks use no credits. A visible model can still fail a paid render.</p>
+        </div>
+        <button class="secondary" id="longAiVideoRefresh" type="button">Refresh marketplace</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="longAiVideoCheckAll" type="button" disabled>Check all models with sellers</button>
+        <a href="https://ai.dijinlong.com/model-plaza" target="_blank" rel="noopener noreferrer">LONG AI Model Plaza</a>
+      </div>
+      <p id="longAiVideoSource" class="muted"></p>
+      <p id="longAiVideoProgress" class="muted" role="status"></p>
+      <div class="tablewrap"><table>
+        <thead><tr><th scope="col">Model ID</th><th scope="col">Listed sellers</th><th scope="col">Saved key check</th><th scope="col">Action</th></tr></thead>
+        <tbody id="longAiVideoRows"></tbody>
+      </table></div>
+    </div>
+  </section>
+
 <section id="provider" class="section">
  <header class="provider-heading"><div><div class="provider-eyebrow">PROVIDER WORKSPACE</div><h1>Connections &amp; models</h1><p class="muted">Manage your sources, model catalog and usage in one place.</p></div><span class="provider-total">12 sources</span></header>
  <div class="provider-tabs" role="tablist" aria-label="Provider sections">
@@ -216,6 +238,7 @@
           <div class="field"><label for="longai720p">720p upstream cost in USD per second</label><input id="longai720p" type="number" min="0" max="100" step="any"></div>
           <button id="longaiCheck" class="secondary" onclick="checkLongAi()">Check server connection</button>
           <button id="longaiImport" class="secondary" onclick="importLongAiModel()">Import Seedance 2.0 Mini</button>
+          <button class="secondary" type="button" onclick="tab('longAiVideoTests')">Open video tests</button>
           <div id="longaiActionMsg" class="muted" role="status" style="margin-top:10px"></div>
         </div>
         <div class="card provider-source-card" data-provider-source="sluice" hidden="hidden">
@@ -507,6 +530,7 @@ function tab(name,btn,activityJobId){
   if(name==='credits')loadCredits();
   if(name==='storage'){loadCloudStorage();loadDriveStorage();}
   if(name==='provider')openProviderWorkspace();
+  if(name==='longAiVideoTests')openLongAiVideoTests();
   if(activityTab){
     setActivityScope(name==='aividHistory');
     if(activityJobId){
@@ -1517,6 +1541,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=1"></script></body></html>
 
 
