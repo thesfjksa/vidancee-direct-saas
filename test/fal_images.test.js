@@ -185,6 +185,17 @@ test('fal edit pairing discovers exact suffixes, not unlisted or guessed endpoin
   assert.ok(!editCandidates('fal-ai/flux-2').includes('fal-ai/flux-2'));
 });
 
+test('fal documented reference_image_url field is available on one-image endpoints',()=>{
+  const price={unit_price:0.09,unit:'images',currency:'USD'};
+  const model=describeFalImageModel(entry('fal-ai/flux-pulid',{...imageSize,reference_image_url:{type:'string'}},['prompt','reference_image_url']),price);
+  assert.equal(model.options.adapterSupported,true);
+  assert.deepEqual([model.options.referenceCapabilities.image.min,model.options.referenceCapabilities.image.max],[1,1]);
+  const client=new FalImageClient();
+  const input=client.input({...model.options,providerModelId:model.providerModelId},{prompt:'Keep identity',aspectRatio:'1:1'},[{url:'https://example.com/portrait.png'}]);
+  assert.equal(input.reference_image_url,'https://example.com/portrait.png');
+  assert.equal(input.image_urls,undefined);
+});
+
 test('the fal image worker picks up ready jobs on a shorter interval', t=>{
   const {FalImageQueue}=require('../src/fal_image_queue.js');
   const {VercelQueue}=require('../src/vercel_queue.js');
