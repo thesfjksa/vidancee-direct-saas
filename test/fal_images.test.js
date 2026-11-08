@@ -122,7 +122,7 @@ test('catalog sync reads generation and edit schemas without the key and falls b
   const models=await fetchFalImageCatalog({apiKey:'k',fetchImpl});
   assert.deepEqual(models.map(model=>model.options.adapterSupported),[true,true]);
   assert.deepEqual(models.map(model=>model.options.referenceCapabilities.image.min),[0,1]);
-  assert.equal(models[1].options.referenceCapabilities.image.max,10);
+  assert.equal(models[1].options.referenceCapabilities.image.max,14);
   assert.equal(seen.find(([u])=>u.includes('expand=openapi'))[1],false);
   assert.equal(seen.find(([u])=>u.includes('/models/pricing'))[1],true);
 });
