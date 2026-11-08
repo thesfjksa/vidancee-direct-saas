@@ -94,7 +94,8 @@ function publicDevice(device, now = Date.now()) {
   const age = now - Date.parse(device.seenAt);
   return { paired: Boolean(device.deviceId && device.tokenHash), deviceId: device.deviceId || null,
     online: Number.isFinite(age) && age >= 0 && age < 45000,
-    seenAt: device.seenAt || null, status: RDP_STATUSES.includes(device.status) ? device.status : 'offline' };
+    seenAt: device.seenAt || null, browser: device.browser === 'edge' ? 'edge' : 'chrome',
+    status: RDP_STATUSES.includes(device.status) ? device.status : 'offline' };
 }
 
 class AividRdpClient {
@@ -226,12 +227,20 @@ class AividRdpService {
     if ((await this.getConfig()).mode !== 'rdp') throw failure('RDP mode is not active.', 409);
     return device;
   }
-  async poll(device, status) {
+  async browser() {
+    const config = await this.getConfig();
+    return { browser: config.browser === 'edge' ? 'edge' : 'chrome' };
+  }
+  async poll(device, status, browser = 'chrome') {
     if (!RDP_STATUSES.includes(status)) throw failure('Invalid RDP status.');
-    await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status, seenAt: new Date(this.now()).toISOString() }));
-    if (['busy', 'starting', 'needs_verification'].includes(status)) return { command: null };
+    if (!['chrome', 'edge'].includes(browser)) throw failure('Invalid RDP browser.');
+    const selected = (await this.browser()).browser;
+    const matched = browser === selected;
+    const reported = !matched && status === 'ready' ? 'starting' : status;
+    await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status: reported, browser, seenAt: new Date(this.now()).toISOString() }));
+    if (!matched || ['busy', 'starting', 'needs_verification'].includes(status)) return { browser: selected, command: null };
     const command = await this.store.claim(device.deviceId, status !== 'ready');
-    return { command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
+    return { browser: selected, command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
   }
   async command(device, id) {
     if (!UUID.test(id)) throw failure('Invalid RDP operation.');

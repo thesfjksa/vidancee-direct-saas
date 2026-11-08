@@ -1,4 +1,4 @@
-# CMMTools AIVID managed worker 3.0.1
+# CMMTools AIVID managed worker 3.0.2
 
 ## One-time migration
 
@@ -51,3 +51,9 @@ The owner's existing completed source video still needs a successful transfer
 into CMMTools after the managed worker is installed and connected.
 
 Version 3.0.1 fixes the bootstrap restart counter so verified runtime updates activate without stopping the launcher. Close Agent before extracting the complete package into its existing folder. Preserve `.aivid-agent.json`, `.aivid-rdp-profile`, `.aivid-runtime` and `receipts`. Do not copy only the EXE into a new folder.
+
+## Admin browser choice
+
+In Admin → Provider → AIVID → Windows RDP agent, select Google Chrome or Microsoft Edge and save. Chrome remains the default. The paired agent receives this selection while polling, finishes active work before switching, and never claims new jobs while its browser differs from the saved selection. Chrome keeps `.aivid-rdp-profile` and Edge uses `.aivid-rdp-edge-profile`. Pairing and receipts are preserved.
+
+To sign into a newly selected browser, close the agent, keep the complete upgraded 3.0.2 ZIP in the existing folder (preserve `.aivid-agent.json`, both browser profiles, `.aivid-runtime`, and `receipts`), launch AIVID-Login.exe, complete sign-in, close the login window, and restart AIVID-Agent.exe. Install Edge on the RDP if needed. Check the matching ready status before paid work.
