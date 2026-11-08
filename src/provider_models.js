@@ -181,7 +181,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
   const base = {
     id: Number(row.id),
     publicModelId: row.public_model_id,
-    label: row.label,
+    label: row.provider === 'wxksai' ? customerModelLabel(row.label) : row.label,
     mediaType: row.media_type,
     enabled: Boolean(row.enabled),
     available: Boolean(row.available),
