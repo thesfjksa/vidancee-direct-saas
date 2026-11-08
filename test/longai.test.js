@@ -12,6 +12,7 @@ const { quoteGateway, validateReferences } = require('../src/vercel_models.js');
 const { PKR_PER_USD, applyPriceRate, priceRate } = require('../src/billing.js');
 const { PLANS } = require('../src/plans.js');
 const { fetchPublicMedia } = require('../src/remote_image.js');
+const { errorDetails } = require('../src/activity_log.js');
 
 const key = 'fixture-key';
 const options = { prompt: 'A seedling in the rain.', duration: 15, aspectRatio: '9:16', resolution: '720p' };
@@ -117,6 +118,36 @@ test('LONG AI reports DOM timeout errors during connection and response reads', 
   for (const client of [connect, read]) {
     await assert.rejects(client.verifyModel(), { networkCode: 'TimeoutError', requestMethod: 'GET', timeoutMs: 28000 });
   }
+});
+
+test('LONG AI reports a single unavailable submission with safe diagnostics and a refund message', async () => {
+  let posts = 0;
+  const queue = new LongAiQueue();
+  const client = new LongAiClient({ apiKey: key, fetchImpl: async (url, request) => {
+    assert.equal(request.method, 'POST');
+    posts++;
+    return json({ error: { message: 'This model is currently unavailable: no upstream provider serves it. Private detail.' } }, {
+      status: 503, headers: { 'content-type': 'application/json', 'x-request-id': 'req_example_123' },
+    });
+  } });
+  await assert.rejects(client.startVideo(options), failure => {
+    const details = errorDetails(failure);
+    assert.equal(details.providerStatus, 503);
+    assert.equal(details.providerRequestId, 'req_example_123');
+    assert.equal(details.code, 'LONG_AI_NO_UPSTREAM');
+    assert.equal(details.requestMethod, 'POST');
+    assert.doesNotMatch(JSON.stringify(details), /Private detail/);
+    assert.match(queue.submitFailureMessage(failure), /temporarily unavailable.*Credits were refunded/);
+    return true;
+  });
+  assert.equal(posts, 1);
+
+  client.fetch = async () => new Response('Gateway unavailable', {
+    status: 503, headers: { 'x-request-id': 'sk-test-secret' },
+  });
+  await assert.rejects(client.startVideo(options), {
+    providerStatus: 503, providerRequestId: undefined, code: undefined,
+  });
 });
 
 test('LONG AI saves one task and polls the URL returned by its API', async () => {

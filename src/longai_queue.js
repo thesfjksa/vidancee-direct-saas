@@ -13,6 +13,13 @@ class LongAiQueue extends VercelQueue {
   sourceEnabled(settings) { return settings.longAiEnabled; }
   maxInflight() { return 1; }
 
+  submitFailureMessage(error) {
+    if (error.providerStatus === 503) {
+      return 'Seedance 2.0 Mini is temporarily unavailable from the video service. Credits were refunded.';
+    }
+    return super.submitFailureMessage(error);
+  }
+
   async submit(db, job, client) {
     const op = await client.startVideo(savedOptions(job));
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
