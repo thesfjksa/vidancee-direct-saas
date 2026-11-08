@@ -38,16 +38,20 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   assert.ok(h3.durations.length && h3.aspectRatios.length && h3.capabilities.image.supported);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   assert.ok(config.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast · up to 15 s'));
-  const mini=config.pricing.find(m=>m.id==='seedance_2_0_mini');
-  assert.equal(mini.label,'CMM Mini · up to 15 s');
-  assert.equal(mini.warning, undefined);
+  // CMM Mini (historical seedance_2_0_mini ID) is fully retired from user choice.
+  assert.equal(config.pricing.some(m=>m.id==='seedance_2_0_mini'),false);
   assert.ok(!config.cartoon.pricing.some(m=>m.id==='seedance_2_0_mini'));
+  const oldSkuQuote = await fetch(origin + '/api/model-cost', {
+    method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({model:'seedance_2_0_mini',mediaType:'video',duration:10,resolution:'768p',aspectRatio:'16:9'}),
+  });
+  assert.equal(oldSkuQuote.status,404);
   assert.ok(config.cartoon.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast'));
 
   const list = await (await fetch(origin + '/admin/model-names', { headers: admin })).json();
   assert.ok(list.models.some(m => m.key === 'video:minimax_h3' && m.vendor === 'vgenv' && m.defaultName === 'MiniMax H3 Base · up to 15 s' && m.name === ''));
   assert.ok(list.models.some(m => m.key === 'cartoon:minimax_h3'));
-  assert.ok(list.models.some(m => m.key === 'video:seedance_2_0_mini' && m.vendor === 'vgenv' && m.defaultName === 'CMM Mini · up to 15 s'));
+  assert.equal(list.models.some(m => m.key === 'video:seedance_2_0_mini'),false);
   assert.equal(list.models.some(m => m.key === 'cartoon:seedance_2_0_mini'),false);
   assert.equal(list.models.some(m => m.key.endsWith(':seedance_2.5')), false);
 
