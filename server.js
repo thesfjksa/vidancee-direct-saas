@@ -447,7 +447,7 @@ const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxk
 // 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
 // Every source is on for customers unless the admin turns it off for one.
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,key!=='wxksai']));
 }
 // Voice Studio used to be opt-in, so saving any customer's Sources stored
 // "Voice off" unless it was ticked. Clear those once so Voice follows the
