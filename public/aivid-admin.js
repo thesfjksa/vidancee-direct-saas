@@ -130,7 +130,9 @@
       if (savedMode === 'rdp') {
         const rdp = data.rdp || {};
         el('aividRdpStatus').textContent = !rdp.paired ? 'No RDP agent paired yet.' :
-          (rdp.online ? 'Agent online: ' + rdp.status.replaceAll('_', ' ') : 'Agent offline. Start AIVID-Agent.exe on your RDP.') +
+          (rdp.online ? (rdp.status==='needs_verification'
+            ? 'AIVID verification required. Close the idle Agent, finish verification in AIVID-Login.exe on your RDP, close its Chrome window, then restart the Agent.'
+            : 'Agent online: ' + rdp.status.replaceAll('_', ' ')) : 'Agent offline. Start AIVID-Agent.exe on your RDP.') +
           (rdp.seenAt ? ' Last seen ' + new Date(rdp.seenAt).toLocaleString() + '.' : '');
         el('aividConnectionBadge').textContent = rdp.online ? 'RDP online' : rdp.paired ? 'RDP offline' : 'Pair RDP agent';
         el('aividSessionStatus').textContent = 'Sign-in stays in Chrome on your RDP. Browserless is not used in RDP mode.';

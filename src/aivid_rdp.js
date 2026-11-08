@@ -6,6 +6,7 @@ const { getSettingValue, setSettingValue } = require('./settings.js');
 const { ID, validateJob, DIAGNOSTICS, diagnosticMessage } = require('./provider/aivid.js');
 const DEVICE_KEY = 'aivid_rdp_device', HEARTBEAT_KEY = 'aivid_rdp_heartbeat', PAIR_KEY = 'aivid_rdp_pairing';
 const UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
+const RDP_STATUSES = ['ready', 'needs_login', 'needs_verification', 'starting', 'busy'];
 const CHUNK = 1024 * 1024, MAX_OUTPUT = 100 * CHUNK;
 const failure = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode, aividSafe: true });
 const hash = value => crypto.createHash('sha256').update(Buffer.isBuffer(value) ? value : String(value)).digest('hex');
@@ -93,7 +94,7 @@ function publicDevice(device, now = Date.now()) {
   const age = now - Date.parse(device.seenAt);
   return { paired: Boolean(device.deviceId && device.tokenHash), deviceId: device.deviceId || null,
     online: Number.isFinite(age) && age >= 0 && age < 45000,
-    seenAt: device.seenAt || null, status: ['ready', 'needs_login', 'starting', 'busy'].includes(device.status) ? device.status : 'offline' };
+    seenAt: device.seenAt || null, status: RDP_STATUSES.includes(device.status) ? device.status : 'offline' };
 }
 
 class AividRdpClient {
@@ -102,6 +103,9 @@ class AividRdpClient {
   }
   async run(kind, payload, { beforeClick, references = [], generationId = null, timeoutMs = 180000 } = {}) {
     if (!this.device?.deviceId || !this.device?.tokenHash) throw failure('Pair the Windows RDP agent in Admin first.', 503);
+    const device=publicDevice(this.device,this.now());
+    if(device.online&&device.status==='needs_verification')
+      throw Object.assign(failure(diagnosticMessage('session_verification'),503),{aividCode:'session_verification'});
     const command = { id: crypto.randomUUID(), deviceId: this.device.deviceId, generationId, kind,
       expiresAt: this.now() + timeoutMs, payload: { ...payload, references: references.map((r, index) =>
         ({ index, kind: r.kind, mimeType: r.mimeType, size: r.data.length, sha256: hash(r.data) })) } };
@@ -223,9 +227,9 @@ class AividRdpService {
     return device;
   }
   async poll(device, status) {
-    if (!['ready', 'needs_login', 'starting', 'busy'].includes(status)) throw failure('Invalid RDP status.');
+    if (!RDP_STATUSES.includes(status)) throw failure('Invalid RDP status.');
     await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status, seenAt: new Date(this.now()).toISOString() }));
-    if (['busy', 'starting'].includes(status)) return { command: null };
+    if (['busy', 'starting', 'needs_verification'].includes(status)) return { command: null };
     const command = await this.store.claim(device.deviceId, status !== 'ready');
     return { command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
   }

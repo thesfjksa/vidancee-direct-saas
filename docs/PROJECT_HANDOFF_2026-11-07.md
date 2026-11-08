@@ -71,6 +71,13 @@ The owner authorizes the assistant to push and merge every owner-requested repos
 - Video Studio preserves the current estimate during prompt and reference changes. A new selection shows a loading status, and Generate waits for the matching live quote. Reuse can still show an older cost while the matching quote is pending.
 - Focused local checks passed (117 passing, two environment-dependent skips), including quote coalescing, source and settings isolation, expiration, fresh submission verification, and loading/ready button state. Production latency and the managed agent rollout remain to be verified.
 
+### AIVID security verification on the Windows RDP (8 November PKT)
+
+- The owner reported repeated security verification on the AIVID page in managed Chrome. The screenshots showed both the initial security verification heading and the later “Verifying you are human” heading. Both variants are detected. The reason for the repeated challenge and its clearance on the owner's RDP were not verified.
+- CMMTools now recognizes the visible challenge before it navigates away or begins form work. The RDP agent reports `needs_verification`, continues its heartbeat without running browser checks, and claims no commands until the operator clears the challenge and restarts the agent. Existing accepted video collection keeps the same job ID and does not use a collection retry attempt while blocked.
+- When the agent is idle, close it and use AIVID-Login.exe on the same RDP to complete any verification manually. Close the login Chrome window and restart AIVID-Agent.exe after the signed-in form appears. If verification still repeats with the agent stopped, ask AIVID support to review the challenge and provide its Ray ID if shown. CMMTools does not solve the challenge or change the provider's security settings.
+- Focused local tests passed (112 passing, two environment-dependent skips). Coverage includes detection before navigation, stopping automatic rechecks, blocking command claims, and retaining an accepted video. Production rollout and recovery of the owner's RDP session remain unverified.
+
 ## Merged change index and purpose
 
 | PR | Description | Merge commit | Verified boundary |

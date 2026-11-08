@@ -63,7 +63,7 @@ class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
     this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
     this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
-    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: collectSavedVideo, maxSourceCredits: limit,
+    this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: (page,id) => collectSavedVideo(page,id,{checkChallenge:adapter.assertNoAividChallenge}), maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
       onBlockedRequest: ({method, hostname, path}) =>
         console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
@@ -74,8 +74,9 @@ class Agent {
       await this.clientFactory(0).preflight({ prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' });
       this.status = 'ready'; console.log('AIVID session ready. No video was generated.');
     } catch (error) {
-      this.status = 'needs_login';
-      console.log('AIVID [' + adapter.diagnosticCode(error) + ']: ' + adapter.diagnosticMessage(adapter.diagnosticCode(error)));
+      const code=adapter.diagnosticCode(error);
+      this.status = code==='session_verification'?'needs_verification':'needs_login';
+      console.log('AIVID [' + code + ']: ' + adapter.diagnosticMessage(code));
     }
   }
   async report(route, body) {
@@ -186,7 +187,7 @@ class Agent {
               await this.transport.request('/commands/' + command.id + '/result', { body: { error: true, errorCode } }).catch(() => {});
               const sessionFailure = ['browser_connection', 'session_sign_in', 'session_page_left',
                 'session_check', 'session_form_missing', 'session_form_ambiguous'].includes(errorCode);
-              this.status = sessionFailure ? 'needs_login' : previous;
+              this.status = errorCode==='session_verification'?'needs_verification':sessionFailure?'needs_login':previous;
               if (sessionFailure) nextSessionCheck = this.now() + 30000;
               console.log('AIVID operation needs attention. Existing paid jobs remain protected.');
               console.log('AIVID [' + errorCode + ']: ' + adapter.diagnosticMessage(errorCode));

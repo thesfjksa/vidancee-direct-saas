@@ -94,6 +94,11 @@ class AividQueue extends VercelQueue {
         this.tasks.add(job.id);
         try { const state=await this.pollJob(db, client, job);if(!op.collectionMediaPending&&['completed','failed'].includes(state))inflight--; }
         catch(error) {
+          if(error?.aividCode==='session_verification'){
+            this.collectionWaitingForAgent=true;
+            this.log(job,'aivid.collection_waiting_for_verification',diagnosticMessage(error.aividCode),{providerJobId:job.provider_job_id});
+            return;
+          }
           // Sign-out, missing/private detail page, source failure, download or
           // storage failures retain the accepted ID; never resubmit or refund.
           const attempts=(Number(op.collectionFailures)||0)+1;
