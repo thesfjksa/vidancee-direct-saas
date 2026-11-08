@@ -663,7 +663,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video.push(...require('./src/aivid_models.js').customerCatalog(config));
   }
   video=[...video,...directVideoModels(access,providerSettings)];
-  return {video,image:[...image,...falReferenceModels],upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
+  return {
+    video:video.filter(model=>!isRetiredModel(model)),
+    image:[...image,...falReferenceModels].filter(model=>!isRetiredModel(model)),
+    upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active)),
+  };
 }
 
 // The API vendor behind a model id, for the admin.
