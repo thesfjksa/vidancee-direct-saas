@@ -77,7 +77,10 @@ function wxksaiReferenceCapabilities(id) {
 }
 
 const publicId = id => 'wxksai_' + id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/,'');
-const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => publicId(key) === id);
+const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => {
+  const legacy = publicId(key);
+  return legacy === id || require('./dope_brand.js').customerModelId(legacy) === id;
+});
 
 function wxksaiMediaModels(live) {
   if (!Array.isArray(live?.data)) throw new Error('WXKSAI did not return an account-scoped model list.');
