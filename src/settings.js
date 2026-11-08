@@ -2,7 +2,6 @@ const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION } = require('./smartaipi_images.js');
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
-const { GEMINI_ENHANCER_MODEL } = require('./prompt_enhancer.js');
 
 const { DEFAULT_VERCEL_CREDITS_PER_USD } = require('./vercel_models.js');
 const { CREDITS_PER_USD, CREDITS_PER_CNY } = require('./billing.js');
@@ -39,8 +38,6 @@ const DEFAULTS = {
   fal_enabled: 'true',
   fal_max_inflight: '3',
   fal_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
-  prompt_enhancer_enabled: 'true',
-  prompt_enhancer_gemini_api_key: '',
   smartaipi_base_url: 'https://api.smartaipi.com/v1',
   smartaipi_api_key: '',
   smartaipi_enabled: 'true',
@@ -238,8 +235,6 @@ async function getProviderSettings() {
     falEnabled: asBool(read('fal_enabled')),
     falMaxInflight: Math.max(1, Math.min(10, Number(read('fal_max_inflight') || 3))),
     falCustomerCreditsPerUsd: CREDITS_PER_USD,
-    promptEnhancerEnabled: asBool(read('prompt_enhancer_enabled')),
-    promptEnhancerApiKey: String(read('prompt_enhancer_gemini_api_key') || '').trim(),
     smartAipiBaseUrl: smartAipiBaseUrl(read('smartaipi_base_url')),
     smartAipiApiKey: String(read('smartaipi_api_key') || '').trim(),
     smartAipiEnabled: asBool(read('smartaipi_enabled')),
@@ -314,11 +309,6 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.falApiKey), configured: Boolean(s.falApiKey),
       enabled: s.falEnabled, active: Boolean(s.falEnabled && s.falApiKey),
       maxInflight: s.falMaxInflight, customerCreditsPerUsd: s.falCustomerCreditsPerUsd,
-    },
-    promptEnhancer: {
-      model: GEMINI_ENHANCER_MODEL, enabled: s.promptEnhancerEnabled,
-      apiKeyConfigured: Boolean(s.promptEnhancerApiKey),
-      active: Boolean(s.promptEnhancerEnabled && s.promptEnhancerApiKey && s.allowProviderCharges),
     },
     smartaipi: {
       baseUrl: s.smartAipiBaseUrl,
@@ -479,12 +469,6 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Vidancee max inflight must be 1 to 10.'), {statusCode:400});
     vidanceeUpdates.push(['vidancee_max_inflight',String(n)]);
   }
-  if ('promptEnhancerEnabled' in input && typeof input.promptEnhancerEnabled !== 'boolean') {
-    throw Object.assign(new Error('Prompt enhancer enabled must be true or false.'), { statusCode: 400 });
-  }
-  if ('promptEnhancerApiKey' in input && (typeof input.promptEnhancerApiKey !== 'string' || input.promptEnhancerApiKey.length > 512)) {
-    throw Object.assign(new Error('Invalid prompt enhancer API key.'), { statusCode: 400 });
-  }
   const smartUpdates = [];
   if ('smartAipiBaseUrl' in input) smartUpdates.push(['smartaipi_base_url', smartAipiBaseUrl(input.smartAipiBaseUrl || DEFAULTS.smartaipi_base_url)]);
   if ('smartAipiEnabled' in input) smartUpdates.push(['smartaipi_enabled', input.smartAipiEnabled ? 'true' : 'false']);
@@ -526,10 +510,6 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isFinite(n) || n < 0 || n > 1000000) throw new Error('Vibi clone customer cost must be zero or greater.');
     await put('vibi_clone_customer_cost', String(n));
   }
-
-  if ('promptEnhancerEnabled' in input) await put('prompt_enhancer_enabled', input.promptEnhancerEnabled ? 'true' : 'false');
-  if (input.clearPromptEnhancerApiKey === true) await del('prompt_enhancer_gemini_api_key');
-  else if (String(input.promptEnhancerApiKey || '').trim()) await put('prompt_enhancer_gemini_api_key', String(input.promptEnhancerApiKey).trim(), true);
 
   for (const [key, value] of smartUpdates) await put(key, value);
   if (input.clearSmartAipiApiKey === true) await del('smartaipi_api_key');
