@@ -46,14 +46,14 @@ async function debuggerEndpoint(profile, fetchImpl = fetch) {
     return 'ws://127.0.0.1:' + port + target;
   } catch { return null; }
 }
-async function connectNative(profile, { browser = 'chrome', chromium, fetchImpl = fetch, start = startChrome, timeoutMs = 20000 } = {}) {
+async function connectNative(profile, { browser: browserType = 'chrome', chromium, fetchImpl = fetch, start = startChrome, timeoutMs = 20000 } = {}) {
   let endpoint = await debuggerEndpoint(profile, fetchImpl);
   if (!endpoint) {
-    await start(profile, { browser, debug: true });
+    await start(profile, { browser: browserType, debug: true });
     const deadline = Date.now() + timeoutMs;
     while (!endpoint && Date.now() < deadline) { await pause(250); endpoint = await debuggerEndpoint(profile, fetchImpl); }
   }
-  if (!endpoint) throw new Error('Close the ' + browserLabel(browser) + ' windows opened by AIVID-Login.exe, then restart AIVID-Agent.exe. Other browser windows can stay open.');
+  if (!endpoint) throw new Error('Close the ' + browserLabel(browserType) + ' windows opened by AIVID-Login.exe, then restart AIVID-Agent.exe. Other browser windows can stay open.');
   chromium ||= require('playwright-core').chromium;
   let browser;
   try {
@@ -73,7 +73,7 @@ async function connectNative(profile, { browser = 'chrome', chromium, fetchImpl 
     return { browser, context, page, close: async () => { await browser.close().catch(() => {}); } };
   } catch {
     if (browser) await browser.close().catch(() => {});
-    throw new Error('The local AIVID ' + browserLabel(browser) + ' connection failed. Inspect its window on the RDP.');
+    throw new Error('The local AIVID ' + browserLabel(browserType) + ' connection failed. Inspect its window on the RDP.');
   }
 }
 function securityWarning(title,text){return /safety warning|security warning|privacy error/i.test(title)&&/looks fake|did you mean|connection is not private|deceptive site/i.test(text);}
