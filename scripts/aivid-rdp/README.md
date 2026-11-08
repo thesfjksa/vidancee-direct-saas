@@ -51,3 +51,21 @@ The owner's existing completed source video still needs a successful transfer
 into CMMTools after the managed worker is installed and connected.
 
 Version 3.0.1 fixes the bootstrap restart counter so verified runtime updates activate without stopping the launcher. Close Agent before extracting the complete package into its existing folder. Preserve `.aivid-agent.json`, `.aivid-rdp-profile`, `.aivid-runtime` and `receipts`. Do not copy only the EXE into a new folder.
+
+## Admin-selectable Windows browsers (Chrome / Edge)
+
+In **Admin → Provider → AIVID → Windows browser**, save **Google Chrome** (default)
+or **Microsoft Edge**. The paired agent reads the saved choice from CMMTools at
+startup and every idle poll. Changing the choice does not re-pair the RDP agent.
+The server prevents claiming another command until the agent has switched.
+Active operations cannot be interrupted by this choice. When switching, close
+an idle agent and run **AIVID-Login.exe** to sign into AIVID in the selected
+browser, close its login window, then run **AIVID-Agent.exe**. The login launcher
+requires a paired agent and an accessible CMMTools server to read this choice.
+
+Chrome retains `.aivid-rdp-profile`; Edge uses a separate
+`.aivid-rdp-edge-profile`. Do not remove either private profile, pairing data,
+or receipts. A managed runtime update covers the agent and native browser
+selection. The existing Windows login launcher must be packaged in the updated
+agent ZIP; an old AIVID-Login.exe is compatible because it runs the accompanying
+login.cjs. No paid generation was used to validate this change.
