@@ -2745,7 +2745,7 @@ const server=http.createServer(async (req,res)=>{
           }
         }
         // Keys and passwords are masked by the activity log.
-        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:body}});
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{})}}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
         let higgsfieldSync=null;
         if(String(body.higgsfieldApiKey||'').trim()){
