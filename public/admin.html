@@ -1385,7 +1385,7 @@ async function checkLongAi(){
 async function importLongAiModel(){
   const button=$('longaiImport'),message=$('longaiActionMsg');
   button.disabled=true;
-  message.className='muted';message.textContent='Checking model access and saving prices…';
+  message.className='muted';message.textContent='Saving Seedance 2.0 Mini and its prices…';
   try{
     await api('/admin/longai/import',{method:'POST',body:JSON.stringify({rates:{'480p':$('longai480p').value,'720p':$('longai720p').value}})});
     message.className='ok';message.textContent='Seedance 2.0 Mini imported. Enable LONG AI and save settings to show it in Video Studio.';
