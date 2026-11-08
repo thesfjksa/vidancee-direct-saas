@@ -475,3 +475,17 @@ Repository documents: `docs/CLAUDE_CONNECTOR.md`, `docs/HPANEL_DEPLOYMENT.md`, `
 Claude connectors: https://claude.com/docs/connectors/building and https://claude.com/docs/connectors/building/authentication. MCP specification: https://modelcontextprotocol.io/specification. Official SmartAIPI source pricing: https://smartaipi.com/pricing. GPT Image 2 size documentation: https://smartaipi.com/blog/gpt-image-2-now-available. GPT Image 2.5 documentation: https://smartaipi.com/blog/gpt-image-2-5-now-available. Gemini API errors: https://ai.google.dev/gemini-api/docs/api-errors. Gemini thinking controls: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels.
 
 All customer-credit examples in this handoff describe the reviewed application settings or explicitly identified defaults. Before changing commercial pricing, check the current Admin settings and the provider's current official prices.
+
+
+### 2026-11-08 — AIVID Chrome / Microsoft Edge browser selection
+
+A feature branch adds Admin → Provider → AIVID → Windows browser (Chrome or Edge).
+The selected browser is persisted under `aivid_browserless_config.rdpBrowser`
+(default Chrome), exposed in the admin status, and delivered to the paired
+Windows RDP agent at start and during polling. A mismatch prevents server-side
+job claiming until the browser switches between operations. The manual-login
+launcher fetches the saved choice from the paired server, and both modes use
+separate persistent browser profiles. The existing Chrome profile and agent
+pairing are preserved. An Edge login is required before its first job. Windows
+Edge runtime smoke testing and live deployment must be confirmed separately;
+no paid generation was authorized. See scripts/aivid-rdp/README.md.
