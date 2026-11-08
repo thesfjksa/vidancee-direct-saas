@@ -41,6 +41,7 @@ function fakeDb(initial = null) {
       if (sql.startsWith("UPDATE longai_render_tests SET status='submitting'")) {
         if (row.status !== 'queued') return [{ affectedRows: 0 }];
         row.status = 'submitting';
+        row.submissionAge = 0;
         return [{ affectedRows: 1 }];
       }
       if (sql.startsWith('UPDATE longai_render_tests SET status=?')) {
@@ -116,7 +117,7 @@ test('LONG AI distinguishes upstream 503, interrupted submission, and unverified
   await runRenderTest(rejected, unavailable, true);
   assert.equal(posts, 1);
 
-  const interrupted = fakeDb({ ...row(), status: 'submitting' });
+  const interrupted = fakeDb({ ...row(), status: 'submitting', submissionAge: 120 });
   await runRenderTest(interrupted, unavailable, true);
   assert.equal(interrupted.row.status, 'submission_unknown');
   assert.equal(posts, 1);
@@ -128,4 +129,53 @@ test('LONG AI distinguishes upstream 503, interrupted submission, and unverified
   await runRenderTest(output, { apiKey: key, async videoStatus() { return { status: 'missing_output' }; } }, true);
   assert.equal(output.row.status, 'output_unverified');
   assert.equal(output.row.task_id, 'task_123');
+});
+
+test('LONG AI records the submission timeout through the pool after releasing the claim connection', async () => {
+  const db = fakeDb({ id, model, status: 'queued', key_fingerprint: digest, age: 0 });
+  let claimReleased = false;
+  let connectionExpired = false;
+  db.getConnection = async () => ({
+    query: db.query,
+    async execute(...args) {
+      if (connectionExpired) throw new Error('Connection is in a closed state');
+      return db.execute(...args);
+    },
+    release() { claimReleased = true; },
+  });
+  let posts = 0;
+  let begin, finish;
+  const started = new Promise(resolve => { begin = resolve; });
+  const wait = new Promise(resolve => { finish = resolve; });
+  const client = new LongAiClient({ apiKey: key, fetchImpl: async (url, request) => {
+    assert.equal(request.method, 'POST');
+    posts++;
+    begin();
+    await wait;
+    connectionExpired = true;
+    throw Object.assign(new Error('timeout'), { code: 'ABORT_ERR' });
+  } });
+  const submit = runRenderTest(db, client, true);
+  await started;
+  assert.equal(claimReleased, true);
+  assert.equal(db.row.status, 'submitting');
+  await runRenderTest(db, client, true);
+  assert.equal(db.row.status, 'submitting');
+  finish();
+  await submit;
+  assert.equal(db.row.status, 'submission_unknown');
+  assert.match(db.row.diagnostic, /CMMTools received no LONG AI response/);
+  await runRenderTest(db, client, true);
+  assert.equal(posts, 1);
+});
+
+test('LONG AI records an HTTP response separately from a confirmed task ID', async () => {
+  const db = fakeDb({ id, model, status: 'queued', key_fingerprint: digest, age: 0 });
+  const client = new LongAiClient({ apiKey: key, fetchImpl: async () =>
+    Response.json({ status: 'submitted' }, { status: 202, headers: { 'x-request-id': 'req_fixture_202' } }) });
+  await runRenderTest(db, client, true);
+  assert.equal(db.row.status, 'submission_unknown');
+  assert.equal(db.row.providerStatus, 202);
+  assert.equal(db.row.providerRequestId, 'req_fixture_202');
+  assert.match(db.row.diagnostic, /LONG AI returned a response without a confirmed task ID/);
 });

@@ -47,7 +47,13 @@ function networkError(cause, method, timeoutMs) {
   const timedOut = ['ABORT_ERR', 'AbortError', 'TimeoutError', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT'].includes(networkCode);
   const message = timedOut ? 'LONG AI connection timed out from the CMMTools server.' :
     'CMMTools could not connect to LONG AI (' + networkCode + ').';
-  return Object.assign(error(message), { networkCode, requestMethod: method, timeoutMs });
+  return Object.assign(error(message), { networkCode, requestMethod: method, timeoutMs, timedOut });
+}
+
+function responseDetails(response) {
+  const requestId = response.headers.get('x-request-id') || '';
+  const providerRequestId = /^[a-z\d][a-z\d._-]{0,95}$/i.test(requestId) && !/^sk[-_]/i.test(requestId) ? requestId : undefined;
+  return { providerStatus: response.status, providerRequestId };
 }
 
 function pollingPath(value, requestId) {
@@ -87,18 +93,18 @@ class LongAiClient {
       await response.body?.cancel().catch(() => {});
       const message = response.status === 401 || response.status === 403 ? 'LONG AI rejected this API key or its model access.' :
         'LONG AI returned HTTP ' + response.status + '.';
-      const requestId = response.headers.get('x-request-id') || '';
-      const providerRequestId = /^[a-z\d][a-z\d._-]{0,95}$/i.test(requestId) && !/^sk[-_]/i.test(requestId) ? requestId : undefined;
-      throw Object.assign(error(message), {
-        providerStatus: response.status, providerRequestId, code, requestMethod: body ? 'POST' : 'GET',
-      });
+      throw Object.assign(error(message), responseDetails(response), { code, requestMethod: body ? 'POST' : 'GET' });
     }
-    try { return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')), location: response.headers.get('location') }; }
+    const metadata = responseDetails(response);
+    try {
+      return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')),
+        location: response.headers.get('location'), metadata };
+    }
     catch (cause) {
       if (cause?.name === 'AbortError' || cause?.name === 'TimeoutError' || cause?.code === 'ABORT_ERR') {
-        throw networkError(cause, body ? 'POST' : 'GET', timeoutMs);
+        throw Object.assign(networkError(cause, body ? 'POST' : 'GET', timeoutMs), metadata);
       }
-      throw error('LONG AI returned an invalid API response.');
+      throw Object.assign(error('LONG AI returned an invalid API response.'), metadata);
     }
   }
 
@@ -147,15 +153,20 @@ class LongAiClient {
   }
 
   async startVideo(options, modelId = MODEL_ID) {
-    const { data, location } = await this.json('/v1/videos', {
+    const { data, location, metadata } = await this.json('/v1/videos', {
       model: modelId, prompt: options.prompt, duration: options.duration,
       aspect_ratio: options.aspectRatio, resolution: options.resolution,
     });
     const job = task(data);
     const requestId = String(job?.id ?? job?.task_id ?? job?.job_id ?? '');
-    if (!/^[\w-]{1,191}$/.test(requestId)) throw error('LONG AI did not return a video task ID.');
-    const path = pollingPath(job.status_url || job.poll_url || data.status_url || data.poll_url || location, requestId);
-    return { requestId, path };
+    if (!/^[\w-]{1,191}$/.test(requestId)) {
+      throw Object.assign(error('LONG AI did not return a video task ID.'), metadata);
+    }
+    try {
+      return { requestId, path: pollingPath(job.status_url || job.poll_url || data.status_url || data.poll_url || location, requestId) };
+    } catch (cause) {
+      throw Object.assign(cause, metadata);
+    }
   }
 
   async videoStatus(op, { reportMissingOutput = false } = {}) {
@@ -178,4 +189,4 @@ class LongAiClient {
   }
 }
 
-module.exports = { LongAiClient };
+module.exports = { LongAiClient, SUBMIT_TIMEOUT_MS };
