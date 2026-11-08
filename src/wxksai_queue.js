@@ -29,13 +29,25 @@ class WxksaiQueue extends VercelQueue {
     this.lastProviderPollAt = Date.now();
     return super.pollVideos(db, client);
   }
+  async referenceFiles(db,job) {
+    const [rows]=await db.execute(
+      'SELECT position_index,media_kind,media_role,filename,mime_type,media_data FROM generation_media WHERE generation_id=? ORDER BY position_index',
+      [job.id]);
+    if(!rows.length)return [];
+    // Uploaded references can be stored in R2. Hydrate the bytes to send
+    // multipart files; NEVER expose signed reference URLs or API keys to WXKSAI.
+    await require('./object_storage.js').hydrateBlobs(rows,'media_data');
+    return rows.map(row=>({
+      kind:row.media_kind,role:row.media_role,filename:row.filename,
+      mimeType:row.mime_type,data:row.media_data,
+    }));
+  }
   async submit(db, job, client) {
     const options = savedOptions(job);
     const model = await this.getModel('wxksai',job.model,'video');
     if (!model?.ready) throw new Error('This WXKSAI model is unavailable.');
-    const refs = await this.references(db, job);
-    if (refs.length) throw new Error('WXKSAI reference-media upload is not enabled for this model.');
-    const operation = await client.startVideo(options);
+    const refs = await this.referenceFiles(db,job);
+    const operation = await client.startVideo(options,refs);
     await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",
       [JSON.stringify(operation),operation.requestId,job.id]);
     this.log(job,'wxksai.accepted','WXKSAI accepted the video task.',{requestId:operation.requestId});
