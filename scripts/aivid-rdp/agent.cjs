@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
-const { connectNative, collectSavedVideo, takeLock } = require('./native.cjs');
+const { connectNative, browserProfile, collectSavedVideo, takeLock } = require('./native.cjs');
 const adapter = require(require('node:fs').existsSync(path.join(__dirname, 'provider/aivid.js')) ? './provider/aivid.js' : '../../src/provider/aivid.js');
 const CHUNK = 1024 * 1024, MAX_OUTPUT = 100 * CHUNK;
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -61,15 +61,15 @@ async function saveConfig(root, value, codec = protect) {
 }
 class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
-    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false;
-    this.connect = connect || (() => connectNative(path.join(root, '.aivid-rdp-profile')));
+    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false; this.browser = 'chrome';
+    this.connect = connect || (() => connectNative(browserProfile(root, this.browser), { browser: this.browser }));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: (page,id) => collectSavedVideo(page,id,{checkChallenge:adapter.assertNoAividChallenge}), maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
       onBlockedRequest: ({method, hostname, path}) =>
         console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
   }
   async check() {
-    console.log('Opening saved Chrome and checking AIVID. No video will be generated.');
+    console.log('Opening saved ' + (this.browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome') + ' and checking AIVID. No video will be generated.');
     try {
       await this.clientFactory(0).preflight({ prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' });
       this.status = 'ready'; console.log('AIVID session ready. No video was generated.');
@@ -143,7 +143,8 @@ class Agent {
     const release = await takeLock(this.root);
     try {
       while (!this.stopping) {
-        try { await this.transport.request('/poll', { body: { status: 'starting' } }); break; }
+        try { const initial = await this.transport.request('/poll', { body: { status: 'starting', browser: this.browser } });
+          this.browser = initial.browser === 'edge' ? 'edge' : 'chrome'; break; }
         catch (error) {
           if (error.statusCode === 401) throw error;
           console.log('Waiting for the CMMTools connection...');
@@ -152,7 +153,7 @@ class Agent {
       }
       if (this.stopping) return;
       const checkSession = async () => {
-        const heartbeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting' } }).catch(() => {}), 10000);
+        const heartbeat = setInterval(() => this.transport.request('/poll', { body: { status: 'starting', browser: this.browser } }).catch(() => {}), 10000);
         try { await this.check(); } finally { clearInterval(heartbeat); }
       };
       await checkSession();
@@ -175,11 +176,19 @@ class Agent {
             await checkSession();
             nextSessionCheck = this.now() + 30000;
           }
-          const { command } = await this.transport.request('/poll', { body: { status: this.status } });
+          const { command, browser } = await this.transport.request('/poll', { body: { status: this.status, browser: this.browser } });
+          if (browser && browser !== this.browser) {
+            if (!['chrome', 'edge'].includes(browser)) throw new Error('Invalid browser selection from CMMTools.');
+            this.browser = browser;
+            this.status = 'starting';
+            await checkSession();
+            nextSessionCheck = this.now() + 30000;
+            continue;
+          }
           if (command) {
             const previous = this.status;
             this.status = 'busy';
-            const timer = setInterval(() => this.transport.request('/poll', { body: { status: 'busy' } }).catch(() => {}), 10000);
+            const timer = setInterval(() => this.transport.request('/poll', { body: { status: 'busy', browser: this.browser } }).catch(() => {}), 10000);
             try { await this.execute(command); this.status = 'ready'; console.log('RDP operation finished.'); }
             catch (error) {
               if (error.statusCode === 401) throw error;
