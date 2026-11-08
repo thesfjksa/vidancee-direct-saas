@@ -168,6 +168,7 @@ const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
 const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai'];
 const { customerModelId, storedModelId, customerModelLabel } = require('./dope_brand.js');
+const { isRetiredModel } = require('./retired_models.js');
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
 // Higgsfield rows take their endpoints and reference rules from the current code.
@@ -309,7 +310,8 @@ async function getProviderModelByPublicId(provider, publicModelId, mediaType) {
      ORDER BY updated_at DESC LIMIT 1`,
     [String(provider), provider === 'wxksai' ? storedModelId(publicModelId) : String(publicModelId), String(mediaType)],
   );
-  return rows[0] ? serializeProviderModel(rows[0]) : null;
+  const found=rows[0] ? serializeProviderModel(rows[0]) : null;
+  return found && !isRetiredModel(found) ? found : null;
 }
 
 async function quarantineProviderUtilityModels(provider) {
@@ -507,7 +509,8 @@ function addMissingImageModels(list, extra) {
 // 720p/1080p view of ArgoLink video models.
 async function publicProviderCatalog(provider, { creditsPerUsd, transform } = {}) {
   const models = (await listProviderModels(provider, { enabledOnly: true, availableOnly: true }))
-    .filter(isPlausibleCustomerModel).filter(model=>!isPricedSource(provider)||model.ready)
+    .filter(isPlausibleCustomerModel).filter(model=>!isRetiredModel(model))
+    .filter(model=>!isPricedSource(provider)||model.ready)
     .map(model => transform ? transform(model) : model).filter(model => model.mediaType !== 'video' || model.resolutions.length);
   const withCosts = model => provider==='api888' ? publicImageModel(model) : isPricedSource(provider) && creditsPerUsd
     ? { ...publicImageModel(model), ...imageCostTable(model,creditsPerUsd) } : publicImageModel(model);
