@@ -124,7 +124,7 @@
  <button id="provider-tab-advanced" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="provider-view-advanced" onclick="showProviderView('advanced')">Advanced</button></div>
  <div id="provider-view-connections" class="provider-panel" role="tabpanel" aria-labelledby="provider-tab-connections">
   <div class="provider-submissions"><div><strong>Generation submissions</strong><span class="muted">Control whether new paid jobs can start.</span></div><div id="providerSubmissionActions" class="provider-inline-actions"><select id="providerCharges" aria-label="Generation submissions"><option value="true">Enabled</option><option value="false">Paused</option></select><button class="secondary" type="button" onclick="saveProviderSettings()">Apply settings</button></div></div>
-  <div class="provider-connection-layout"><aside class="provider-directory" aria-label="Provider connections"><label for="providerSourceSearch">Find a provider</label><input id="providerSourceSearch" type="search" placeholder="Search name or studio" oninput="filterProviderSources()"><label class="provider-mobile-label" for="providerSourceSelect">Selected provider</label><select id="providerSourceSelect" onchange="selectProviderSource(this.value)"><option value="aivid" selected>AIVID / RDP</option><option value="argolink">ArgoLink</option><option value="api888">888API</option><option value="higgsfield">Higgsfield</option><option value="sluice">Sluice</option><option value="vidancee">Vidancee</option><option value="vercel">Vercel AI Gateway</option><option value="smartaipi">SmartAIPI</option><option value="vgenv">MiniMax</option><option value="fal">fal.ai</option><option value="vibi">Vibi</option><option value="enhancer">Prompt enhancer</option></select><nav id="providerSourceNav" aria-label="Select a provider"><button type="button" class="provider-source-link" data-source-key="aivid" aria-pressed="true" onclick="selectProviderSource('aivid')" data-search="aivid rdp browserless windows browser connection"><strong>AIVID</strong><span class="provider-source-description">Browser connection</span><span class="provider-source-status" id="provider-nav-status-aivid">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="argolink" aria-pressed="false" onclick="selectProviderSource('argolink')" data-search="argolink video &amp; image generation"><strong>ArgoLink</strong><span class="provider-source-description">Video &amp; image generation</span><span class="provider-source-status" id="provider-nav-status-argolink">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="api888" aria-pressed="false" onclick="selectProviderSource('api888')" data-search="888api video &amp; image catalog"><strong>888API</strong><span class="provider-source-description">Video &amp; image catalog</span><span class="provider-source-status" id="provider-nav-status-api888">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="higgsfield" aria-pressed="false" onclick="selectProviderSource('higgsfield')" data-search="higgsfield wan video generation"><strong>Higgsfield</strong><span class="provider-source-description">Wan video generation</span><span class="provider-source-status" id="provider-nav-status-higgsfield">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="sluice" aria-pressed="false" onclick="selectProviderSource('sluice')" data-search="sluice seedance lite video"><strong>Sluice</strong><span class="provider-source-description">Seedance Lite video</span><span class="provider-source-status" id="provider-nav-status-sluice">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vidancee" aria-pressed="false" onclick="selectProviderSource('vidancee')" data-search="vidancee omni flash video"><strong>Vidancee</strong><span class="provider-source-description">Omni Flash video</span><span class="provider-source-status" id="provider-nav-status-vidancee">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vercel" aria-pressed="false" onclick="selectProviderSource('vercel')" data-search="vercel ai gateway image &amp; video catalog"><strong>Vercel AI Gateway</strong><span class="provider-source-description">Image &amp; video catalog</span><span class="provider-source-status" id="provider-nav-status-vercel">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="smartaipi" aria-pressed="false" onclick="selectProviderSource('smartaipi')" data-search="smartaipi image generation"><strong>SmartAIPI</strong><span class="provider-source-description">Image generation</span><span class="provider-source-status" id="provider-nav-status-smartaipi">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vgenv" aria-pressed="false" onclick="selectProviderSource('vgenv')" data-search="minimax video &amp; cartoon generation"><strong>MiniMax</strong><span class="provider-source-description">Video &amp; cartoon generation</span><span class="provider-source-status" id="provider-nav-status-vgenv">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="fal" aria-pressed="false" onclick="selectProviderSource('fal')" data-search="fal.ai upscaling &amp; image generation"><strong>fal.ai</strong><span class="provider-source-description">Upscaling &amp; image generation</span><span class="provider-source-status" id="provider-nav-status-fal">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vibi" aria-pressed="false" onclick="selectProviderSource('vibi')" data-search="vibi voice &amp; voice cloning"><strong>Vibi</strong><span class="provider-source-description">Voice &amp; voice cloning</span><span class="provider-source-status" id="provider-nav-status-vibi">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="enhancer" aria-pressed="false" onclick="selectProviderSource('enhancer')" data-search="prompt enhancer gemini prompt enhancement"><strong>Prompt enhancer</strong><span class="provider-source-description">Gemini prompt enhancement</span><span class="provider-source-status" id="provider-nav-status-enhancer">Checking…</span></button></nav><p id="providerSourceEmpty" class="muted" hidden>No providers match your search.</p></aside><div class="provider-editor"><div id="providerSourceCards"><div class="card provider-source-card" id="aividAdminCard" data-provider-source="aivid">
+  <div class="provider-connection-layout"><aside class="provider-directory" aria-label="Provider connections"><label for="providerSourceSearch">Find a provider</label><input id="providerSourceSearch" type="search" placeholder="Search name or studio" oninput="filterProviderSources()"><label class="provider-mobile-label" for="providerSourceSelect">Selected provider</label><select id="providerSourceSelect" onchange="selectProviderSource(this.value)"><option value="aivid" selected>AIVID / RDP</option><option value="argolink">ArgoLink</option><option value="api888">888API</option><option value="higgsfield">Higgsfield</option><option value="longai">LONG AI</option><option value="sluice">Sluice</option><option value="vidancee">Vidancee</option><option value="vercel">Vercel AI Gateway</option><option value="smartaipi">SmartAIPI</option><option value="vgenv">MiniMax</option><option value="fal">fal.ai</option><option value="vibi">Vibi</option><option value="enhancer">Prompt enhancer</option></select><nav id="providerSourceNav" aria-label="Select a provider"><button type="button" class="provider-source-link" data-source-key="aivid" aria-pressed="true" onclick="selectProviderSource('aivid')" data-search="aivid rdp browserless windows browser connection"><strong>AIVID</strong><span class="provider-source-description">Browser connection</span><span class="provider-source-status" id="provider-nav-status-aivid">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="argolink" aria-pressed="false" onclick="selectProviderSource('argolink')" data-search="argolink video &amp; image generation"><strong>ArgoLink</strong><span class="provider-source-description">Video &amp; image generation</span><span class="provider-source-status" id="provider-nav-status-argolink">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="api888" aria-pressed="false" onclick="selectProviderSource('api888')" data-search="888api video &amp; image catalog"><strong>888API</strong><span class="provider-source-description">Video &amp; image catalog</span><span class="provider-source-status" id="provider-nav-status-api888">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="higgsfield" aria-pressed="false" onclick="selectProviderSource('higgsfield')" data-search="higgsfield wan video generation"><strong>Higgsfield</strong><span class="provider-source-description">Wan video generation</span><span class="provider-source-status" id="provider-nav-status-higgsfield">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="longai" aria-pressed="false" onclick="selectProviderSource('longai')" data-search="long ai dijinlong seedance mini video"><strong>LONG AI</strong><span class="provider-source-description">Seedance 2.0 Mini video</span><span class="provider-source-status" id="provider-nav-status-longai">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="sluice" aria-pressed="false" onclick="selectProviderSource('sluice')" data-search="sluice seedance lite video"><strong>Sluice</strong><span class="provider-source-description">Seedance Lite video</span><span class="provider-source-status" id="provider-nav-status-sluice">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vidancee" aria-pressed="false" onclick="selectProviderSource('vidancee')" data-search="vidancee omni flash video"><strong>Vidancee</strong><span class="provider-source-description">Omni Flash video</span><span class="provider-source-status" id="provider-nav-status-vidancee">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vercel" aria-pressed="false" onclick="selectProviderSource('vercel')" data-search="vercel ai gateway image &amp; video catalog"><strong>Vercel AI Gateway</strong><span class="provider-source-description">Image &amp; video catalog</span><span class="provider-source-status" id="provider-nav-status-vercel">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="smartaipi" aria-pressed="false" onclick="selectProviderSource('smartaipi')" data-search="smartaipi image generation"><strong>SmartAIPI</strong><span class="provider-source-description">Image generation</span><span class="provider-source-status" id="provider-nav-status-smartaipi">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vgenv" aria-pressed="false" onclick="selectProviderSource('vgenv')" data-search="minimax video &amp; cartoon generation"><strong>MiniMax</strong><span class="provider-source-description">Video &amp; cartoon generation</span><span class="provider-source-status" id="provider-nav-status-vgenv">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="fal" aria-pressed="false" onclick="selectProviderSource('fal')" data-search="fal.ai upscaling &amp; image generation"><strong>fal.ai</strong><span class="provider-source-description">Upscaling &amp; image generation</span><span class="provider-source-status" id="provider-nav-status-fal">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="vibi" aria-pressed="false" onclick="selectProviderSource('vibi')" data-search="vibi voice &amp; voice cloning"><strong>Vibi</strong><span class="provider-source-description">Voice &amp; voice cloning</span><span class="provider-source-status" id="provider-nav-status-vibi">Checking…</span></button><button type="button" class="provider-source-link" data-source-key="enhancer" aria-pressed="false" onclick="selectProviderSource('enhancer')" data-search="prompt enhancer gemini prompt enhancement"><strong>Prompt enhancer</strong><span class="provider-source-description">Gemini prompt enhancement</span><span class="provider-source-status" id="provider-nav-status-enhancer">Checking…</span></button></nav><p id="providerSourceEmpty" class="muted" hidden>No providers match your search.</p></aside><div class="provider-editor"><div id="providerSourceCards"><div class="card provider-source-card" id="aividAdminCard" data-provider-source="aivid">
           <div class="source-head"><h3>AIVID connection</h3><span class="source-state" id="aividConnectionBadge">Not connected</span></div>
           <p class="muted">Use your Windows RDP browser or connect through Browserless.</p>
           <div class="field"><label for="aividTransport">Browser connection</label><select id="aividTransport" onchange="updateAividTransport()"><option value="browserless">Browserless</option><option value="rdp">Windows RDP agent</option></select></div>
@@ -204,6 +204,19 @@
           <div id="higgsfieldActionMsg" class="muted" style="margin-top:10px"></div>
         <details class="provider-notes"><summary>Setup notes &amp; pricing</summary><div class="muted" style="margin:10px 0">480p is rendered natively. With fal.ai set up, 720p is rendered at 480p and 1080p at 720p, then upscaled to 1080p (HD enhancement, cheaper than Higgsfield's own 720p/1080p). Wan 3.0 is sold at cost from Higgsfield's price estimates: saving a new key reads them, and Sync prices refreshes them (nothing is charged). The model stays hidden until prices are read.</div>
           </details></div>
+        <div class="card provider-source-card" data-provider-source="longai" hidden>
+          <div class="source-head"><h3>Video Studio · LONG AI</h3><label class="source-switch"><input id="longaiEnabled" type="checkbox" aria-label="Enable LONG AI" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
+          <div id="longaiEnabledText" class="source-state"></div>
+          <p class="muted">Save a key with access to Seedance 2.0 Mini, then enter the prices in USD per output second and import the model.</p>
+          <a href="https://ai.dijinlong.com/keys" target="_blank" rel="noopener noreferrer">Open LONG AI API keys</a>
+          <div class="field"><label for="longaiApiKey">API key</label><input id="longaiApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"></div>
+          <label class="muted"><input id="clearLongAiApiKey" type="checkbox" style="width:auto"> Clear saved key</label>
+          <div id="longaiSecretStatus" class="muted" style="margin-top:8px"></div>
+          <div class="field"><label for="longai480p">480p price in USD per second</label><input id="longai480p" type="number" min="0" max="100" step="any"></div>
+          <div class="field"><label for="longai720p">720p price in USD per second</label><input id="longai720p" type="number" min="0" max="100" step="any"></div>
+          <button id="longaiImport" class="secondary" onclick="importLongAiModel()">Import Seedance 2.0 Mini</button>
+          <div id="longaiActionMsg" class="muted" role="status" style="margin-top:10px"></div>
+        </div>
         <div class="card provider-source-card" data-provider-source="sluice" hidden="hidden">
           <div class="source-head"><h3>Video Studio · Sluice (Seedance Lite)</h3><label class="source-switch"><input id="sluiceEnabled" type="checkbox" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
           <div id="sluiceEnabledText" class="source-state"></div>
@@ -434,6 +447,7 @@
       <label class="provider-access-item"><div><strong>ArgoLink</strong><span class="muted">Video Studio, and Image Studio when Vercel or SmartAIPI run out of credits</span></div><span class="source-switch"><input id="accessArgolink" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Sluice</strong><span class="muted">Video Studio · Seedance Lite</span></div><span class="source-switch"><input id="accessSluice" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vidancee</strong><span class="muted">Video Studio · Omni Flash</span></div><span class="source-switch"><input id="accessVidancee" type="checkbox"><span class="source-switch-track"></span></span></label>
+      <label class="provider-access-item"><div><strong>LONG AI</strong><span class="muted">Video Studio · Seedance 2.0 Mini</span></div><span class="source-switch"><input id="accessLongAi" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Higgsfield</strong><span class="muted">Video Studio · Wan 3.0</span></div><span class="source-switch"><input id="accessHiggsfield" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>Vercel AI Gateway</strong><span class="muted">Image Studio</span></div><span class="source-switch"><input id="accessVercel" type="checkbox"><span class="source-switch-track"></span></span></label>
       <label class="provider-access-item"><div><strong>MiniMax / VGENV</strong><span class="muted">Cartoon Studio · MiniMax H3</span></div><span class="source-switch"><input id="accessVgenv" type="checkbox"><span class="source-switch-track"></span></span></label>
@@ -531,7 +545,7 @@ function planOptions(selected){
 const num=v=>Number(v||0).toLocaleString();
 function userRow(u){
   const a=u.provider_access||{};
-  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['vidancee','Vidancee'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
+  const sourceLabels=[['argolink','ArgoLink'],['higgsfield','Higgsfield'],['sluice','Sluice'],['longai','LONG AI'],['vidancee','Vidancee'],['fal','Upscaler'],['vercel','Vercel'],['vgenv','MiniMax'],['smartaipi','SmartAIPI'],['vibi','Voice']];
   const off=sourceLabels.filter(([k])=>a[k]===false).map(([,l])=>l);
   const sources=off.length?'<span class="muted" title="Turned off: '+esc(off.join(', '))+'">'+(sourceLabels.length-off.length)+' of '+sourceLabels.length+' on</span>':'<span class="muted">All on</span>';
   return '<tr id="urow'+u.id+'"><td>'+u.id+'</td>'+
@@ -759,6 +773,7 @@ function openProviderAccess(id){
   $('accessApi888').checked=a.api888===true;
   $('accessArgolink').checked=a.argolink!==false;
   $('accessHiggsfield').checked=a.higgsfield!==false;
+  $('accessLongAi').checked=a.longai!==false;
   $('accessSluice').checked=a.sluice!==false;
   $('accessVidancee').checked=a.vidancee!==false;
   $('accessFal').checked=a.fal!==false;
@@ -778,6 +793,7 @@ async function saveProviderAccess(){
     api888:$('accessApi888').checked,
     argolink:$('accessArgolink').checked,
     higgsfield:$('accessHiggsfield').checked,
+    longai:$('accessLongAi').checked,
     sluice:$('accessSluice').checked,
     vidancee:$('accessVidancee').checked,
     fal:$('accessFal').checked,
@@ -986,6 +1002,7 @@ function updateSourceSwitchLabels(){
     ['argoEnabled','argoEnabledText'],
     ['api888Enabled','api888EnabledText'],
     ['higgsfieldEnabled','higgsfieldEnabledText'],
+    ['longaiEnabled','longaiEnabledText'],
     ['sluiceEnabled','sluiceEnabledText'],
     ['vidanceeEnabled','vidanceeEnabledText'],
     ['falEnabled','falEnabledText'],
@@ -1116,6 +1133,11 @@ async function loadProviderSettings(){try{
   $('higgsfieldApiKey').value='';$('clearHiggsfieldApiKey').checked=false;
   $('higgsfieldSecretStatus').textContent=s.higgsfield?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
   $('higgsfieldInflight').value=s.higgsfield?.maxInflight||3;
+  $('longaiEnabled').checked=s.longai?.enabled===true;
+  $('longaiApiKey').value='';$('clearLongAiApiKey').checked=false;
+  $('longaiSecretStatus').textContent=s.longai?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
+  $('longaiEnabled').disabled=!s.longai?.apiKeyConfigured;
+  $('longaiImport').disabled=!s.longai?.apiKeyConfigured;
   $('sluiceEnabled').checked=s.sluice?.enabled!==false;
   $('sluiceApiKey').value='';$('clearSluiceApiKey').checked=false;
   $('sluiceSecretStatus').textContent=s.sluice?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';
@@ -1154,6 +1176,7 @@ async function saveProviderSettings(){
     api888Enabled:$('api888Enabled').checked,api888MaxInflight:Number($('api888Inflight').value),api888ApiKey:$('api888ApiKey').value.trim(),clearApi888ApiKey:$('clearApi888ApiKey').checked,
     argoLinkEnabled:$('argoEnabled').checked,argoLinkApiKey:$('argoApiKey').value.trim(),clearArgoLinkApiKey:$('clearArgoApiKey').checked,argoLinkMaxInflight:Number($('argoInflight').value),argoLinkCustomerCreditsPerUsd:Number($('argoCreditsPerUsd').value),
     higgsfieldEnabled:$('higgsfieldEnabled').checked,higgsfieldApiKey:$('higgsfieldApiKey').value.trim(),clearHiggsfieldApiKey:$('clearHiggsfieldApiKey').checked,higgsfieldMaxInflight:Number($('higgsfieldInflight').value),
+    longAiEnabled:$('longaiEnabled').checked,longAiApiKey:$('longaiApiKey').value.trim(),clearLongAiApiKey:$('clearLongAiApiKey').checked,
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
     vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeEmail:$('clearVidanceeApiKey').checked,vidanceePassword:$('vidanceePassword').value,clearVidanceePassword:$('clearVidanceePassword').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
     falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
@@ -1335,6 +1358,27 @@ async function syncSluiceModels(){
   try{const d=await api('/admin/sluice/sync',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.total+' models synced · '+d.ready+' ready and visible';}
   catch(e){msg.className='err';msg.textContent=e.message;}
 }
+async function loadLongAiPrices(){
+  const message=$('longaiActionMsg');
+  try{
+    const data=await api('/admin/provider-models?provider=longai');
+    const model=data.models.find(item=>item.providerModelId==='seedance-2.0-mini');
+    for(const tier of model?.pricing?.video_duration_pricing||[]){
+      const field=$('longai'+tier.resolution);
+      if(field&&!field.value)field.value=tier.cost_per_second;
+    }
+  }catch(error){message.className='err';message.textContent=error.message;}
+}
+async function importLongAiModel(){
+  const button=$('longaiImport'),message=$('longaiActionMsg');
+  button.disabled=true;
+  message.className='muted';message.textContent='Checking model access and saving prices…';
+  try{
+    await api('/admin/longai/import',{method:'POST',body:JSON.stringify({rates:{'480p':$('longai480p').value,'720p':$('longai720p').value}})});
+    message.className='ok';message.textContent='Seedance 2.0 Mini imported. Enable LONG AI and save settings to show it in Video Studio.';
+  }catch(error){message.className='err';message.textContent=error.message;}
+  finally{button.disabled=false;}
+}
 async function checkHiggsfield(){
   const msg=$('higgsfieldActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{await api('/admin/higgsfield/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · Higgsfield accepted the key';}
@@ -1460,6 +1504,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=1"></script><script src="/aivid-admin.js?v=5"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script></body></html>
 
 

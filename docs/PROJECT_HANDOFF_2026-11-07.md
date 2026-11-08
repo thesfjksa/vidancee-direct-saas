@@ -8,6 +8,13 @@
 
 The owner authorizes the assistant to push and merge every owner-requested repository change into `main` without a separate confirmation. Update this handoff in the same pull request on every change or push. Record what changed, which checks ran, and what still needs deployment or live verification. Wait for applicable CI before merging, verify the result on `main`, and report any unresolved blocker. See [repository instructions](../AGENTS.md).
 
+## LONG AI Seedance 2.0 Mini
+
+- Added a separate LONG AI Video Studio source for the exact upstream ID `seedance-2.0-mini`. The first release supports text-to-video at 480p or 720p for 4–15 seconds. One job can be in flight at a time. Customer credits are calculated from the administrator's USD-per-second rates by resolution.
+- In **Admin → Provider → LONG AI**, save an API key from the [LONG AI key console](https://ai.dijinlong.com/keys). Saving checks the scoped model list without generating a video. Enter both rates, select **Import Seedance 2.0 Mini**, then enable the source and save. The global switch defaults to off. Customer Sources can control visibility individually.
+- The worker persists accepted task IDs, polls the provider-supplied same-origin status URL when present, and validates the complete MP4 before delivery. Retrying a poll or download does not resubmit the video.
+- The local Node suite passed 502 tests with two skips. Integration checks cover model scope, quotes, submission and polling, restart recovery, and unsafe URLs. The Admin browser check exercises the import form. Use the integration pull request for CI results and the merge record. Production verification requires the web and worker deployments, a saved key, and a controlled live generation. The public docs describe asynchronous status polling but do not provide an exact status response example for this model. Confirm the account's status and output response before relying on unattended paid traffic.
+
 ## Recent changes in Image Studio and Library
 
 - [#189](https://github.com/thesfjksa/vidancee-direct-saas/pull/189) adds reference uploads for compatible fal.ai Image Edit variants. The existing fal.ai GPT Image 2, GPT Image 2.5 Flare and Sunburst, GPT Image 1.5, and GPT Image 1 Mini selections each accept one optional reference. Attaching an image selects the matching edit endpoint and uses the same estimated edit price for the preview and the credit reservation.

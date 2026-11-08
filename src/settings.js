@@ -22,6 +22,8 @@ const DEFAULTS = {
   higgsfield_api_key: '',
   higgsfield_enabled: 'true',
   higgsfield_max_inflight: '3',
+  longai_api_key: '',
+  longai_enabled: 'false',
   sluice_api_key: '',
   sluice_enabled: 'true',
   sluice_max_inflight: '3',
@@ -212,6 +214,9 @@ async function getProviderSettings() {
     higgsfieldEnabled: asBool(read('higgsfield_enabled')),
     higgsfieldMaxInflight: Math.max(1, Math.min(10, Number(read('higgsfield_max_inflight') || 3))),
     higgsfieldCustomerCreditsPerUsd: CREDITS_PER_USD,
+    longAiApiKey: String(read('longai_api_key') || '').trim(),
+    longAiEnabled: asBool(read('longai_enabled')),
+    longAiCustomerCreditsPerUsd: CREDITS_PER_USD,
     sluiceApiKey: String(read('sluice_api_key') || '').trim(),
     sluiceEnabled: asBool(read('sluice_enabled')),
     sluiceMaxInflight: Math.max(1, Math.min(10, Number(read('sluice_max_inflight') || 3))),
@@ -272,6 +277,11 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.higgsfieldApiKey), configured: Boolean(s.higgsfieldApiKey),
       enabled: s.higgsfieldEnabled, active: Boolean(s.higgsfieldEnabled && s.higgsfieldApiKey),
       maxInflight: s.higgsfieldMaxInflight, customerCreditsPerUsd: s.higgsfieldCustomerCreditsPerUsd,
+    },
+    longai: {
+      apiKeyConfigured: Boolean(s.longAiApiKey), configured: Boolean(s.longAiApiKey),
+      enabled: s.longAiEnabled, active: Boolean(s.longAiEnabled && s.longAiApiKey),
+      customerCreditsPerUsd: s.longAiCustomerCreditsPerUsd,
     },
     sluice: {
       baseUrl: 'https://www.getsluice.com',
@@ -408,6 +418,14 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isInteger(n)||n<1||n>10) throw Object.assign(new Error('Higgsfield max inflight must be 1 to 10.'), {statusCode:400});
     higgsfieldUpdates.push(['higgsfield_max_inflight',String(n)]);
   }
+  if ('longAiEnabled' in input && typeof input.longAiEnabled !== 'boolean')
+    throw Object.assign(new Error('LONG AI enabled must be true or false.'), {statusCode:400});
+  if ('longAiApiKey' in input && (typeof input.longAiApiKey !== 'string' || input.longAiApiKey.length > 512 || /\s/.test(input.longAiApiKey.trim())))
+    throw Object.assign(new Error('Invalid LONG AI API key.'), {statusCode:400});
+  if (!input.clearLongAiApiKey && input.longAiApiKey?.trim()) {
+    const { LongAiClient } = require('./provider/longai.js');
+    await new LongAiClient({ apiKey: input.longAiApiKey.trim() }).verifyModel();
+  }
   const sluiceUpdates=[];
   if ('sluiceEnabled' in input) {
     if (typeof input.sluiceEnabled !== 'boolean') throw Object.assign(new Error('Sluice enabled must be true or false.'), {statusCode:400});
@@ -504,6 +522,10 @@ async function updateProviderSettings(input = {}) {
   for (const [key,value] of higgsfieldUpdates) await put(key,value);
   if (input.clearHiggsfieldApiKey===true) await del('higgsfield_api_key');
   else if (String(input.higgsfieldApiKey||'').trim()) await put('higgsfield_api_key',input.higgsfieldApiKey.trim(),true);
+
+  if ('longAiEnabled' in input) await put('longai_enabled',input.longAiEnabled?'true':'false');
+  if (input.clearLongAiApiKey===true) await del('longai_api_key');
+  else if (input.longAiApiKey?.trim()) await put('longai_api_key',input.longAiApiKey.trim(),true);
 
   for (const [key,value] of sluiceUpdates) await put(key,value);
   if (input.clearSluiceApiKey===true) await del('sluice_api_key');

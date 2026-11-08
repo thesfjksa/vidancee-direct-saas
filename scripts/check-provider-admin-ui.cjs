@@ -9,7 +9,7 @@ const { chromium } = require('playwright-core');
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const artifacts = 'artifacts/provider-admin-ui'; fs.mkdirSync(artifacts, { recursive: true });
   const errors = [], requests = [], writes = [];
-  let api888Imports=0;
+  let api888Imports=0, longAiImport=null;
   page.on('pageerror', error => errors.push(error.message));
   const names = Array.from({ length: 35 }, (_, i) => ({ key: 'video:example_' + i, id: 'example_' + i,
     studio: 'video', vendor: 'Example provider', defaultName: 'Example model ' + i, name: '', hdEnhance: true }));
@@ -28,7 +28,9 @@ const { chromium } = require('playwright-core');
     const json = value => route.fulfill({ json: { ok: true, ...value } });
     if (pathname === '/admin-console') return route.fulfill({ contentType: 'text/html', body: fs.readFileSync('public/admin.html', 'utf8') });
     if (pathname === '/admin/aivid/status') return json({ configured: false, apiKeyConfigured: false, endpoint: 'https://production-sfo.browserless.io', ttlDays: 1, login: { state: 'idle' } });
-    if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, allowProviderCharges: false } });
+    if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, longai: { enabled: false, apiKeyConfigured: true }, allowProviderCharges: false } });
+    if (pathname === '/admin/longai/import') { assert.equal(request.method(), 'POST'); longAiImport = request.postDataJSON(); return json({ models: [] }); }
+    if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
     if (pathname === '/admin/model-names') return json({ models: names });
     if (pathname === '/admin/api888/sync') { api888Imports++; assert.equal(request.method(),'POST'); return json({total:50,adapterSupported:14,dynamicSeedanceModels:5}); }
     if (pathname === '/admin/provider-models') return json({ models: url.searchParams.get('provider') === 'vercel' ? vercel : url.searchParams.get('provider') === 'api888' ? api888 : argo });
@@ -67,7 +69,15 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSearch').fill('voice');
   assert.equal(await page.locator('[data-source-key]:visible').count(), 1);
   await page.locator('#providerSourceSearch').fill('');
-  assert.equal(await page.locator('[data-source-key]:visible').count(), 12);
+  assert.equal(await page.locator('[data-source-key]:visible').count(), 13);
+  await page.getByRole('button', { name: /^LONG AI Seedance/ }).click();
+  assert.equal(await page.locator('#longaiEnabled').isChecked(), false);
+  assert.equal(await page.locator('#longaiApiKey').inputValue(), '');
+  await page.locator('#longai480p').fill('0.01');
+  await page.locator('#longai720p').fill('0.02');
+  await page.getByRole('button', { name: 'Import Seedance 2.0 Mini', exact: true }).click();
+  await page.locator('#longaiActionMsg').filter({ hasText: 'Seedance 2.0 Mini imported' }).waitFor();
+  assert.deepEqual(longAiImport, { rates: { '480p': '0.01', '720p': '0.02' } });
 
   await page.getByRole('tab', { name: 'Models', exact: true }).click();
   await page.locator('#provider-pager-names').filter({ hasText: 'of 35 models' }).waitFor();

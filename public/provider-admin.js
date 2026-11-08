@@ -8,7 +8,7 @@
   const pages = new Map();
   const sources = {
     aivid: null, argolink: 'argo', api888: 'api888', higgsfield: 'higgsfield',
-    sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
+    longai: 'longai', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
     vgenv: 'vgenv', fal: 'fal', vibi: 'vibi', enhancer: 'enhancer',
   };
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
@@ -43,6 +43,7 @@
     document.querySelectorAll('[data-source-key]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.sourceKey === key)));
     el('providerSourceSelect').value = key;
     el('providerSaveFooter').hidden = key === 'aivid';
+    if (key === 'longai') loadLongAiPrices();
   };
   window.filterProviderSources = () => {
     const query = el('providerSourceSearch').value.trim().toLowerCase();

@@ -60,8 +60,9 @@ function shutdown(signal){
     Promise.resolve(worker?.upscaleQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
     Promise.resolve(worker?.sluiceQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
     Promise.resolve(worker?.falImageQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
-    Promise.resolve(worker?.aividQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft,sluiceLeft])=>{
-    left=(left||0)+(argoLeft||0)+(higgsfieldLeft||0)+(upscaleLeft||0)+(sluiceLeft||0)+(worker?.smartImageTasks?.size||0);
+    Promise.resolve(worker?.longAiQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0),
+    Promise.resolve(worker?.aividQueue?.drain?.(SHUTDOWN_DRAIN_MS)).catch(()=>0)]).then(([left,,argoLeft,higgsfieldLeft,upscaleLeft,sluiceLeft,,longAiLeft])=>{
+    left=(left||0)+(argoLeft||0)+(higgsfieldLeft||0)+(upscaleLeft||0)+(sluiceLeft||0)+(longAiLeft||0)+(worker?.smartImageTasks?.size||0);
     if(left)console.warn('[worker] exiting with',left,'image request(s) still running');
     setTimeout(()=>process.exit(0),150).unref();
   });
@@ -89,6 +90,7 @@ healthServer=http.createServer((req,res)=>{
       argoLinkPolling:worker.argoLinkQueue.health(),
       higgsfieldPolling:worker.higgsfieldQueue.health(),
       sluicePolling:worker.sluiceQueue.health(),
+      longAiPolling:worker.longAiQueue.health(),
       vidanceePolling:worker.vidanceeQueue.health(),
       aividPolling:worker.aividQueue.health(),
       upscalePolling:worker.upscaleQueue.health(),
