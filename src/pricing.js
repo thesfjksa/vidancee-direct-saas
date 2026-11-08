@@ -13,9 +13,9 @@ const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
-  // Historical internal ID is retained for existing records; customer-visible
-  // CMM Mini is a neutral storefront name for the existing MiniMax Origin Fast
-  // route. Do not present the source as an actual Seedance product.
+  // Historical CMM Mini ID retained ONLY so queued/older jobs continue to
+  // resolve their original provider costs. Public catalog, quotes and new
+  // submissions explicitly retire this SKU; not an actual Seedance model.
   seedance_2_0_mini: { label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };

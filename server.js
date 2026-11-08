@@ -199,6 +199,7 @@ const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isWxksaiModel, wxksaiMediaModels } = require('./src/wxksai_models.js');
 const { storedModelId, customerModelLabel, customerProviderAccess: publicDopeAccess } = require('./src/dope_brand.js');
+const { isRetiredModel } = require('./src/retired_models.js');
 const { WxksaiClient } = require('./src/provider/wxksai.js');
 const { LongAiClient } = require('./src/provider/longai.js');
 const { loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck } = require('./src/longai_video_tests.js');
@@ -581,7 +582,10 @@ function applyModelNames(studio,models,names){
 async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
   const catalog=await sourceMediaCatalog(access,adminSettings);
   const custom=names||await modelDisplayNames().catch(()=>({}));
-  return {...catalog,video:applyModelNames('video',catalog.video,custom),image:applyModelNames('image',catalog.image,custom)};
+  return {...catalog,
+    video:applyModelNames('video',catalog.video,custom).filter(model=>!isRetiredModel(model)),
+    image:applyModelNames('image',catalog.image,custom).filter(model=>!isRetiredModel(model)),
+  };
 }
 
 async function sourceMediaCatalog(access,adminSettings=null){
@@ -659,7 +663,11 @@ async function sourceMediaCatalog(access,adminSettings=null){
     video.push(...require('./src/aivid_models.js').customerCatalog(config));
   }
   video=[...video,...directVideoModels(access,providerSettings)];
-  return {video,image:[...image,...falReferenceModels],upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active))};
+  return {
+    video:video.filter(model=>!isRetiredModel(model)),
+    image:[...image,...falReferenceModels].filter(model=>!isRetiredModel(model)),
+    upscaler:publicUpscalerConfig(Boolean(access.fal && providerSettings.fal.active)),
+  };
 }
 
 // The API vendor behind a model id, for the admin.
@@ -752,6 +760,7 @@ async function customerQuote(userId,body){
 }
 
 async function quoteModelForUser(userId,body){
+  if(isRetiredModel(String(body.model||'')))throw httpError(404,'This model is no longer available.');
   const access=await getUserProviderAccess(userId);
   const mediaType=body.mediaType==='image'?'image':'video';
   const providerSettings=await getAdminProviderSettings();
@@ -910,6 +919,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
   }
 
   const requestedModel=String(body.model||'');
+  if(isRetiredModel(requestedModel))throw httpError(404,'This model is no longer available.');
   const customerAccess=await getUserProviderAccess(user.id);
   let generation=null;
   // Cut reference videos that are longer than the model accepts.
@@ -1050,6 +1060,7 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
 
   await attachReusedImageReferences(getPool(),user.id,body);
   let requestedModel=String(body.model||'');
+  if(isRetiredModel(requestedModel))throw httpError(404,'This model is no longer available.');
   const customerAccess=await getUserProviderAccess(user.id);
   let generation=null;
 

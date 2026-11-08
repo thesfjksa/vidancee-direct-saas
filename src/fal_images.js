@@ -11,14 +11,21 @@ const API = 'https://api.fal.ai/v1';
 const PROVIDER = 'falimg';
 const RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9', '4:5', '5:4'];
 const PRESETS = { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_16_9', '4:3': 'landscape_4_3', '3:4': 'portrait_4_3' };
-const REFERENCE_FIELDS = ['image_urls', 'input_image_urls', 'reference_image_urls', 'image_url', 'input_image_url'];
-const REFERENCE_LIMIT = 10;
+// Only URL-string/URL-array fields are supported. The schema parser ignores
+// structured mask/control inputs and avoids inventing missing required fields.
+const REFERENCE_FIELDS = ['image_urls', 'input_image_urls', 'reference_image_urls',
+  'reference_image_url', 'image_url', 'input_image_url', 'style_reference_images',
+  'reference_images', 'style_image_url'];
+const REFERENCE_LIMIT = 14;
 const REFERENCE_BYTES = 10 * 1024 * 1024;
 // These schemas omit maxItems. fal documents the limits on the model pages.
 const DOCUMENTED_REFERENCE_LIMITS = {
   'fal-ai/nano-banana-pro/edit': 14,
   'fal-ai/nano-banana-2/edit': 14,
   'fal-ai/bytedance/seedream/v4.5/edit': 10,
+  'fal-ai/flux-2/edit': 4,
+  'fal-ai/wan/v2.7/edit': 4,
+  'fal-ai/kling-image/o3/image-to-image': 10,
 };
 
 // fal bills OpenAI's GPT image models by tokens, which its pricing API does
@@ -120,6 +127,42 @@ function gptEditSettings(fal, entry) {
   };
 }
 
+// Pair a text endpoint with the matching reference/edit endpoint when fal
+// publishes a complete input schema and a separate fixed USD output price.
+// Never inherit the text endpoint's cheaper price for edit requests.
+function compatibleEditSettings(fal, entry, editPrice) {
+  if (!entry?.endpoint_id || !entry?.openapi?.paths || !fal.sizeParam) return null;
+  const unit = String(editPrice?.unit || '').toLowerCase();
+  const usd = Number(editPrice?.unit_price);
+  if (!/^(images?|generations?)$/.test(unit) || !Number.isFinite(usd) || usd <= 0 ||
+      String(editPrice?.currency || 'USD').toUpperCase() !== 'USD') return null;
+  const { props, required } = inputSchema(entry);
+  const reference = referenceInput(entry.endpoint_id, props, required, true);
+  if (!props.prompt || !reference || !props[fal.sizeParam]) return null;
+  // Only send parameters that our existing request builder knows how to set.
+  if (required.some(key=>!['prompt',reference.field,fal.sizeParam,'num_images'].includes(key))) return null;
+  const sizing = props[fal.sizeParam];
+  if (fal.sizeParam === 'aspect_ratio') {
+    const allowed = enumOf(sizing);
+    if (Object.values(fal.values).some(value=>!allowed.includes(value))) return null;
+  } else {
+    const allowed = enumOf(sizing), custom = customImageSize(sizing);
+    if (Object.values(fal.values).some(value=>value==='custom' ? !custom : !allowed.includes(value))) return null;
+  }
+  return { endpoint: entry.endpoint_id, reference, hasNumImages: Boolean(props.num_images), priceUsd: usd };
+}
+
+// Discovery is exact-ID based: never infer a usable edit route from a model
+// name alone. A candidate must be listed, described and priced by fal.
+function editCandidates(endpoint) {
+  const stem = String(endpoint).replace(/\/(text-to-image|text2image)$/, '');
+  return [...new Set([
+    stem + '/edit', stem + '/image-to-image',
+    String(endpoint).replace(/\/text-to-image$/, '/edit'),
+    String(endpoint).replace(/\/text-to-image$/, '/image-to-image'),
+  ])].filter(value=>value!==endpoint);
+}
+
 function imageReferenceCapability(reference) {
   return reference
     ? { supported: true, max: reference.max, min: reference.min, roles: ['image_references'], maxBytes: REFERENCE_BYTES, formats: ['jpeg', 'png', 'webp'] }
@@ -149,7 +192,7 @@ function applySavedGptEdit(model, endpoint) {
 }
 
 // One catalog entry plus its price ({unit_price, unit}) as a provider model.
-function describeFalImageModel(entry, price = null, editEntry = null) {
+function describeFalImageModel(entry, price = null, editEntry = null, editPrice = null) {
   const endpoint = entry.endpoint_id;
   const { props, required } = inputSchema(entry);
   const name = entry.metadata?.display_name || endpoint;
@@ -197,10 +240,13 @@ function describeFalImageModel(entry, price = null, editEntry = null) {
   if (!setupReason && !aspectRatios.length) setupReason = 'No supported aspect ratio.';
   fal.hasQuality = Boolean(gpt && props.quality);
   const gptEdit = !setupReason && gpt ? gptEditSettings(fal, editEntry) : null;
+  const compatibleEdit = !setupReason && !gpt && !reference && !edit
+    ? compatibleEditSettings(fal, editEntry, editPrice) : null;
   if (GPT_EDITS[endpoint]) fal.gptEditChecked = true;
-  if (gptEdit) {
-    fal.edit = gptEdit;
-    reference = { ...gptEdit.reference, min: 0 };
+  if (gptEdit || compatibleEdit) {
+    const matched = gptEdit || compatibleEdit;
+    fal.edit = matched;
+    reference = { ...matched.reference, min: 0 };
   }
   // Price per image: per-image units directly; per-megapixel units by the
   // output area in fal's megapixels (1024 x 1024 px), rounded up.
@@ -224,6 +270,7 @@ function describeFalImageModel(entry, price = null, editEntry = null) {
       pricing: {
         ...(tiers.length ? { image_dimension_quality_pricing: tiers } : {}),
         ...(gptEdit ? { reference_image_dimension_quality_pricing: gptReferencePricing(endpoint) } : {}),
+        ...(compatibleEdit ? { reference_image_dimension_quality_pricing: Object.values(sizes).map(size => ({ size, cost: compatibleEdit.priceUsd })) } : {}),
       },
       aspectRatios, defaultAspectRatio: aspectRatios.includes('1:1') ? '1:1' : aspectRatios[0] || null,
       falImage: { ...fal, sizes, hasNumImages: Boolean(props.num_images), hasMaxImages: Boolean(reference && props.max_images?.type === 'integer') },
@@ -328,8 +375,10 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
   const described = ids.filter(id => byId.has(id)).map(id => {
     const entry = byId.get(id);
     const editEndpoint = GPT_EDITS[id]?.endpoint;
+    const pairedEdit = (editEndpoint && metadata.has(editEndpoint) ? editEndpoint
+      : editCandidates(id).find(candidate=>metadata.has(candidate) && byId.get(candidate)?.openapi?.paths)) || null;
     return describeFalImageModel({ ...entry, metadata: { ...entry.metadata, ...metadata.get(id) } }, prices.get(id),
-      metadata.has(editEndpoint) ? byId.get(editEndpoint) : null);
+      pairedEdit ? byId.get(pairedEdit) : null, pairedEdit ? prices.get(pairedEdit) : null);
   });
   const paired = new Set(described.map(model => model.options.falImage.edit?.endpoint).filter(Boolean));
   const models = distinctLabels(described.filter(model => !paired.has(model.providerModelId)));
@@ -398,4 +447,4 @@ class FalImageClient {
   }
 }
 
-module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema, applySavedGptEdit };
+module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema, applySavedGptEdit, compatibleEditSettings, editCandidates };
