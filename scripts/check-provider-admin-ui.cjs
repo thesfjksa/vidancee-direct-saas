@@ -29,6 +29,7 @@ const { chromium } = require('playwright-core');
     if (pathname === '/admin-console') return route.fulfill({ contentType: 'text/html', body: fs.readFileSync('public/admin.html', 'utf8') });
     if (pathname === '/admin/aivid/status') return json({ configured: false, apiKeyConfigured: false, endpoint: 'https://production-sfo.browserless.io', ttlDays: 1, login: { state: 'idle' } });
     if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, longai: { enabled: false, apiKeyConfigured: true }, allowProviderCharges: false } });
+    if (pathname === '/admin/longai/check') { assert.equal(request.method(), 'GET'); return json({ providerStatus: 401, elapsedMs: 125 }); }
     if (pathname === '/admin/longai/import') { assert.equal(request.method(), 'POST'); longAiImport = request.postDataJSON(); return json({ models: [] }); }
     if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
     if (pathname === '/admin/model-names') return json({ models: names });
@@ -73,6 +74,8 @@ const { chromium } = require('playwright-core');
   await page.getByRole('button', { name: /^LONG AI Seedance/ }).click();
   assert.equal(await page.locator('#longaiEnabled').isChecked(), false);
   assert.equal(await page.locator('#longaiApiKey').inputValue(), '');
+  await page.getByRole('button', { name: 'Check server connection', exact: true }).click();
+  await page.locator('#longaiActionMsg').filter({ hasText: 'LONG AI reached · HTTP 401' }).waitFor();
   await page.locator('#longai480p').fill('0.01');
   await page.locator('#longai720p').fill('0.02');
   await page.getByRole('button', { name: 'Import Seedance 2.0 Mini', exact: true }).click();

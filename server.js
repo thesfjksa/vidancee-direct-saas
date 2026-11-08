@@ -2390,6 +2390,10 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('argolink',argoMediaModels(live));
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      if(req.method==='GET'&&routePath==='/admin/longai/check'){
+        const result=await new LongAiClient().checkReachability();
+        return sendJson(res,200,{ok:true,...result});
+      }
       if(req.method==='POST'&&routePath==='/admin/longai/import'){
         requireDatabase();
         const model=longAiMediaModel((await readJson(req)).rates);

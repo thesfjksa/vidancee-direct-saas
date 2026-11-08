@@ -1,5 +1,7 @@
 'use strict';
 
+const https = require('node:https');
+const { Readable } = require('node:stream');
 const { API_ORIGIN, MODEL_ID } = require('../longai_models.js');
 const { fetchPublicMedia } = require('../remote_image.js');
 const { isCompleteMp4 } = require('../mp4_trim.js');
@@ -8,6 +10,44 @@ const { readBounded, VIDEO_LIMIT } = require('./vercel.js');
 const error = (message, statusCode = 502) => Object.assign(new Error(message), { statusCode });
 const task = response => response?.data ?? response;
 const outputUrl = job => job?.video_url || job?.output?.video_url || job?.output?.url || job?.result?.video_url || job?.result?.url || job?.url;
+
+const READ_TIMEOUT_MS = 28000;
+const SUBMIT_TIMEOUT_MS = 60000;
+
+// Use a single explicit deadline that includes connecting and reading. The
+// default fetch transport can abort the connection separately at ~10 s.
+function longAiHttps(url, { method, headers, body, signal }) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method, headers, signal }, incoming => {
+      const status = incoming.statusCode;
+      const hasBody = ![204, 205, 304].includes(status);
+      if (!hasBody) incoming.resume();
+      resolve({
+        status,
+        ok: status >= 200 && status < 300,
+        headers: new Headers(incoming.headers),
+        body: hasBody ? Readable.toWeb(incoming) : null,
+      });
+    });
+    req.once('error', reject);
+    req.end(body);
+  });
+}
+
+function defaultTransport() {
+  // Retain Node's existing fetch behavior on deployments with an explicit proxy.
+  const usesProxy = process.env.NODE_USE_ENV_PROXY === '1' || process.execArgv.includes('--use-env-proxy');
+  return usesProxy && (process.env.HTTPS_PROXY || process.env.https_proxy) ? fetch : longAiHttps;
+}
+
+function networkError(cause, method, timeoutMs) {
+  const rawCode = cause?.cause?.code || cause?.code || cause?.name;
+  const networkCode = /^[A-Za-z][A-Za-z0-9_]{0,49}$/.test(rawCode) ? rawCode : 'UNKNOWN';
+  const timedOut = ['ABORT_ERR', 'AbortError', 'TimeoutError', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT'].includes(networkCode);
+  const message = timedOut ? 'LONG AI connection timed out from the CMMTools server.' :
+    'CMMTools could not connect to LONG AI (' + networkCode + ').';
+  return Object.assign(error(message), { networkCode, requestMethod: method, timeoutMs });
+}
 
 function pollingPath(value, requestId) {
   if (!value) return '/v1/videos/' + encodeURIComponent(requestId);
@@ -20,7 +60,7 @@ function pollingPath(value, requestId) {
 }
 
 class LongAiClient {
-  constructor({ apiKey = '', fetchImpl = fetch, fetchMedia = fetchPublicMedia } = {}) {
+  constructor({ apiKey = '', fetchImpl = defaultTransport(), fetchMedia = fetchPublicMedia } = {}) {
     this.apiKey = apiKey;
     this.fetch = fetchImpl;
     this.fetchMedia = fetchMedia;
@@ -30,17 +70,7 @@ class LongAiClient {
     if (!this.apiKey) throw error('Save a LONG AI API key first.', 400);
     const target = new URL(API_ORIGIN + path);
     if (target.origin !== API_ORIGIN || !path.startsWith('/')) throw error('Invalid LONG AI API path.');
-    let response;
-    try {
-      response = await this.fetch(target.href, {
-        method: body ? 'POST' : 'GET',
-        headers: { authorization: 'Bearer ' + this.apiKey, accept: 'application/json',
-          ...(body ? { 'content-type': 'application/json' } : {}) },
-        body: body ? JSON.stringify(body) : undefined,
-        redirect: 'error',
-        signal: AbortSignal.timeout(body ? 60000 : 15000),
-      });
-    } catch { throw error('LONG AI could not be reached.'); }
+    const response = await this.request(target.href, body, this.apiKey);
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       const message = response.status === 401 || response.status === 403 ? 'LONG AI rejected this API key or its model access.' :
@@ -49,6 +79,30 @@ class LongAiClient {
     }
     try { return { data: JSON.parse((await readBounded(response, 2 * 1024 * 1024)).toString('utf8')), location: response.headers.get('location') }; }
     catch { throw error('LONG AI returned an invalid API response.'); }
+  }
+
+  async request(url, body, key) {
+    const method = body ? 'POST' : 'GET';
+    const timeoutMs = body ? SUBMIT_TIMEOUT_MS : READ_TIMEOUT_MS;
+    try {
+      return await this.fetch(url, {
+        method,
+        headers: { accept: 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}),
+          ...(body ? { 'content-type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (cause) {
+      throw networkError(cause, method, timeoutMs);
+    }
+  }
+
+  async checkReachability() {
+    const start = Date.now();
+    const response = await this.request(API_ORIGIN + '/v1/models');
+    await response.body?.cancel().catch(() => {});
+    return { providerStatus: response.status, elapsedMs: Date.now() - start };
   }
 
   async verifyModel() {

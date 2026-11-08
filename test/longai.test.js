@@ -2,6 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const https = require('node:https');
+const { EventEmitter } = require('node:events');
+const { Readable } = require('node:stream');
 const { LongAiClient } = require('../src/provider/longai.js');
 const { LongAiQueue } = require('../src/longai_queue.js');
 const { longAiMediaModel, PUBLIC_ID, MODEL_ID, LONG_AI_CUSTOMER_CREDITS_PER_USD, isLongAiModel } = require('../src/longai_models.js');
@@ -56,6 +59,53 @@ test('LONG AI checks the exact model with the saved key without starting a gener
   assert.deepEqual(calls, [['https://ai.dijinlong.com/v1/models', 'GET', 'Bearer ' + key]]);
   client.fetch = async () => json({ data: [{ id: MODEL_ID }, { id: 'other-model' }] });
   await client.verifyModel();
+});
+
+test('LONG AI uses HTTPS with a longer explicit deadline for connection checks and key validation', async t => {
+  for (const name of ['HTTPS_PROXY', 'https_proxy']) {
+    const value = process.env[name];
+    delete process.env[name];
+    t.after(() => { if (value !== undefined) process.env[name] = value; });
+  }
+  const calls = [];
+  const reply = t.mock.method(https, 'request', (url, opts, callback) => {
+    calls.push({ url, opts });
+    const request = new EventEmitter();
+    request.end = () => {
+      const authenticated = Boolean(opts.headers.authorization);
+      const response = Readable.from([Buffer.from(JSON.stringify({ data: [{ id: MODEL_ID }] }))]);
+      response.statusCode = authenticated ? 200 : 401;
+      response.headers = { 'content-type': 'application/json' };
+      setImmediate(() => callback(response));
+    };
+    return request;
+  });
+  const probe = await new LongAiClient().checkReachability();
+  assert.equal(probe.providerStatus, 401);
+  await new LongAiClient({ apiKey: key }).verifyModel();
+  assert.equal(reply.mock.callCount(), 2);
+  assert.deepEqual(calls.map(call => [call.url, call.opts.method, call.opts.headers.authorization]), [
+    ['https://ai.dijinlong.com/v1/models', 'GET', undefined],
+    ['https://ai.dijinlong.com/v1/models', 'GET', 'Bearer ' + key],
+  ]);
+  assert.ok(calls.every(call => call.opts.signal instanceof AbortSignal));
+});
+
+test('LONG AI exposes safe timeout codes and sends a paid POST only once', async () => {
+  let calls = 0;
+  const client = new LongAiClient({ apiKey: key, fetchImpl: async () => {
+    calls++;
+    throw Object.assign(new Error('private transport detail'), { code: 'ABORT_ERR' });
+  } });
+  await assert.rejects(client.startVideo(options), error => {
+    assert.match(error.message, /connection timed out from the CMMTools server/);
+    assert.doesNotMatch(error.message, /private transport detail/);
+    assert.equal(error.networkCode, 'ABORT_ERR');
+    assert.equal(error.requestMethod, 'POST');
+    assert.equal(error.timeoutMs, 60000);
+    return true;
+  });
+  assert.equal(calls, 1);
 });
 
 test('LONG AI saves one task and polls the URL returned by its API', async () => {
