@@ -200,3 +200,14 @@ test('the agent restores readiness after the browser session recovers', async t 
   await agent.run();
   assert.deepEqual(statuses, ['starting', 'needs_login', 'ready']);
 });
+
+test('Edge executable selection uses the Edge installation and does not reuse Chrome executable',()=>{
+  const {findBrowser,browserName}=require('../native.cjs');
+  const env={PROGRAMFILES:'C:\\Program Files',LOCALAPPDATA:'C:\\Users\\Me\\AppData\\Local'};
+  const target=require('node:path').win32.join(env.PROGRAMFILES,'Microsoft','Edge','Application','msedge.exe');
+  assert.equal(browserName('edge'),'Microsoft Edge');
+  assert.equal(findBrowser('edge',env,p=>p===target),target);
+  assert.throws(()=>findBrowser('firefox',env,()=>true),/Unsupported/);
+  assert.throws(()=>findBrowser('edge',env,()=>false),/Microsoft Edge is not available/);
+  assert.doesNotMatch(chromeArguments('./edge-private-profile',true).join(' '),/remote-debugging-address=0.0.0.0/);
+});
