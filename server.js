@@ -198,7 +198,7 @@ const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { LongAiClient } = require('./src/provider/longai.js');
-const { loadVideoMarketplace, checkVideoModel } = require('./src/longai_video_tests.js');
+const { loadVideoMarketplace, checkVideoModel, signVideoKeyCheck, verifyVideoKeyCheck } = require('./src/longai_video_tests.js');
 const { validateRenderRequest, findRenderTest, listRenderTests, hasActiveRenderTest, queueRenderTest } = require('./src/longai_render_tests.js');
 const { SluiceClient } = require('./src/provider/sluice.js');
 const { isVidanceeModel, vidanceeMediaModels, vidanceeCreditsForDuration } = require('./src/vidancee_models.js');
@@ -2406,6 +2406,7 @@ const server=http.createServer(async (req,res)=>{
         const settings=await getProviderSettings();
         if(!settings.longAiApiKey)throw httpError(400,'Save a LONG AI API key first.');
         const result=await checkVideoModel(new LongAiClient({apiKey:settings.longAiApiKey}),url.searchParams.get('model'));
+        if(result.status==='visible')result.renderProof=signVideoKeyCheck(adminToken,settings.longAiApiKey,result.id);
         return sendJson(res,200,{ok:true,...result});
       }
       if(routePath==='/admin/longai/video-tests/renders'&&req.method==='GET'){
@@ -2426,9 +2427,12 @@ const server=http.createServer(async (req,res)=>{
           throw httpError(409,'Enable LONG AI and paid provider submissions with a saved key first.');
         }
         const market=await loadVideoMarketplace(new LongAiClient());
-        if(market.source!=='marketplace')throw httpError(503,'Refresh the live LONG AI marketplace before starting a paid render.');
         if(!market.models.some(model=>model.id===body.model&&model.sellers>0)){
-          throw httpError(409,'LONG AI does not currently list a seller for this video model.');
+          throw httpError(409,market.source==='marketplace'?'LONG AI does not currently list a seller for this video model.':
+            'This model is missing from the saved LONG AI video listings. Refresh the marketplace.');
+        }
+        if(market.source==='snapshot'&&!verifyVideoKeyCheck(adminToken,settings.longAiApiKey,body.model,body.renderProof)){
+          throw httpError(409,'The marketplace is unavailable. Check the model with the saved key before starting a paid render.');
         }
         const test=await queueRenderTest(getPool(),body,settings.longAiApiKey);
         wakeGenerationWorker(req);

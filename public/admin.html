@@ -1542,6 +1542,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=2"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 

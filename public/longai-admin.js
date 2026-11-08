@@ -13,6 +13,11 @@
   let renderRefresh;
   let renderTimer;
 
+  function renderEligible(model) {
+    return model.sellers > 0 && (catalog.source === 'marketplace' ||
+      results.get(model.id)?.renderProof?.expiresAt > Date.now());
+  }
+
   function updateControls() {
     $('longAiVideoRefresh').disabled = busy;
     $('longAiVideoCheckAll').disabled = busy || !catalog?.keyConfigured || !catalog.models.some(model => model.sellers > 0);
@@ -21,8 +26,10 @@
       const row = rows.get(model.id);
       if (!row) continue;
       row.querySelector('[data-key-check]').disabled = busy || !catalog.keyConfigured;
-      row.querySelector('[data-render-test]').disabled = startingRender || activeRender || !paidEnabled ||
-        catalog.source !== 'marketplace' || model.sellers < 1;
+      const render = row.querySelector('[data-render-test]');
+      render.disabled = startingRender || activeRender || !paidEnabled || !renderEligible(model);
+      render.title = catalog.source === 'snapshot' && !renderEligible(model) && model.sellers > 0
+        ? 'Run Check key to enable this test while the marketplace is unavailable.' : '';
     }
   }
 
@@ -94,7 +101,12 @@
   }
 
   async function startRender(model) {
-    if (startingRender || !paidEnabled || catalog.source !== 'marketplace' || model.sellers < 1 ||
+    if (!renderEligible(model)) {
+      updateControls();
+      $('longAiRenderProgress').textContent = 'Check the model with the saved key again before starting a paid render.';
+      return;
+    }
+    if (startingRender || !paidEnabled ||
         renderTests.some(test => activeStates.has(test.status))) return;
     const previous = renderTests.find(test => test.model === model.id);
     const confirmReconciled = previous?.status === 'submission_unknown';
@@ -107,7 +119,8 @@
     updateControls();
     try {
       const { test } = await api(renderEndpoint, {
-        method: 'POST', body: JSON.stringify({ id, model: model.id, confirmPaid: true, confirmReconciled }),
+        method: 'POST', body: JSON.stringify({ id, model: model.id, confirmPaid: true, confirmReconciled,
+          renderProof: results.get(model.id)?.renderProof }),
       });
       renderTests = [test, ...renderTests.filter(item => item.id !== test.id)];
       progress.textContent = 'Queued one paid render for ' + model.id + '.';
@@ -132,7 +145,8 @@
       catalog = await api('/admin/longai/video-tests');
       $('longAiVideoSource').textContent = catalog.source === 'marketplace'
         ? 'Public marketplace retrieved ' + fmt(catalog.fetchedAt) + '.'
-        : 'Marketplace refresh failed. Showing the ' + catalog.snapshotDate + ' snapshot. Seller counts may have changed.';
+        : 'Marketplace refresh failed. Showing the ' + catalog.snapshotDate +
+          ' snapshot. Check a model with the saved key to enable its paid render test. Seller counts may have changed.';
       rows.clear();
       const table = $('longAiVideoRows');
       table.replaceChildren();
@@ -192,6 +206,7 @@
         }
         results.set(id, result);
         showResult(id, result);
+        updateControls();
         if (result.status === 'visible') visible++;
         if (result.status === 'key_rejected') keyRejected = true;
         progress.textContent = 'Checked ' + ++checked + ' of ' + models.length + ' models…';
