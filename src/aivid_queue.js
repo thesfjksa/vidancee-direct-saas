@@ -56,7 +56,7 @@ class AividQueue extends VercelQueue {
     if (config.mode === 'rdp' ? !config.rdpDevice?.tokenHash : !config.connectUrl) return;
     const current = settings || await this.getSettings();
     this.sourceReady = Boolean(config.enabled && config.maxSourceCredits > 0 && current.allowProviderCharges);
-    const rdp=config.mode==='rdp'?require('./aivid_rdp.js').publicDevice(config.rdpDevice||{}):null;
+    const rdp=config.mode==='rdp'?require('./aivid_rdp.js').publicDevice(config.rdpDevice||{},Date.now(),config.rdpBrowser):null;
     if(rdp&&(!rdp.online||rdp.status!=='ready'))this.sourceReady=false;
     const client = this.clientFactory(config);
     await withAividLock(db, async lockConnection => {

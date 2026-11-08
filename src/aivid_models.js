@@ -34,7 +34,7 @@ function aividReady(config){
   if(!config?.enabled || !(config.maxSourceCredits>0))return false;
   if(config.mode==='rdp'){
     const { publicDevice } = require('./aivid_rdp.js');
-    const device=publicDevice(config.rdpDevice||{});
+    const device=publicDevice(config.rdpDevice||{},Date.now(),config.rdpBrowser);
     return Boolean(device.paired && device.online && ['ready','busy'].includes(device.status));
   }
   return Boolean(config.connectUrl && (!config.expiresAt || Date.parse(config.expiresAt)>Date.now()));
@@ -48,7 +48,8 @@ function unavailableReason(config) {
   if(config.enabled!==true)return 'AIVID Premium is disabled in saved Admin settings. Enable Accept queued AIVID jobs and click Save RDP connection.';
   if(!(config.maxSourceCredits>0))return 'AIVID source-credit limit is zero in Admin.';
   if(config.mode==='rdp'){
-    const device=require('./aivid_rdp.js').publicDevice(config.rdpDevice||{});
+    const device=require('./aivid_rdp.js').publicDevice(config.rdpDevice||{},Date.now(),config.rdpBrowser);
+    if(device.status==='switching_browser')return 'The Windows RDP agent is switching browsers.';
     return device.online&&device.status==='needs_verification'?'AIVID is waiting for security verification by the operator.':'The Windows RDP agent is offline or not ready.';
   }
   return 'The AIVID browser session is missing or expired.';
@@ -128,7 +129,7 @@ async function quoteAivid(config,body,{db,preview=false}={}){
   };
   // Cache only the upstream public price, never a customer's wallet quote.
   // Every submission still makes a fresh read before it can reserve credits.
-  const source=config.mode==='rdp'?[config.rdpDevice.deviceId,config.rdpDevice.tokenHash]:config.connectUrl;
+  const source=config.mode==='rdp'?[config.rdpDevice.deviceId,config.rdpDevice.tokenHash,config.rdpBrowser||'chrome']:config.connectUrl;
   const key=JSON.stringify([config.mode,source,value.model,value.duration,value.resolution,value.aspectRatio]);
   if(preview)value.prompt='Cost estimate';
   const sourceCredits=await (preview?previewQuote(key,readPrice):readPrice());

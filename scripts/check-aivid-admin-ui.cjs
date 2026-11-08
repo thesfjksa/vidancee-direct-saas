@@ -41,15 +41,16 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
   window.fixtureCopiedCode=text;
  }}}));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[],referenceChecks=[];
+ let saved=false,loginState='idle',failLogin=true,loginExpiresAt=Date.now()+120000,mode='browserless',rdpBrowser='chrome',activeRdpBrowser='chrome',rdpPaired=false,cloudStarts=0;const calls=[],checkRequests=[],referenceChecks=[];
+ let savedSubmission={enabled:false,maxSourceCredits:0,manualHandoff:false};
  const activityRequests=[];const jobActions=[];let managedStatus='submitted',managedDeleted=false,collectionPaused=true;
  const loginId='12345678-1234-1234-1234-123456789012';
  const login=()=>({id:loginId,state:loginState,expiresAt:new Date(loginExpiresAt).toISOString(),message:loginState==='connected'?'AIVID sign-in verified and saved for the worker.':'Open the login window, sign in, then verify.',...(loginState==='waiting'?{liveURL:'https://production-sfo.browserless.io/live/test?i=fixture'}:{}),...(loginState==='connected'?{verifiedAt:new Date().toISOString()}:{})});
  await page.route('http://cmmtools.test/**',async route=>{
   const req=route.request(),url=new URL(req.url()),p=url.pathname;
   if(p==='/admin-console')return route.fulfill({contentType:'text/html',body:fs.readFileSync('public/admin.html','utf8')});
-  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,mode,rdp:{paired:rdpPaired,online:rdpPaired,status:'ready',seenAt:new Date().toISOString()},apiKeyConfigured:saved,configured:mode==='rdp'?rdpPaired:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:mode==='rdp'?{state:'idle'}:login()}});
-  if(p==='/admin/aivid/settings'){const body=req.postDataJSON();calls.push({p,headers:req.headers(),body});mode=body.mode||mode;saved=true;return route.fulfill({json:{ok:true,apiKeyConfigured:true}});}
+  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,...savedSubmission,mode,rdpBrowser,rdp:{paired:rdpPaired,online:rdpPaired,browser:activeRdpBrowser,status:activeRdpBrowser===rdpBrowser?'ready':'switching_browser',seenAt:new Date().toISOString()},apiKeyConfigured:saved,configured:mode==='rdp'?rdpPaired:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:mode==='rdp'?{state:'idle'}:login()}});
+  if(p==='/admin/aivid/settings'){const body=req.postDataJSON();calls.push({p,headers:req.headers(),body});mode=body.mode||mode;rdpBrowser=body.rdpBrowser||rdpBrowser;saved=true;savedSubmission={enabled:body.enabled,maxSourceCredits:body.maxSourceCredits,manualHandoff:body.manualHandoff};return route.fulfill({json:{ok:true,...savedSubmission,apiKeyConfigured:true,rdpBrowser}});}
   if(p==='/admin/aivid/rdp/pairing')return route.fulfill({json:{ok:true,code:'AABBCCDDEEFF001122334455',expiresAt:new Date(Date.now()+600000).toISOString()}});
   if(p==='/admin/aivid/login'){
    cloudStarts++;
@@ -145,6 +146,14 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  await page.getByRole('button',{name:'Check RDP connection',exact:true}).click();
  await page.locator('#aividAdminMessage').filter({hasText:'Balance: 25 credits'}).waitFor();
  assert.equal(cloudStarts,previousCloudStarts);
+ await page.locator('#aividRdpBrowser').selectOption('edge');
+ await page.getByRole('button',{name:'Save RDP connection',exact:true}).click();
+ await page.locator('#aividRdpStatus').filter({hasText:'Switching from Google Chrome to Microsoft Edge'}).waitFor();
+ assert.equal(calls.at(-1).body.rdpBrowser,'edge');
+ await page.locator('#aividAdminMessage').filter({hasText:'Saved and verified: AIVID disabled, Microsoft Edge'}).waitFor();
+ activeRdpBrowser='edge';
+ await page.locator('#aividAdminCard').getByRole('button',{name:'Refresh status',exact:true}).click();
+ await page.locator('#aividRdpStatus').filter({hasText:'Agent online: Microsoft Edge'}).waitFor();
  const beforeChecks=checkRequests.length;
  await page.getByRole('button',{name:'Check all Premium models',exact:true}).click();
  await page.locator('#aividAdminMessage').filter({hasText:'8/8 checks passed'}).waitFor();

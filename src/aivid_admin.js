@@ -56,15 +56,19 @@ class AividAdminService {
   async save(input) {
     const result = await withAividLock(this.db(), async () => {
       const current = await this.getConfig();
-      if (input?.mode && input.mode !== (current.mode || 'browserless')) await this.assertReplaceable();
+      const nextMode = input?.mode ?? current.mode;
+      const changesBrowser = nextMode === 'rdp' && ['chrome', 'edge'].includes(input?.rdpBrowser) &&
+        input.rdpBrowser !== (current.rdpBrowser || 'chrome');
+      if (changesBrowser) await this.assertReplaceable('Resolve outstanding automatic AIVID jobs before switching browsers.');
+      else if (input?.mode && nextMode !== (current.mode || 'browserless')) await this.assertReplaceable();
       return this.saveConfig(input);
     });
     if (!result) throw problem('The browser is busy. Finish or cancel sign-in before saving settings.', 409);
     return result;
   }
-  async assertReplaceable() {
+  async assertReplaceable(message = 'AIVID has outstanding generations. Reuse its saved session until those jobs are resolved.') {
     const [[row]] = await this.db().execute("SELECT COUNT(*) AS total FROM generations WHERE provider='aivid' AND status IN ('submitting','submitted','processing') AND refunded_at IS NULL AND (provider_operation IS NULL OR provider_operation NOT LIKE '{\"stage\":\"manual_%')");
-    if (Number(row?.total || 0)) throw problem('AIVID has outstanding generations. Reuse its saved session until those jobs are resolved.', 409);
+    if (Number(row?.total || 0)) throw problem(message, 409);
   }
   async startLogin({ replaceSession = false } = {}) {
     if (this.stopping) throw problem('The server is restarting. Try again shortly.', 503);

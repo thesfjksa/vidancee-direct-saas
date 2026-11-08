@@ -7,12 +7,16 @@ const sample=()=>({apiKey:'',endpoint:'https://production-sfo.browserless.io',mo
 test('AIVID Admin save verifies persisted enabled flag and ceiling before reporting success',async()=>{
   const db=new Map();
   const base=sample();
-  const saved=await saveAividSettings({mode:'rdp',enabled:true,maxSourceCredits:10},{
+  const saved=await saveAividSettings({mode:'rdp',enabled:true,maxSourceCredits:10,rdpBrowser:'edge'},{
     getConfig:async()=>base,write:async(k,v)=>db.set(k,v),read:async(k,d)=>db.get(k)||d
   });
-  assert.equal(saved.enabled,true);assert.equal(saved.maxSourceCredits,10);assert.equal(saved.customerModelEnabled,true);
+  assert.equal(saved.enabled,true);assert.equal(saved.maxSourceCredits,10);assert.equal(saved.rdpBrowser,'edge');
+  assert.equal(saved.customerModelEnabled,false);
+  assert.equal(saved.rdp.status,'switching_browser');
   assert.equal(JSON.parse(db.get(CONFIG_KEY)).enabled,true);
   const effective={...base,...JSON.parse(db.get(CONFIG_KEY))};
+  assert.equal(aividReady(effective),false);
+  effective.rdpDevice.browser='edge';
   assert.equal(aividReady(effective),true);
   assert.ok(customerCatalog(effective).every(m=>m.unavailable===false));
 });

@@ -18,7 +18,10 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
     const device = await api.authorize(req.headers.authorization);
     if (path === '/api/aivid-rdp/poll' && req.method === 'POST') {
       const input = await readJson(req);
-      json(res, 200, { ok: true, ...await api.poll(device, input.status) }); return true;
+      json(res, 200, { ok: true, ...await api.poll(device, input.status, input.browser) }); return true;
+    }
+    if (path === '/api/aivid-rdp/browser' && req.method === 'GET') {
+      json(res, 200, { ok: true, browser: device.selectedBrowser }); return true;
     }
     if(req.method==='GET'&&(path==='/api/aivid-rdp/runtime'||path==='/api/aivid-rdp/runtime/file')){
       const {manifest,files}=require('./aivid_runtime.js').runtime();
