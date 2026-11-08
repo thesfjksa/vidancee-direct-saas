@@ -31,6 +31,15 @@ const { chromium } = require('playwright-core');
     if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, longai: { enabled: false, apiKeyConfigured: true }, allowProviderCharges: false } });
     if (pathname === '/admin/longai/check') { assert.equal(request.method(), 'GET'); return json({ providerStatus: 401, elapsedMs: 125 }); }
     if (pathname === '/admin/longai/import') { assert.equal(request.method(), 'POST'); longAiImport = request.postDataJSON(); return json({ models: [] }); }
+    if (pathname === '/admin/longai/video-tests') return json({
+      source: 'marketplace', fetchedAt: '2026-11-08T08:00:00Z', keyConfigured: true,
+      models: [{ id: 'seedance-2.0-mini', sellers: 1 }, { id: 'kling-video-o-1', sellers: 2 }, { id: 'zero-video', sellers: 0 }],
+    });
+    if (pathname === '/admin/longai/video-tests/model') {
+      assert.equal(request.method(), 'GET');
+      const id = url.searchParams.get('model');
+      return json({ id, status: id === 'seedance-2.0-mini' ? 'visible' : 'not_visible', elapsedMs: 25 });
+    }
     if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
     if (pathname === '/admin/model-names') return json({ models: names });
     if (pathname === '/admin/api888/sync') { api888Imports++; assert.equal(request.method(),'POST'); return json({total:50,adapterSupported:14,dynamicSeedanceModels:5}); }
@@ -81,6 +90,20 @@ const { chromium } = require('playwright-core');
   await page.getByRole('button', { name: 'Import Seedance 2.0 Mini', exact: true }).click();
   await page.locator('#longaiActionMsg').filter({ hasText: 'Seedance 2.0 Mini imported' }).waitFor();
   assert.deepEqual(longAiImport, { rates: { '480p': '0.01', '720p': '0.02' } });
+
+  await page.getByRole('button', { name: 'Open video tests', exact: true }).click();
+  await page.locator('#longAiVideoProgress').filter({ hasText: '2 of 3 video models have a listed seller' }).waitFor();
+  assert.equal(await page.locator('#longAiVideoRows tr').count(), 3);
+  assert.equal(await page.locator('#longAiVideoRows').getByText('None listed', { exact: true }).count(), 1);
+  await page.getByRole('button', { name: 'Check all models with sellers', exact: true }).click();
+  await page.locator('#longAiVideoProgress').filter({ hasText: '2 of 2 checked · 1 visible to the saved key' }).waitFor();
+  assert.deepEqual(requests.filter(url => url.startsWith('/admin/longai/video-tests/model?')).sort(), [
+    '/admin/longai/video-tests/model?model=kling-video-o-1',
+    '/admin/longai/video-tests/model?model=seedance-2.0-mini',
+  ]);
+  await page.getByRole('button', { name: 'Check key for zero-video', exact: true }).click();
+  await page.locator('#longAiVideoProgress').filter({ hasText: '1 of 1 checked · 0 visible to the saved key' }).waitFor();
+  await page.getByRole('button', { name: 'Provider', exact: true }).click();
 
   await page.getByRole('tab', { name: 'Models', exact: true }).click();
   await page.locator('#provider-pager-names').filter({ hasText: 'of 35 models' }).waitFor();

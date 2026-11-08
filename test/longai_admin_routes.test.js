@@ -56,4 +56,23 @@ test('LONG AI import saves the local model using an already verified key during 
     { resolution: '480p', cost_per_second: 0.01 },
     { resolution: '720p', cost_per_second: 0.02 },
   ]);
+
+  const tests = new URL('/admin/longai/video-tests', url);
+  const headers = { 'x-admin-token': 'fixture-admin' };
+  assert.equal((await fetch(tests)).status, 401);
+  const marketplace = t.mock.method(LongAiClient.prototype, 'videoMarketplace', async () => '<html>Temporary error</html>');
+  const discovered = await (await fetch(tests, { headers })).json();
+  assert.equal(discovered.source, 'snapshot');
+  assert.equal(discovered.keyConfigured, true);
+  assert.equal(discovered.models.length, 31);
+  assert.equal(marketplace.mock.callCount(), 1);
+
+  const model = new URL(tests.pathname + '/model?model=kling-2.5', tests);
+  assert.equal((await fetch(model)).status, 401);
+  const checked = await (await fetch(model, { headers })).json();
+  assert.equal(checked.status, 'error');
+  assert.deepEqual(verify.mock.calls[0].arguments, ['kling-2.5', 12000]);
+  model.searchParams.set('model', '../videos');
+  assert.equal((await fetch(model, { headers })).status, 400);
+  assert.equal(verify.mock.callCount(), 1);
 });
