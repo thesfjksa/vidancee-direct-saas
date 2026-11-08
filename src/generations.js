@@ -19,6 +19,8 @@ function serializeGeneration(row) {
     aspect_ratio: row.aspect_ratio,
     prompt: row.prompt,
     status: row.status,
+    ...(row.provider==='aivid' && row.status==='processing' &&
+      require('./aivid_manual.js').activeStage(row) ? { awaiting_delivery:true } : {}),
     credits_cost: Number(row.credits_cost),
     provider_cost: row.provider_cost == null ? null : Number(row.provider_cost),
     error_message: hideVendors(row.error_message),
@@ -462,14 +464,18 @@ async function createGenerationForUser(userId, input, options = {}) {
       ? (options.dynamicModel ? 'reference-to-video' : 'image-to-video')
       : 'text-to-video';
 
+    // Manual jobs have no source ID and enter processing directly. Even an
+    // older automatic worker will neither claim nor collect them.
+    const manualHandoff = provider === 'aivid' && options.aividManualHandoff === true;
     await conn.execute(
       `INSERT INTO generations
-       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit, generation_options)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
+       (id, user_id, provider, queue_priority, mode, model, duration, resolution, aspect_ratio, prompt, status, credits_cost, provider_cost, provider_cost_unit, generation_options, provider_operation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${manualHandoff ? "'processing'" : "'queued'"}, ?, ?, ?, ?, ?)`,
       [
         id, userId, provider, planProfile.queuePriority, mode, model, duration,
         resolution, aspectRatio, prompt, cost, providerCostValue, providerCostUnit,
         options.generationOptions?JSON.stringify(options.generationOptions):null,
+        manualHandoff ? JSON.stringify({stage:'manual_pending'}) : null,
       ],
     );
 

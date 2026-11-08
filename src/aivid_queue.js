@@ -76,7 +76,7 @@ class AividQueue extends VercelQueue {
           await this.refund(job.id, 'submit_error', 'Generation stopped before submission. Credits were refunded.', null);
         } else await this.hold(db, job);
       }
-      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL ORDER BY (provider_job_id IS NULL OR provider_operation LIKE '%review_required%'),updated_at LIMIT 50");
+      const [active] = await db.query("SELECT * FROM generations WHERE provider='aivid' AND status IN ('submitted','processing') AND refunded_at IS NULL AND (provider_operation IS NULL OR provider_operation NOT LIKE '{\"stage\":\"manual_%') ORDER BY (provider_job_id IS NULL OR provider_operation LIKE '%review_required%'),updated_at LIMIT 50");
       const collectable=active.map(row=>({row,op:operation(row)})).filter(({row,op})=>
         op.stage!=='review_required'&&!op.collectionPaused&&ID.test(String(row.provider_job_id||'')));
       let inflight=collectable.filter(({op})=>!op.collectionMediaPending).length;
@@ -294,14 +294,16 @@ async function manageAividJob(db, id, action, {
     }
     if (!['queued','submitting','submitted','processing'].includes(job.status))
       throw Object.assign(new Error('This job cannot be cancelled in its current state.'), {statusCode:409});
-    const safeToRefund=!job.provider_job_id && (job.status==='queued'||(job.status==='submitting'&&op.stage==='preparing'));
+    const safeToRefund=!job.provider_job_id && (job.status==='queued'||op.stage==='manual_pending'||(job.status==='submitting'&&op.stage==='preparing'));
     const next={...op,adminCancelled:true,collectionPaused:true,cancelledAt:new Date().toISOString()};
     if (safeToRefund) {
       await refund(id,'failed','Cancelled by an administrator before submission. Credits were refunded.',null);
       await db.execute("UPDATE generations SET provider_operation=? WHERE id=? AND provider='aivid' AND status='failed'",[JSON.stringify(next),id]);
     } else {
-      await db.execute("UPDATE generations SET status='failed',provider_operation=?,error_message=?,completed_at=COALESCE(completed_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('queued','submitting','submitted','processing')",
+      const [stopped] = await db.execute("UPDATE generations SET status='failed',provider_operation=?,error_message=?,completed_at=COALESCE(completed_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP() WHERE id=? AND provider='aivid' AND status IN ('queued','submitting','submitted','processing')",
         [JSON.stringify(next),'Stopped by an administrator. A submitted video may still complete at the video service; credits were not automatically refunded.',id]);
+      if (!stopped.affectedRows && op.stage === 'manual_handoff')
+        throw Object.assign(new Error('This job has already finished.'), {statusCode:409});
     }
     return {cancelled:true,refunded:safeToRefund||Boolean(job.refunded_at)};
   });

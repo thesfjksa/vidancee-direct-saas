@@ -171,6 +171,10 @@
             <p id="aividSavedSettingsState" class="muted" role="status">Checking saved AIVID submission settings…</p>
             <p class="muted">Check the connection first. A limit of 0 pauses paid submissions. Premium models are listed when this source is enabled and online. Each quote checks live Public pricing; any changed price blocks submission.</p>
           </div>
+          <label><input id="aividManualHandoff" type="checkbox" style="width:auto" onchange="markAividSettingsDirty()"> Let an admin submit new Premium videos by hand</label>
+          <p class="muted">The saved browser connection still checks live pricing. New requests wait in Generations for you to copy them, fill AIVID in Chrome, and deliver the finished MP4.</p>
+          <button type="button" class="secondary" onclick="downloadAividHandoff()">Download Chrome extension</button>
+          <details><summary class="muted">Install the extension</summary><p class="muted">Extract the ZIP, open chrome://extensions, turn on Developer mode, and choose Load unpacked. Select the extracted folder containing manifest.json.</p></details>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin:12px 0"><button class="btn" id="aividSaveButton" onclick="saveAividAdmin()">Save Browserless key</button><button class="secondary" onclick="loadAividAdmin()">Refresh status</button></div>
           <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividConnectButton" onclick="connectAividAdmin(false)">Connect aivid</button><button class="secondary" id="aividCheckButton" onclick="checkAividAdmin()">Check connection</button><button class="secondary" id="aividCheckModelsButton" onclick="checkAividModels()">Check all Premium models</button><button class="secondary" onclick="tab('aividHistory')">Open AIVID History</button><button class="secondary" id="aividCheckReferencesButton" onclick="checkAividReferences()">Check reference uploads (no generation)</button></div>
           <p class="muted">Reference checks upload synthetic image, video and audio files, then block the final video request. They require the complete current Windows agent and do not generate or charge for a video.</p>
@@ -494,6 +498,16 @@
     <div id="gdError" class="err hide" style="white-space:pre-wrap;margin-bottom:14px"></div>
     <div class="top" style="align-items:center"><h3 style="margin:0">Prompt <span id="gdPromptCount" class="muted" style="font-weight:400;font-size:13px"></span></h3><button class="secondary" style="font-size:12px;padding:5px 10px" onclick="copyGenPrompt()">Copy prompt</button></div>
     <div id="gdPrompt" class="gd-prompt"></div>
+    <section id="gdHandoff" class="hide" style="margin:14px 0">
+      <h3>Manual video request</h3>
+      <p class="muted">Copy the request, open AIVID and choose Fill AIVID form in the Chrome extension. Check the form, Public visibility and price before clicking Generate. Download the finished MP4 and deliver it to this customer.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button id="gdCopyRequest" type="button" class="secondary" onclick="copyAividRequest()">Copy request</button>
+        <label id="gdDelivery">Finished MP4 <input id="gdFinishedMp4" type="file" accept="video/mp4,.mp4"></label>
+        <button id="gdDeliverVideo" type="button" class="btn" onclick="deliverAividVideo()">Deliver video</button>
+      </div>
+      <p id="gdHandoffMessage" class="muted" role="status"></p>
+    </section>
     <h3>Uploaded inputs</h3>
     <div id="gdInputs" class="gd-inputs"></div>
     <details style="margin-top:14px"><summary class="muted">Settings</summary><pre id="gdOptions" style="white-space:pre-wrap"></pre></details>
@@ -714,6 +728,7 @@ function genMedia(g){
   if(g.image_url)return '<a href="'+esc(g.image_url)+'" target="_blank" rel="noopener"><img loading="lazy" src="'+esc(g.thumb_url||g.image_url)+'" alt="Generated image"></a>';
   if(g.audio_url)return '<audio controls preload="none" src="'+esc(g.audio_url)+'"></audio>';
   if(g.video_url)return '<video controls preload="none" playsinline'+(g.poster_url?' poster="'+esc(g.poster_url)+'"':'')+' src="'+esc(g.video_url)+'"></video>';
+  if(g.manualHandoff)return '<span>'+ (g.manualHandoff==='manual_pending'?'Awaiting operator':'Manual handoff')+'</span>';
   const label={queued:'Queued',submitting:'Starting',submitted:'Rendering',processing:'Rendering',failed:'Failed',submit_error:'Failed'}[g.status]||'No output';
   return '<span>'+label+'</span>';
 }
@@ -739,6 +754,12 @@ async function openGenDetail(id){
   $('gdPrompt').textContent=g.prompt||'(no prompt)';
   $('gdPromptCount').textContent='· '+num((g.prompt||'').length)+' characters';
   $('gdOptions').textContent=JSON.stringify({mode:g.mode,status:g.status,provider:g.provider,provider_job_id:g.provider_job_id,credits:g.credits_cost,...(g.generation_options||{})},null,2);
+  $('gdHandoff').classList.toggle('hide',!g.manualHandoff);
+  $('gdFinishedMp4').value='';
+  $('gdHandoffMessage').textContent='';
+  $('gdCopyRequest').disabled=false;
+  $('gdDeliverVideo').disabled=g.manualHandoff!=='manual_handoff';
+  $('gdDelivery').hidden=g.manualHandoff!=='manual_handoff';
   $('gdInputs').innerHTML='<div class="muted">Loading...</div>';
   $('genDetailModal').classList.remove('hide');
   try{const d=await api('/admin/generations/'+encodeURIComponent(id)+'/inputs');if(gdCurrent!==g)return;
@@ -749,6 +770,51 @@ async function openGenDetail(id){
       return '<figure>'+media+'<figcaption class="muted">'+esc((f.role||f.kind).replace(/_/g,' '))+' · <a href="'+esc(f.url)+'" target="_blank" rel="noopener">'+esc(f.filename||'file')+'</a></figcaption></figure>';
     }).join(''):'<div class="muted">No files were uploaded (text only).</div>';}
   catch(e){if(gdCurrent===g)$('gdInputs').innerHTML='<div class="err">'+esc(e.message)+'</div>'}
+}
+async function downloadAividHandoff(){
+  try{
+    const r=await fetch('/admin/aivid/manual/extension',{headers:{'x-admin-token':token}});
+    if(!r.ok||r.headers.get('content-type')!=='application/zip')throw new Error('Could not download the Chrome extension.');
+    const url=URL.createObjectURL(await r.blob());
+    const link=document.createElement('a');
+    link.href=url;link.download='cmmtools-aivid-handoff.zip';link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }catch(e){toast(e.message)}
+}
+async function copyAividRequest(){
+  const g=gdCurrent;if(!g?.manualHandoff)return;
+  const button=$('gdCopyRequest');button.disabled=true;
+  try{
+    const request=api('/admin/aivid/generations/'+encodeURIComponent(g.id)+'/copy-request',{method:'POST'});
+    const item=new ClipboardItem({'text/plain':request.then(d=>new Blob([d.clipboard],{type:'text/plain'}))});
+    await navigator.clipboard.write([item]);
+    if(gdCurrent!==g)return;
+    g.manualHandoff='manual_handoff';
+    $('gdDeliverVideo').disabled=false;
+    $('gdDelivery').hidden=false;
+    $('gdHandoffMessage').textContent='Copied. The request expires in 15 minutes. Before copying again, check AIVID History for an existing render.';
+  }catch(e){if(gdCurrent===g)$('gdHandoffMessage').textContent=e.message||'Could not copy the request.';}
+  finally{if(gdCurrent===g)button.disabled=false;}
+}
+async function deliverAividVideo(){
+  const g=gdCurrent,file=$('gdFinishedMp4').files[0];
+  if(g?.manualHandoff!=='manual_handoff')return;
+  const message=$('gdHandoffMessage'),button=$('gdDeliverVideo');
+  if(!file||!file.name.toLowerCase().endsWith('.mp4')){message.textContent='Choose the finished MP4 from AIVID.';return;}
+  if(file.size>100*1024*1024){message.textContent='Choose an MP4 of 100 MB or less.';return;}
+  if(!confirm('Deliver '+file.name+' to '+g.user_email+' for this request?'))return;
+  button.disabled=true;message.textContent='Uploading the video…';
+  try{
+    await api('/admin/aivid/generations/'+encodeURIComponent(g.id)+'/deliver-video',
+      {method:'POST',body:file,headers:{'content-type':'video/mp4'}});
+    g.manualHandoff=null;g.status='completed';
+    if(gdCurrent===g){
+      $('gdCopyRequest').disabled=true;
+      $('gdDelivery').hidden=true;
+      message.textContent='Delivered. The video is available in the customer’s library.';
+    }
+    toast('Video delivered');
+  }catch(e){if(gdCurrent===g){button.disabled=false;message.textContent=e.message;}}
 }
 function closeGenDetail(){$('genDetailModal').classList.add('hide');gdCurrent=null;$('gdInputs').innerHTML=''}
 function copyGenPrompt(){if(!gdCurrent)return;navigator.clipboard.writeText(gdCurrent.prompt||'').then(()=>toast('Prompt copied'),()=>toast('Could not copy'))}
@@ -1542,6 +1608,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=5"></script><script src="/longai-admin.js?v=3"></script></body></html>
+</script><script src="/provider-admin.js?v=2"></script><script src="/aivid-admin.js?v=6"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 
