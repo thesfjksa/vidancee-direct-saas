@@ -86,11 +86,11 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(ok.data.generation.prompt, 'A dragon learns to fly');
   assert.deepEqual(JSON.parse(inserted[13]), { studio: 'cartoon', cartoonStyle: 'clay' });
   assert.equal(inserted[2], 'vgenv');
+  const previousJob = inserted;
   const mini = await post({ prompt: 'A dragon over the sea', model: 'seedance_2_0_mini', duration: 10, resolution: '768p', aspectRatio: '16:9' });
-  assert.equal(mini.status, 201);
-  assert.equal(inserted[2], 'vgenv');
-  assert.equal(inserted[5], 'seedance_2_0_mini');
-  assert.equal(inserted[10], require('../src/billing.js').applyPriceRate(require('../src/pricing.js').getCost('seedance_2_0_mini',10,'768p'),1.05));
+  assert.equal(mini.status, 404);
+  assert.equal(inserted, previousJob); // A retired model cannot reserve new credits.
+  assert.ok(require('../src/pricing.js').getCost('seedance_2_0_mini',10,'768p')>0); // Old queued jobs remain readable.
 
   // The same model from Video Studio: no cartoon style on the job, and it goes to vgenv too.
   const plain = await post({ prompt: 'A dragon over the sea', model: 'minimax_h3', duration: 10, resolution: '768p', aspectRatio: '16:9' });
