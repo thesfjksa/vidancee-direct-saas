@@ -30,10 +30,11 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.equal(pricing.status, 200);
   assert.match(pricing.body, /Creator[\s\S]*Studio[\s\S]*Enterprise/);
   assert.match(landing.body, /href="\/pricing"/);
-  // 888API is opt-in; other studios keep their existing defaults.
+  // WXKSAI is opt-in; existing providers keep their defaults.
   const config = JSON.parse((await page('/api/config')).body);
   assert.equal(config.providerAccess.api888, true);
-  assert.ok(Object.values(config.providerAccess).every(enabled=>enabled));
+  assert.equal(config.providerAccess.wxksai, false);
+  assert.ok(Object.entries(config.providerAccess).every(([source,enabled])=>source==='wxksai'||enabled));
   assert.equal(config.providerAccess.vibi, true);
 });
 
