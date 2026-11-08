@@ -146,9 +146,9 @@ class LongAiClient {
     return (await readBounded(response, 1024 * 1024)).toString('utf8');
   }
 
-  async startVideo(options) {
+  async startVideo(options, modelId = MODEL_ID) {
     const { data, location } = await this.json('/v1/videos', {
-      model: MODEL_ID, prompt: options.prompt, duration: options.duration,
+      model: modelId, prompt: options.prompt, duration: options.duration,
       aspect_ratio: options.aspectRatio, resolution: options.resolution,
     });
     const job = task(data);
@@ -158,14 +158,15 @@ class LongAiClient {
     return { requestId, path };
   }
 
-  async videoStatus(op) {
+  async videoStatus(op, { reportMissingOutput = false } = {}) {
     const { data } = await this.json(pollingPath(op.path, op.requestId));
     const job = task(data);
     const status = String(job?.status || '').toLowerCase();
     if (['failed', 'failure', 'error', 'canceled', 'cancelled', 'expired'].includes(status)) return { status: 'failed' };
     const url = outputUrl(job);
-    if (typeof url === 'string' && ['completed', 'succeeded', 'success', 'done'].includes(status)) {
-      return { status: 'done', url: new URL(url, API_ORIGIN).href };
+    if (['completed', 'succeeded', 'success', 'done'].includes(status)) {
+      if (typeof url === 'string') return { status: 'done', url: new URL(url, API_ORIGIN).href };
+      if (reportMissingOutput) return { status: 'missing_output' };
     }
     return { status: 'pending' };
   }

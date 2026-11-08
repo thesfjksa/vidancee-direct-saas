@@ -14,6 +14,10 @@ test('LONG AI import saves the local model using an already verified key during 
   const db = require('../src/db.js');
   t.mock.method(db, 'dbConfigured', () => true);
   t.mock.method(db, 'initDb', () => new Promise(() => {}));
+  t.mock.method(db, 'getPool', () => ({ async execute(sql) {
+    assert.match(sql, /FROM longai_render_tests/);
+    throw Object.assign(new Error('Optional render table is not created.'), { code: 'ER_NO_SUCH_TABLE' });
+  } }));
   const settings = require('../src/settings.js');
   t.mock.method(settings, 'getProviderSettings', async () => ({ longAiApiKey: savedKey }));
   const imports = [];
@@ -75,4 +79,13 @@ test('LONG AI import saves the local model using an already verified key during 
   model.searchParams.set('model', '../videos');
   assert.equal((await fetch(model, { headers })).status, 400);
   assert.equal(verify.mock.callCount(), 1);
+
+  const renders = new URL(tests.pathname + '/renders', tests);
+  assert.equal((await fetch(renders)).status, 401);
+  assert.deepEqual(await (await fetch(renders, { headers })).json(), { ok: true, tests: [], paidEnabled: false });
+  const paid = body => fetch(renders, {
+    method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  assert.equal((await paid({})).status, 400);
+  assert.equal((await paid({ id: '12345678-1234-4abc-8abc-123456789abc', model: 'kling-2.5', confirmPaid: true })).status, 409);
 });

@@ -74,4 +74,4 @@ async function checkVideoModel(client, id) {
   }
 }
 
-module.exports = { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel };
+module.exports = { parseVideoMarketplace, loadVideoMarketplace, checkVideoModel, MODEL_ID };
