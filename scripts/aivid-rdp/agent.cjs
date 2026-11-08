@@ -180,7 +180,7 @@ class Agent {
             await checkSession();
             nextSessionCheck = this.now() + 30000;
           }
-          const { command, browser } = await this.transport.request('/poll', { body: { status: this.status } });
+          const { command, browser } = await this.transport.request('/poll', { body: { status: this.status, browser: this.browser } });
           if (browser && ['chrome', 'edge'].includes(browser) && browser !== this.browser && this.status !== 'busy') {
             this.browser = browser;
             this.status = 'starting';
