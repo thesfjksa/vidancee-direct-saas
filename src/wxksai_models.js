@@ -57,6 +57,15 @@ const SPECS = Object.freeze({
     durations: everySecond(5, 30), defaultDuration: 5,
     priceCny: 0.247, pricingMode: 'second', ratios: RATIOS,
   },
+  'seedance-2.0-mini-720p': {
+    // Official unified V1 docs + compatibility table checked 9 Nov 2026.
+    // Video special line V03: ¥1.40 per clip, 5/10/15s, 720p,
+    // 1–9 mandatory reference images, no reference video/audio.
+    name: 'Seedance 2.0 Mini 720p · Dope',
+    resolution: '720p', durations: [5,10,15], defaultDuration: 5,
+    priceCny: 1.40, pricingMode: 'clip',
+    ratios: RATIOS, requiresImage: true,
+  },
   'seedance-2.0-full-720p-900': {
     name: 'Seedance 2.0 Full 720p (900) · Dope', resolution: '720p',
     durations: [10], defaultDuration: 10,
@@ -82,6 +91,7 @@ const REFERENCE_SPECS = Object.freeze({
   'seedance-2.5-full-720p-15-30s': { images: 9, videos: 0, audios: 0 },
   'seedance-2.5-bd-2': { images: 30, videos: 10, audios: 10, total: 30, totalSeconds: 30 },
   'wan3.0-video': { images: 10, videos: 5, audios: 5 },
+  'seedance-2.0-mini-720p': { images: 9, videos: 0, audios: 0 },
   'seedance-2.0-full-720p-900': { images: 9, videos: 0, audios: 0 },
   'seedance2.5-buff': { images: 30, videos: 1, audios: 1 },
 });
@@ -89,14 +99,15 @@ const MIB = 1024 * 1024;
 function wxksaiReferenceCapabilities(id) {
   const ref = REFERENCE_SPECS[id];
   if (!ref) return { textOnly: true, totalMax: 0, image: { supported: false, max: 0 }, video: { supported: false, max: 0 }, audio: { supported: false, max: 0 } };
-  const kind = (max, roles, maxBytes, formats) => ({
-    supported: max > 0, max, min: 0, roles: max > 0 ? roles : [],
+  const kind = (max, roles, maxBytes, formats, min = 0) => ({
+    supported: max > 0, max, min, roles: max > 0 ? roles : [],
     maxBytes, formats,
   });
   return {
-    textOnly: true,
+    textOnly: !SPECS[id]?.requiresImage,
     totalMax: ref.total || ref.images + ref.videos + ref.audios,
-    image: kind(ref.images, ['image_references'], 20 * MIB, ['jpg', 'jpeg', 'png', 'webp']),
+    image: kind(ref.images, ['image_references'], 20 * MIB, ['jpg', 'jpeg', 'png', 'webp'],
+      SPECS[id]?.requiresImage ? 1 : 0),
     video: kind(ref.videos, ['video_references'], 25 * MIB, ['mp4']),
     audio: kind(ref.audios, ['audio_references'], 15 * MIB, ['mp3', 'wav']),
   };
@@ -135,7 +146,8 @@ function wxksaiMediaModels(live) {
         aspectRatios: spec.ratios, defaultDuration: spec.defaultDuration,
         defaultResolution: spec.resolution, defaultAspectRatio: '16:9',
         inputLimits: { text: { max_chars: Math.min(20000,spec.promptMax||10000) } },
-        supportedOperations: ['text-to-video', 'reference-to-video'],
+        supportedOperations: spec.requiresImage
+          ? ['reference-to-video'] : ['text-to-video', 'reference-to-video'],
         referenceCapabilities,
         mediaRoles: [
           ...referenceCapabilities.image.roles,
