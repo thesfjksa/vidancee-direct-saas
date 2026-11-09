@@ -326,14 +326,17 @@ function videoDimensions(resolution,ratio) {
 }
 
 const AUDIO_FORMATS={'audio/mpeg':'mp3','audio/mp3':'mp3','audio/wav':'wav','audio/x-wav':'wav','audio/wave':'wav','audio/vnd.wave':'wav'};
-function validateReferences(model,input={}) {
+function validateReferences(model,input={}, { forQuote=false }={}) {
+  // Quotes must be possible before users upload mandatory references.
+  // This flag is server-owned and used only for /api/model-cost; actual
+  // generation validation and the worker remain strict about required media.
   const images=input.images||[],videos=input.videos||[],audios=input.audios||[],caps=model.referenceCapabilities;
   const list=value=>{if(value==null||value==='')return [];try{const v=typeof value==='string'?JSON.parse(value):value;if(Array.isArray(v))return v;}catch{}fail('Invalid reference selection.');};
   const reused=list(input.reuseImageIds).length;
   for (const [kind,files,count] of [['image',images,images.length+reused],['video',videos,videos.length],['audio',audios,audios.length]]) {
     const c=caps[kind]||{supported:false,max:0,min:0};
     if (count&&(!c.supported||count>c.max)) fail('Unsupported '+kind+' references or too many files for this model.');
-    if (count<c.min) fail('This model requires a reference '+kind+'.');
+    if (!forQuote && count<c.min) fail('This model requires a reference '+kind+'.');
     for (const file of files) {
       if (!Buffer.isBuffer(file.data)||!file.data.length||file.data.length>c.maxBytes) fail('The reference '+kind+' exceeds this model’s file limit.');
       const format=AUDIO_FORMATS[String(file.mimeType||'').toLowerCase()]||String(file.mimeType||'').split('/')[1]?.replace('quicktime','mov');
@@ -357,7 +360,7 @@ function validateReferences(model,input={}) {
   const frames=roles.some(r=>r==='start_image'||r==='end_image');
   const refs=roles.some(r=>r==='image_references')||videos.length>0;
   if (frames&&refs) fail('Choose either start/end frames or reference files for this generation.');
-  if (model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
+  if (!forQuote && model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
 }
 
 module.exports={promptLimit,DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,mp4Seconds,isGatewayModel,publicId,mediaModels,discoverModel,
