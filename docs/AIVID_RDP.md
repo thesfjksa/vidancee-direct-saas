@@ -1,12 +1,14 @@
 # AIVID on the owner's Windows RDP
 
+> **Current 10 November 2026 browser policy:** The Windows RDP worker uses **Microsoft Edge only**. Admin has no Chrome/Edge selector. Preserve the paired agent and all receipts, and retain both private profiles (the former Chrome profile is not used). Download the current complete Windows package, sign in with AIVID-Login.exe using `.aivid-rdp-edge-profile`, close the Edge login window, then start AIVID-Agent.exe. Old Chrome-agent heartbeats cannot claim new jobs. Other provider and browserless workflows are unchanged.
+
 > **Current 7 November 2026 incident/recovery handoff:** [PROJECT_HANDOFF_2026-11-07.md](PROJECT_HANDOFF_2026-11-07.md). PRs #175–#186 are merged, including F12/CDP diagnostics, history-based collection, stage-specific errors, Admin job history, retry feedback and a distinct MP4 asset-ID fix. The owner later reported completed AIVID videos that CMMTools failed to collect and a Retry collection click with no apparent feedback; no live end-to-end recovery has been verified. Keep accepted/uncertain jobs for account-history reconciliation and never re-submit them automatically.
 
 
 Owner setting (6 November 2026): every preflight and generation selects Public.
 The form and outgoing request both verify public visibility. Price is read
 after the switch, then checked against the saved source-credit ceiling.
-Use the complete **agent 2.1.6 ZIP** for the current prompt and image/video/audio reference adapter. Older installed agents cannot run the new upload diagnostic. See [current operational handoff](PROJECT_HANDOFF_2026-11-06.md) for upgrade steps.
+Use the complete **current managed Windows agent package** for the prompt and image/video/audio reference adapter and Edge-only runtime. Historical versions (including 2.1.6) are not current. See [current operational handoff](PROJECT_HANDOFF_2026-11-07.md) for upgrade steps.
 
 The RDP agent is an alternative transport for the existing AIVID browser
 adapter and queue. Select **Windows RDP agent** in Admin and save it to stop
@@ -51,10 +53,10 @@ path. Temporary commands/chunks are consumed on success or pruned after a day.
 Preflight never generates or debits a wallet. The default source ceiling is 0,
 and new submissions are blocked until Admin enables AIVID and sets a positive ceiling. **The three AIVID Premium models are now registered for customer Video Studio**, but only when the provider has been configured and the customer's AIVID source grant permits access; readiness controls whether Generate is enabled. Real paid generation/reference behavior for each model remains unverified. Existing unrelated providers remain unchanged.
 
-Native Chrome uses an isolated profile and an ephemeral loopback debugging port.
+Native Microsoft Edge uses an isolated `.aivid-rdp-edge-profile` and an ephemeral loopback debugging port.
 Manual login has no debugging, `--enable-automation`, `--no-sandbox`, security
 disabling flags, or regular-profile copying. Closing the Playwright CDP transport
-leaves independently launched Chrome running; this is tested on Windows.
+leaves independently launched Edge running; the Windows CI exercise checks this.
 
 The owner confirmed ordinary Chrome Google/AIVID login works on the RDP. That
 does not establish that the new dedicated profile, production queue, downloads,
