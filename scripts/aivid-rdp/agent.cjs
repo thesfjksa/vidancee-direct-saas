@@ -61,7 +61,7 @@ async function saveConfig(root, value, codec = protect) {
 }
 class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
-    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false; this.browser = 'chrome';
+    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false; this.browser = 'edge';
     this.connect = connect || (() => connectNative(browserProfile(root, this.browser), { browser: this.browser }));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: (page,id) => collectSavedVideo(page,id,{checkChallenge:adapter.assertNoAividChallenge}), maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
@@ -69,7 +69,7 @@ class Agent {
         console.log('AIVID [submission_request] blocked ' + method + ' ' + hostname + path) }));
   }
   async check() {
-    console.log('Opening saved ' + (this.browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome') + ' and checking AIVID. No video will be generated.');
+    console.log('Opening saved Microsoft Edge and checking AIVID. No video will be generated.');
     try {
       await this.clientFactory(0).preflight({ prompt: 'A quiet river at dawn', duration: 4, aspectRatio: '16:9', resolution: '480p' });
       this.status = 'ready'; console.log('AIVID session ready. No video was generated.');
@@ -144,7 +144,8 @@ class Agent {
     try {
       while (!this.stopping) {
         try { const initial = await this.transport.request('/poll', { body: { status: 'starting', browser: this.browser } });
-          this.browser = initial.browser === 'edge' ? 'edge' : 'chrome'; break; }
+          if (initial.browser && initial.browser !== 'edge') throw new Error('CMMTools must use Microsoft Edge.');
+          break; }
         catch (error) {
           if (error.statusCode === 401) throw error;
           console.log('Waiting for the CMMTools connection...');
@@ -177,12 +178,10 @@ class Agent {
             nextSessionCheck = this.now() + 30000;
           }
           const { command, browser } = await this.transport.request('/poll', { body: { status: this.status, browser: this.browser } });
-          if (browser && browser !== this.browser) {
-            if (!['chrome', 'edge'].includes(browser)) throw new Error('Invalid browser selection from CMMTools.');
-            this.browser = browser;
+          if (browser && browser !== 'edge') {
+            // Never claim a command when an older server requests another browser.
             this.status = 'starting';
-            await checkSession();
-            nextSessionCheck = this.now() + 30000;
+            await this.pause(2000);
             continue;
           }
           if (command) {
@@ -246,5 +245,5 @@ async function main() {
   process.once('SIGINT', () => { agent.stopping = true; }); process.once('SIGTERM', () => { agent.stopping = true; });
   await agent.run();
 }
-if (require.main === module) main().catch(error => { console.error(error.safe || error.network || error.statusCode ? error.message : 'The RDP agent stopped. Check Chrome, pairing and the writable agent folder.'); process.exitCode = error.statusCode === 401 ? 23 : 1; });
+if (require.main === module) main().catch(error => { console.error(error.safe || error.network || error.statusCode ? error.message : 'The RDP agent stopped. Check Microsoft Edge, pairing and the writable agent folder.'); process.exitCode = error.statusCode === 401 ? 23 : 1; });
 module.exports = { Agent, Transport, origin, loadConfig, saveConfig, protect, readPairingInput, main };
