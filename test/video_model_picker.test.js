@@ -97,3 +97,32 @@ test('model picker dynamic estimates use existing quote API and shortest allowed
   assert.match(studio,/if\(id==='model'\)watchPickerQuotes\(\)/);
   assert.match(studio,/class="model-picker-price"/);
 });
+
+test('Dope second-priced and generic gateway second-priced SKUs expose billing mode',()=>{
+  const {publicVideoModel}=require('../src/provider_models.js');
+  const defaults={publicModelId:'wxksai_wan3_0',label:'Wan 3.0 · Dope',provider:'wxksai',
+    resolutions:['720p'],durations:[5,10],defaultResolution:'720p',defaultDuration:5,
+    aspectRatios:['16:9'],referenceCapabilities:{}};
+  assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'second'}}).billingMode,'per_second');
+  assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'clip'}}).billingMode,undefined);
+  assert.equal(publicVideoModel({...defaults,provider:'argolink',publicModelId:'argo_test',
+    pricing:{video_duration_pricing:[{resolution:'720p',cost_per_second:0.07}]}}).billingMode,'per_second');
+});
+test('metered models quote each resolution and display their cheapest per-second credits',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  const requests=[];
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async b=>{
+    requests.push(b);
+    return {cost:b.resolution==='480p'?100:175};
+  }});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const model={id:'dope_seedance_2_5_buff',billingMode:'per_second',dynamicCost:true,
+    defaultResolution:'720p',defaultAspectRatio:'16:9',resolutions:[
+      {id:'480p',durations:[{seconds:10},{seconds:5}]},
+      {id:'720p',durations:[{seconds:5},{seconds:10}]},
+    ]};
+  assert.equal(await ctx.pickerQuote(model),'Min 20 credits/sec · 100 credits (5s · 480p)');
+  assert.equal(requests.length,2);
+  assert.ok(requests.every(r=>r.mediaType==='video'&&r.duration===5));
+});
