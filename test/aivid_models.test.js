@@ -9,7 +9,7 @@ test('Premium models have separate IDs, public labels and guarded limits',()=>{
   assert.ok(ids.every(id=>id.startsWith('aivid_')&&isAividModel(id)));
   assert.equal(aividModel('seedance_2.5'),null);
   const catalog=customerCatalog({enabled:true,maxSourceCredits:30,mode:'rdp',rdpDevice:{
-    deviceId:'safe-device',tokenHash:'1234',seenAt:new Date().toISOString(),status:'ready'}});
+    deviceId:'safe-device',tokenHash:'1234',seenAt:new Date().toISOString(),status:'ready',browser:'edge'}});
   assert.equal(catalog.length,4);
   assert.ok(catalog.every(m=>m.label.includes('Premium')&&m.dynamicCost===true));
   for(const m of catalog){
