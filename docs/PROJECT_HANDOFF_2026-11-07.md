@@ -1,3 +1,9 @@
+## 10 November 2026 — Restore Dope Seedance 2.5 Special2 eligibility
+
+- At the owner's request, remove the temporary CMMTools submission pause for the exact Dope `seedance-2.5-special2` video model. It uses the existing saved model enable switch, account availability, and Dope access controls.
+- All 26 targeted Dope tests passed with mock provider calls, including the restored catalog eligibility check. The prior live HTTP 410 from Dope remains the last verified submission result for this SKU. A new paid render was not submitted.
+- Deploy the updated web service and standalone worker from the merged revision. In Admin → Provider → Dope, verify the account inventory lists the model as available and its Enabled checkbox is selected. Verify it appears in Video Studio for an eligible customer.
+
 ## 10 November 2026 — Private AIVID interactive white-label browser pilot
 
 - **Owner request:** Host the real AIVID buttons/pages inside CMMTools with CMMTools styling, under the owner's reported written white-label/custom-browser authorization. Do not resell AIVID subscription plans.
