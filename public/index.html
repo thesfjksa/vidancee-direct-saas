@@ -918,11 +918,28 @@ function pickerCreditText(m){
   const info=pickerCreditSummary(m);
   return [info.badge,info.amount,info.detail].filter(Boolean).join(' · ');
 }
-function pickerCreditMarkup(info){
+function modelPickerFeatureSummary(m){
+  if(!m)return '';
+  const caps=normalizedClientCapabilities(m,'video');
+  const refs=[];
+  if(caps.image.supported)refs.push('Image');
+  if(caps.video.supported)refs.push('Video');
+  if(caps.audio.supported)refs.push('Audio');
+  return refs.length?refs.join(' + ')+' refs':'Text to video';
+}
+function pickerCreditMarkup(info,model=null){
+  // A predictable hierarchy: amount first, subtle billing type second,
+  // followed by one metadata line. Avoid repeating seconds/resolution chips.
   const className=info.badge==='Constant price'?' constant':info.badge==='Per second'?' metered':'';
-  return '<span class="model-picker-price-badge'+className+'">'+escapeHtml(info.badge)+'</span>'+
+  const features=model?modelPickerFeatureSummary(model):'';
+  const details=[info.detail,features].filter(Boolean);
+  return '<span class="model-picker-price-main">'+
     '<span class="model-picker-price-value">'+escapeHtml(info.amount)+'</span>'+
-    (info.detail?'<span class="model-picker-price-detail">'+escapeHtml(info.detail)+'</span>':'');
+    '<span class="model-picker-price-badge'+className+'">'+escapeHtml(info.badge)+'</span>'+
+    '</span>'+
+    (details.length?'<span class="model-picker-price-detail">'+
+      details.map(x=>escapeHtml(x)).join('<span class="model-picker-meta-dot" aria-hidden="true">·</span>')+
+      '</span>':'');
 }
 function pickerQuoteBody(m){
   const resolutions=Array.isArray(m.resolutions)?m.resolutions:[];
@@ -992,7 +1009,7 @@ function pumpPickerQuotes(){
       $('model')?.closest('.custom-select')?.querySelectorAll('.custom-select-option').forEach(button=>{
         if((config?.pricing||[])[Number(button.dataset.index)]?.id!==task.model.id)return;
         const price=button.querySelector('.model-picker-price');
-        if(price)price.innerHTML=pickerCreditMarkup(summary);
+        if(price)price.innerHTML=pickerCreditMarkup(summary,task.model);
       });
     }).finally(()=>{pickerQuoteActive--;pumpPickerQuotes();});
   }
@@ -1023,32 +1040,10 @@ function modelPickerTags(id,index){
   if(!m)return [];
   const tags=[];
   const add=v=>{v=String(v||'').trim();if(v&&!tags.includes(v))tags.push(v)};
-  // Credit price has a dedicated line on each video model card.
-
-  if(id==='model'){
-    const resolutions=Array.isArray(m.resolutions)?m.resolutions:[];
-    if(resolutions.length){
-      const labels=resolutions.map(r=>r?.label||r?.id).filter(Boolean);
-      if(labels.length<=2)labels.forEach(add);
-      else add(labels[0]+'–'+labels[labels.length-1]);
-    }else add(m.resolution||m.defaultResolution);
-
-    const durations=[];
-    (m.durations||[]).forEach(d=>{const n=Number(d?.seconds);if(n>0)durations.push(n)});
-    resolutions.forEach(r=>(r?.durations||[]).forEach(d=>{const n=Number(d?.seconds);if(n>0)durations.push(n)}));
-    if(durations.length){
-      const min=Math.min(...durations),max=Math.max(...durations);
-      add(min===max?min+'s':min+'s–'+max+'s');
-    }
-
-    const caps=normalizedClientCapabilities(m,'video');
-    const refs=[];
-    if(caps.image.supported)refs.push('Image');
-    if(caps.video.supported)refs.push('Video');
-    if(caps.audio.supported)refs.push('Audio');
-    if(refs.length)add(refs.join(' + ')+' refs');
-    else add('Text to video');
-  }else if(id==='imageModel'){
+  // Video metadata lives on the compact price-detail row. Resolution and
+  // duration are not repeated as three more tiny chips under each card.
+  if(id==='model')return [];
+  if(id==='imageModel'){
     add('Image');
     const ratios=Array.isArray(m.aspectRatios)?m.aspectRatios:[];
     if(ratios.length)add(ratios.length+' ratios');
@@ -1067,7 +1062,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
-  const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)))+'</span>':'';
+  const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)),modelPickerSource(id,i))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
     ?'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/>'
@@ -1076,7 +1071,7 @@ function modelPickerOptionHtml(id,o,i,selected){
       :'<rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/>';
   return '<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+
     '<span class="model-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'+icon+'</svg></span>'+
-    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>'+price+'<span class="model-picker-tags">'+tags+'</span></span>'+
+    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>'+price+(tags?'<span class="model-picker-tags">'+tags+'</span>':'')+'</span>'+
     '<span class="model-picker-check">✓</span>'+
   '</button>';
 }
