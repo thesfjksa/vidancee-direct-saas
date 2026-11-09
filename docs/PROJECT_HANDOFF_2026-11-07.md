@@ -1,3 +1,9 @@
+## 9 November 2026 — Pause Dope Special2 after confirmed submission HTTP 410
+
+- Production Activity for generation `f5fda047` shows `job.submit_failed`, upstream HTTP 410 at the paid POST stage for `seedance-2.5-special2`, no saved provider task ID, and a 2,510.55-credit CMMTools refund. The provider's reason and upstream billing are unverified.
+- Temporarily block new requests for this exact Dope SKU at catalog readiness. Existing queued requests that reach the worker are refunded without a paid submission. Accepted tasks still poll their saved IDs. Other SKUs and saved enable settings are untouched. Admin shows the submission pause on the inventory row.
+- Verify the targeted Dope tests and CI, then deploy both CMMTools web and worker. Remove the pause only after Dope confirms the working video submission contract for this SKU. No live paid retry was made.
+
 ## 9 November 2026 — Collect completed Dope videos above 100 MiB
 
 - Dope had already accepted and rendered generation `5c510e3b`. Its production Activity showed repeated download errors because the Dope connector shared a 64 MiB video limit. The original job remained Processing with its provider task ID.
