@@ -50,7 +50,7 @@ function unavailableReason(config) {
   if(config.mode==='rdp'){
     const device=require('./aivid_rdp.js').publicDevice(config.rdpDevice||{});
     return device.online&&device.status==='needs_verification'?'AIVID is waiting for security verification by the operator.':
-      device.online&&device.browser!==(config.browser||'chrome')?'The Windows RDP agent must use Microsoft Edge. Update and restart AIVID-Agent.exe.':'The Windows RDP agent is offline or not ready.';
+      device.online&&device.browser!=='edge'?'The Windows RDP agent must use Microsoft Edge. Update and restart AIVID-Agent.exe.':'The Windows RDP agent is offline or not ready.';
   }
   return 'The AIVID browser session is missing or expired.';
 }
