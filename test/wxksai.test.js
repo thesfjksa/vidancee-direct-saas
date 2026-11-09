@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const { WxksaiClient }=require('../src/provider/wxksai.js');
 const { WxksaiQueue }=require('../src/wxksai_queue.js');
-const { wxksaiMediaModels, SPECS, publicId, isWxksaiModel }=require('../src/wxksai_models.js');
+const { wxksaiMediaModels, SPECS, publicId, isWxksaiModel, UNVERIFIED_DOPE_VIDEO_CANDIDATE, unverifiedDopeCandidateVisible }=require('../src/wxksai_models.js');
 const { quoteGateway, validateReferences }=require('../src/vercel_models.js');
 const { CREDITS_PER_USD, CNY_PER_USD }=require('../src/billing.js');
 
@@ -17,6 +17,30 @@ test('WXKSAI import is account-scoped and fails closed',()=>{
   assert.throws(()=>wxksaiMediaModels({}),/model list/);
   assert.equal(wxksaiMediaModels({data:[{id:'seedance-2.5-special2'}]}).length,1);
   assert.equal(isWxksaiModel(publicId('seedance-2.5-special2')),true);
+});
+test('Dope SD 2.5 candidate is discoverable but never imported, priced or offered as video',async()=>{
+  const id='sd 2.5掺水板';
+  assert.equal(UNVERIFIED_DOPE_VIDEO_CANDIDATE,id);
+  assert.equal(Object.hasOwn(SPECS,id),false);
+  const live={data:[{id},{id:'seedance-2.5-special2'}]};
+  assert.equal(unverifiedDopeCandidateVisible(live),true);
+  assert.equal(unverifiedDopeCandidateVisible({data:[{id:'sd 2.5 掺水板'}]}),false);
+  assert.equal(unverifiedDopeCandidateVisible({data:[]}),false);
+  assert.throws(()=>unverifiedDopeCandidateVisible({}),/model list/);
+  const ready=wxksaiMediaModels(live);
+  assert.equal(ready.length,1);
+  assert.equal(ready[0].providerModelId,'seedance-2.5-special2');
+  assert.equal(isWxksaiModel(publicId(id)),false);
+  let requests=0;
+  const client=new WxksaiClient({apiKey:'test-key',fetchImpl:async(url,opts)=>{
+    requests++;
+    assert.ok(url.endsWith('/v1/models'));
+    assert.equal(opts.method,'GET');
+    assert.equal(opts.body,undefined);
+    return Response.json(live);
+  }});
+  assert.equal(unverifiedDopeCandidateVisible(await client.models()),true);
+  assert.equal(requests,1);
 });
 test('WXKSAI fixed 1080p per-clip prices do not depend on seconds',()=>{
   const m=modelFor('seedance-2.5-special2');

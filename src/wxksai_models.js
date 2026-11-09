@@ -5,6 +5,15 @@
 // All new models remain disabled until Admin explicitly reviews and enables them.
 const { CNY_PER_USD } = require('./billing.js');
 const ORIGIN = 'https://api.wxksai.com';
+// User-provided candidate model ID (from a chat-completions curl example).
+// Do not offer as video until its /v1/videos contract, capabilities and
+// separate pricing are documented and confirmed. Checking GET /v1/models
+// is read-only and cannot start a billed generation.
+const UNVERIFIED_DOPE_VIDEO_CANDIDATE = 'sd 2.5掺水板';
+function unverifiedDopeCandidateVisible(live) {
+  if (!Array.isArray(live?.data)) throw new Error('Dope did not return an account-scoped model list.');
+  return live.data.some(item => item?.id === UNVERIFIED_DOPE_VIDEO_CANDIDATE);
+}
 const RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 const everySecond = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
 const SPECS = Object.freeze({
@@ -112,4 +121,4 @@ function wxksaiMediaModels(live) {
   });
 }
 
-module.exports = { ORIGIN, SPECS, REFERENCE_SPECS, wxksaiReferenceCapabilities, publicId, isWxksaiModel, wxksaiMediaModels };
+module.exports = { ORIGIN, SPECS, REFERENCE_SPECS, UNVERIFIED_DOPE_VIDEO_CANDIDATE, unverifiedDopeCandidateVisible, wxksaiReferenceCapabilities, publicId, isWxksaiModel, wxksaiMediaModels };

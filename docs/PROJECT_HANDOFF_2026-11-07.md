@@ -1,3 +1,11 @@
+## 9 November 2026 — Dope “sd 2.5掺水板” candidate: read-only discovery, not a verified video route
+
+- Owner provided a sample OpenAI Chat Completions curl targeting `POST https://api.wxksai.com/v1/chat/completions` with model `sd 2.5掺水板`. The sample sends a text question (quantum entanglement). This identifies a candidate **chat** model ID but is **not evidence** of a supported video-generation API or priced video model.
+- Checked current official provider docs `https://api.wxksai.com/docs/` and compatibility: video uses `POST /v1/videos`, returns a task ID, later polled with `GET /v1/videos/{id}` and downloaded from `GET /v1/videos/{id}/content`. The exact candidate ID was not listed in the published video table. Could not verify its supported duration, resolution, aspect ratio, refs, per-second/per-clip price or whether it can be called at the video endpoint.
+- Added an **Admin-only read-only discovery** on the existing Dope **Check account models** operation. The existing `GET /v1/models` request checks whether the key advertises the **exact** candidate ID; the Admin UI reports *listed/not listed* and *not verified for video*. No paid request is sent, no external API credentials were supplied or saved, and no new video pricing was guessed. Crucially the candidate remains absent from `SPECS`, `wxksaiMediaModels()`, public `dope_...` video IDs, reference capabilities and generation worker routing.
+- Tests assert exact Unicode identifier match, failure to import/pricing/offer the candidate, and **one read-only GET request with zero paid POSTs**. Pending: Owner saves provider key via normal Admin UI, runs **Check account models**, then supplies published or account-specific video route, request/response/status schema, reference limits, and price before the full paid-video integration. Upstream official `/v1/chat/completions` can be used for text chats only; do not silently route video generation through it.
+- Do not change Dope white-label branding for customers; underlying WXKSAI name remains server-side only. Update web app deployment before checking the new Admin status. No production key access, live call, paid render, or deployment verification was performed.
+
 # CMMTools — AIVID Premium / RDP / Cloud Storage Full Handoff
 
 **Checkpoint:** Saturday, 7 November 2026 (Asia/Karachi).  

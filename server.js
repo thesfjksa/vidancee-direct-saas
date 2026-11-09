@@ -194,7 +194,7 @@ const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validate
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
-const { isWxksaiModel, wxksaiMediaModels } = require('./src/wxksai_models.js');
+const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
 const { storedModelId, customerModelLabel, customerProviderAccess: publicDopeAccess } = require('./src/dope_brand.js');
 const { isRetiredModel } = require('./src/retired_models.js');
 const { WxksaiClient } = require('./src/provider/wxksai.js');
@@ -2371,7 +2371,12 @@ const server=http.createServer(async (req,res)=>{
         if(!settings.wxksaiApiKey)return sendJson(res,400,{ok:false,error:'Save a WXKSAI API key first.'});
         const live=await new WxksaiClient({apiKey:settings.wxksaiApiKey}).models();
         const known=wxksaiMediaModels(live);
-        return sendJson(res,200,{ok:true,accessibleModels:live.data.length,supportedModels:known.length});
+        return sendJson(res,200,{
+          ok:true,accessibleModels:live.data.length,supportedModels:known.length,
+          // Visibility is not evidence that the candidate accepts video POSTs.
+          sd25CandidateVisible:unverifiedDopeCandidateVisible(live),
+          sd25CandidateVideoReady:false,
+        });
       }
       if(req.method==='POST'&&routePath==='/admin/wxksai/sync'){
         const settings=await getProviderSettings();

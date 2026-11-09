@@ -244,6 +244,7 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkWxksai()">Check account models</button><button class="secondary" onclick="syncWxksai()">Import account models</button></div>
   <div class="muted" id="wxksaiActionMsg" role="status"></div>
   <div class="muted" id="wxksaiModelSummary">No inventory loaded.</div>
+  <p class="muted">Dope SD 2.5 variant is monitored in the read-only account model check. Its supplied Chat Completions example is not enough to enable paid video generation. The import remains limited to verified video models.</p>
 </div>
 <div class="card provider-source-card" data-provider-source="longai" hidden>
           <div class="source-head"><h3>Video Studio · LONG AI</h3><label class="source-switch"><input id="longaiEnabled" type="checkbox" aria-label="Enable LONG AI" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
@@ -1472,7 +1473,9 @@ async function checkWxksai(){
   const panel=$('wxksaiActionMsg');panel.textContent='Checking key-scoped Dope model list…';panel.className='muted';
   try{
     const r=await api('/admin/wxksai/check',{method:'POST',body:'{}'});
-    panel.textContent='Connected · '+r.accessibleModels+' models visible to this key · '+r.supportedModels+' supported for initial import.';
+    panel.textContent='Connected · '+r.accessibleModels+' models visible to this key · '+r.supportedModels+' supported for initial import. '+
+      'Dope SD 2.5 variant: '+(r.sd25CandidateVisible?'listed by this key':'not listed by this key')+
+      ' · video API, reference support and pricing not yet verified; unavailable to customers.';
     panel.className='ok';
   }catch(e){panel.textContent=e.message;panel.className='err'}
 }
