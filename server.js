@@ -655,10 +655,8 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('vidancee',()=>publicProviderCatalog('vidancee',{creditsPerUsd:providerSettings.vidancee.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
-  if(access.aivid){
-    const config=await require('./src/aivid_settings.js').getAividSettings().catch(()=>null);
-    video.push(...require('./src/aivid_models.js').customerCatalog(config));
-  }
+  // AIVID models are retired from all new customer selections. Keep the
+  // existing AIVID queue/worker/Admin connection intact for old generations.
   video=[...video,...directVideoModels(access,providerSettings)];
   return {
     video:video.filter(model=>!isRetiredModel(model)),
@@ -701,7 +699,7 @@ async function adminModelNameList(){
 // Pricing page (no sign-in needed). Cached for 10 minutes.
 // Seedance 2.5 on ArgoLink looks expensive next to the rest, so the Pricing
 // page leaves it out; Seedance Lite (Sluice) stays.
-const PRICING_PAGE_HIDDEN=['argo_seedance_2_5','aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5'];
+const PRICING_PAGE_HIDDEN=['argo_seedance_2_5'];
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
@@ -773,7 +771,10 @@ async function quoteModelForUser(userId,body){
     if(!access.wxksai || !providerSettings.wxksai.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('wxksai',String(body.model),'video');
     if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
-    validateReferences(model,body);
+    // The price preview has no uploaded media bytes yet. Validate the chosen
+    // settings and any supplied media, but don't require an image just to see
+    // the fixed clip price. Paid submissions use strict validation below.
+    validateReferences(model,body,{forQuote:true});
     const quote=quoteGateway(model,body,providerSettings.wxksai.creditsPerUsd);
     return {cost:quote.cost,isEstimate:false};
   }
