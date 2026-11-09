@@ -5,7 +5,8 @@
   const selector = '[data-dope-performance]';
   let snapshot;
   let refreshAfter = 0;
-  let started = false;
+  let refreshTimer;
+  let refreshing = false;
 
   function describe(id) {
     if (!snapshot) return '24h performance · Loading…';
@@ -18,8 +19,9 @@
   }
 
   async function refresh() {
-    if (Date.now() < refreshAfter) return;
-    refreshAfter = Date.now() + refreshMs;
+    if (refreshing || Date.now() < refreshAfter) return;
+    refreshing = true;
+    clearTimeout(refreshTimer);
     try {
       const response = await fetch('/api/dope-performance', { cache: 'no-store' });
       if (!response.ok) throw new Error('Performance unavailable');
@@ -28,6 +30,13 @@
       snapshot = next;
     } catch {
       snapshot = { models: {}, ...snapshot, stale: true };
+    } finally {
+      refreshing = false;
+      refreshAfter = Date.now() + refreshMs;
+      refreshTimer = setTimeout(() => {
+        refreshAfter = 0;
+        if (document.querySelector(selector)) void refresh();
+      }, refreshMs);
     }
     for (const node of document.querySelectorAll(selector)) {
       node.textContent = describe(node.dataset.dopePerformance);
@@ -38,12 +47,6 @@
   window.dopePerformanceMarkup = function (modelId) {
     const id = String(modelId || '').replace(/^wxksai_/, 'dope_');
     if (!/^dope_[a-z0-9_]+$/.test(id)) return '';
-    if (!started) {
-      started = true;
-      setInterval(() => {
-        if (document.querySelector(selector)) void refresh();
-      }, refreshMs);
-    }
     void refresh();
     return '<small class="muted" style="display:block" data-dope-performance="' + id + '">' + describe(id) + '</small>';
   };
