@@ -1,9 +1,9 @@
-# CMMTools AIVID managed worker 3.0.2
+# CMMTools AIVID managed worker 3.0.3
 
 ## One-time migration
 
 Stop the old Agent. Extract this **complete ZIP into its existing folder**, keeping
-`.aivid-rdp-profile`, `.aivid-agent.json` and `receipts`. Open **AIVID-Agent.exe**.
+`.aivid-rdp-edge-profile`, `.aivid-rdp-profile` (legacy backup), `.aivid-agent.json` and `receipts`. Open **AIVID-Agent.exe**.
 If Google sign-in needs attention, close Agent, open **AIVID-Login.exe**, finish
 sign-in, close its Microsoft Edge windows, then open Agent again. No extra repair
 or update EXE is added. Rejected pairing opens the usual pairing window: obtain
