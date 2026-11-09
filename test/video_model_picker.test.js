@@ -62,3 +62,38 @@ test('required video image references disable Generate until the image is attach
   ctx.syncVideoGenerateButton();
   assert.equal(fields.generateBtn.disabled,false);
 });
+
+test('video cards show the minimum user credit rate for per-second models',()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  assert.ok(begin>0&&end>begin);
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async()=>({cost:120})});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  assert.equal(ctx.pickerCreditText({id:'api888_metered',dynamicCost:true,billingMode:'per_second',billingRateCredits:42.25}),
+    'Min 42.25 credits/sec');
+  assert.equal(ctx.pickerCreditText({id:'api888_per_request',dynamicCost:true,billingMode:'per_request',billingRateCredits:360}),
+    'From 360 credits');
+  assert.equal(ctx.pickerCreditText({id:'minimax_h3',dynamicCost:false,
+    resolutions:[{id:'480p',durations:[{seconds:4,cost:20},{seconds:10,cost:40}]}]}),
+    'Min 4 credits/sec · 20 credits min clip');
+  assert.equal(ctx.pickerCreditText({id:'flat',dynamicCost:false,
+    durations:[{seconds:5,cost:60},{seconds:10,cost:60}]}),'From 60 credits');
+  assert.equal(ctx.pickerCreditText({id:'dynamic',dynamicCost:true,durations:[{seconds:5,cost:null}]}),
+    'Checking credits…');
+});
+test('model picker dynamic estimates use existing quote API and shortest allowed duration',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  let submitted=null;
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async body=>{submitted=body;return {cost:1344};}});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const model={id:'dope_seedance_2_0_mini_720p',dynamicCost:true,defaultResolution:'720p',
+    defaultAspectRatio:'16:9',resolutions:[{id:'720p',durations:[{seconds:15},{seconds:5},{seconds:10}]}]};
+  assert.equal(await ctx.pickerQuote(model),'1,344 credits · 5s · 720p');
+  assert.equal(submitted.model,model.id);
+  assert.equal(submitted.duration,5);
+  assert.equal(submitted.mediaType,'video');
+  assert.equal(submitted.generateAudio,false);
+  assert.match(studio,/if\(id==='model'\)watchPickerQuotes\(\)/);
+  assert.match(studio,/class="model-picker-price"/);
+});
