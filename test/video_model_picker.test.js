@@ -69,17 +69,20 @@ test('video cards show the minimum user credit rate for per-second models',()=>{
   assert.ok(begin>0&&end>begin);
   const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async()=>({cost:120})});
   vm.runInContext(studio.slice(begin,end),ctx);
-  assert.equal(ctx.pickerCreditText({id:'api888_metered',dynamicCost:true,billingMode:'per_second',billingRateCredits:42.25}),
-    'Min 42.25 credits/sec');
-  assert.equal(ctx.pickerCreditText({id:'api888_per_request',dynamicCost:true,billingMode:'per_request',billingRateCredits:360}),
-    'From 360 credits');
+  assert.equal(ctx.pickerCreditText({id:'api888_metered',dynamicCost:true,billingMode:'per_second',billingRateCredits:42.25,
+    durations:[{seconds:5},{seconds:15}],defaultResolution:'720p'}),
+    'Per second · Min 42.25 credits/sec · 5–15s · 720p');
+  assert.equal(ctx.pickerCreditText({id:'api888_per_request',dynamicCost:true,billingMode:'per_request',billingRateCredits:360,
+    durations:[{seconds:5},{seconds:30}],defaultResolution:'720p'}),
+    'Constant price · 360 credits · Up to 30s · 720p');
   assert.equal(ctx.pickerCreditText({id:'minimax_h3',dynamicCost:false,
     resolutions:[{id:'480p',durations:[{seconds:4,cost:20},{seconds:10,cost:40}]}]}),
-    'Min 4 credits/sec · 20 credits min clip');
+    'Per second · Min 4 credits/sec · From 20 credits · 4s · 480p');
   assert.equal(ctx.pickerCreditText({id:'flat',dynamicCost:false,
-    durations:[{seconds:5,cost:60},{seconds:10,cost:60}]}),'From 60 credits');
+    durations:[{seconds:5,cost:60},{seconds:10,cost:60}]}),
+    'Constant price · 60 credits · Up to 10s · Default resolution');
   assert.equal(ctx.pickerCreditText({id:'dynamic',dynamicCost:true,durations:[{seconds:5,cost:null}]}),
-    'Checking credits…');
+    'Price · Checking credits…');
 });
 test('model picker dynamic estimates use existing quote API and shortest allowed duration',async()=>{
   const begin=studio.indexOf('function pickerCreditNumber(');
@@ -89,13 +92,16 @@ test('model picker dynamic estimates use existing quote API and shortest allowed
   vm.runInContext(studio.slice(begin,end),ctx);
   const model={id:'dope_seedance_2_0_mini_720p',dynamicCost:true,defaultResolution:'720p',
     defaultAspectRatio:'16:9',resolutions:[{id:'720p',durations:[{seconds:15},{seconds:5},{seconds:10}]}]};
-  assert.equal(await ctx.pickerQuote(model),'1,344 credits · 5s · 720p');
+  const quote=await ctx.pickerQuote(model);
+  assert.equal([quote.badge,quote.amount,quote.detail].join(' · '),
+    'Sample price · 1,344 credits · 5s · 720p');
   assert.equal(submitted.model,model.id);
   assert.equal(submitted.duration,5);
   assert.equal(submitted.mediaType,'video');
   assert.equal(submitted.generateAudio,false);
   assert.match(studio,/if\(id==='model'\)watchPickerQuotes\(\)/);
   assert.match(studio,/class="model-picker-price"/);
+  assert.match(studio,/model-picker-price-badge/);
 });
 
 test('Dope second-priced and generic gateway second-priced SKUs expose billing mode',()=>{
@@ -104,7 +110,12 @@ test('Dope second-priced and generic gateway second-priced SKUs expose billing m
     resolutions:['720p'],durations:[5,10],defaultResolution:'720p',defaultDuration:5,
     aspectRatios:['16:9'],referenceCapabilities:{}};
   assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'second'}}).billingMode,'per_second');
-  assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'clip'}}).billingMode,undefined);
+  const flatModel={...defaults,wxksai:{pricingMode:'clip'},
+    pricing:{video_duration_prices:[{duration:5,cost:0.2},{duration:10,cost:0.2}]}};
+  assert.equal(publicVideoModel(flatModel).billingMode,'per_request');
+  // Different length-specific costs must never be called constant.
+  assert.equal(publicVideoModel({...flatModel,
+    pricing:{video_duration_prices:[{duration:5,cost:0.2},{duration:10,cost:0.4}]}}).billingMode,undefined);
   assert.equal(publicVideoModel({...defaults,provider:'argolink',publicModelId:'argo_test',
     pricing:{video_duration_pricing:[{resolution:'720p',cost_per_second:0.07}]}}).billingMode,'per_second');
 });
@@ -122,7 +133,51 @@ test('metered models quote each resolution and display their cheapest per-second
       {id:'480p',durations:[{seconds:10},{seconds:5}]},
       {id:'720p',durations:[{seconds:5},{seconds:10}]},
     ]};
-  assert.equal(await ctx.pickerQuote(model),'Min 20 credits/sec · 100 credits (5s · 480p)');
+  const quote=await ctx.pickerQuote(model);
+  assert.equal([quote.badge,quote.amount,quote.detail].join(' · '),
+    'Per second · Min 20 credits/sec · From 100 credits · 5s · 480p');
   assert.equal(requests.length,2);
   assert.ok(requests.every(r=>r.mediaType==='video'&&r.duration===5));
+});
+
+test('Dope flat per-clip model shows constant price with maximum duration in credits',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  const requests=[];
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async b=>{
+    requests.push(b);
+    return {cost:4939.2};
+  },escapeHtml:String});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const model={id:'dope_seedance_2_5_bd_2',billingMode:'per_request',
+    dynamicCost:true,defaultResolution:'720p',defaultAspectRatio:'16:9',
+    resolutions:[{id:'720p',durations:Array.from({length:27},(_,i)=>({seconds:i+4}))}]};
+  const result=await ctx.pickerQuote(model);
+  assert.equal([result.badge,result.amount,result.detail].join(' · '),
+    'Constant price · 4,939.2 credits · Up to 30s · 720p');
+  assert.deepEqual(requests.map(x=>x.duration),[4,30]);
+  const markup=ctx.pickerCreditMarkup(result);
+  assert.match(markup,/model-picker-price-badge constant/);
+  assert.match(markup,/Up to 30s/);
+  assert.match(markup,/4,939.2 credits/);
+});
+test('flat-price label is withheld when extreme durations have different costs',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async b=>({cost:b.duration===5?100:200})});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const result=await ctx.pickerQuote({id:'variable',billingMode:'per_request',dynamicCost:true,
+    defaultResolution:'1080p',durations:[{seconds:5},{seconds:10},{seconds:15}]});
+  assert.equal(result.badge,'Duration-based');
+  assert.equal(result.amount,'From 100 credits');
+  assert.equal(result.detail,'5–15s · 1080p');
+});
+test('single-duration fixed-price model is labeled fixed, not multiple-duration constant',()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  const ctx=vm.createContext({config:{pricing:[]}});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const label=ctx.pickerCreditText({id:'one_duration',dynamicCost:false,
+    defaultResolution:'720p',durations:[{seconds:10,cost:2116.8}]});
+  assert.equal(label,'Fixed price · 2,116.8 credits · 10s · 720p');
 });
