@@ -439,6 +439,13 @@ function publicVideoModel(model) {
       pricing.video_duration_pricing.some(row=>Number(row.cost_per_second)>0)&&
       !pricing.video_duration_prices?.length)
   );
+  // Only advertise a constant price when the catalog explicitly supplies a
+  // flat clip price for every allowed duration. Do not infer flat pricing
+  // from identical quotes at merely two sample durations.
+  const clipTiers=Array.isArray(pricing.video_duration_prices)?pricing.video_duration_prices:[];
+  const constantClipPrice=!secondPriced&&clipTiers.length>0&&model.durations.length>0&&
+    model.durations.every(seconds=>clipTiers.some(t=>Number(t.duration)===Number(seconds)))&&
+    clipTiers.every(t=>Number(t.cost)>0&&Math.abs(Number(t.cost)-Number(clipTiers[0].cost))<1e-9);
   const durations = model.durations.length ? model.durations : [0];
   const durationEntries = durations.map(seconds => ({
     seconds,
@@ -468,7 +475,7 @@ function publicVideoModel(model) {
       billingMode:model.api888?.billing==='second'?'per_second':'per_request',
       billingRateCredits:api888RateCredits(model),
     }:{}),
-    ...(secondPriced?{billingMode:'per_second'}:{}),
+    ...(secondPriced?{billingMode:'per_second'}:constantClipPrice?{billingMode:'per_request'}:{}),
     ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }
