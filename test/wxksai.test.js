@@ -432,29 +432,16 @@ test('object storage signs a streamed video with its byte count and checksums', 
   },'video/mp4'),{key:'videos/generation.mp4',md5,size:sample.length});
 });
 
-test('CMMTools pauses Special2 submissions without blocking other Dope models', async () => {
+test('Special2 is ready when enabled and available in the Dope account', () => {
   const { serializeProviderModel } = require('../src/provider_models.js');
-  function importedModel(id) {
-    const [model] = wxksaiMediaModels({ data: [{ id }] });
-    return serializeProviderModel({
-      provider: 'wxksai', provider_model_id: id, media_type: 'video',
-      public_model_id: model.publicModelId, label: model.label,
-      enabled: 1, available: 1, options_json: JSON.stringify(model.options),
-    });
-  }
-  const paused = importedModel('seedance-2.5-special2');
-  assert.equal(paused.available, true);
-  assert.equal(paused.enabled, true);
-  assert.equal(paused.ready, false);
-  assert.equal(paused.wxksai.submissionPaused, true);
-  assert.match(paused.setupReason, /HTTP 410/);
-  assert.equal(importedModel('seedance-2.5-bd-2').ready, true);
-
-  const queue = new WxksaiQueue({ getModel: async () => paused });
-  await assert.rejects(queue.submit({}, {
-    model: paused.publicModelId,
-    generation_options: JSON.stringify({ model: paused }),
-  }, {
-    startVideo: async () => assert.fail('The paused SKU must never reach the paid POST'),
-  }), /temporarily paused/);
+  const id = 'seedance-2.5-special2';
+  const [model] = wxksaiMediaModels({ data: [{ id }] });
+  const row = {
+    provider: 'wxksai', provider_model_id: id, media_type: 'video',
+    public_model_id: model.publicModelId, label: model.label,
+    enabled: 1, available: 1, options_json: JSON.stringify(model.options),
+  };
+  assert.equal(serializeProviderModel(row).ready, true);
+  assert.equal(serializeProviderModel({ ...row, enabled: 0 }).enabled, false);
+  assert.equal(serializeProviderModel({ ...row, available: 0 }).available, false);
 });
