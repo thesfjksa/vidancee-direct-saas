@@ -242,6 +242,13 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     ];
     base.supportedOperations = ['text-to-video', 'reference-to-video'];
   }
+  // The live Special2 video submit returned HTTP 410. Keep the saved
+  // inventory row and accepted tasks while blocking new submissions.
+  if (row.provider === 'wxksai' && row.media_type === 'video' && row.provider_model_id === 'seedance-2.5-special2') {
+    base.adapterSupported = false;
+    base.setupReason = 'Dope returned HTTP 410 during Special2 video submission. New requests are paused.';
+    base.wxksai = { ...base.wxksai, submissionPaused: true };
+  }
   if(row.provider==='falimg'&&row.media_type==='image'&&base.enabled&&base.available){
     require('./fal_images.js').applySavedGptEdit(base,row.provider_model_id);
   }

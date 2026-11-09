@@ -44,6 +44,9 @@ class WxksaiQueue extends VercelQueue {
   async submit(db, job, client) {
     const options = savedOptions(job);
     const model = await this.getModel('wxksai',job.model,'video');
+    if (model?.wxksai?.submissionPaused) {
+      throw new Error('This Dope model is temporarily paused. CMMTools credits were refunded.');
+    }
     if (!model?.ready) throw new Error('This WXKSAI model is unavailable.');
     const refs = await this.referenceFiles(db,job);
     const operation = await client.startVideo(options,refs);
