@@ -57,7 +57,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install portable dependencies and test real Chrome
+      - name: Install portable dependencies and test real Microsoft Edge
         shell: pwsh
         working-directory: scripts/aivid-rdp
         run: |
