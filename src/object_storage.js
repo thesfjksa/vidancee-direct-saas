@@ -57,9 +57,8 @@ class ObjectStore{
     return {amzDate,date:amzDate.slice(0,8)};
   }
   // Header-signed request for PUT/GET/HEAD/DELETE.
-  async request(method,key,{body=null,headers={},query={},signal}={}){
+  async request(method,key,{body=null,headers={},query={},signal,payloadHash=body?sha256(body):sha256('')}={}){
     const {amzDate,date}=this.stamp(),path=this.path(key);
-    const payloadHash=body?sha256(body):sha256('');
     const signed={host:this.host,'x-amz-content-sha256':payloadHash,'x-amz-date':amzDate,...headers};
     const c=this.canonical(method,path,query,signed,payloadHash);
     const sts=['AWS4-HMAC-SHA256',amzDate,this.scope(date),sha256(c.request)].join('\n');
@@ -70,7 +69,7 @@ class ObjectStore{
     const timeout=AbortSignal.timeout(method==='PUT'?300000:60000);
     try{
       response=await this.fetch(this.origin+path+(c.query?'?'+c.query:''),{method,body:body||undefined,
-        headers:{...sent,authorization},redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
+        headers:{...sent,authorization},redirect:'error',...(typeof body?.pipe==='function'?{duplex:'half'}:{}),signal:signal?AbortSignal.any([signal,timeout]):timeout});
     }catch(error){throw storageError('Could not connect to cloud storage.',null,{code:error.name});}
     return response;
   }
@@ -85,15 +84,24 @@ class ObjectStore{
     return this.origin+path+'?'+c.query+'&X-Amz-Signature='+this.signature(date,sts);
   }
   async put(key,data,contentType){
-    const md5=crypto.createHash('md5').update(data).digest();
-    const response=await this.request('PUT',key,{body:data,headers:{'content-type':contentType,
-      'content-md5':md5.toString('base64')}});
+    const md5=crypto.createHash('md5').update(data).digest('hex');
+    return this.putObject(key,data,contentType,{size:data.length,md5});
+  }
+  async putStream(key,output,contentType){
+    const stream=output.openStream();
+    try { return await this.putObject(key,stream,contentType,output); }
+    finally { stream.destroy(); }
+  }
+  async putObject(key,body,contentType,{size,md5,sha256:payloadHash}){
+    const response=await this.request('PUT',key,{body,payloadHash,headers:{'content-type':contentType,
+      ...(payloadHash?{'content-length':String(size)}:{}),
+      'content-md5':Buffer.from(md5,'hex').toString('base64')}});
     await response.body?.cancel?.().catch(()=>{});
     if(!response.ok)throw storageError('Cloud storage rejected the upload (HTTP '+response.status+').',response.status);
     // Single-part uploads return the MD5 as ETag; R2, S3, B2 and Wasabi all do.
     const etag=String(response.headers.get('etag')||'').replace(/"/g,'');
-    if(etag&&etag!==md5.toString('hex'))throw storageError('Cloud storage checksum did not match the upload.',response.status);
-    return {key,md5:md5.toString('hex'),size:data.length};
+    if(etag&&etag!==md5)throw storageError('Cloud storage checksum did not match the upload.',response.status);
+    return {key,md5,size};
   }
   async head(key){
     const response=await this.request('HEAD',key);

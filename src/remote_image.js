@@ -47,7 +47,7 @@ function imageType(data) {
 
 const fail = message => Object.assign(new Error(message), { statusCode: 400 });
 
-function getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel }) {
+function getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel, stream }) {
   return new Promise((resolve, reject) => {
     const host = url.hostname.replace(/^\[|\]$/g, '');
     if (net.isIP(host) && !isPublicAddress(host)) return reject(fail('This ' + label + ' link points to a private address.'));
@@ -55,7 +55,13 @@ function getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, 
       const status = response.statusCode || 0;
       if (status >= 300 && status < 400 && response.headers.location) { response.resume(); return resolve({ redirect: response.headers.location }); }
       if (status !== 200) { response.resume(); return reject(fail('The ' + label + ' link returned HTTP ' + status + '.')); }
-      if (Number(response.headers['content-length']) > maxBytes) { response.destroy(); return reject(fail('The ' + label + ' is larger than ' + sizeLabel + '.')); }
+      const length = response.headers['content-length'];
+      if (Number(length) > maxBytes) { response.destroy(); return reject(fail('The ' + label + ' is larger than ' + sizeLabel + '.')); }
+      if (stream) {
+        // The caller attaches its pipeline after opening a temporary file.
+        response.on('error', () => {});
+        return resolve({ body: response, contentLength: length });
+      }
       const chunks = []; let total = 0;
       response.on('data', chunk => {
         total += chunk.length;
@@ -71,16 +77,16 @@ function getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, 
 }
 
 // lookup and ca are replaceable for tests only.
-async function publicMedia(link, { timeoutMs, maxBytes, lookup = guardedLookup, ca, accept, label, sizeLabel }) {
+async function publicMedia(link, { timeoutMs, maxBytes, lookup = guardedLookup, ca, accept, label, sizeLabel, stream = false }) {
   let url;
   try { url = new URL(String(link)); } catch { throw fail('The ' + label + ' link is not a valid URL.'); }
   const signal = label === 'video' ? AbortSignal.timeout(timeoutMs) : undefined;
   for (let hop = 0; hop <= 3; hop++) {
     if (url.protocol !== 'https:' || (label === 'video' && url.port)) throw fail(label === 'image' ? 'Image links must start with https://.' : 'Use an HTTPS video link.');
     if (url.username || url.password) throw fail(label === 'image' ? 'Image links cannot contain a username or password.' : 'The video link cannot contain a username or password.');
-    const out = await getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel });
+    const out = await getOnce(url, { timeoutMs, signal, maxBytes, lookup, ca, accept, label, sizeLabel, stream });
     if (out.redirect) { url = new URL(out.redirect, url); continue; }
-    return { url, data: out.data };
+    return { url, ...out };
   }
   throw fail('The ' + label + ' link redirected too many times.');
 }
@@ -98,4 +104,9 @@ async function fetchPublicMedia(link, { timeoutMs, maxBytes, accept }) {
   return data;
 }
 
-module.exports = { fetchPublicImage, fetchPublicMedia, isPublicAddress, imageType, MAX_IMAGE_BYTES };
+async function openPublicVideo(link, { timeoutMs, maxBytes, accept }) {
+  return publicMedia(link, { timeoutMs, maxBytes, accept, label: 'video',
+    sizeLabel: Math.ceil(maxBytes / 1048576) + ' MiB', stream: true });
+}
+
+module.exports = { fetchPublicImage, fetchPublicMedia, openPublicVideo, isPublicAddress, imageType, MAX_IMAGE_BYTES };

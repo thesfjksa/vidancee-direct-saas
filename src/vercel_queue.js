@@ -211,7 +211,7 @@ class VercelQueue {
       await conn.execute("UPDATE generations SET status='completed',output_url=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=?",
         [job.media_type==='image'?'db:image':videoStorage,job.id]);
       await conn.commit();
-      this.log(job,'job.completed','Completed',{bytes:output.data?.length,mimeType:output.mimeType});
+      this.log(job,'job.completed','Completed',{bytes:output.data?.length??output.size,mimeType:output.mimeType});
     } catch(error){await conn.rollback();throw error;}finally{conn.release();}
   }
   log(job,event,message,details=null,level='info') {

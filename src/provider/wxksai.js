@@ -2,9 +2,12 @@
 
 const { ORIGIN } = require('../wxksai_models.js');
 const { prepareWxksaiReferences } = require('../wxksai_references.js');
-const { readBounded, VIDEO_LIMIT } = require('./vercel.js');
-const { fetchPublicMedia } = require('../remote_image.js');
-const { isCompleteMp4 } = require('../mp4_trim.js');
+const { readBounded } = require('./vercel.js');
+const { openPublicVideo } = require('../remote_image.js');
+const { stageVideo } = require('../staged_video.js');
+
+const VIDEO_LIMIT = 256 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT_MS = 300000;
 
 function safeId(value) {
   const id = String(value || '');
@@ -28,7 +31,7 @@ function providerError(status, { response, method = 'GET', path = '' } = {}) {
 }
 
 class WxksaiClient {
-  constructor({ apiKey = '', fetchImpl = fetch, fetchMedia = fetchPublicMedia } = {}) {
+  constructor({ apiKey = '', fetchImpl = fetch, fetchMedia = openPublicVideo } = {}) {
     this.apiKey = String(apiKey || '').trim();
     this.fetch = fetchImpl;
     this.fetchMedia = fetchMedia;
@@ -45,6 +48,7 @@ class WxksaiClient {
         headers: {
           authorization: 'Bearer ' + this.apiKey,
           accept: method === 'GET' && path.endsWith('/content') ? 'video/mp4' : 'application/json',
+          ...(path.endsWith('/content') ? { 'accept-encoding': 'identity' } : {}),
           ...(body && !multipart ? { 'content-type': 'application/json' } : {}),
         },
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
@@ -103,8 +107,8 @@ class WxksaiClient {
   }
   async download(operation) {
     const id = safeId(operation?.requestId);
-    const response = await this.request('/v1/videos/' + id + '/content', { timeoutMs: 90000 });
-    let bytes;
+    const response = await this.request('/v1/videos/' + id + '/content', { timeoutMs: DOWNLOAD_TIMEOUT_MS });
+    let media;
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       await response.body?.cancel?.().catch(()=>{});
@@ -116,13 +120,12 @@ class WxksaiClient {
       }
       if (target.protocol !== 'https:' || target.username || target.password)
         throw new Error('WXKSAI returned an unsafe media download link.');
-      bytes = await this.fetchMedia(target.href,{accept:'video/mp4',maxBytes:VIDEO_LIMIT,timeoutMs:90000});
+      media = await this.fetchMedia(target.href, { accept:'video/mp4', maxBytes:VIDEO_LIMIT, timeoutMs:DOWNLOAD_TIMEOUT_MS });
     } else {
       if (!response.ok) throw providerError(response.status, { response, method: 'GET', path: '/v1/videos/' + id + '/content' });
-      bytes = await readBounded(response, VIDEO_LIMIT);
+      media = { body: response.body, contentLength: response.headers.get('content-length') };
     }
-    if (!isCompleteMp4(bytes)) throw new Error('WXKSAI output did not contain a complete MP4.');
-    return { data: bytes, mimeType: 'video/mp4' };
+    return stageVideo(media.body, { contentLength: media.contentLength, maxBytes: VIDEO_LIMIT });
   }
 }
 module.exports = { WxksaiClient };

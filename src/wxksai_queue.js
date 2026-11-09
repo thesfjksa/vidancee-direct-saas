@@ -57,7 +57,11 @@ class WxksaiQueue extends VercelQueue {
     const result = await client.videoStatus(operation);
     if (result.status === 'failed')
       return this.refund(job.id,'failed','The video service failed. CMMTools credits were refunded.',null);
-    if (result.status === 'done') return this.complete(db,job,await client.download(operation));
+    if (result.status === 'done') {
+      const output = await client.download(operation);
+      try { return await this.complete(db, job, output); }
+      finally { await output.cleanup(); }
+    }
     await this.markProcessing(db,job);
   }
 }

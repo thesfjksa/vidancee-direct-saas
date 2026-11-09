@@ -366,3 +366,68 @@ test('WXKSAI queue honors default access and explicit customer opt-outs',()=>{
   assert.match(q.queuedSql(),/LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='wxksai'/);
   assert.match(q.queuedSql(),/COALESCE\(a.enabled,1\)=1/);
 });
+
+test('an accepted Dope task streams a video over 100 MiB to completion and cleans the staged file', async()=>{
+  const { Readable }=require('node:stream');
+  const MiB=1024*1024;
+  const chunk=Buffer.alloc(MiB, 42), mediaChunks=101;
+  const header=Buffer.from('0000000866747970000000086d6f6f76000000006d646174','hex');
+  header.writeUInt32BE(mediaChunks*MiB+8,16);
+  const size=header.length+mediaChunks*MiB;
+  const calls=[];
+  const client=new WxksaiClient({apiKey:'fixture',fetchImpl:async(url,options)=>{
+    calls.push([new URL(url).pathname,options.method]);
+    if(!url.endsWith('/content'))return Response.json({data:{status:'completed'}});
+    async function* bytes(){yield header;for(let i=0;i<mediaChunks;i++)yield chunk;}
+    return new Response(Readable.toWeb(Readable.from(bytes())),{headers:{'content-length':String(size)}});
+  }});
+  const queue=new WxksaiQueue();
+  let output;
+  queue.complete=async(_db,job,file)=>{
+    assert.equal(job.id,'customer-generation');
+    output=file;
+    assert.equal(file.size,size);
+    assert.equal(file.data,undefined);
+    assert.deepEqual(await file.readChunk(0,header.length),header);
+    assert.equal((await file.readChunk(size-1,1))[0],42);
+    let uploaded=0;
+    for await(const part of file.openStream())uploaded+=part.length;
+    assert.equal(uploaded,size);
+  };
+  await queue.pollJob({},client,{id:'customer-generation',provider_operation:'{"requestId":"task_existing"}'});
+  assert.deepEqual(calls,[['/v1/videos/task_existing','GET'],['/v1/videos/task_existing/content','GET']]);
+  await assert.rejects(output.readChunk(0,1));
+});
+
+test('staging rejects an oversized or incomplete download before delivery', async()=>{
+  const { Readable }=require('node:stream');
+  const { stageVideo }=require('../src/staged_video.js');
+  const header=Buffer.from('0000000866747970000000086d6f6f76000000106d646174','hex');
+  await assert.rejects(stageVideo(Readable.from([header]),{maxBytes:16}),/exceeds/);
+  await assert.rejects(stageVideo(Readable.from([header]),{maxBytes:40,contentLength:32}),/incomplete/);
+  await assert.rejects(stageVideo(Readable.from([header]),{maxBytes:40}),/complete MP4/);
+});
+
+test('object storage signs a streamed video with its byte count and checksums', async()=>{
+  const { Readable }=require('node:stream');
+  const { createHash }=require('node:crypto');
+  const { ObjectStore }=require('../src/object_storage.js');
+  const sample=Buffer.from('staged video');
+  const md5=createHash('md5').update(sample).digest('hex');
+  const sha256=createHash('sha256').update(sample).digest('hex');
+  const store=new ObjectStore({endpoint:'https://storage.example.test',bucket:'private',
+    accessKeyId:'test-key',secretAccessKey:'fixture',fetchImpl:async(_url,opts)=>{
+      assert.equal(opts.duplex,'half');
+      assert.equal(opts.headers['x-amz-content-sha256'],sha256);
+      assert.equal(opts.headers['content-length'],String(sample.length));
+      assert.equal(opts.headers['content-md5'],Buffer.from(md5,'hex').toString('base64'));
+      assert.match(opts.headers.authorization,/SignedHeaders=content-length;/);
+      const chunks=[];
+      for await(const chunk of opts.body)chunks.push(chunk);
+      assert.deepEqual(Buffer.concat(chunks),sample);
+      return new Response(null,{headers:{etag:md5}});
+    }});
+  assert.deepEqual(await store.putStream('videos/generation.mp4',{
+    size:sample.length,md5,sha256,openStream:()=>Readable.from([sample])
+  },'video/mp4'),{key:'videos/generation.mp4',md5,size:sample.length});
+});
