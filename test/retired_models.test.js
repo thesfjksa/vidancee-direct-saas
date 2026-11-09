@@ -9,8 +9,19 @@ test('retire CMM-Mini by current ID, external endpoint or custom display label',
   }
   assert.equal(isRetiredModel({publicModelId:'model_27',providerModelId:'fal-ai/some-image',label:'CMM-Mini'}),true);
   assert.equal(isRetiredModel({publicModelId:'cmm_mini',label:'Other name'}),true);
-  for(const value of ['MiniMax H3','nano-banana-mini','cmm-model','mini alone','cmm-millennium','aivid_seedance_2_0_mini']){
+  for(const value of ['MiniMax H3','nano-banana-mini','cmm-model','mini alone','cmm-millennium','dope_seedance_2_0_mini_720p','longai_seedance_2_0_mini','api888_doubao_seedance_2_0_mini']){
     assert.equal(isRetiredModel(value),false,value);
   }
   assert.equal(isRetiredModel({publicModelId:'fal_ai_flux_2',label:'FLUX 2'}),false);
+});
+
+test('withdraw every AIVID customer model but retain other Seedance Mini providers',()=>{
+  for(const id of ['aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5']){
+    assert.equal(isRetiredModel(id),true,id);
+    assert.equal(isRetiredModel({publicModelId:id,label:'Custom Admin name'}),true,id);
+  }
+  for(const id of ['minimax_h3','minimax_h3_origin','minimax_beast',
+    'dope_seedance_2_0_mini_720p','longai_seedance_2_0_mini','api888_doubao_seedance_2_0_mini']){
+    assert.equal(isRetiredModel(id),false,id);
+  }
 });
