@@ -30,13 +30,14 @@ test('signed-out visitors get the landing page at /, the studio stays at /app', 
   assert.equal(pricing.status, 200);
   assert.match(pricing.body, /Creator[\s\S]*Studio[\s\S]*Enterprise/);
   assert.match(landing.body, /href="\/pricing"/);
-  // WXKSAI is opt-in; existing providers keep their defaults.
+  // Dope is now a default-on source for existing/new customers, but the
+  // customer config must keep its white-label name rather than WXKSAI.
   const config = JSON.parse((await page('/api/config')).body);
   assert.equal(config.providerAccess.api888, true);
-  assert.equal(config.providerAccess.dope, false);
+  assert.equal(config.providerAccess.dope, true);
   assert.equal(Object.hasOwn(config.providerAccess,'wxksai'), false);
   assert.doesNotMatch(JSON.stringify(config),/wxksai/i);
-  assert.ok(Object.entries(config.providerAccess).every(([source,enabled])=>source==='dope'||enabled));
+  assert.ok(Object.values(config.providerAccess).every(Boolean));
   assert.equal(config.providerAccess.vibi, true);
   assert.equal(Object.hasOwn(config,'promptEnhancer'),false);
 });

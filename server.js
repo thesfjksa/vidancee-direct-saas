@@ -443,10 +443,11 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
-// 888API requires explicit Admin opt-in for each customer. Other sources retain their defaults.
-// Every source is on for customers unless the admin turns it off for one.
+// Customer video and image sources are available by default. Admin per-user
+// overrides can still turn an individual source off; global provider and
+// per-model enable/availability checks remain separate and authoritative.
 function defaultCustomerProviderAccess(){
-  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,key!=='wxksai']));
+  return Object.fromEntries(CUSTOMER_PROVIDER_KEYS.map(key=>[key,true]));
 }
 // Voice Studio used to be opt-in, so saving any customer's Sources stored
 // "Voice off" unless it was ticked. Clear those once so Voice follows the
@@ -492,6 +493,20 @@ async function enableApi888ForCustomersOnce(){
   await setSettingValue(API888_ALL_ON_SETTING,new Date().toISOString());
   const count=Number(result?.affectedRows||0);
   logActivity({category:'admin',event:'api888_access.all_on',message:'888API turned on for every customer; '+count+' had it off'});
+  return count;
+}
+// Owner request (9 Nov 2026): Dope models are available in Sources for all
+// existing and future customers. Prior Dope opt-out rows came from a
+// customer-default-off policy; clear them exactly once so existing customers
+// also inherit the new on-by-default setting. Preserve later Admin opt-outs.
+const DOPE_ALL_ON_SETTING='dope_access_all_on_20261109_at';
+async function enableDopeForCustomersOnce(){
+  if(await getSettingValue(DOPE_ALL_ON_SETTING,''))return 0;
+  const [result]=await getPool().execute("DELETE FROM user_provider_access WHERE provider='wxksai' AND enabled=0");
+  await setSettingValue(DOPE_ALL_ON_SETTING,new Date().toISOString());
+  const count=Number(result?.affectedRows||0);
+  logActivity({category:'admin',event:'dope_access.all_on',
+    message:'Dope source available to every customer; '+count+' old off-setting(s) reset'});
   return count;
 }
 async function getUserProviderAccess(userId){
@@ -3206,6 +3221,7 @@ function bootstrap() {
       await enableHiggsfieldForCustomersOnce().catch(error=>console.error('Higgsfield access for all failed:',error.message));
       await enableVgenvForCustomersOnce().catch(error=>console.error('vgenv access for all failed:',error.message));
       await enableApi888ForCustomersOnce().catch(error=>console.error('888API access for all failed:',error.message));
+      await enableDopeForCustomersOnce().catch(error=>console.error('Dope access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));
