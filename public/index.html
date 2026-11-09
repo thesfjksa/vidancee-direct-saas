@@ -1595,14 +1595,17 @@ function premiumPriceFor(model){
 }
 
 function missingRequiredVideoReferences(model){
-  if(!model)return false;
-  const caps=normalizedClientCapabilities(model,'video');
+  // Customer video models already carry server-normalized capabilities. For
+  // legacy/unknown records without caps, retain the existing behavior; the
+  // server remains authoritative about the actual required media.
+  const caps=model?.capabilities;
+  if(!caps||typeof caps!=='object')return false;
   const count={image:referenceItems.length,video:videoReferenceItems.length,audio:audioReferenceItems.length};
   for(const kind of ['image','video','audio']){
-    const rule=caps[kind];
-    if(count[kind]<rule.min)return true;
+    const rule=caps[kind]||{};
+    if(count[kind]<Number(rule.min||0))return true;
     const files=kind==='image'?referenceItems:kind==='video'?videoReferenceItems:audioReferenceItems;
-    if(rule.requiredRoles.some(role=>!files.some(item=>item.role===role)))return true;
+    if((rule.requiredRoles||[]).some(role=>!files.some(item=>item.role===role)))return true;
   }
   return false;
 }
