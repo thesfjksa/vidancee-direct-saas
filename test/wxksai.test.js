@@ -254,7 +254,7 @@ test('WXKSAI advertises exact per-model reference kinds and does not enable unsu
     assert.deepEqual(model.referenceCapabilities.audio.supported,limits[2]>0);
     assert.ok(model.mediaRoles.includes('image_references'));
     assert.ok(model.supportedOperations.includes('reference-to-video'));
-    assert.equal(model.referenceCapabilities.textOnly,true); // text-only still works
+    assert.equal(model.referenceCapabilities.textOnly,id!=='seedance-2.0-mini-720p'); // V03 requires ≥1 image
   }
 });
 test('WXKSAI image refs go through multipart images field without JSON content type',async()=>{
