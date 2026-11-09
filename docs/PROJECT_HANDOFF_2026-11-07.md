@@ -1,3 +1,11 @@
+## 10 November 2026 — Private AIVID interactive white-label browser pilot
+
+- **Owner request:** Host the real AIVID buttons/pages inside CMMTools with CMMTools styling, under the owner's reported written white-label/custom-browser authorization. Do not resell AIVID subscription plans.
+- **Implementation:** Add gated `/aivid-live-studio` using an interactive Browserless Live URL in a CMMTools viewer. The server creates a separate cloud browser context for each allowlisted CMMTools account, injects cosmetic CMMTools styling/text adjustments, hides the viewer browser chrome, and expires sessions after ten minutes. No direct cross-origin AIVID iframe or Windows RDP agent modifications.
+- **Safety:** Completely disabled by default. Exact customer email/ID allowlist and explicit `AIVID_LIVE_VIEW_DIRECT_BILLING_ACK` are required. Live viewer URLs are issued only to signed-in permitted CMMTools users, guarded by same-origin POST. This **does not use the existing credit ledger**, since real clicks in the original AIVID interface go directly to provider billing; only a separately billed demo/client should be enabled. Never expose an existing shared AIVID admin account.
+- **Boundaries:** The original CMMTools AIVID model IDs remain retired; historical queue/collection unchanged. Requires new Browserless credentials and a separate AIVID sign-in; user’s existing Windows RDP login is not reused. Upload/download, actual brand hiding, Browserless compatibility, payments, production deploy and end-to-end operation remain unverified. Read `docs/AIVID_LIVE_STUDIO.md` before enabling.
+- **Verification:** New `test/aivid_embed.test.js` checks disabled-by-default, allowlist, origin, endpoint requirements and explicit billing acknowledgement. Merge only after CI. Hostinger deploy is a separate action.
+
 ## 9 November 2026 — Pause Dope Special2 after confirmed submission HTTP 410
 
 - Production Activity for generation `f5fda047` shows `job.submit_failed`, upstream HTTP 410 at the paid POST stage for `seedance-2.5-special2`, no saved provider task ID, and a 2,510.55-credit CMMTools refund. The provider's reason and upstream billing are unverified.

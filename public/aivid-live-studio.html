@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>CMMTools | Video Studio</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0a0e17;color:#e8eefb}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid #293449;background:#101827}
+.brand{font-weight:800;letter-spacing:-.5px;font-size:19px}.brand span{color:#78a8ff}.sep{height:22px;border-left:1px solid #3b4560}
+h1{font-size:15px;font-weight:600;margin:0}.spacer{flex:1}button{font:inherit;font-weight:650;cursor:pointer;border:1px solid #43516b;border-radius:10px;padding:9px 16px;background:#1c283b;color:#e9f0ff}
+button.primary{background:#286beb;border-color:#286beb}button:disabled{opacity:.5;cursor:not-allowed}
+main{padding:18px;display:flex;flex:1;flex-direction:column;min-height:0;gap:12px}
+.notice{font-size:13px;color:#b4c4dc;line-height:1.55}.viewer{flex:1;min-height:520px;border:1px solid #283549;border-radius:15px;position:relative;overflow:hidden;background:radial-gradient(circle at center,#16253c,#0d1420)}
+iframe{width:100%;height:100%;min-height:520px;display:block;border:0}.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aabbcf;text-align:center;padding:20px}
+#message{font-size:13px;color:#b9c8e3}a{color:#94bfff;text-decoration:none}
+@media(max-width:600px){header{padding:12px;gap:9px}.sep{display:none}main{padding:10px}.viewer,iframe{min-height:460px}}
+</style></head><body>
+<header><div class="brand">CMM<span>Tools</span></div><div class="sep"></div><h1>Video Studio</h1><div class="spacer"></div><button id="close" disabled>End session</button><button id="open" class="primary">Open Studio</button></header>
+<main><div class="notice">Private interactive studio pilot. The provider's own generation charges apply; CMMTools wallet credits are <strong>not</strong> automatically deducted in this view. Use only with a separately approved billing arrangement.</div>
+<div class="viewer" id="viewer"><div class="empty" id="placeholder"><div style="font-size:36px">▣</div><strong>Interactive video workspace</strong><div>Open Studio to connect to your secure browser session.</div><div id="message"></div></div></div>
+<div class="notice"><a href="/app">Return to CMMTools</a> · Live session ends automatically after ten minutes. Do not share the session URL.</div></main>
+<script>
+const $=x=>document.getElementById(x); let active=false;
+async function request(path){const res=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});const json=await res.json();if(!res.ok)throw new Error(json.error||'Request failed.');return json;}
+$('open').onclick=async()=>{if(active)return;$('open').disabled=true;$('message').textContent='Connecting secure browser…';try{
+  const data=await request('/api/aivid-live-studio/start');const frame=document.createElement('iframe');frame.title='CMMTools interactive video workspace';frame.referrerPolicy='no-referrer';frame.setAttribute('allow','clipboard-read; clipboard-write');frame.setAttribute('sandbox','allow-scripts allow-same-origin');frame.src=data.liveURL;
+  $('viewer').replaceChildren(frame);active=true;$('close').disabled=false;
+}catch(e){$('message').textContent=e.message;$('open').disabled=false;}};
+$('close').onclick=async()=>{$('close').disabled=true;try{await request('/api/aivid-live-studio/stop')}catch{}location.reload();};
+</script></body></html>
