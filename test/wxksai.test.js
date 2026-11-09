@@ -113,6 +113,24 @@ test('WXKSAI Wan 3.0 is priced per second at either 720p or 1080p',()=>{
   }
   assert.throws(()=>quoteGateway(model,{duration:31}),/Unsupported duration/);
 });
+test('Dope mandatory-image models show price before upload, but still reject paid generation without images',()=>{
+  for(const id of ['seedance-2.0-mini-720p']){
+    const model=modelFor(id);
+    const input={prompt:'A cinematic scene',duration:15,resolution:'720p',aspectRatio:'16:9'};
+    const quote=quoteGateway(model,input,CREDITS_PER_USD);
+    assert.ok(Number.isInteger(quote.cost)&&quote.cost>0);
+    // API /model-cost is only a preview and has no media bytes yet.
+    assert.doesNotThrow(()=>validateReferences(model,input,{forQuote:true}));
+    // The actual video-creation path does NOT supply the quote flag.
+    assert.throws(()=>validateReferences(model,input),/requires a reference image/);
+    const photo={mimeType:'image/png',data:Buffer.from([137,80,78,71,13,10,26,10])};
+    const valid={...input,images:[photo]};
+    assert.doesNotThrow(()=>validateReferences(model,valid));
+    // Preview remains defensive for any *provided* reference files.
+    assert.throws(()=>validateReferences(model,{...input,images:Array(10).fill(photo)},{forQuote:true}),/too many/);
+    assert.throws(()=>validateReferences(model,{...input,images:[{...photo,data:Buffer.alloc(0)}]},{forQuote:true}),/file limit/);
+  }
+});
 test('Dope Seedance 2.0 Mini 720p uses exact V03 limits and requires image input',()=>{
   const id='seedance-2.0-mini-720p',model=modelFor(id);
   assert.equal(SPECS[id].priceCny,1.40);
