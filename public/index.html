@@ -851,82 +851,148 @@ function modelPickerSource(id,index){
 }
 
 
+
 function pickerCreditNumber(n){return Number(n).toLocaleString('en-US',{maximumFractionDigits:2});}
 const pickerCreditCache=new Map(),pickerQuoteQueue=[];
 let pickerQuoteActive=0,pickerQuoteEpoch=0,pickerQuoteObserver=null;
 function pickerCreditRows(m){
-  const resolutions=m?.resolutions?.length?m.resolutions:[{durations:m?.durations||[]}];
-  return resolutions.flatMap(r=>(r.durations||m.durations||[]).map(d=>({seconds:Number(d.seconds),cost:Number(d.cost)})))
-    .filter(d=>Number.isFinite(d.cost)&&d.cost>0);
+  const resolutions=m?.resolutions?.length?m.resolutions:[{id:m?.defaultResolution||'',durations:m?.durations||[]}];
+  return resolutions.flatMap(r=>(r.durations||m.durations||[]).map(d=>({
+    resolution:r.id||m?.defaultResolution||'',seconds:Number(d.seconds),cost:Number(d.cost)
+  }))).filter(d=>Number.isFinite(d.cost)&&d.cost>0);
 }
-function pickerCreditText(m){
-  if(!m)return '';
+function pickerSupportedSeconds(m,resolution=null){
+  const selected=Array.isArray(m?.resolutions)?m.resolutions.find(r=>r.id===resolution):null;
+  const entries=selected?.durations||m?.durations||[];
+  return [...new Set(entries.map(d=>Number(d.seconds)).filter(n=>Number.isFinite(n)&&n>0))].sort((a,b)=>a-b);
+}
+function pickerResolution(m){
+  return m?.defaultResolution||m?.resolutions?.[0]?.id||'';
+}
+function pickerSecondsLabel(seconds){
+  if(seconds.length===0)return 'Duration varies';
+  if(seconds.length===1)return seconds[0]+'s';
+  return seconds[0]+'–'+seconds[seconds.length-1]+'s';
+}
+function pickerSummary(badge,amount,detail=''){
+  return {badge,amount,detail};
+}
+function pickerCreditSummary(m){
+  if(!m)return pickerSummary('Price','Unavailable');
+  const resolution=pickerResolution(m);
+  const seconds=pickerSupportedSeconds(m,resolution);
+  const max=seconds.at(-1);
+  const context=resolution?resolution:'Default resolution';
   const rate=Number(m.billingRateCredits);
-  if(rate>0&&m.billingMode==='per_second')return 'Min '+pickerCreditNumber(rate)+' credits/sec';
-  if(rate>0&&m.billingMode==='per_request')return 'From '+pickerCreditNumber(rate)+' credits';
+  if(m.billingMode==='per_second'&&rate>0)
+    return pickerSummary('Per second','Min '+pickerCreditNumber(rate)+' credits/sec',pickerSecondsLabel(seconds)+' · '+context);
+  if(m.billingMode==='per_request'&&rate>0)
+    return pickerSummary(seconds.length>1?'Constant price':'Fixed price',
+      pickerCreditNumber(rate)+' credits',(max&&seconds.length>1?'Up to '+max+'s':pickerSecondsLabel(seconds))+' · '+context);
   const prices=pickerCreditRows(m);
   if(!m.dynamicCost&&prices.length){
-    const min=Math.min(...prices.map(d=>d.cost));
+    const cheapest=prices.reduce((a,b)=>b.cost<a.cost?b:a);
+    const sameRes=prices.filter(row=>row.resolution===cheapest.resolution);
+    const flatAtResolution=sameRes.length>1&&sameRes.every(row=>Math.abs(row.cost-cheapest.cost)<0.001);
+    const details=cheapest.resolution||context;
     if(/^minimax_(?:h3(?:_|$)|beast$)/.test(m.id||'')){
-      const rates=prices.filter(d=>d.seconds>0).map(d=>d.cost/d.seconds);
-      if(rates.length)return 'Min '+pickerCreditNumber(Math.min(...rates))+
-        ' credits/sec · '+pickerCreditNumber(min)+' credits min clip';
+      const priced=prices.filter(row=>row.seconds>0);
+      const minRate=priced.reduce((a,b)=>b.cost/b.seconds<a.cost/a.seconds?b:a);
+      return pickerSummary('Per second','Min '+pickerCreditNumber(minRate.cost/minRate.seconds)+' credits/sec',
+        'From '+pickerCreditNumber(cheapest.cost)+' credits · '+cheapest.seconds+'s · '+details);
     }
-    return 'From '+pickerCreditNumber(min)+' credits';
+    if(flatAtResolution){
+      const top=Math.max(...sameRes.map(row=>row.seconds));
+      return pickerSummary('Constant price',pickerCreditNumber(cheapest.cost)+' credits',
+        'Up to '+top+'s · '+details);
+    }
+    if(sameRes.length===1)
+      return pickerSummary('Fixed price',pickerCreditNumber(cheapest.cost)+' credits',
+        cheapest.seconds+'s · '+details);
+    return pickerSummary('Duration-based','From '+pickerCreditNumber(cheapest.cost)+' credits',
+      pickerSecondsLabel(sameRes.map(row=>row.seconds).sort((a,b)=>a-b))+' · '+details);
   }
-  return pickerCreditCache.get(m.id)?.label||'Checking credits…';
+  return pickerCreditCache.get(m.id)?.summary||pickerSummary('Price','Checking credits…');
+}
+function pickerCreditText(m){
+  const info=pickerCreditSummary(m);
+  return [info.badge,info.amount,info.detail].filter(Boolean).join(' · ');
+}
+function pickerCreditMarkup(info){
+  const className=info.badge==='Constant price'?' constant':info.badge==='Per second'?' metered':'';
+  return '<span class="model-picker-price-badge'+className+'">'+escapeHtml(info.badge)+'</span>'+
+    '<span class="model-picker-price-value">'+escapeHtml(info.amount)+'</span>'+
+    (info.detail?'<span class="model-picker-price-detail">'+escapeHtml(info.detail)+'</span>':'');
 }
 function pickerQuoteBody(m){
   const resolutions=Array.isArray(m.resolutions)?m.resolutions:[];
   const r=resolutions.find(x=>x.id===m.defaultResolution)||resolutions[0]||null;
-  const seconds=(r?.durations||m.durations||[]).map(d=>Number(d.seconds)).filter(n=>Number.isFinite(n)&&n>0);
+  const seconds=pickerSupportedSeconds(m,r?.id);
   return {mediaType:'video',model:m.id,prompt:'Cost estimate',
-    duration:seconds.length?Math.min(...seconds):Number(m.defaultDuration)||0,
+    duration:seconds[0]||Number(m.defaultDuration)||0,
     resolution:r?.id||m.defaultResolution||'',aspectRatio:m.defaultAspectRatio||m.aspectRatios?.[0]||'',
     generationMode:m.defaultMode||'',generateAudio:false};
 }
 async function pickerQuote(m){
   const body=pickerQuoteBody(m);
+  const displayResolution=body.resolution||'Default resolution';
   if(m.billingMode==='per_second'){
-    // Price the lowest supported base rate across resolutions; source quotes
-    // already include the signed-in customer's configured pricing multiplier.
+    // Compare the shortest clip for each resolution; server quotes already
+    // include the signed-in customer's markup. Do not divide a flat clip cost.
     const resolutions=m.resolutions?.length?m.resolutions:[{id:body.resolution,durations:m.durations}];
     const candidates=[];
     for(const resolution of resolutions){
-      const lengths=(resolution.durations||m.durations||[]).map(d=>Number(d.seconds))
-        .filter(n=>Number.isFinite(n)&&n>0);
-      const duration=lengths.length?Math.min(...lengths):body.duration;
+      const seconds=pickerSupportedSeconds(m,resolution.id);
+      const duration=seconds[0]||body.duration;
       if(!(duration>0))continue;
       try{
         const {cost}=await fetchQuote({...body,resolution:resolution.id||'',duration});
         if(Number(cost)>0)candidates.push({rate:Number(cost)/duration,cost:Number(cost),duration,resolution:resolution.id});
       }catch{}
     }
-    if(!candidates.length)return 'Price unavailable';
+    if(!candidates.length)return pickerSummary('Price','Price unavailable');
     const cheapest=candidates.reduce((a,b)=>b.rate<a.rate?b:a);
-    return 'Min '+pickerCreditNumber(cheapest.rate)+' credits/sec · '+
-      pickerCreditNumber(cheapest.cost)+' credits ('+cheapest.duration+'s'+
-      (cheapest.resolution?' · '+cheapest.resolution:'')+')';
+    return pickerSummary('Per second','Min '+pickerCreditNumber(cheapest.rate)+' credits/sec',
+      'From '+pickerCreditNumber(cheapest.cost)+' credits · '+cheapest.duration+'s · '+(cheapest.resolution||displayResolution));
   }
   try{
-    const {cost}=await fetchQuote(body);
-    if(!(Number(cost)>0))return 'Price unavailable';
-    const sample=[body.duration>0?body.duration+'s':'default',body.resolution].filter(Boolean).join(' · ');
-    return pickerCreditNumber(cost)+' credits · '+sample;
-  }catch{return 'Price unavailable';}
+    const first=await fetchQuote(body);
+    if(!(Number(first.cost)>0))return pickerSummary('Price','Price unavailable');
+    const seconds=pickerSupportedSeconds(m,body.resolution);
+    const max=seconds.at(-1);
+    if(m.billingMode==='per_request'){
+      if(max>body.duration){
+        // Confirm that the maximum-length clip has the same price before
+        // promising a constant cost across the whole supported range.
+        const last=await fetchQuote({...body,duration:max});
+        if(!(Number(last.cost)>0))return pickerSummary('Price','Price unavailable');
+        if(Math.abs(Number(first.cost)-Number(last.cost))<0.001)
+          return pickerSummary('Constant price',pickerCreditNumber(first.cost)+' credits',
+            'Up to '+max+'s · '+displayResolution);
+        return pickerSummary('Duration-based','From '+pickerCreditNumber(Math.min(first.cost,last.cost))+' credits',
+          pickerSecondsLabel(seconds)+' · '+displayResolution);
+      }
+      return pickerSummary('Fixed price',pickerCreditNumber(first.cost)+' credits',
+        pickerSecondsLabel(seconds)+' · '+displayResolution);
+    }
+    // For models without a verified flat-price contract, a single quote
+    // must not be represented as an unchanging price for all durations.
+    return pickerSummary('Sample price',pickerCreditNumber(first.cost)+' credits',
+      (body.duration>0?body.duration+'s · ':'')+displayResolution);
+  }catch{return pickerSummary('Price','Price unavailable');}
 }
 function pumpPickerQuotes(){
   while(pickerQuoteActive<3&&pickerQuoteQueue.length){
     const task=pickerQuoteQueue.shift();
     if(task.epoch!==pickerQuoteEpoch)continue;
     pickerQuoteActive++;
-    pickerQuote(task.model).then(label=>{
+    pickerQuote(task.model).then(summary=>{
       if(task.epoch!==pickerQuoteEpoch)return;
-      pickerCreditCache.set(task.model.id,{label});
+      pickerCreditCache.set(task.model.id,{summary});
       $('model')?.closest('.custom-select')?.querySelectorAll('.custom-select-option').forEach(button=>{
         if((config?.pricing||[])[Number(button.dataset.index)]?.id!==task.model.id)return;
         const price=button.querySelector('.model-picker-price');
-        if(price)price.textContent=label;
+        if(price)price.innerHTML=pickerCreditMarkup(summary);
       });
     }).finally(()=>{pickerQuoteActive--;pumpPickerQuotes();});
   }
@@ -1001,7 +1067,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
-  const price=id==='model'?'<span class="model-picker-price">'+escapeHtml(pickerCreditText(modelPickerSource(id,i)))+'</span>':'';
+  const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
     ?'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/>'
