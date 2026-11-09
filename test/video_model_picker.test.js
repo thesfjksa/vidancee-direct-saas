@@ -62,3 +62,67 @@ test('required video image references disable Generate until the image is attach
   ctx.syncVideoGenerateButton();
   assert.equal(fields.generateBtn.disabled,false);
 });
+
+test('video cards show the minimum user credit rate for per-second models',()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  assert.ok(begin>0&&end>begin);
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async()=>({cost:120})});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  assert.equal(ctx.pickerCreditText({id:'api888_metered',dynamicCost:true,billingMode:'per_second',billingRateCredits:42.25}),
+    'Min 42.25 credits/sec');
+  assert.equal(ctx.pickerCreditText({id:'api888_per_request',dynamicCost:true,billingMode:'per_request',billingRateCredits:360}),
+    'From 360 credits');
+  assert.equal(ctx.pickerCreditText({id:'minimax_h3',dynamicCost:false,
+    resolutions:[{id:'480p',durations:[{seconds:4,cost:20},{seconds:10,cost:40}]}]}),
+    'Min 4 credits/sec · 20 credits min clip');
+  assert.equal(ctx.pickerCreditText({id:'flat',dynamicCost:false,
+    durations:[{seconds:5,cost:60},{seconds:10,cost:60}]}),'From 60 credits');
+  assert.equal(ctx.pickerCreditText({id:'dynamic',dynamicCost:true,durations:[{seconds:5,cost:null}]}),
+    'Checking credits…');
+});
+test('model picker dynamic estimates use existing quote API and shortest allowed duration',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  let submitted=null;
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async body=>{submitted=body;return {cost:1344};}});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const model={id:'dope_seedance_2_0_mini_720p',dynamicCost:true,defaultResolution:'720p',
+    defaultAspectRatio:'16:9',resolutions:[{id:'720p',durations:[{seconds:15},{seconds:5},{seconds:10}]}]};
+  assert.equal(await ctx.pickerQuote(model),'1,344 credits · 5s · 720p');
+  assert.equal(submitted.model,model.id);
+  assert.equal(submitted.duration,5);
+  assert.equal(submitted.mediaType,'video');
+  assert.equal(submitted.generateAudio,false);
+  assert.match(studio,/if\(id==='model'\)watchPickerQuotes\(\)/);
+  assert.match(studio,/class="model-picker-price"/);
+});
+
+test('Dope second-priced and generic gateway second-priced SKUs expose billing mode',()=>{
+  const {publicVideoModel}=require('../src/provider_models.js');
+  const defaults={publicModelId:'wxksai_wan3_0',label:'Wan 3.0 · Dope',provider:'wxksai',
+    resolutions:['720p'],durations:[5,10],defaultResolution:'720p',defaultDuration:5,
+    aspectRatios:['16:9'],referenceCapabilities:{}};
+  assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'second'}}).billingMode,'per_second');
+  assert.equal(publicVideoModel({...defaults,wxksai:{pricingMode:'clip'}}).billingMode,undefined);
+  assert.equal(publicVideoModel({...defaults,provider:'argolink',publicModelId:'argo_test',
+    pricing:{video_duration_pricing:[{resolution:'720p',cost_per_second:0.07}]}}).billingMode,'per_second');
+});
+test('metered models quote each resolution and display their cheapest per-second credits',async()=>{
+  const begin=studio.indexOf('function pickerCreditNumber(');
+  const end=studio.indexOf('function modelPickerTags(',begin);
+  const requests=[];
+  const ctx=vm.createContext({config:{pricing:[]},fetchQuote:async b=>{
+    requests.push(b);
+    return {cost:b.resolution==='480p'?100:175};
+  }});
+  vm.runInContext(studio.slice(begin,end),ctx);
+  const model={id:'dope_seedance_2_5_buff',billingMode:'per_second',dynamicCost:true,
+    defaultResolution:'720p',defaultAspectRatio:'16:9',resolutions:[
+      {id:'480p',durations:[{seconds:10},{seconds:5}]},
+      {id:'720p',durations:[{seconds:5},{seconds:10}]},
+    ]};
+  assert.equal(await ctx.pickerQuote(model),'Min 20 credits/sec · 100 credits (5s · 480p)');
+  assert.equal(requests.length,2);
+  assert.ok(requests.every(r=>r.mediaType==='video'&&r.duration===5));
+});

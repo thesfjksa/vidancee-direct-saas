@@ -427,6 +427,18 @@ function api888RateCredits(model) {
 }
 
 function publicVideoModel(model) {
+  // These providers bill every output second, but unlike 888API their public
+  // catalog did not identify that fact. Let the picker quote the cheapest
+  // supported base resolution instead of mislabeling a per-second model as
+  // fixed-price. Per-clip price tables always take precedence.
+  const pricing=model.pricing||{};
+  const secondPriced=model.provider!=='api888'&&(
+    model.wxksai?.pricingMode==='second'||
+    Boolean(model.priceOverride?.perSecond)||
+    (Array.isArray(pricing.video_duration_pricing)&&
+      pricing.video_duration_pricing.some(row=>Number(row.cost_per_second)>0)&&
+      !pricing.video_duration_prices?.length)
+  );
   const durations = model.durations.length ? model.durations : [0];
   const durationEntries = durations.map(seconds => ({
     seconds,
@@ -456,6 +468,7 @@ function publicVideoModel(model) {
       billingMode:model.api888?.billing==='second'?'per_second':'per_request',
       billingRateCredits:api888RateCredits(model),
     }:{}),
+    ...(secondPriced?{billingMode:'per_second'}:{}),
     ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }
