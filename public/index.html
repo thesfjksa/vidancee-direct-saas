@@ -1087,7 +1087,7 @@ function ensureCustomSelect(id){
 }
 
 function videoModelGroup(value){
-  if(/^minimax_h3(?:_|$)/.test(value))return 'MiniMax';
+  if(/^minimax_(?:h3(?:_|$)|beast$)/.test(value))return 'MiniMax';
   if(!value.startsWith('api888_'))return null;
   const family=value.slice('api888_'.length).toLowerCase().match(/(?:seedance_?|sd_?|^ss_|^s2_)2_([05])(?:_|$)/);
   return family?'Seedance 2.'+family[1]:null;
@@ -1593,10 +1593,23 @@ function premiumPriceFor(model){
   return model?.premium&&premiumQuote?.key===premiumPriceKey(model)?premiumQuote.cost:null;
 }
 
+function missingRequiredVideoReferences(model){
+  if(!model)return false;
+  const caps=normalizedClientCapabilities(model,'video');
+  const count={image:referenceItems.length,video:videoReferenceItems.length,audio:audioReferenceItems.length};
+  for(const kind of ['image','video','audio']){
+    const rule=caps[kind];
+    if(count[kind]<rule.min)return true;
+    const files=kind==='image'?referenceItems:kind==='video'?videoReferenceItems:audioReferenceItems;
+    if(rule.requiredRoles.some(role=>!files.some(item=>item.role===role)))return true;
+  }
+  return false;
+}
 function syncVideoGenerateButton(){
   const model=currentVideoModel();
   $('generateBtn').disabled=videoSubmissionInFlight||videoReferenceRestoreInFlight||
-    !model||model.unavailable===true||Boolean(model.premium&&!premiumPriceFor(model));
+    !model||model.unavailable===true||missingRequiredVideoReferences(model)||
+    Boolean(model.premium&&!premiumPriceFor(model));
 }
 async function fetchQuote(body){
   const model=String(body.model||'');
@@ -1692,7 +1705,12 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
     }
   }catch(e){
     if(seq!==videoCostRequestSeq)return;
-    if(!historical)$('cost').textContent=model.premium?'—':'at submit';
+    if(!historical)$('cost').textContent='—';
+    if(!model.premium){
+      note.textContent='Price is temporarily unavailable. Retry to check the credits before generating.';
+      note.classList.remove('hide');
+      $('videoPriceRetry').classList.remove('hide');
+    }
     if(model.premium){
       if(premiumQuote?.key===priceKey)premiumQuote=null;
       $('cost').textContent=historical?past:'—';
