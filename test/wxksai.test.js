@@ -113,6 +113,62 @@ test('WXKSAI Wan 3.0 is priced per second at either 720p or 1080p',()=>{
   }
   assert.throws(()=>quoteGateway(model,{duration:31}),/Unsupported duration/);
 });
+test('Dope Seedance 2.0 Mini 720p uses exact V03 limits and requires image input',()=>{
+  const id='seedance-2.0-mini-720p',model=modelFor(id);
+  assert.equal(SPECS[id].priceCny,1.40);
+  assert.equal(model.label,'Seedance 2.0 Mini 720p · Dope');
+  assert.equal(model.resolutions.length,1);
+  assert.deepEqual(model.resolutions,['720p']);
+  assert.deepEqual(model.durations,[5,10,15]);
+  assert.deepEqual(model.aspectRatios,['16:9','9:16','1:1','4:3','3:4']);
+  assert.equal(model.referenceCapabilities.textOnly,false);
+  assert.deepEqual(['image','video','audio'].map(type=>model.referenceCapabilities[type].max),[9,0,0]);
+  assert.equal(model.referenceCapabilities.image.min,1);
+  assert.deepEqual(model.supportedOperations,['reference-to-video']);
+  assert.equal(isWxksaiModel(publicId(id)),true);
+  const img=(n)=>({mimeType:'image/png',filename:'img-'+n+'.png',data:Buffer.from([137,80,78,71,13,10,26,10,n])});
+  assert.throws(()=>validateReferences(model,{images:[]}),/requires a reference image/);
+  assert.doesNotThrow(()=>validateReferences(model,{images:[img(1)]}));
+  assert.doesNotThrow(()=>validateReferences(model,{images:Array.from({length:9},(_,i)=>img(i))}));
+  assert.throws(()=>validateReferences(model,{images:Array.from({length:10},(_,i)=>img(i))}),/too many/);
+  assert.throws(()=>validateReferences(model,{images:[img(1)],videos:[{mimeType:'video\/mp4',data:Buffer.alloc(32)}]}),/Unsupported video references/);
+  assert.throws(()=>validateReferences(model,{images:[img(1)],audios:[{mimeType:'audio\/mpeg',data:Buffer.alloc(32)}]}),/Unsupported audio references/);
+  const expected=quoteGateway(model,{duration:5,resolution:'720p',aspectRatio:'16:9'},CREDITS_PER_USD).cost;
+  assert.equal(model.pricing.video_duration_prices[0].cost,SPECS[id].priceCny/CNY_PER_USD);
+  for(const duration of [5,10,15]){
+    const cost=quoteGateway(model,{duration,resolution:'720p',aspectRatio:'3:4'},CREDITS_PER_USD).cost;
+    assert.equal(cost,expected);
+  }
+  assert.throws(()=>quoteGateway(model,{duration:7,resolution:'720p'}),/Unsupported duration/);
+  assert.throws(()=>quoteGateway(model,{duration:5,resolution:'480p'}),/Unsupported resolution/);
+});
+test('Dope Seedance 2.0 Mini sends one exact model-ID multipart paid POST and rejects missing image before POST',async()=>{
+  let count=0,request;
+  const client=new WxksaiClient({apiKey:'test-key',fetchImpl:async(url,opts)=>{
+    count++;request={url,opts};return Response.json({id:'task_mini_001'});
+  }});
+  const opts={model:{providerModelId:'seedance-2.0-mini-720p'},prompt:'Character turns around',duration:10,resolution:'720p',aspectRatio:'9:16'};
+  await assert.rejects(client.startVideo(opts),/requires at least one reference image/);
+  assert.equal(count,0);
+  const image={kind:'image',mimeType:'image/png',filename:'reference.png',data:Buffer.from([137,80,78,71,13,10,26,10])};
+  const result=await client.startVideo(opts,[image]);
+  assert.equal(result.requestId,'task_mini_001');
+  assert.equal(count,1);
+  assert.equal(request.url,'https://api.wxksai.com/v1/videos');
+  assert.equal(request.opts.method,'POST');
+  assert.equal(request.opts.headers.authorization,'Bearer test-key');
+  assert.equal(request.opts.headers['content-type'],undefined);
+  assert.ok(request.opts.body instanceof FormData);
+  assert.equal(request.opts.body.get('model'),'seedance-2.0-mini-720p');
+  assert.equal(request.opts.body.get('seconds'),'10');
+  assert.equal(request.opts.body.get('resolution'),'720p');
+  assert.equal(request.opts.body.get('aspect_ratio'),'9:16');
+  assert.equal(request.opts.body.getAll('images').length,1);
+  const bad=[image,...Array.from({length:9},(_,i)=>({...image,filename:'extra'+i+'.png'}))];
+  await assert.rejects(client.startVideo(opts,bad),/does not support that many image/);
+  await assert.rejects(client.startVideo(opts,[{kind:'video',mimeType:'video/mp4',filename:'ref.mp4',data:Buffer.alloc(80)}]),/does not support/);
+  assert.equal(count,1);
+});
 test('WXKSAI Seedance 2.0 900 is fixed at ten seconds and ¥2.1 per clip',()=>{
   const model=modelFor('seedance-2.0-full-720p-900');
   assert.equal(quoteGateway(model,{duration:10,resolution:'720p'},CREDITS_PER_USD).cost,
@@ -187,6 +243,7 @@ test('WXKSAI advertises exact per-model reference kinds and does not enable unsu
     'seedance-2.5-full-720p-15-30s':[9,0,0],
     'seedance-2.5-bd-2':[30,10,10],
     'wan3.0-video':[10,5,5],
+    'seedance-2.0-mini-720p':[9,0,0],
     'seedance-2.0-full-720p-900':[9,0,0],
     'seedance2.5-buff':[30,1,1], // Conservative pending provider numeric media caps
   };
@@ -197,7 +254,7 @@ test('WXKSAI advertises exact per-model reference kinds and does not enable unsu
     assert.deepEqual(model.referenceCapabilities.audio.supported,limits[2]>0);
     assert.ok(model.mediaRoles.includes('image_references'));
     assert.ok(model.supportedOperations.includes('reference-to-video'));
-    assert.equal(model.referenceCapabilities.textOnly,true); // text-only still works
+    assert.equal(model.referenceCapabilities.textOnly,id!=='seedance-2.0-mini-720p'); // V03 requires ≥1 image
   }
 });
 test('WXKSAI image refs go through multipart images field without JSON content type',async()=>{

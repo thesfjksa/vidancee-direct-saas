@@ -75,8 +75,12 @@ function mediaSeconds(item) {
 
 function prepareWxksaiReferences(modelId,options,references=[]) {
   if(!Array.isArray(references))throw invalid('Invalid WXKSAI reference selection.');
-  if(!references.length)return null; // Keep the existing JSON text-to-video contract.
   const caps=wxksaiReferenceCapabilities(modelId), spec=REFERENCE_SPECS[modelId];
+  // V03 Seedance 2.0 Mini MUST have at least one image. Enforce at the
+  // worker boundary as well as at quote/reservation, before the paid POST.
+  if(!references.length && caps.image.min>0)
+    throw invalid('This Dope model requires at least one reference image.');
+  if(!references.length)return null; // Existing text-to-video SKUs retain JSON.
   if(!spec)throw invalid('Unknown WXKSAI reference model.');
   const grouped={image:[],video:[],audio:[]};
   let bytesTotal=0;
