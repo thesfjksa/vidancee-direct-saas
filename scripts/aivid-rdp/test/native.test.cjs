@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { chromeArguments, debuggerEndpoint, takeLock, downloadNative } = require('../native.cjs');
+const { chromiumArguments, debuggerEndpoint, takeLock, downloadNative } = require('../native.cjs');
 const { origin, Transport, loadConfig, saveConfig, readPairingInput } = require('../agent.cjs');
 const { Readable } = require('node:stream');
 test('Windows dialog pairing input is bounded, validated and never included in errors', async () => {
@@ -16,9 +16,9 @@ test('Windows dialog pairing input is bounded, validated and never included in e
   await assert.rejects(readPairingInput(Readable.from(['http://cmmtools.site\n' + code])), /HTTPS/);
 });
 test('manual login has no automation or debugging flags; automation binds only to loopback', () => {
-  const login = chromeArguments('./private-profile');
+  const login = chromiumArguments('./private-profile');
   assert.doesNotMatch(login.join(' '), /debugging|enable-automation|no-sandbox|disable-web-security|remote-allow-origins/);
-  const agent = chromeArguments('./private-profile', true);
+  const agent = chromiumArguments('./private-profile', true);
   assert.ok(agent.includes('--remote-debugging-address=127.0.0.1')); assert.ok(agent.includes('--remote-debugging-port=0'));
   assert.doesNotMatch(agent.join(' '), /0\.0\.0\.0|enable-automation|no-sandbox|disable-web-security|remote-allow-origins/);
 });
