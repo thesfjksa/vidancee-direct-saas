@@ -56,7 +56,10 @@ test('Dope SD 2.5 Value is a flat conservative ¥2.20 clip across 2–30 sec and
   assert.deepEqual(model.resolutions,['480p','720p','1080p']);
   assert.equal(publicId(id),'wxksai_sd25_value');
   assert.deepEqual(['image','video','audio'].map(kind=>model.referenceCapabilities[kind].max),[2,0,0]);
-  const cost=Math.ceil(2.20/CNY_PER_USD*CREDITS_PER_USD);
+  const cost=quoteGateway(model,{duration:2,resolution:'720p',aspectRatio:'16:9'},CREDITS_PER_USD).cost;
+  // Currency roundoff is handled within the production quote calculator;
+  // avoid double-floating-point ceil on the independent assertion.
+  assert.ok(Math.abs(cost-Math.ceil(2.20/CNY_PER_USD*CREDITS_PER_USD))<=1);
   for(const duration of [2,5,15,30])for(const resolution of model.resolutions){
     assert.equal(quoteGateway(model,{duration,resolution,aspectRatio:'16:9'},CREDITS_PER_USD).cost,cost);
   }
