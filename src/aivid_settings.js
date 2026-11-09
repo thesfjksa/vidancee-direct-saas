@@ -20,7 +20,7 @@ function configFrom(env, session = {}, saved = null) {
     endpoint: saved?.endpoint || env.BROWSERLESS_ENDPOINT || ENDPOINTS[0],
     // Ignore legacy saved 480/custom rates: AIVID now uses its verified USD source cost.
     customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
-    manualHandoff: saved?.manualHandoff === true, browser: saved?.browser === 'edge' ? 'edge' : 'chrome', ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
+    manualHandoff: saved?.manualHandoff === true, browser: 'edge', ttlDays: saved?.ttlDays || 1, mode: saved?.mode === 'rdp' ? 'rdp' : 'browserless', session, expiresAt: session.expiresAt || null };
 }
 
 async function getAividSettings() {
@@ -34,7 +34,7 @@ async function getAividSettings() {
 
 function publicConfig(config) {
   return { configured: config.mode === 'rdp' ? Boolean(config.rdpDevice?.tokenHash) : Boolean(config.connectUrl), apiKeyConfigured: Boolean(config.apiKey),
-    manualHandoff: config.manualHandoff === true, mode: config.mode || 'browserless', browser: config.browser || 'chrome', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
+    manualHandoff: config.manualHandoff === true, mode: config.mode || 'browserless', browser: 'edge', rdp: require('./aivid_rdp.js').publicDevice(config.rdpDevice || {}),
     endpoint: config.endpoint, ttlDays: config.ttlDays || 1, enabled: config.enabled,
     maxSourceCredits:config.maxSourceCredits,customerCreditsPerSourceCredit:AIVID_CUSTOMER_CREDITS_PER_SOURCE_CREDIT,
     sourceUsdPerCredit:AIVID_USD_PER_CREDIT,pricingPolicy:'usd_source_cost',expiresAt:config.expiresAt,
@@ -46,8 +46,8 @@ function validateConfig(input, current) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Invalid Browserless settings.'), { statusCode: 400 });
   const apiKey = input.apiKey === undefined || input.apiKey === '' ? current.apiKey : input.apiKey;
   const mode = input.mode ?? current.mode ?? 'browserless';
-  const browser = input.browser ?? current.browser ?? 'chrome';
-  if (!['chrome', 'edge'].includes(browser)) throw Object.assign(new Error('Choose Google Chrome or Microsoft Edge.'), { statusCode: 400 });
+  // Edge is the only Windows RDP runtime. Ignore legacy browser selection inputs.
+  const browser = 'edge';
   if (!['rdp', 'browserless'].includes(mode)) throw Object.assign(new Error('Choose RDP or Browserless.'), { statusCode: 400 });
   if (typeof apiKey !== 'string' || (!(mode === 'rdp' && apiKey === '') && (apiKey.length < 8 || apiKey.length > 1024 || /\s/.test(apiKey))))
     throw Object.assign(new Error('Enter a valid Browserless API key.'), { statusCode: 400 });
