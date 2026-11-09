@@ -195,6 +195,8 @@ const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
+const { createDopePerformance } = require('./src/dope_performance.js');
+const getDopePerformance = createDopePerformance();
 const { storedModelId, customerModelLabel, customerProviderAccess: publicDopeAccess } = require('./src/dope_brand.js');
 const { isRetiredModel } = require('./src/retired_models.js');
 const { WxksaiClient } = require('./src/provider/wxksai.js');
@@ -1299,6 +1301,7 @@ const server=http.createServer(async (req,res)=>{
       '/brand.css':['brand.css','text/css; charset=utf-8'],
       '/developers.css':['developers.css','text/css; charset=utf-8'],
       '/studio.css':['studio.css','text/css; charset=utf-8'],
+      '/dope-performance.js':['dope-performance.js','text/javascript; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
       '/provider-admin.js':['provider-admin.js','text/javascript; charset=utf-8'],
@@ -1506,6 +1509,10 @@ const server=http.createServer(async (req,res)=>{
       if(!dbConfigured())return sendJson(res,200,{ok:true,video:[],image:[]});
       try{return sendJson(res,200,{ok:true,...await priceExamples()});}
       catch{return sendJson(res,200,{ok:true,video:[],image:[]});}
+    }
+
+    if (req.method==='GET' && routePath==='/api/dope-performance') {
+      return sendJson(res,200,await getDopePerformance());
     }
 
     if (req.method==='GET' && routePath==='/api/config') {

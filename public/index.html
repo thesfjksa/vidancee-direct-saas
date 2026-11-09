@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
 <link rel="stylesheet" href="/studio.css?v=cmm-14">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
+<script src="/dope-performance.js"></script>
 </head>
 <body>
 
@@ -1062,6 +1063,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
+  const performance=id==='model' ? globalThis.dopePerformanceMarkup?.(o.value)||'' : '';
   const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)),modelPickerSource(id,i))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
@@ -1071,7 +1073,7 @@ function modelPickerOptionHtml(id,o,i,selected){
       :'<rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/>';
   return '<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+
     '<span class="model-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'+icon+'</svg></span>'+
-    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>'+price+(tags?'<span class="model-picker-tags">'+tags+'</span>':'')+'</span>'+
+    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>' +price+performance+(tags?'<span class="model-picker-tags">'+tags+'</span>':'')+'</span>'+
     '<span class="model-picker-check">✓</span>'+
   '</button>';
 }
