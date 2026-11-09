@@ -1,3 +1,9 @@
+## 9 November 2026 — Collect completed Dope videos above 100 MiB
+
+- Dope had already accepted and rendered generation `5c510e3b`. Its production Activity showed repeated download errors because the Dope connector shared a 64 MiB video limit. The original job remained Processing with its provider task ID.
+- Dope now accepts complete MP4s up to 256 MiB. The worker stages each response on disk with a byte cap and checksum validation, then streams to private object storage or writes bounded chunks to Drive or MySQL. The customer receives the output through the existing generation record and media links.
+- The regression covers a 101 MiB output collected through the saved provider task ID, invalid or oversized responses, and signed streaming storage. Deploy the standalone worker and verify the original job becomes Completed with a playable output before calling delivery complete. Collection uses the existing task ID and credit record.
+
 ## 9 November 2026 — Dope worker picks up customers with default access
 
 - Production Admin showed six original Seedance 2.5 BD2 jobs across two accounts still queued with no provider task ID. The web app treated Dope access as enabled by default after #225, while the standalone worker still required an explicit per-user allow record.

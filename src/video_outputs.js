@@ -19,20 +19,25 @@ async function saveVideoOutput(conn,id,output) {
   const store=await configuredStorage();
   if(store){
     const key=videoKey(id);
-    await store.put(key,output.data,output.mimeType||'video/mp4');
+    if(output.data)await store.put(key,output.data,output.mimeType||'video/mp4');
+    else await store.putStream(key,output,output.mimeType);
     return MARKER+key;
   }
   const {configuredDrive}=require('./google_drive.js');
   const drive=await configuredDrive();
   if(drive){
-    const fileId=await drive.uploadBuffer(id,output.data);
+    const fileId=output.data?await drive.uploadBuffer(id,output.data):
+      await drive.uploadVideo({generationId:id,size:output.size,readChunk:output.readChunk,md5Checksum:output.md5});
     return 'gdrive:'+fileId;
   }
+  const size=output.data?.length??output.size;
   await conn.execute('INSERT INTO generation_video_outputs (generation_id,mime_type,byte_length) VALUES (?,?,?)',
-    [id,output.mimeType,output.data.length]);
-  for(let offset=0,index=0;offset<output.data.length;offset+=CHUNK_SIZE,index++) {
+    [id,output.mimeType,size]);
+  for(let offset=0,index=0;offset<size;offset+=CHUNK_SIZE,index++) {
+    const length=Math.min(CHUNK_SIZE,size-offset);
+    const chunk=output.data?output.data.subarray(offset,offset+length):await output.readChunk(offset,length);
     await conn.execute('INSERT INTO generation_video_chunks (generation_id,chunk_index,video_data) VALUES (?,?,?)',
-      [id,index,output.data.subarray(offset,offset+CHUNK_SIZE)]);
+      [id,index,chunk]);
   }
   return 'db:video';
 }
