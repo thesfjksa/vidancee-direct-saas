@@ -1,3 +1,9 @@
+## 10 November 2026 — Dope video model performance
+
+- Video Studio’s model picker and Admin → Provider → Dope display the provider’s rolling 24-hour success rate and average latency per model. An open view checks for updates every ten minutes without rebuilding the picker or resetting model controls.
+- The web process shares one ten-minute cache of the public WXKSAI Model Square summary. It sends no provider credentials, matches exact upstream model IDs, and exposes only customer-facing Dope IDs. Missing samples display No data. A failed refresh labels cached values Last known.
+- Verified the public summary response and added coverage for cache timing, concurrent reads, missing samples, 0% success and upstream errors. Deploy the updated web application to serve the feature. Production deployment is pending verification.
+
 ## 10 November 2026 — Restore Dope Seedance 2.5 Special2 eligibility
 
 - At the owner's request, remove the temporary CMMTools submission pause for the exact Dope `seedance-2.5-special2` video model. It uses the existing saved model enable switch, account availability, and Dope access controls.
