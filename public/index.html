@@ -850,15 +850,93 @@ function modelPickerSource(id,index){
   return null;
 }
 
+
+function pickerCreditNumber(n){return Number(n).toLocaleString('en-US',{maximumFractionDigits:2});}
+const pickerCreditCache=new Map(),pickerQuoteQueue=[];
+let pickerQuoteActive=0,pickerQuoteEpoch=0,pickerQuoteObserver=null;
+function pickerCreditRows(m){
+  const resolutions=m?.resolutions?.length?m.resolutions:[{durations:m?.durations||[]}];
+  return resolutions.flatMap(r=>(r.durations||m.durations||[]).map(d=>({seconds:Number(d.seconds),cost:Number(d.cost)})))
+    .filter(d=>Number.isFinite(d.cost)&&d.cost>0);
+}
+function pickerCreditText(m){
+  if(!m)return '';
+  const rate=Number(m.billingRateCredits);
+  if(rate>0&&m.billingMode==='per_second')return 'Min '+pickerCreditNumber(rate)+' credits/sec';
+  if(rate>0&&m.billingMode==='per_request')return 'From '+pickerCreditNumber(rate)+' credits';
+  const prices=pickerCreditRows(m);
+  if(!m.dynamicCost&&prices.length){
+    const min=Math.min(...prices.map(d=>d.cost));
+    if(/^minimax_(?:h3(?:_|$)|beast$)/.test(m.id||'')){
+      const rates=prices.filter(d=>d.seconds>0).map(d=>d.cost/d.seconds);
+      if(rates.length)return 'Min '+pickerCreditNumber(Math.min(...rates))+
+        ' credits/sec · '+pickerCreditNumber(min)+' credits min clip';
+    }
+    return 'From '+pickerCreditNumber(min)+' credits';
+  }
+  return pickerCreditCache.get(m.id)?.label||'Checking credits…';
+}
+function pickerQuoteBody(m){
+  const resolutions=Array.isArray(m.resolutions)?m.resolutions:[];
+  const r=resolutions.find(x=>x.id===m.defaultResolution)||resolutions[0]||null;
+  const seconds=(r?.durations||m.durations||[]).map(d=>Number(d.seconds)).filter(n=>Number.isFinite(n)&&n>0);
+  return {mediaType:'video',model:m.id,prompt:'Cost estimate',
+    duration:seconds.length?Math.min(...seconds):Number(m.defaultDuration)||0,
+    resolution:r?.id||m.defaultResolution||'',aspectRatio:m.defaultAspectRatio||m.aspectRatios?.[0]||'',
+    generationMode:m.defaultMode||'',generateAudio:false};
+}
+async function pickerQuote(m){
+  const body=pickerQuoteBody(m);
+  try{
+    const {cost}=await fetchQuote(body);
+    if(!(Number(cost)>0))return 'Price unavailable';
+    const sample=[body.duration>0?body.duration+'s':'default',body.resolution].filter(Boolean).join(' · ');
+    return pickerCreditNumber(cost)+' credits · '+sample;
+  }catch{return 'Price unavailable';}
+}
+function pumpPickerQuotes(){
+  while(pickerQuoteActive<3&&pickerQuoteQueue.length){
+    const task=pickerQuoteQueue.shift();
+    if(task.epoch!==pickerQuoteEpoch)continue;
+    pickerQuoteActive++;
+    pickerQuote(task.model).then(label=>{
+      if(task.epoch!==pickerQuoteEpoch)return;
+      pickerCreditCache.set(task.model.id,{label});
+      $('model')?.closest('.custom-select')?.querySelectorAll('.custom-select-option').forEach(button=>{
+        if((config?.pricing||[])[Number(button.dataset.index)]?.id!==task.model.id)return;
+        const price=button.querySelector('.model-picker-price');
+        if(price)price.textContent=label;
+      });
+    }).finally(()=>{pickerQuoteActive--;pumpPickerQuotes();});
+  }
+}
+function watchPickerQuotes(){
+  pickerQuoteObserver?.disconnect();
+  const root=$('model')?.closest('.custom-select')?.querySelector('.model-picker-options');
+  if(!root)return;
+  const request=button=>{
+    const m=(config?.pricing||[])[Number(button.dataset.index)];
+    if(!m||!m.dynamicCost||pickerCreditCache.has(m.id))return;
+    if(['per_request','per_second'].includes(m.billingMode)&&Number(m.billingRateCredits)>0)return;
+    pickerCreditCache.set(m.id,{pending:true});
+    pickerQuoteQueue.push({model:m,epoch:pickerQuoteEpoch});
+    pumpPickerQuotes();
+  };
+  if(typeof IntersectionObserver!=='function'){
+    root.querySelectorAll('.custom-select-option').forEach(request);return;
+  }
+  pickerQuoteObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{if(entry.isIntersecting){pickerQuoteObserver.unobserve(entry.target);request(entry.target);}});
+  },{root,rootMargin:'120px 0px'});
+  root.querySelectorAll('.custom-select-option').forEach(button=>pickerQuoteObserver.observe(button));
+}
+
 function modelPickerTags(id,index){
   const m=modelPickerSource(id,index);
   if(!m)return [];
   const tags=[];
   const add=v=>{v=String(v||'').trim();if(v&&!tags.includes(v))tags.push(v)};
-  // Some models bill explicitly: fixed per request or dynamic per second,
-  // with the rate already converted to credits by the server.
-  if(m.billingMode==='per_second')add('Dynamic · '+m.billingRateCredits+' cr/sec');
-  else if(m.billingMode==='per_request')add('Per request · '+m.billingRateCredits+' cr');
+  // Credit price has a dedicated line on each video model card.
 
   if(id==='model'){
     const resolutions=Array.isArray(m.resolutions)?m.resolutions:[];
@@ -902,6 +980,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
+  const price=id==='model'?'<span class="model-picker-price">'+escapeHtml(pickerCreditText(modelPickerSource(id,i)))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
     ?'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/>'
@@ -910,7 +989,7 @@ function modelPickerOptionHtml(id,o,i,selected){
       :'<rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/>';
   return '<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+
     '<span class="model-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'+icon+'</svg></span>'+
-    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span><span class="model-picker-tags">'+tags+'</span></span>'+
+    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>'+price+'<span class="model-picker-tags">'+tags+'</span></span>'+
     '<span class="model-picker-check">✓</span>'+
   '</button>';
 }
@@ -1024,6 +1103,7 @@ function ensureCustomSelect(id){
         if(!willOpen && menu.open)menu.close();
       }
       if(willOpen){
+        if(id==='model')watchPickerQuotes();
         const optionsRoot=menu.querySelector('.model-picker-options,.ratio-picker-options');
         if(optionsRoot)optionsRoot.scrollTop=0;
         const search=wrap.querySelector('.custom-select-search input');
@@ -1487,6 +1567,9 @@ function renderImageReferenceControls(modelChanged=false){
 
 function renderConfig(){
   if(!config)return;
+  pickerQuoteEpoch++;
+  pickerCreditCache.clear();
+  pickerQuoteQueue.length=0;
   $('model').innerHTML=(config.pricing||[]).map(m=>'<option value="'+m.id+'">'+escapeHtml(m.label)+'</option>').join('');
   const missing=!(config.pricing||[]).length;
   $('videoCatalogEmpty').classList.toggle('hide',!missing);
