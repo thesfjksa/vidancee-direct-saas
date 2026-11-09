@@ -181,3 +181,43 @@ test('single-duration fixed-price model is labeled fixed, not multiple-duration 
     defaultResolution:'720p',durations:[{seconds:10,cost:2116.8}]});
   assert.equal(label,'Fixed price · 2,116.8 credits · 10s · 720p');
 });
+
+test('redesigned video cards show credits first, billing type second and compact capability metadata',()=>{
+  const from=studio.indexOf('function pickerCreditNumber(');
+  const to=studio.indexOf('function ensureCustomSelect(',from);
+  assert.ok(from>0&&to>from);
+  const model={id:'dope_seedance_2_5_bd_2',billingMode:'per_request',dynamicCost:false,
+    defaultResolution:'720p',resolutions:[{id:'720p',durations:[{seconds:4,cost:4939.2},{seconds:30,cost:4939.2}]}]};
+  const ctx=vm.createContext({
+    config:{pricing:[model]},fetchQuote:async()=>({cost:4939.2}),
+    escapeHtml:String,modelPickerSource:(id,i)=>id==='model'&&i===0?model:null,
+    normalizedClientCapabilities:()=>({
+      image:{supported:true},video:{supported:true},audio:{supported:true},
+    }),
+  });
+  vm.runInContext(studio.slice(from,to),ctx);
+  assert.equal(ctx.modelPickerTags('model',0).length,0,
+    'do not duplicate resolution or duration tags already shown below the price');
+  const markup=ctx.modelPickerOptionHtml('model',{textContent:'Seedance 2.5 BD2 Full · Dope'},0,true);
+  assert.ok(markup.indexOf('model-picker-price-value')<markup.indexOf('model-picker-price-badge'),
+    'price is visually and structurally ahead of the billing-type badge');
+  assert.match(markup,/4,939.2 credits/);
+  assert.match(markup,/Constant price/);
+  assert.match(markup,/Up to 30s/);
+  assert.match(markup,/720p/);
+  assert.match(markup,/Image \+ Video \+ Audio refs/);
+  assert.doesNotMatch(markup,/model-picker-tags/);
+  assert.match(markup,/role="option" aria-selected="true"/);
+});
+test('async price refresh keeps reference support metadata in the updated card',()=>{
+  const markup=studio.slice(studio.indexOf('function pumpPickerQuotes(){'),
+    studio.indexOf('function watchPickerQuotes(){'));
+  assert.match(markup,/pickerCreditMarkup\(summary,task\.model\)/);
+  assert.doesNotMatch(markup,/price\.textContent=label/);
+  const css=fs.readFileSync(require.resolve('../public/studio.css'),'utf8');
+  assert.match(css,/\.model-picker-price-main\s*\{/);
+  assert.match(css,/\.model-picker-meta-dot\s*\{/);
+  assert.match(css,/\.custom-select\.model-picker \.custom-select-option:focus-visible/);
+  assert.match(css,/\.model-picker-price-value\s*\{[\s\S]*?font-size:\s*14\.5px/);
+  assert.match(css,/grid-template-columns:\s*34px minmax\(0,1fr\) 20px/);
+});
