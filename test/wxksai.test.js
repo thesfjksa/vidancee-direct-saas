@@ -357,11 +357,12 @@ test('WXKSAI worker hydrates references from generation storage before submissio
   assert.equal(files[0].filename,'face.png');
   assert.equal(Buffer.isBuffer(files[0].data),true);
 });
-test('WXKSAI queue is isolated and customer access SQL is scoped',()=>{
+test('WXKSAI queue honors default access and explicit customer opt-outs',()=>{
   const q=new WxksaiQueue();
   assert.equal(q.provider,'wxksai');
   assert.equal(q.apiKey({wxksaiApiKey:'test'}),'test');
   assert.equal(q.sourceEnabled({wxksaiEnabled:false}),false);
   assert.match(q.queuedSql(),/provider='wxksai'/);
-  assert.match(q.queuedSql(),/COALESCE\(a.enabled,0\)/);
+  assert.match(q.queuedSql(),/LEFT JOIN user_provider_access a ON a.user_id=g.user_id AND a.provider='wxksai'/);
+  assert.match(q.queuedSql(),/COALESCE\(a.enabled,1\)=1/);
 });

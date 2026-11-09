@@ -10,7 +10,6 @@ class WxksaiQueue extends VercelQueue {
     this.videoTimeoutMs = 24 * 60 * 60 * 1000;
     this.lastProviderPollAt = 0;
   }
-  queuedSql() { return super.queuedSql().replace('COALESCE(a.enabled,1)=1','COALESCE(a.enabled,0)=1'); }
   submitFailureMessage(error) {
     // A gateway 5xx/timeout can occur after the paid POST reached WXKSAI.
     // The provider task ID was not returned; do not suggest an automatic retry.

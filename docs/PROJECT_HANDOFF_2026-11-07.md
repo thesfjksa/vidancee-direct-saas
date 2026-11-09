@@ -1,3 +1,10 @@
+## 9 November 2026 — Dope worker picks up customers with default access
+
+- Production Admin showed six original Seedance 2.5 BD2 jobs across two accounts still queued with no provider task ID. The web app treated Dope access as enabled by default after #225, while the standalone worker still required an explicit per-user allow record.
+- The Dope queue now uses the shared claim query. Missing access rows inherit the enabled default. Explicit opt-outs, inactive users, disabled models, the global charge gate and the concurrency limit still apply. Existing queued rows keep their IDs and are claimed normally. There is no replacement submission or new wallet debit.
+- Production recovery used Admin Sources to save the existing checked settings on the two affected accounts. An initial production check confirmed four original jobs had received Dope task IDs, with two waiting for worker slots. The separate oversized-output and upstream submit failures are outside this change.
+- The regression test checks the Dope-specific access join and the default-on claim predicate. Deploy the standalone Hostinger worker from the merged revision to apply the permanent fix to all default-enabled accounts.
+
 ## 9 November 2026 — Video model chooser visual redesign (compact, clearer pricing)
 
 - **Owner feedback and screenshot:** The updated picker displays many tiny chips, duplicates the 720p and duration text under each model, crowds the credit price next to a colored pricing-type badge, and wastes vertical space. Owner requested a well-designed, easy-to-scan, consistently spaced model chooser.
