@@ -1063,7 +1063,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
-  const performance=id==='model' ? window.dopePerformanceMarkup?.(o.value)||'' : '';
+  const performance=id==='model' ? globalThis.dopePerformanceMarkup?.(o.value)||'' : '';
   const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)),modelPickerSource(id,i))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
