@@ -17,6 +17,19 @@ function unverifiedDopeCandidateVisible(live) {
 const RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 const everySecond = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
 const SPECS = Object.freeze({
+  [UNVERIFIED_DOPE_VIDEO_CANDIDATE]: {
+    // Marketplace screenshot, 9 Nov 2026: 2–30 seconds, 480/720/1080p
+    // for one video price, text-to-video, multiple reference images and
+    // first/last frames. The published V1 video table does not yet list
+    // this exact ID; it MUST remain Admin opt-in pending live verification.
+    name: 'Seedance 2.5 Value · Dope',
+    resolution: '720p', resolutions: ['480p','720p','1080p'],
+    durations: everySecond(2,30), defaultDuration: 5,
+    priceCny: 2.20, pricingMode: 'clip',
+    priceReviewRequired: true, videoApiVerified: false,
+    // The screenshot omits supported ratios; use a conservative starter.
+    ratios: ['16:9','9:16'],
+  },
   'seedance-2.5-special2': {
     name: 'Seedance 2.5 Special2 · Dope', resolution: '1080p',
     durations: everySecond(5, 30), defaultDuration: 30, priceCny: 2.49, pricingMode: 'clip',
@@ -60,6 +73,10 @@ const SPECS = Object.freeze({
 // theoretical capabilities. The Buff video/audio count is intentionally 1
 // until the provider publishes a numerical maximum for those two media types.
 const REFERENCE_SPECS = Object.freeze({
+  // Screenshot confirms multiple images and first/last frame input, but
+  // does not show the provider's actual maximum. Start with only 2 images,
+  // keep video/audio unsupported, and validate upstream before expanding.
+  [UNVERIFIED_DOPE_VIDEO_CANDIDATE]: { images: 2, videos: 0, audios: 0 },
   'seedance-2.5-special2': { images: 9, videos: 0, audios: 3 },
   'seedance-2.5-full-720p-9img': { images: 9, videos: 0, audios: 0 },
   'seedance-2.5-full-720p-15-30s': { images: 9, videos: 0, audios: 0 },
@@ -85,7 +102,9 @@ function wxksaiReferenceCapabilities(id) {
   };
 }
 
-const publicId = id => 'wxksai_' + id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/,'');
+const publicId = id => id === UNVERIFIED_DOPE_VIDEO_CANDIDATE
+  ? 'wxksai_sd25_value' // Stable ASCII customer-facing alias, never leak vendor.
+  : 'wxksai_' + id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/,'');
 const isWxksaiModel = id => typeof id === 'string' && Object.keys(SPECS).some(key => {
   const legacy = publicId(key);
   return legacy === id || require('./dope_brand.js').customerModelId(legacy) === id;
@@ -104,7 +123,14 @@ function wxksaiMediaModels(live) {
       providerModelId: id, publicModelId: publicId(id), label: spec.name, mediaType: 'video',
       options: {
         catalogVerified: true, adapterSupported: true, gatewayType: 'video',
-        pricing, wxksai: { priceCny: spec.priceCny, pricingMode: spec.pricingMode, priceCheckedAt: '2026-11-08' },
+        pricing, wxksai: {
+          priceCny: spec.priceCny, pricingMode: spec.pricingMode,
+          priceCheckedAt: id===UNVERIFIED_DOPE_VIDEO_CANDIDATE?'2026-11-09':'2026-11-08',
+          ...(spec.priceReviewRequired ? {
+            priceReviewRequired: true, videoApiVerified: false,
+            sourcePriceCny: spec.priceCny, screenshotTaskPriceCny: 1.90,
+          } : {}),
+        },
         durations: spec.durations, resolutions: spec.resolutions || [spec.resolution],
         aspectRatios: spec.ratios, defaultDuration: spec.defaultDuration,
         defaultResolution: spec.resolution, defaultAspectRatio: '16:9',

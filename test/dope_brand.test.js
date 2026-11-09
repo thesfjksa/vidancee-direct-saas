@@ -9,12 +9,13 @@ const { serializeGeneration }=require('../src/generations.js');
 const { hideVendors, hideVendorsInBody }=require('../src/vendor_names.js');
 
 const ALL_MODELS=[
+  'sd 2.5掺水板',
   'seedance-2.5-special2','seedance-2.5-full-720p-9img',
   'seedance-2.5-full-720p-15-30s','seedance-2.5-bd-2',
   'wan3.0-video','seedance-2.0-full-720p-900','seedance2.5-buff',
 ];
 
-test('all seven Dope catalog IDs are public aliases of existing stable WXKSAI rows',()=>{
+test('all eight Dope catalog IDs are public aliases of existing stable WXKSAI rows',()=>{
   for(const id of ALL_MODELS){
     const legacy=publicId(id),brand=customerModelId(legacy);
     assert.match(legacy,/^wxksai_/);
@@ -30,7 +31,7 @@ test('all seven Dope catalog IDs are public aliases of existing stable WXKSAI ro
 
 test('public catalog offers Dope model names/IDs without upstream brand in payload',()=>{
   const saved=wxksaiMediaModels({data:ALL_MODELS.map(id=>({id}))});
-  assert.equal(saved.length,7);
+  assert.equal(saved.length,8);
   for(const row of saved){
     // Old imports may carry old WXKSAI labels. Public output must still be white-labeled.
     const model={...row.options,provider:'wxksai',publicModelId:row.publicModelId,label:row.label,

@@ -18,19 +18,26 @@ test('WXKSAI import is account-scoped and fails closed',()=>{
   assert.equal(wxksaiMediaModels({data:[{id:'seedance-2.5-special2'}]}).length,1);
   assert.equal(isWxksaiModel(publicId('seedance-2.5-special2')),true);
 });
-test('Dope SD 2.5 candidate is discoverable but never imported, priced or offered as video',async()=>{
+test('Dope SD 2.5 screenshot SKU imports only when present in key-scoped inventory',async()=>{
   const id='sd 2.5掺水板';
   assert.equal(UNVERIFIED_DOPE_VIDEO_CANDIDATE,id);
-  assert.equal(Object.hasOwn(SPECS,id),false);
+  assert.equal(Object.hasOwn(SPECS,id),true);
+  assert.equal(SPECS[id].priceReviewRequired,true);
+  assert.equal(SPECS[id].videoApiVerified,false);
   const live={data:[{id},{id:'seedance-2.5-special2'}]};
   assert.equal(unverifiedDopeCandidateVisible(live),true);
   assert.equal(unverifiedDopeCandidateVisible({data:[{id:'sd 2.5 掺水板'}]}),false);
   assert.equal(unverifiedDopeCandidateVisible({data:[]}),false);
   assert.throws(()=>unverifiedDopeCandidateVisible({}),/model list/);
   const ready=wxksaiMediaModels(live);
-  assert.equal(ready.length,1);
-  assert.equal(ready[0].providerModelId,'seedance-2.5-special2');
-  assert.equal(isWxksaiModel(publicId(id)),false);
+  assert.equal(ready.length,2);
+  assert.equal(ready[0].providerModelId,id);
+  assert.equal(ready[0].options.wxksai.priceReviewRequired,true);
+  assert.equal(ready[0].options.wxksai.videoApiVerified,false);
+  assert.equal(ready[0].options.wxksai.screenshotTaskPriceCny,1.90);
+  assert.equal(ready[0].options.wxksai.priceCny,2.20);
+  assert.equal(ready[1].providerModelId,'seedance-2.5-special2');
+  assert.equal(isWxksaiModel(publicId(id)),true);
   let requests=0;
   const client=new WxksaiClient({apiKey:'test-key',fetchImpl:async(url,opts)=>{
     requests++;
@@ -41,6 +48,47 @@ test('Dope SD 2.5 candidate is discoverable but never imported, priced or offere
   }});
   assert.equal(unverifiedDopeCandidateVisible(await client.models()),true);
   assert.equal(requests,1);
+});
+test('Dope SD 2.5 Value is a flat conservative ¥2.20 clip across 2–30 sec and 480p/720p/1080p',()=>{
+  const id=UNVERIFIED_DOPE_VIDEO_CANDIDATE,model=modelFor(id);
+  const all=[...model.durations];assert.equal(all.length,29);
+  assert.equal(all[0],2);assert.equal(all.at(-1),30);
+  assert.deepEqual(model.resolutions,['480p','720p','1080p']);
+  assert.equal(publicId(id),'wxksai_sd25_value');
+  assert.deepEqual(['image','video','audio'].map(kind=>model.referenceCapabilities[kind].max),[2,0,0]);
+  const cost=quoteGateway(model,{duration:2,resolution:'720p',aspectRatio:'16:9'},CREDITS_PER_USD).cost;
+  // Currency roundoff is handled within the production quote calculator;
+  // avoid double-floating-point ceil on the independent assertion.
+  assert.ok(Math.abs(cost-Math.ceil(2.20/CNY_PER_USD*CREDITS_PER_USD))<=1);
+  for(const duration of [2,5,15,30])for(const resolution of model.resolutions){
+    assert.equal(quoteGateway(model,{duration,resolution,aspectRatio:'16:9'},CREDITS_PER_USD).cost,cost);
+  }
+  assert.throws(()=>quoteGateway(model,{duration:1,resolution:'720p'}),/Unsupported duration/);
+  assert.throws(()=>quoteGateway(model,{duration:31,resolution:'720p'}),/Unsupported duration/);
+  assert.throws(()=>quoteGateway(model,{duration:2,resolution:'1440p'}),/Unsupported resolution/);
+});
+test('Dope SD 2.5 Value submits exact Unicode model ID, two images but no audio/video in a single paid POST',async()=>{
+  let submissions=0,last;
+  const client=new WxksaiClient({apiKey:'test-key',fetchImpl:async(url,req)=>{
+    submissions++;last={url,req};return Response.json({id:'value_task_001'});
+  }});
+  const id=UNVERIFIED_DOPE_VIDEO_CANDIDATE;
+  const opts={model:{providerModelId:id},prompt:'A moving subject',duration:2,resolution:'1080p',aspectRatio:'16:9'};
+  const img=(n)=>({kind:'image',mimeType:'image/png',filename:'ref'+n+'.png',data:Buffer.from([137,80,78,71,13,10,26,10,n])});
+  const result=await client.startVideo(opts,[img(1),img(2)]);
+  assert.equal(result.requestId,'value_task_001');
+  assert.equal(submissions,1);
+  assert.equal(last.url,'https://api.wxksai.com/v1/videos');
+  assert.equal(last.req.method,'POST');
+  assert.equal(last.req.headers['content-type'],undefined);
+  assert.equal(last.req.body.get('model'),id);
+  assert.equal(last.req.body.get('seconds'),'2');
+  assert.equal(last.req.body.get('resolution'),'1080p');
+  assert.equal(last.req.body.getAll('images').length,2);
+  await assert.rejects(client.startVideo(opts,[img(1),img(2),img(3)]),/does not support/);
+  await assert.rejects(client.startVideo(opts,[{kind:'audio',mimeType:'audio/wav',filename:'voice.wav',data:Buffer.alloc(128)}]),/does not support/);
+  await assert.rejects(client.startVideo(opts,[{kind:'video',mimeType:'video/mp4',filename:'video.mp4',data:Buffer.alloc(128)}]),/does not support/);
+  assert.equal(submissions,1);
 });
 test('WXKSAI fixed 1080p per-clip prices do not depend on seconds',()=>{
   const m=modelFor('seedance-2.5-special2');
@@ -133,6 +181,7 @@ test('WXKSAI submission timeouts warn against duplicate paid jobs',()=>{
 });
 test('WXKSAI advertises exact per-model reference kinds and does not enable unsupported media',()=>{
   const expected={
+    [UNVERIFIED_DOPE_VIDEO_CANDIDATE]:[2,0,0],
     'seedance-2.5-special2':[9,0,3],
     'seedance-2.5-full-720p-9img':[9,0,0],
     'seedance-2.5-full-720p-15-30s':[9,0,0],

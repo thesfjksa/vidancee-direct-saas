@@ -244,7 +244,7 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkWxksai()">Check account models</button><button class="secondary" onclick="syncWxksai()">Import account models</button></div>
   <div class="muted" id="wxksaiActionMsg" role="status"></div>
   <div class="muted" id="wxksaiModelSummary">No inventory loaded.</div>
-  <p class="muted">Dope SD 2.5 variant is monitored in the read-only account model check. Its supplied Chat Completions example is not enough to enable paid video generation. The import remains limited to verified video models.</p>
+  <p class="muted">Seedance 2.5 Value (sd 2.5掺水板): marketplace screenshot indicates 2–30s, 480p/720p/1080p, text and multiple images. <strong>Admin review required:</strong> screenshot description ¥2.20/clip, task billing ¥1.90/clip. Initial quote uses ¥2.20; no verified paid video POST or first/last-frame parameter contract. Imported disabled until explicitly reviewed and enabled.</p>
 </div>
 <div class="card provider-source-card" data-provider-source="longai" hidden>
           <div class="source-head"><h3>Video Studio · LONG AI</h3><label class="source-switch"><input id="longaiEnabled" type="checkbox" aria-label="Enable LONG AI" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
@@ -1475,7 +1475,7 @@ async function checkWxksai(){
     const r=await api('/admin/wxksai/check',{method:'POST',body:'{}'});
     panel.textContent='Connected · '+r.accessibleModels+' models visible to this key · '+r.supportedModels+' supported for initial import. '+
       'Dope SD 2.5 variant: '+(r.sd25CandidateVisible?'listed by this key':'not listed by this key')+
-      ' · video API, reference support and pricing not yet verified; unavailable to customers.';
+      ' · video route untested; the import is disabled until Admin review.';
     panel.className='ok';
   }catch(e){panel.textContent=e.message;panel.className='err'}
 }
@@ -1493,10 +1493,18 @@ async function loadWxksaiModels(){
     const r=await api('/admin/provider-models?provider=wxksai');
     const rows=Array.isArray(r.models)?r.models:[];
     panel.innerHTML='<strong>'+rows.length+' imported Dope models</strong><div class="muted">Enable a specific SKU only after price and API testing. Existing account access remains restricted by the source switch.</div>'+
-      rows.map(m=>'<div style="display:flex;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(m.label)+'</strong><div class="muted">ID: '+esc(m.providerModelId)+' · ¥'+esc(m.wxksai?.priceCny||'?')+' '+esc(m.wxksai?.pricingMode==='second'?'/sec':'/clip')+' · '+(m.available?'available':'not returned')+'</div></div><label><input type="checkbox" '+(m.enabled?'checked':'')+' onchange="toggleWxksaiModel('+Number(m.id)+',this.checked,this)" '+(!m.available?'disabled':'')+'> Enabled</label></div>').join('');
+      rows.map(m=>'<div style="display:flex;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(m.label)+'</strong><div class="muted">ID: '+esc(m.providerModelId)+' · ¥'+esc(m.wxksai?.priceCny||'?')+' '+esc(m.wxksai?.pricingMode==='second'?'/sec':'/clip')+' · '+(m.available?'available':'not returned')+'</div>'+(m.wxksai?.priceReviewRequired?'<div class="muted" style="max-width:380px">Unverified V1 video compatibility · Screenshot: ¥2.20 description / ¥1.90 task billing · verify exact paid route, limits, customer credits and refund behavior before enabling.</div>':'')+'</div><label><input type="checkbox" '+(m.enabled?'checked':'')+' onchange="toggleWxksaiModel('+Number(m.id)+',this.checked,this)" '+(!m.available?'disabled':'')+'> Enabled</label></div>').join('');
   }catch(e){panel.textContent='Model inventory unavailable: '+e.message;}
 }
 async function toggleWxksaiModel(id,enabled,input){
+  if(enabled){
+    const rows=await api('/admin/provider-models?provider=wxksai').then(r=>r.models||[]).catch(()=>[]);
+    const model=rows.find(row=>Number(row.id)===Number(id));
+    if(model?.wxksai?.priceReviewRequired &&
+        !window.confirm('Seedance 2.5 Value is experimental. The screenshot advertises ¥2.20/clip but task billing shows ¥1.90/clip. The unified V1 video route, references and paid-task behavior have not been verified. Enable for customers anyway?')){
+      input.checked=false;return;
+    }
+  }
   input.disabled=true;
   try{await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({provider:'wxksai',enabled})});await loadWxksaiModels();}
   catch(e){input.checked=!enabled;input.disabled=false;$('wxksaiActionMsg').className='err';$('wxksaiActionMsg').textContent=e.message;}
