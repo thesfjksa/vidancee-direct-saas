@@ -887,6 +887,27 @@ function pickerQuoteBody(m){
 }
 async function pickerQuote(m){
   const body=pickerQuoteBody(m);
+  if(m.billingMode==='per_second'){
+    // Price the lowest supported base rate across resolutions; source quotes
+    // already include the signed-in customer's configured pricing multiplier.
+    const resolutions=m.resolutions?.length?m.resolutions:[{id:body.resolution,durations:m.durations}];
+    const candidates=[];
+    for(const resolution of resolutions){
+      const lengths=(resolution.durations||m.durations||[]).map(d=>Number(d.seconds))
+        .filter(n=>Number.isFinite(n)&&n>0);
+      const duration=lengths.length?Math.min(...lengths):body.duration;
+      if(!(duration>0))continue;
+      try{
+        const {cost}=await fetchQuote({...body,resolution:resolution.id||'',duration});
+        if(Number(cost)>0)candidates.push({rate:Number(cost)/duration,cost:Number(cost),duration,resolution:resolution.id});
+      }catch{}
+    }
+    if(!candidates.length)return 'Price unavailable';
+    const cheapest=candidates.reduce((a,b)=>b.rate<a.rate?b:a);
+    return 'Min '+pickerCreditNumber(cheapest.rate)+' credits/sec · '+
+      pickerCreditNumber(cheapest.cost)+' credits ('+cheapest.duration+'s'+
+      (cheapest.resolution?' · '+cheapest.resolution:'')+')';
+  }
   try{
     const {cost}=await fetchQuote(body);
     if(!(Number(cost)>0))return 'Price unavailable';
