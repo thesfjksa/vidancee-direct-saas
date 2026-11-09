@@ -5,30 +5,30 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function browserLabel(browser) { return browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome'; }
-function findBrowser(browser = 'chrome', env = process.env, exists = existsSync) {
-  if (!['chrome', 'edge'].includes(browser)) throw new Error('Unsupported AIVID browser.');
-  const folder = browser === 'edge' ? ['Microsoft', 'Edge', 'Application', 'msedge.exe'] : ['Google', 'Chrome', 'Application', 'chrome.exe'];
-  const override = browser === 'edge' ? env.AIVID_EDGE_PATH : env.AIVID_CHROME_PATH;
+function browserLabel() { return 'Microsoft Edge'; }
+function findBrowser(browser = 'edge', env = process.env, exists = existsSync) {
+  if (browser !== 'edge') throw new Error('Only Microsoft Edge is supported by the AIVID RDP agent.');
+  const folder = ['Microsoft', 'Edge', 'Application', 'msedge.exe'];
+  const override = env.AIVID_EDGE_PATH;
   const roots = [env.PROGRAMFILES || env.ProgramFiles, env['PROGRAMFILES(X86)'] || env['ProgramFiles(x86)'], env.LOCALAPPDATA];
   const candidates = [override, ...roots.filter(Boolean).map(root => path.win32.join(root, ...folder))].filter(Boolean);
   const found = candidates.find(exists);
-  if (!found) throw new Error(browserLabel(browser) + ' is not installed on this RDP. Install it or select the other browser in Admin.');
+  if (!found) throw new Error('Microsoft Edge is not installed on this RDP. Install Edge before starting the agent.');
   return found;
 }
-function findChrome(env = process.env, exists = existsSync) { return findBrowser('chrome', env, exists); }
-function browserProfile(root, browser = 'chrome') {
-  if (!['chrome', 'edge'].includes(browser)) throw new Error('Unsupported AIVID browser.');
-  return path.join(root, browser === 'edge' ? '.aivid-rdp-edge-profile' : '.aivid-rdp-profile');
+function browserProfile(root, browser = 'edge') {
+  if (browser !== 'edge') throw new Error('Only Microsoft Edge is supported by the AIVID RDP agent.');
+  return path.join(root, '.aivid-rdp-edge-profile');
 }
-function chromeArguments(profile, debug = false, initialUrl = 'https://aivid.dev/') {
+function chromiumArguments(profile, debug = false, initialUrl = 'https://aivid.dev/') {
   if (!['https://aivid.dev/', 'about:blank'].includes(initialUrl)) throw new Error('Unsupported browser start page.');
   return ['--user-data-dir=' + path.resolve(profile), '--new-window',
     ...(debug ? ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0'] : []), initialUrl];
 }
-async function startChrome(profile, { browser = 'chrome', debug = false, env = process.env, start = spawn, initialUrl = 'https://aivid.dev/' } = {}) {
+async function startEdge(profile, { browser = 'edge', debug = false, env = process.env, start = spawn, initialUrl = 'https://aivid.dev/' } = {}) {
+  if (browser !== 'edge') throw new Error('Only Microsoft Edge is supported by the AIVID RDP agent.');
   await fs.mkdir(profile, { recursive: true });
-  const child = start(findBrowser(browser, env), chromeArguments(profile, debug, initialUrl), { detached: true, stdio: 'ignore', shell: false });
+  const child = start(findBrowser('edge', env), chromiumArguments(profile, debug, initialUrl), { detached: true, stdio: 'ignore', shell: false });
   await new Promise((resolve, reject) => {
     child.once('spawn', resolve); child.once('error', () => reject(new Error(browserLabel(browser) + ' could not start. Use a writable folder on your RDP.')));
   });
@@ -46,7 +46,8 @@ async function debuggerEndpoint(profile, fetchImpl = fetch) {
     return 'ws://127.0.0.1:' + port + target;
   } catch { return null; }
 }
-async function connectNative(profile, { browser: browserType = 'chrome', chromium, fetchImpl = fetch, start = startChrome, timeoutMs = 20000 } = {}) {
+async function connectNative(profile, { browser: browserType = 'edge', chromium, fetchImpl = fetch, start = startEdge, timeoutMs = 20000 } = {}) {
+  if (browserType !== 'edge') throw new Error('Only Microsoft Edge is supported by the AIVID RDP agent.');
   let endpoint = await debuggerEndpoint(profile, fetchImpl);
   if (!endpoint) {
     await start(profile, { browser: browserType, debug: true });
@@ -68,7 +69,7 @@ async function connectNative(profile, { browser: browserType = 'chrome', chromiu
       if (old === page) continue;
       try { if (old.url() === 'about:blank' || new URL(old.url()).origin === 'https://aivid.dev') await old.close(); } catch {}
     }
-    // With connectOverCDP, close disconnects the Playwright transport. Chrome
+    // With connectOverCDP, close disconnects the Playwright transport. Edge
     // was launched independently and stays running with its saved profile.
     return { browser, context, page, close: async () => { await browser.close().catch(() => {}); } };
   } catch {
@@ -133,7 +134,7 @@ async function downloadNative(page,{fetchImpl=fetch,timeoutMs=60000,jobId:reques
   const inspect=async target=>{try{
     await target.waitForLoadState('domcontentloaded',{timeout:10000});
     if(securityWarning(await target.title(),await target.locator('body').innerText({timeout:3000}))){
-      rejectBlocked(Object.assign(new Error('Chrome blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));controller.abort();return;
+      rejectBlocked(Object.assign(new Error('Microsoft Edge blocked this download. Review its security warning; automatic collection is paused.'),{aividCode:'download_security'}));controller.abort();return;
     }
     const media=mediaUrl(target.url());
     if(!media||mediaStarted)return;
@@ -260,4 +261,4 @@ async function takeLock(root) {
   }
   throw new Error('The AIVID agent lock could not be acquired.');
 }
-module.exports = { collectSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findChrome, findBrowser, browserProfile, chromeArguments, startChrome, debuggerEndpoint, connectNative, downloadNative, takeLock };
+module.exports = { collectSavedVideo, inlineVideoUrl, readInlineVideo, securityWarning, findBrowser, browserProfile, chromiumArguments, startEdge, debuggerEndpoint, connectNative, downloadNative, takeLock };

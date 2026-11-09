@@ -27,7 +27,7 @@ test('RDP schema, atomic claims, reservation and binary chunks work in real MySQ
   const device = await service.authorize('Bearer ' + paired.token);
   const id = crypto.randomUUID();
   await store.insert({ id, deviceId: paired.deviceId, generationId: null, kind: 'collect', payload: { providerJobId: '6aec589f09c74e1c2ef12900' }, expiresAt: Date.now() + 60000 });
-  const claims = await Promise.all([service.poll(device, 'ready'), service.poll(device, 'ready')]);
+  const claims = await Promise.all([service.poll(device, 'ready', 'edge'), service.poll(device, 'ready', 'edge')]);
   assert.equal(claims.filter(r => r.command).length, 1);
   const data = Buffer.alloc(1024 * 1024 + 16); data.write('ftyp', 4, 'ascii');
   await store.chunk(id, 0, data.subarray(0, 1024 * 1024));
@@ -41,7 +41,7 @@ test('RDP schema, atomic claims, reservation and binary chunks work in real MySQ
   const [[chunks]] = await db.query('SELECT COUNT(*) AS total FROM aivid_rdp_chunks WHERE command_id=?', [id]); assert.equal(Number(chunks.total), 0);
   const submit = crypto.randomUUID();
   await store.insert({ id: submit, deviceId: paired.deviceId, generationId: null, kind: 'submit', payload: {}, expiresAt: Date.now() + 60000 });
-  await service.poll(device, 'ready'); await service.reserve(device, submit, 2);
+  await service.poll(device, 'ready', 'edge'); await service.reserve(device, submit, 2);
   assert.equal((await store.get(submit)).state, 'review');
   await store.move(submit, 'review', 'reserved', { price: 2 });
   await service.result(device, submit, { state: 'accepted', providerJobId: '6aec589f09c74e1c2ef12900' });

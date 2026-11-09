@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {saveAividSettings,CONFIG_KEY}=require('../src/aivid_settings.js');
 const {aividReady,customerCatalog}=require('../src/aivid_models.js');
 const sample=()=>({apiKey:'',endpoint:'https://production-sfo.browserless.io',mode:'rdp',enabled:false,maxSourceCredits:0,ttlDays:1,
-  rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready'}});
+  rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready',browser:'edge'}});
 test('AIVID Admin save verifies persisted enabled flag and ceiling before reporting success',async()=>{
   const db=new Map();
   const base=sample();
@@ -30,4 +30,10 @@ test('Browser admin UI displays saved state distinct from changed checkbox and r
   assert.match(ui,/Unsaved changes/);
   assert.match(ui,/const verified=await window\.loadAividAdmin\(\{strict:true\}\)/);
   assert.match(ui,/verified\.enabled!==expectedEnabled/);
+});
+
+test('legacy Chrome selection is never saved again after updating AIVID settings',async()=>{
+ const db=new Map(); const old={...sample(),browser:'chrome'};
+ const saved=await saveAividSettings({mode:'rdp',browser:'chrome'}, {getConfig:async()=>old,write:async(k,v)=>db.set(k,v),read:async(k,d)=>db.get(k)||d});
+ assert.equal(saved.browser,'edge');assert.equal(JSON.parse(db.get(CONFIG_KEY)).browser,'edge');
 });

@@ -48,7 +48,7 @@ const {openLoginPage,AividBrowserlessClient,waitForSession}=require('../src/prov
  await page.route('http://cmmtools.test/**',async route=>{
   const req=route.request(),url=new URL(req.url()),p=url.pathname;
   if(p==='/admin-console')return route.fulfill({contentType:'text/html',body:fs.readFileSync('public/admin.html','utf8')});
-  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,mode,rdp:{paired:rdpPaired,online:rdpPaired,status:'ready',seenAt:new Date().toISOString()},apiKeyConfigured:saved,configured:mode==='rdp'?rdpPaired:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:mode==='rdp'?{state:'idle'}:login()}});
+  if(p==='/admin/aivid/status')return route.fulfill({json:{ok:true,mode,rdp:{paired:rdpPaired,online:rdpPaired,status:'ready',browser:'edge',seenAt:new Date().toISOString()},browser:'edge',apiKeyConfigured:saved,configured:mode==='rdp'?rdpPaired:saved&&loginState==='connected',endpoint:'https://production-sfo.browserless.io',ttlDays:1,login:mode==='rdp'?{state:'idle'}:login()}});
   if(p==='/admin/aivid/settings'){const body=req.postDataJSON();calls.push({p,headers:req.headers(),body});mode=body.mode||mode;saved=true;return route.fulfill({json:{ok:true,apiKeyConfigured:true}});}
   if(p==='/admin/aivid/rdp/pairing')return route.fulfill({json:{ok:true,code:'AABBCCDDEEFF001122334455',expiresAt:new Date(Date.now()+600000).toISOString()}});
   if(p==='/admin/aivid/login'){

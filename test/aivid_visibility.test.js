@@ -6,7 +6,7 @@ const fs=require('node:fs');
 test('Premium models are always in the account catalog, even if RDP disconnects',()=>{
   const models=require('../src/aivid_models.js');
   const connected={enabled:true,mode:'rdp',maxSourceCredits:30,rdpDevice:{
-    deviceId:'test',tokenHash:'secret',seenAt:new Date().toISOString(),status:'ready'}};
+    deviceId:'test',tokenHash:'secret',seenAt:new Date().toISOString(),status:'ready',browser:'edge'}};
   const ready=models.customerCatalog(connected);
   const stale=models.customerCatalog({...connected,rdpDevice:{...connected.rdpDevice,seenAt:'2020-01-01T00:00:00Z'}});
   assert.deepEqual(stale.map(m=>m.id),ready.map(m=>m.id));

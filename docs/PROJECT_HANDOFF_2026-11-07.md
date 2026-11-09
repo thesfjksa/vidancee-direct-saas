@@ -10,6 +10,14 @@
 - All 26 targeted Dope tests passed with mock provider calls, including the restored catalog eligibility check. The prior live HTTP 410 from Dope remains the last verified submission result for this SKU. A new paid render was not submitted.
 - Deploy the updated web service and standalone worker from the merged revision. In Admin → Provider → Dope, verify the account inventory lists the model as available and its Enabled checkbox is selected. Verify it appears in Video Studio for an eligible customer.
 
+## 10 November 2026 — Windows AIVID RDP is now Microsoft Edge only
+
+- **Scope:** Removed the Chrome/Edge selector from Admin → Provider → AIVID → Windows RDP agent. Microsoft Edge is mandatory for the Windows worker and manual login launcher. AIVID Browserless mode is unchanged.
+- **Persistence/compatibility:** Legacy saved `browser: chrome` settings and old client browser fields are normalized to `edge` without touching enabled flags, source-credit ceilings, pairing, credentials, existing jobs, receipts, credit ledger, or provider behavior. Existing authenticated `/browser` reports Edge; stale Chrome agents are prevented from claiming new jobs.
+- **Windows:** AIVID-Login.exe always opens Microsoft Edge in the existing dedicated `.aivid-rdp-edge-profile`; the agent uses loopback-only CDP in the same profile. Preserve both `.aivid-rdp-profile` (legacy Chrome, not used) and `.aivid-rdp-edge-profile`, `.aivid-agent.json`, `.aivid-runtime` and `receipts`. Install Edge, complete AIVID sign-in in the Edge profile, close that login window, and start the latest agent. Do not interrupt in-flight AIVID operations or resubmit uncertain provider jobs.
+- **Scope boundary:** No changes to model catalogs, prompts, price conversion, credit charging, reference uploads, submission guards, queue/collection/retry behavior, security-warning bypass rules, or unrelated providers.
+- **Verification/deployment:** Added Edge-only settings, native executable/profile, stale-agent claim-blocking, premium readiness and Admin UI regression coverage; updated Windows CI to run against Microsoft Edge. Confirm GitHub checks and the merge before release. Deploy updated web + managed worker, package current Windows RDP EXEs, and verify a read-only signed-in Edge preflight on the actual RDP before any separately approved paid test. No live paid generation or production deployment was performed in this change.
+
 ## 10 November 2026 — Private AIVID interactive white-label browser pilot
 
 - **Owner request:** Host the real AIVID buttons/pages inside CMMTools with CMMTools styling, under the owner's reported written white-label/custom-browser authorization. Do not resell AIVID subscription plans.

@@ -160,8 +160,7 @@
           <p class="muted">Choose a duration supported by your Browserless plan. The key and browser session are encrypted after saving.</p>
           </div>
           <div id="aividRdpFields" hidden>
-            <div class="field"><label for="aividRdpBrowser">Windows browser</label><select id="aividRdpBrowser" onchange="markAividSettingsDirty()"><option value="chrome">Google Chrome</option><option value="edge">Microsoft Edge</option></select></div>
-            <p class="muted">Save to select the browser used by the Windows agent. Chrome and Edge have separate AIVID sign-in profiles. For a new browser, close Agent, open the updated AIVID-Login.exe, sign in, close that browser window, then restart Agent. Switching never re-submits paid jobs.</p>
+            <p class="muted">The Windows RDP agent uses Microsoft Edge only. Sign in with AIVID-Login.exe using its separate, persistent Edge profile; close the login window before starting AIVID-Agent.exe. Existing pairing, receipts and jobs are preserved.</p>
             <p id="aividRdpStatus" class="muted" role="status">Save RDP mode, then pair the agent.</p>
             <button id="aividPairButton" class="secondary" type="button" onclick="pairAividRdp()">Generate pairing code</button>
             <div id="aividPairCopyRow" hidden style="margin-top:12px"><label for="aividPairCodeInput">One-time pairing code</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="aividPairCodeInput" readonly autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button id="aividCopyCodeButton" class="secondary" type="button" onclick="copyAividRdpCode()">Copy code</button></div></div>

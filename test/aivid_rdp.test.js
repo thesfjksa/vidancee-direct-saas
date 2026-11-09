@@ -46,7 +46,7 @@ function fixture() {
   const service = new AividRdpService({ db: () => db, read, write, getConfig: async () => ({ mode: 'rdp' }), store });
   const device = { deviceId, tokenHash: hash(token) };
   const transport = { request: async (route, options = {}) => {
-    if (route === '/poll') return service.poll(device, options.body.status);
+    if (route === '/poll') return service.poll(device, options.body.status, options.body.browser || 'edge');
     const parts = route.split('/'), id = parts[2], action = parts[3];
     if (!action) return { state: (await service.command(device, id)).state };
     if (action === 'reserve') return service.reserve(device, id, options.body.price);
@@ -95,9 +95,9 @@ test('pairing rechecks outstanding work when consuming a previously generated co
 test('one command can be claimed once, and login-required agents can only claim preflight', async () => {
   const f = fixture();
   await f.store.insert({ id: jobId, deviceId: f.device.deviceId, kind: 'submit', payload: {}, expiresAt: Date.now() + 10000 });
-  assert.equal((await f.service.poll(f.device, 'starting')).command, null);
-  assert.equal((await f.service.poll(f.device, 'needs_login')).command, null);
-  const claims = await Promise.all([f.service.poll(f.device, 'ready'), f.service.poll(f.device, 'ready')]);
+  assert.equal((await f.service.poll(f.device, 'starting', 'edge')).command, null);
+  assert.equal((await f.service.poll(f.device, 'needs_login', 'edge')).command, null);
+  const claims = await Promise.all([f.service.poll(f.device, 'ready', 'edge'), f.service.poll(f.device, 'ready', 'edge')]);
   assert.equal(claims.filter(c => c.command).length, 1);
   const other = { deviceId: crypto.randomUUID() };
   await assert.rejects(f.service.command(other, jobId), /ended/);
@@ -114,7 +114,7 @@ test('agent Generate occurs only after the server reservation, and reporting ret
     await hooks.beforeClick({ price: 2 }); assert.equal(reserved, 1); clicked++; return { state: 'accepted', providerJobId };
   } }) });
   const waiting = f.client.startVideo(value, [], { beforeClick: async ({ price }) => { assert.equal(price, 2); reserved++; } });
-  await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  await flush(); const { command } = await f.service.poll(f.device, 'ready', 'edge');
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.providerJobId, providerJobId); assert.equal(clicked, 1); assert.equal(reports, 2);
   const receipt = JSON.parse(await fs.readFile(path.join(root, 'receipts', jobId + '.json'), 'utf8'));
@@ -128,7 +128,7 @@ test('a rejected reservation cannot reach Generate; late callbacks are refused',
     await hooks.beforeClick({ price: 9 }); clicked++; return { state: 'accepted', providerJobId };
   } }) });
   const waiting = f.client.startVideo(value, [], { beforeClick: async () => { throw new Error('price limit changed'); } });
-  waiting.catch(() => {}); await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  waiting.catch(() => {}); await flush(); const { command } = await f.service.poll(f.device, 'ready', 'edge');
   const results = await Promise.allSettled([agent.execute(command), waiting]);
   assert.equal(results.every(r => r.status === 'rejected'), true); assert.equal(clicked, 0);
   await assert.rejects(f.service.reserve(f.device, command.id, 9), /ended/);
@@ -137,7 +137,7 @@ test('read-only preflight works with zero balance and never requests a paid rese
   const f = fixture(); let reservations = 0;
   f.service.reserve = async () => { reservations++; throw new Error(); };
   const agent = new Agent({ transport: f.transport, clientFactory: () => ({ preflight: async () => ({ ready: true, submitted: false, price: 2, balance: 0 }) }) });
-  const waiting = f.client.preflight(value); await flush(); const { command } = await f.service.poll(f.device, 'needs_login');
+  const waiting = f.client.preflight(value); await flush(); const { command } = await f.service.poll(f.device, 'needs_login', 'edge');
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.balance, 0); assert.equal(reservations, 0);
 });
@@ -153,7 +153,7 @@ test('synthetic reference checks transfer verified media without a generation ro
       return {ready:true,verified:true,submitted:false,generationBlocked:true,modelId:v.model,duration:v.duration,
         resolution:v.resolution,aspectRatio:v.aspectRatio,uploadedCounts:counts,price:1,balanceBefore:50,balanceAfter:50,secret:'not-returned'};
     }})});
-    const waiting=f.client.checkReferences(requested,refs);await flush();const {command}=await f.service.poll(f.device,'ready');
+    const waiting=f.client.checkReferences(requested,refs);await flush();const {command}=await f.service.poll(f.device, 'ready', 'edge');
     assert.equal(command.kind,'reference_check');
     const [,result]=await Promise.all([agent.execute(command),waiting]);
     assert.equal(checks,1);assert.equal(reservations,0);assert.equal(result.generationBlocked,true);
@@ -170,7 +170,7 @@ test('Premium preflight relay preserves verified model settings and rejects wron
     [{aspectRatio:'9:16'},'form_aspect_ratio'],[{modelId:undefined},'form_model']]){
     const f=fixture(),id=crypto.randomUUID();
     await f.store.insert({id,deviceId:f.device.deviceId,kind:'preflight',expiresAt:Date.now()+10000,payload:{value:requested}});
-    await f.service.poll(f.device,'ready');
+    await f.service.poll(f.device, 'ready', 'edge');
     await f.service.result(f.device,id,{...good,...patch,secret:'do-not-relay'});
     const response=(await f.store.get(id)).response;
     if(code)assert.deepEqual(response,{error:true,errorCode:code});
@@ -190,7 +190,7 @@ test('MP4 is transferred in bounded chunks and verified before the existing queu
     return request(route, options);
   };
   const agent = new Agent({ pause: flush, transport: f.transport, clientFactory: () => ({ collectVideo: async () => ({ state: 'completed', output: { data, mimeType: 'video/mp4' } }) }) });
-  const waiting = f.client.collectVideo(providerJobId); await flush(); const { command } = await f.service.poll(f.device, 'ready');
+  const waiting = f.client.collectVideo(providerJobId); await flush(); const { command } = await f.service.poll(f.device, 'ready', 'edge');
   const [, result] = await Promise.all([agent.execute(command), waiting]);
   assert.equal(result.state, 'completed'); assert.deepEqual(result.output.data, data);
   assert.equal(chunkAttempts, 3);
@@ -208,7 +208,7 @@ test('collection relay preserves only the approved reason on a failed video', as
     }) });
     const waiting = f.client.collectVideo(providerJobId);
     await flush();
-    const { command } = await f.service.poll(f.device, 'ready');
+    const { command } = await f.service.poll(f.device, 'ready', 'edge');
     const [, result] = await Promise.all([agent.execute(command), waiting]);
     assert.deepEqual(result, expected);
   }
@@ -224,13 +224,13 @@ test('invalid, missing or out-of-order MP4 chunks cannot complete an output', as
 test('only fixed diagnostic codes reach Admin; raw browser failures stay private', async () => {
   const f = fixture();
   const waiting = f.client.preflight(value); waiting.catch(() => {});
-  await flush(); const { command } = await f.service.poll(f.device, 'needs_login');
+  await flush(); const { command } = await f.service.poll(f.device, 'needs_login', 'edge');
   await f.service.result(f.device, command.id, { error: true, errorCode: 'duration', message: 'SECRET cookie token' });
   await assert.rejects(waiting, error => {
     assert.match(error.message, /\[duration\].*duration slider/); assert.doesNotMatch(error.message, /SECRET|cookie|token/); return true;
   });
   const second = f.client.preflight(value); second.catch(() => {});
-  await flush(); const next = (await f.service.poll(f.device, 'needs_login')).command;
+  await flush(); const next = (await f.service.poll(f.device, 'needs_login', 'edge')).command;
   await f.service.result(f.device, next.id, { error: true, errorCode: 'SECRET cookie token' });
   await assert.rejects(second, error => { assert.doesNotMatch(error.message, /SECRET|cookie|token/); return true; });
 });
@@ -240,7 +240,7 @@ test('upload rejection before reservation reports safely without a receipt or pa
   let reservations=0;
   const agent=new Agent({root,transport:f.transport,clientFactory:()=>({startVideo:async()=>({state:'rejected'})})});
   const waiting=f.client.startVideo(value,[],{beforeClick:async()=>{reservations++}});await flush();
-  const {command}=await f.service.poll(f.device,'ready');
+  const {command}=await f.service.poll(f.device, 'ready', 'edge');
   await assert.rejects(f.service.result(f.device,command.id,{state:'accepted',providerJobId}),/not reserved/);
   await assert.rejects(f.service.result(f.device,command.id,{state:'submission_uncertain'}),/not reserved/);
   const [,result]=await Promise.all([agent.execute(command),waiting]);
@@ -265,7 +265,7 @@ test('a cleanup outage preserves the accepted result after a paid submission', a
   f.store.remove = async () => { throw new Error('Database connection interrupted'); };
   const waiting = f.client.startVideo(value, [], { beforeClick: async () => {} });
   await flush();
-  const { command } = await f.service.poll(f.device, 'ready');
+  const { command } = await f.service.poll(f.device, 'ready', 'edge');
   await f.service.reserve(f.device, command.id, 2);
   await flush();
   await f.service.result(f.device, command.id, { state: 'accepted', providerJobId });

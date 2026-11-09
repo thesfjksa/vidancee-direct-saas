@@ -228,8 +228,8 @@ class AividRdpService {
     return device;
   }
   async browser() {
-    const config = await this.getConfig();
-    return { browser: config.browser === 'edge' ? 'edge' : 'chrome' };
+    // Compatibility endpoint for older paired agents; the runtime is Edge-only.
+    return { browser: 'edge' };
   }
   async poll(device, status, browser = 'chrome') {
     if (!RDP_STATUSES.includes(status)) throw failure('Invalid RDP status.');

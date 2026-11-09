@@ -13,7 +13,7 @@ test('AIVID quote uses current Public source credits at $0.12, never the old Adm
     modelId:data.model,duration:data.duration,resolution:data.resolution,aspectRatio:data.aspectRatio}};
   const db={getConnection:async()=>({query:async sql=>[[{acquired:1}]],release(){}})};
   const config={mode:'rdp',enabled:true,maxSourceCredits:10,customerCreditsPerSourceCredit:480,store:{},
-    rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready'}};
+    rdpDevice:{deviceId:'test',tokenHash:'hash',seenAt:new Date().toISOString(),status:'ready',browser:'edge'}};
   try{
     const result=await quoteAivid(config,{model:'aivid_seedance_2_0_mini',duration:5,aspectRatio:'16:9',resolution:'480p'},{db});
     assert.equal(requested.model,'aivid_seedance_2_0_mini');
@@ -41,7 +41,7 @@ test('Premium previews share one verified price per source and setting while sub
   }));
   const db={getConnection:async()=>({query:async()=>[[{acquired:1}]],release(){}})};
   const config={mode:'rdp',enabled:true,maxSourceCredits:20,store:{},
-    rdpDevice:{deviceId:'preview-fixture',tokenHash:'hash',seenAt:new Date(now).toISOString(),status:'ready'}};
+    rdpDevice:{deviceId:'preview-fixture',tokenHash:'hash',seenAt:new Date(now).toISOString(),status:'ready',browser:'edge'}};
   const body={model:'aivid_seedance_2_0_mini',duration:15,resolution:'480p',aspectRatio:'16:9'};
   const read=(settings=body,connection=config)=>quoteAivid(connection,settings,{db,preview:true});
   const [first,concurrent]=await Promise.all([read(),read({...body,prompt:'edited',previewHasReferences:true})]);
