@@ -119,7 +119,7 @@ async function syncProviderModels(provider, discoveredModels) {
       await conn.execute(
         `INSERT INTO provider_models
           (provider,provider_model_id,public_model_id,label,media_type,tool_name,input_schema,options_json,enabled,available,last_seen_at)
-         VALUES (?,?,?,?,?,?,?,?,1,1,UTC_TIMESTAMP())
+         VALUES (?,?,?,?,?,?,?,?,?,1,UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE
            public_model_id=VALUES(public_model_id),
            label=VALUES(label),
@@ -138,6 +138,10 @@ async function syncProviderModels(provider, discoveredModels) {
           model.toolName,
           model.inputSchema,
           model.optionsJson,
+          // WXKSAI / Dope is explicitly Admin opt-in. Insert disabled
+          // atomically so newly discovered models cannot briefly be offered
+          // to paying customers between the import and post-import review.
+          provider==='wxksai'?0:1,
         ],
       );
       if(provider==='api888'){
