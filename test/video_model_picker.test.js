@@ -48,9 +48,10 @@ test('required video image references disable Generate until the image is attach
   const fields={generateBtn:{disabled:false}};
   const state={referenceItems:[],videoReferenceItems:[],audioReferenceItems:[],videoSubmissionInFlight:false,videoReferenceRestoreInFlight:false};
   const ctx=vm.createContext({...state,$:id=>fields[id],
-    currentVideoModel:()=>({id:'dope_seedance_2_0_mini_720p'}),
-    normalizedClientCapabilities:()=>({
-      image:{min:1,requiredRoles:[]},video:{min:0,requiredRoles:[]},audio:{min:0,requiredRoles:[]},
+    currentVideoModel:()=>({id:'dope_seedance_2_0_mini_720p',
+      capabilities:{
+        image:{min:1,requiredRoles:[]},video:{min:0,requiredRoles:[]},audio:{min:0,requiredRoles:[]},
+      },
     }),
     premiumPriceFor:()=>null,
   });
