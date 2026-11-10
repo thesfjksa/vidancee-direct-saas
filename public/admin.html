@@ -185,6 +185,24 @@
             <p class="muted">Complete Google sign-in in that window, then return here.</p>
             <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividVerifyButton" onclick="finishAividAdmin('finish')">Verify sign-in</button><button class="secondary" id="aividCancelButton" onclick="finishAividAdmin('cancel')">Close login window</button></div>
           </div>
+          <div id="aividWindowsStudioAdminPanel" style="margin:16px 0;padding:16px;border:1px solid var(--line,#dbe2ea);border-radius:12px;background:var(--card,#fff)">
+            <div class="source-head"><h3 style="margin:0">Windows Premium Studio · Interactive Edge</h3><span class="source-state" id="aividWindowsStudioBadge">Checking…</span></div>
+            <p class="muted">Uses the existing paired Windows RDP agent. Customers see only a restricted, separate Microsoft Edge browser—not your Windows desktop. No Linux VPS, Browserless or Hostinger environment variables required.</p>
+            <label style="display:flex;align-items:center;gap:10px"><input id="aividWindowsStudioEnabled" type="checkbox" style="width:auto" onchange="markWindowsStudioDirty()"> <strong>Enable interactive Windows Premium Studio</strong></label>
+            <div class="field"><label for="aividWindowsStudioEmails">Approved CMMTools login emails</label><input id="aividWindowsStudioEmails" type="text" autocomplete="off" spellcheck="false" placeholder="your-account@example.com" oninput="markWindowsStudioDirty()"></div>
+            <div class="field"><label for="aividWindowsStudioIds">Approved CMMTools user IDs (optional)</label><input id="aividWindowsStudioIds" type="text" inputmode="numeric" autocomplete="off" placeholder="42" oninput="markWindowsStudioDirty()"></div>
+            <p class="muted">Separate multiple emails or IDs with commas. Maximum three trusted accounts in total. Accounts must already exist and be active. Keep the viewer restricted to yourself for testing.</p>
+            <label style="display:flex;align-items:flex-start;gap:10px;line-height:1.5;margin:12px 0">
+              <input id="aividWindowsStudioBillingAck" type="checkbox" style="width:auto;margin-top:4px" onchange="markWindowsStudioDirty()">
+              <span>I understand that clicking <strong>Generate</strong> in this interactive browser charges the signed-in <strong>AIVID provider account directly</strong>. CMMTools wallet credits, customer spend limits, and automatic job receipts do not apply.</span>
+            </label>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button id="aividWindowsStudioSave" class="btn" type="button" onclick="saveWindowsStudioAdmin()">Save Windows Studio settings</button>
+              <button class="secondary" type="button" onclick="loadWindowsStudioAdmin()">Refresh saved access</button>
+              <a href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="btn">Open Windows Studio</a>
+            </div>
+            <p id="aividWindowsStudioState" class="muted" role="status">Loading saved Windows Studio access…</p>
+          </div>
           <p id="aividSessionStatus" class="muted" role="status"></p>
           <p id="aividAdminMessage" class="muted" role="status" style="white-space:pre-wrap"></p>
           <details style="margin-top:14px"><summary>Session recovery</summary><p class="muted">Connect reopens the saved session. If it has stopped working, create a new session and sign in again. Outstanding generations must be resolved before replacing their session.</p><button id="aividReplaceButton" class="secondary" onclick="connectAividAdmin(true)">Create new login session</button></details>
@@ -1707,6 +1725,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=6"></script><script src="/longai-admin.js?v=3"></script></body></html>
+</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=7"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 
