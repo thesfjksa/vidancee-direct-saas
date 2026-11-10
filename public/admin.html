@@ -186,20 +186,40 @@
             <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividVerifyButton" onclick="finishAividAdmin('finish')">Verify sign-in</button><button class="secondary" id="aividCancelButton" onclick="finishAividAdmin('cancel')">Close login window</button></div>
           </div>
           <div id="aividWindowsStudioAdminPanel" style="margin:16px 0;padding:16px;border:1px solid var(--line,#dbe2ea);border-radius:12px;background:var(--card,#fff)">
-            <div class="source-head"><h3 style="margin:0">Windows Premium Studio · Manual Edge Tab Share</h3><span class="source-state" id="aividWindowsStudioBadge">Checking…</span></div>
-            <p class="muted">Open AIVID normally in Microsoft Edge on your Windows RDP. Share that tab through the CMMTools extension; no Playwright, scripts injected into AIVID, separate automated browser or Windows desktop sharing. The CMMTools viewer is read-only.</p>
-            <label style="display:flex;align-items:center;gap:10px"><input id="aividWindowsStudioEnabled" type="checkbox" style="width:auto" onchange="markWindowsStudioDirty()"> <strong>Enable view-only AIVID tab sharing</strong></label>
+            <div class="source-head"><h3 style="margin:0">Windows Premium Studio · Native Interactive + View-only</h3><span class="source-state" id="aividWindowsStudioBadge">Checking…</span></div>
+            <p class="muted">Open AIVID normally on Windows RDP. The native helper enables restricted browser-viewport clicking, typing and scrolling <strong>without Playwright</strong> and without displaying the Edge URL bar. The older Edge tab-sharing extension remains a view-only fallback.</p>
+            <label style="display:flex;align-items:center;gap:10px"><input id="aividWindowsStudioEnabled" type="checkbox" style="width:auto" onchange="markWindowsStudioDirty()"> <strong>Enable Windows Premium Studio for approved users</strong></label>
             <div class="field"><label for="aividWindowsStudioEmails">Approved CMMTools login emails</label><input id="aividWindowsStudioEmails" type="text" autocomplete="off" spellcheck="false" placeholder="your-account@example.com" oninput="markWindowsStudioDirty()"></div>
             <div class="field"><label for="aividWindowsStudioIds">Approved CMMTools user IDs (optional)</label><input id="aividWindowsStudioIds" type="text" inputmode="numeric" autocomplete="off" placeholder="42" oninput="markWindowsStudioDirty()"></div>
             <p class="muted">Separate multiple emails or IDs with commas. Maximum three trusted accounts in total. Accounts must already exist and be active. Keep the viewer restricted to yourself for testing.</p>
             <label style="display:flex;align-items:flex-start;gap:10px;line-height:1.5;margin:12px 0">
               <input id="aividWindowsStudioBillingAck" type="checkbox" style="width:auto;margin-top:4px" onchange="markWindowsStudioDirty()">
-              <span>I understand that manual <strong>Generate</strong> clicks inside my normal Edge AIVID tab charge the <strong>AIVID provider account directly</strong>, outside CMMTools wallets and automatic job receipts. The CMMTools viewer cannot trigger Generate.</span>
+              <span>I understand that manual <strong>Generate</strong> clicks inside my normal Edge AIVID tab charge the <strong>AIVID provider account directly</strong>, outside CMMTools wallets and automatic job receipts. The interactive viewer can trigger Generate; the read-only fallback cannot.</span>
             </label>
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <button id="aividWindowsStudioSave" class="btn" type="button" onclick="saveWindowsStudioAdmin()">Save Windows Studio settings</button>
               <button class="secondary" type="button" onclick="loadWindowsStudioAdmin()">Refresh saved access</button>
-              <a href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="btn">Open read-only viewer</a>
+              <a href="/aivid-interactive-studio" target="_blank" rel="noopener noreferrer" class="btn">Open interactive studio</a>
+              <a href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="secondary btn">View-only fallback</a>
+            </div>
+            <div style="border-top:1px solid var(--line,#dbe2ea);margin-top:15px;padding-top:14px">
+              <h4 style="margin:0 0 7px">Interactive Windows Host · no Playwright</h4>
+              <p class="muted">Controls the <strong>webpage viewport only</strong> of your manually signed-in normal Microsoft Edge AIVID window. No address bar is transmitted; no page scripts, CDP or browser automation. Install the Windows helper in a dedicated <strong>standard Windows user</strong> (not Administrator), without personal files or other windows. This experimental pilot supports clicks, typing and scrolling; remote file-pickers and video downloads are not yet available.</p>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button id="aividNativeDownload" class="secondary" type="button" onclick="downloadNativeHost()">Download Windows Host ZIP</button>
+                <button id="aividNativePair" class="btn" type="button" onclick="pairNativeHost()">Generate native host pairing code</button>
+                <button id="aividNativeRefresh" class="secondary" type="button" onclick="loadNativeHost()">Refresh native host</button>
+                <button id="aividNativeStop" class="secondary" type="button" onclick="stopNativeHost()">Stop Windows Host</button>
+              </div>
+              <div id="aividNativePairRow" hidden style="margin-top:11px">
+                <label for="aividNativeCode">Native Windows host code (expires in 5 minutes)</label>
+                <div class="row" style="gap:8px">
+                  <input id="aividNativeCode" readonly type="text" autocomplete="off" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()">
+                  <button class="secondary" type="button" onclick="copyNativeCode()">Copy code</button>
+                </div>
+              </div>
+              <p class="muted" id="aividNativeState" role="status">Native Windows host not paired.</p>
+              <details><summary>No-CLI setup on your Windows RDP</summary><p class="muted">Download and extract the Windows Host ZIP. In a dedicated standard Windows account, sign in to AIVID in ordinary Microsoft Edge. Optionally use Edge → Apps → Install this site as an app to remove the local address bar. Generate the pairing code above, double-click <code>Start-CMMTools-Remote.cmd</code>, paste the code, and return focus to the AIVID window. Keep the helper running. Do not run elevated. AIVID Generate is charged directly to the provider account, not CMMTools credits.</p></details>
             </div>
             <div style="border-top:1px solid var(--line,#dbe2ea);margin-top:15px;padding-top:14px">
               <h4 style="margin:0 0 7px">Pair ordinary Edge extension</h4>
@@ -1743,6 +1763,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=8"></script><script src="/longai-admin.js?v=3"></script></body></html>
+</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=9"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 
