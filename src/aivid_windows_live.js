@@ -11,6 +11,7 @@ const {AividRdpClient,RdpStore,readDevice,failure,CHUNK}=require('./aivid_rdp.js
 const {getPool}=require('./db.js');
 const {customerSourceAllowed}=require('./aivid_rdp_viewer.js');
 const {originOk}=require('./aivid_embed.js');
+const {readConfig,enabled,allowed,authorized}=require('./aivid_windows_settings.js');
 
 const PAGE_ROUTES=new Set(['/aivid-live-studio','/rdp-studio']);
 const API='/api/windows-studio/';
@@ -18,22 +19,7 @@ const MAX_INPUT=30*1024*1024;
 const MAX_TOTAL_UPLOAD=30*1024*1024;
 const FILE_TYPES={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.mp4':'video/mp4',
   '.mov':'video/quicktime','.webm':'video/webm','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4'};
-const bool=value=>/^(?:true|yes|1|on)$/i.test(String(value||''));
-const ids=value=>new Set(String(value||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean));
 const active=new Map();
-
-function enabled(env=process.env){return bool(env.AIVID_WINDOWS_VIEW_ENABLED);}
-function allowed(user,env=process.env){
-  if(!enabled(env)||!user||!Number.isSafeInteger(Number(user.id))||Number(user.id)<=0)return false;
-  return ids(env.AIVID_WINDOWS_VIEW_ALLOWED_IDS).has(String(user.id)) ||
-    Boolean(user.email&&ids(env.AIVID_WINDOWS_VIEW_ALLOWED_EMAILS).has(String(user.email).toLowerCase()));
-}
-function authorized(user,env=process.env){
-  if(!allowed(user,env))throw failure('Windows Premium Studio is not enabled for this account.',403);
-  if(!bool(env.AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK))throw failure(
-    'Interactive AIVID generation bills the provider account directly. The owner must enable the direct-billing acknowledgment.',503);
-  return true;
-}
 function safeName(value){
   const basename=String(value||'').replaceAll('\\','/').split('/').pop().replace(/[\x00-\x1f\x7f<>:"|?*]/g,'_').trim();
   return basename.slice(0,120)||'reference';
@@ -128,13 +114,13 @@ async function run(userId,input,bytes=null,{now=Date.now,store=new RdpStore(),ge
     active.delete(id);
   }
 }
-async function handle(req,res,route,{requireUser,requireDatabase,checkSourceAccess=customerSourceAllowed,runner=run}={}){
-  if(!enabled())return false;
+async function handle(req,res,route,{requireUser,requireDatabase,checkSourceAccess=customerSourceAllowed,runner=run,loadSettings=readConfig}={}){
   if(!PAGE_ROUTES.has(route)&&!route.startsWith(API))return false;
   try{
     requireDatabase();
     const user=await requireUser(req);
-    authorized(user);
+    const config=await loadSettings();
+    authorized(user,config);
     if(!await checkSourceAccess(user.id))throw failure('AIVID is disabled in your Sources settings.',403);
     if(PAGE_ROUTES.has(route)){
       if(req.method!=='GET')throw failure('Method not allowed.',405);
