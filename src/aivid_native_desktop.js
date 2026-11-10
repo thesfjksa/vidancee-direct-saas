@@ -98,8 +98,9 @@ function enqueue(userId,v,now=Date.now()){
     throw err('Another approved viewer is using this AIVID window.',409);
   if(now-active.lastCommandAt<75)throw err('Too many remote actions.',429);
   if(active.actions.length>=12)throw err('Remote input queue is busy.',429);
+  const safe=inputShape(v);
   active.controller=id;active.controllerAt=now;active.lastCommandAt=now;
-  const command={...inputShape(v),id:++active.nextId,expires:now+6000};
+  const command={...safe,id:++active.nextId,expires:now+6000};
   active.actions.push(command);
   return {queued:true,id:command.id};
 }
@@ -141,7 +142,9 @@ async function handle(req,res,route,{requireDatabase,requireUser,loadSettings=re
     requireDatabase();
     if(route.startsWith(API+'host/')){
       if(req.method!=='POST'&&req.method!=='GET')throw err('Unsupported host operation.',405);
-      if((await loadSettings()).enabled!==true)throw err('Windows Studio has been disabled in Admin.',403);
+      const hostSettings=await loadSettings();
+      if(hostSettings.enabled!==true||hostSettings.directBillingAcknowledged!==true)
+        throw err('Windows Studio has been disabled or direct provider billing is not acknowledged.',403);
       if(route===API+'host/pair'&&req.method==='POST'){
         const v=await readJson(req);send(res,200,{ok:true,...pair(v.code,now())});return true;
       }
