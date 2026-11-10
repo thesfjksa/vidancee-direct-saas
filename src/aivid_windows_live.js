@@ -89,8 +89,9 @@ async function readJson(req,max=8192){
   try{return JSON.parse(Buffer.concat(data).toString('utf8'));}catch{throw failure('Invalid request JSON.');}
 }
 async function readBinary(req){
-  const length=Number(req.headers['content-length']);
-  if(!Number.isSafeInteger(length)||length<1||length>MAX_TOTAL_UPLOAD)throw failure('Invalid reference size.',413);
+  const declared=req.headers['content-length'];
+  const length=declared===undefined?null:Number(declared);
+  if(length!==null&&(!Number.isSafeInteger(length)||length<1||length>MAX_TOTAL_UPLOAD))throw failure('Invalid reference size.',413);
   let count=0;const data=[];
   for await(const part of req){count+=part.length;if(count>MAX_TOTAL_UPLOAD)throw failure('Reference is too large.',413);data.push(part);}
   if(count!==length)throw failure('Reference upload was incomplete.',400);
