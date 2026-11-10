@@ -47,7 +47,7 @@ function validateUpload(name,bytes){
 function validateAction(input){
   if(!input||typeof input!=='object'||Array.isArray(input))throw failure('Invalid browser action.');
   const action=String(input.action||'');
-  if(!['open','frame','click','scroll','type','key','close','download'].includes(action))throw failure('Unsupported browser operation.');
+  if(!['open','frame','click','scroll','type','secret','key','close','download'].includes(action))throw failure('Unsupported browser operation.');
   const result={action};
   if(action==='click'){
     if(!Number.isInteger(input.x)||!Number.isInteger(input.y)||input.x<0||input.x>1280||input.y<0||input.y>760)
@@ -60,6 +60,10 @@ function validateAction(input){
     if(typeof input.text!=='string'||input.text.length>3000||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(input.text))
       throw failure('Type at most 3,000 printable characters.');
     result.text=input.text;
+  }else if(action==='secret'){
+    if(typeof input.ciphertext!=='string'|| !/^[A-Za-z0-9+/]{342}==$/.test(input.ciphertext))
+      throw failure('A valid encrypted password is required.');
+    result.ciphertext=input.ciphertext;
   }else if(action==='key'){
     const key=String(input.key||'');
     if(!['Enter','Tab','Escape','Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Home','End'].includes(key))
