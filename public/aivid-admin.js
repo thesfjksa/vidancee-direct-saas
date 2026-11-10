@@ -150,7 +150,6 @@
     const button=el('aividTabShareStop');button.disabled=true;
     try{
       await api('/admin/aivid/tab-share/stop',{method:'POST',body:'{}'});
-      el('aividTabSharePairCode')?.removeAttribute('value');
       el('aividTabShareCode').value='';el('aividTabSharePairRow').hidden=true;
       await window.loadTabShareAdmin();
     }catch(e){el('aividTabShareState').textContent='Could not revoke sharing: '+e.message;}
@@ -212,6 +211,7 @@
       const saved=await api('/admin/aivid/windows-studio',{method:'POST',body:JSON.stringify(form)});
       const verified=await window.loadWindowsStudioAdmin({strict:true});
       if(JSON.stringify(saved.settings)!==JSON.stringify(verified))throw Error('Saved state could not be verified. Refresh Admin.');
+      await window.loadTabShareAdmin();
       status.className='ok';status.textContent='Saved and verified: Windows Premium Studio '+(verified.enabled?'ON':'OFF')+
         ' · '+(verified.allowedIds.length+verified.allowedEmails.length)+' trusted account(s).';
     }catch(error){status.className='err';status.textContent=error.message;}
