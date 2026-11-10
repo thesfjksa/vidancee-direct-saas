@@ -1,0 +1,57 @@
+# Deploy on a separate Docker-capable VPS, NOT on Hostinger's Node web process.
+# The public entry is an external TLS reverse proxy. Only guacamole's HTTP
+# frontend binds to 127.0.0.1. No RDP, PostgreSQL or guacd port is published.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: ${GUAC_POSTGRES_PASSWORD:?Set_GUAC_POSTGRES_PASSWORD_in_private_dotenv}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guacamole -d guacamole_db"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks:
+      - private_gateway
+
+  guacd:
+    image: guacamole/guacd:1.6.0
+    restart: unless-stopped
+    # Drive contents are shared only to the Guacamole RDP drive per connection.
+    # Configure an isolated /guacamole-drive/<assigned-customer> per customer.
+    volumes:
+      - ./drives:/guacamole-drive:rw
+    networks:
+      - private_gateway
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      guacd:
+        condition: service_started
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: postgres
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole
+      POSTGRESQL_PASSWORD: ${GUAC_POSTGRES_PASSWORD:?Set_GUAC_POSTGRES_PASSWORD_in_private_dotenv}
+      REMOTE_IP_VALVE_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - private_gateway
+
+networks:
+  private_gateway:
+    driver: bridge
+
+volumes:
+  postgres_data:
