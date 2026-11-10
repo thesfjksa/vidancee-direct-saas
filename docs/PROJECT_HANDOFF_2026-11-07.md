@@ -1,3 +1,9 @@
+## 10 November 2026 — Simplify the fal.ai connection and image import
+
+- In Admin → Provider → fal.ai, use **Connect & import image models** with a new key or leave the field blank to reuse the saved key. The app checks fal.ai's authenticated pricing API before saving a replacement. The import runs on the generation worker and shows its status in Admin. The source switch and existing customer and model access settings still control availability.
+- Manual and daily imports discover all active text-to-image and image-to-image pages, fetch schemas and prices in bounded batches, and preserve the saved catalog if the provider response is incomplete. The importer keeps existing model IDs and supported reference pairings. Models that need unsupported inputs or billing rules remain unavailable to customers.
+- Deploy the updated web app and worker. Verify the saved connection and import totals in the fal.ai inventory. Production import and paid image generation have not been verified.
+
 ## 10 November 2026 — Restore all four AIVID-sourced Premium video models
 
 - **Owner request:** Undo only the AIVID model retirement introduced by [PR #222](https://github.com/thesfjksa/vidancee-direct-saas/pull/222). Restore the original four supported customer IDs: `aivid_seedance_2_0_mini` (Seedance 2.0 Mini), `aivid_seedance_2_0` (Seedance 2.0), `aivid_seedance_2_0_fast` (Seedance 2.0 Fast) and `aivid_seedance_2_5` (Seedance 2.5). Each keeps its **Premium** badge and appears together inside the **Premium** Video Studio model picker submenu. Admin → Model Names can rename each model.
