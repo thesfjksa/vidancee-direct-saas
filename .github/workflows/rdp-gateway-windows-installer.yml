@@ -1,0 +1,44 @@
+name: CMMTools RDP Gateway Windows GUI EXE
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rdp-gateway-installer/**'
+      - 'ops/aivid-rdp-gateway/docker-compose.yml'
+      - '.github/workflows/rdp-gateway-windows-installer.yml'
+  pull_request:
+    paths:
+      - 'tools/rdp-gateway-installer/**'
+      - 'ops/aivid-rdp-gateway/docker-compose.yml'
+      - '.github/workflows/rdp-gateway-windows-installer.yml'
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout private CMMTools repo
+        uses: actions/checkout@v4
+      - name: Use .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Validate Linux bootstrap script has no Bash syntax errors
+        shell: bash
+        run: bash -n tools/rdp-gateway-installer/deploy.sh
+      - name: Restore and publish standalone executable for Windows x64
+        shell: pwsh
+        run: |
+          dotnet publish tools/rdp-gateway-installer/CMMTools.RdpGatewaySetup.csproj --configuration Release --runtime win-x64 --self-contained true --output installer-dist -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path 'installer-dist/CMMTools-RDP-Gateway-Setup.exe')) { throw 'EXE was not built' }
+          Get-ChildItem installer-dist -File | ForEach-Object { Write-Host ('Packaged: ' + $_.Name) }
+          (Get-FileHash 'installer-dist/CMMTools-RDP-Gateway-Setup.exe' -Algorithm SHA256).Hash | Set-Content 'installer-dist/CMMTools-RDP-Gateway-Setup.sha256.txt'
+      - name: Upload executable and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: CMMTools-RDP-Gateway-Setup-Windows-x64
+          path: installer-dist/
+          if-no-files-found: error
+          retention-days: 30
