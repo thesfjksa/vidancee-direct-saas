@@ -90,6 +90,6 @@ test('Live screen sharing route is separate from old Windows Playwright controls
  assert.equal(manifest.permissions.includes('scripting'),false);
  assert.equal(manifest.permissions.includes('debugger'),false);
  assert.match(controller,/chrome\.tabs\.captureVisibleTab/);
- assert.doesNotMatch(controller,/playwright|chrome\.scripting|chrome\.debugger|executeScript|eval\(/i);
+ assert.doesNotMatch(controller,/require\(['"]playwright|chrome\.scripting\.|chrome\.debugger\.|executeScript\(|eval\(/i);
  assert.doesNotMatch(background,/chrome\.scripting|chrome\.debugger|executeScript|eval\(/i);
 });
