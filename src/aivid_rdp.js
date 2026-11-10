@@ -138,6 +138,7 @@ class AividRdpClient {
         if (current.state === 'done') {
           commandFinished = true;
           if (kind === 'submit' && !reserved && current.response.state!=='rejected' && !current.response.error) throw failure('RDP submission had no server reservation.', 409);
+          if (current.response.error && kind==='live')throw failure(current.response.message||'The Windows Edge browser could not finish that action.',503);
           if (current.response.error) throw Object.assign(failure(current.response.errorCode
             ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
             : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503),{aividCode:current.response.errorCode});
@@ -275,6 +276,8 @@ class AividRdpService {
     if (command.state === 'done') return { saved: true };
     let result;
     if (input.error === true) result = { error: true,
+      ...(command.kind==='live'&&typeof input.message==='string'&&input.message.length<=180&&
+        /^[\x20-\x7e]*$/.test(input.message)?{message:input.message}:{}) ,
       ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
     else if(command.kind==='reference_check'){
       const expected=validateJob(command.payload.value);
