@@ -111,7 +111,7 @@ class AividRdpClient {
   async run(kind, payload, { beforeClick, references = [], generationId = null, timeoutMs = 180000 } = {}) {
     if (!this.device?.deviceId || !this.device?.tokenHash) throw failure('Pair the Windows RDP agent in Admin first.', 503);
     const device=publicDevice(this.device,this.now());
-    if(device.online&&device.status==='needs_verification')
+    if(kind!=='live'&&device.online&&device.status==='needs_verification')
       throw Object.assign(failure(diagnosticMessage('session_verification'),503),{aividCode:'session_verification'});
     const command = { id: crypto.randomUUID(), deviceId: this.device.deviceId, generationId, kind,
       expiresAt: this.now() + timeoutMs, payload: { ...payload, references: references.map((r, index) =>
