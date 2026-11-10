@@ -1300,7 +1300,7 @@ const server=http.createServer(async (req,res)=>{
 
   try {
     if (await require('./src/aivid_rdp_http.js').handle(req,res,routePath,{readJson,requireDatabase})) return;
-    if (await require('./src/aivid_embed.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
+    if (await require('./src/aivid_rdp_viewer.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     const studioAssets={
       '/brand.css':['brand.css','text/css; charset=utf-8'],
       '/developers.css':['developers.css','text/css; charset=utf-8'],

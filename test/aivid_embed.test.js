@@ -126,13 +126,13 @@ test('Unapproved users and cross-site upload requests remain denied',async()=>{
   else process.env.AIVID_LIVE_VIEW_ALLOWED_IDS=previousIds;
  }
 });
-test('Embedded Studio explains Google login limitations and contains local file upload and video download controls',()=>{
+test('Retired Browserless iframe is replaced by the native RDP gateway and drive transfer UI',()=>{
  const fs=require('node:fs');
  const html=fs.readFileSync(require.resolve('../public/aivid-live-studio.html'),'utf8');
- assert.match(html,/href="https:\/\/aivid\.dev\/" target="_blank" rel="noopener noreferrer"/);
- assert.match(html,/Google may block sign-in/);
- assert.match(html,/id="referenceFiles" type="file" multiple/);
- assert.match(html,/id="downloadArea" hidden/);
- assert.match(html,/\/api\/aivid-live-studio\/upload/);
- assert.match(html,/\/api\/aivid-live-studio\/download\//);
+ assert.match(html,/Premium Remote Desktop/);
+ assert.match(html,/\/api\/rdp-studio\/config/);
+ assert.match(html,/Ctrl \+ Alt \+ Shift/);
+ assert.match(html,/Upload Files/);
+ assert.match(html,/allow-downloads/);
+ assert.doesNotMatch(html,/\/api\/aivid-live-studio\/upload|Browserless\.liveURL/);
 });
