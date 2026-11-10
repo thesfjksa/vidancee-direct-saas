@@ -91,6 +91,8 @@ After verifying isolated Windows accounts, independent Guacamole login and the p
 
 Authorized users open `/app` → select a **Premium** model → click **Open secure Premium desktop**, or visit `/aivid-live-studio`. The page will ask the customer to sign in to their assigned Guacamole account. The remote Windows session then opens, with its own Microsoft Edge. The page has a full-screen new-tab option, upload/download instructions and a Disconnect viewer button.
 
+The viewer also respects Admin → Users → Sources → AIVID: an explicit customer opt-out blocks the RDP entry even if the email/ID is in the environment allowlist.
+
 The CMMTools page can disconnect its iframe, but **cannot revoke the separate Guacamole session cookie**: always sign out from the Guacamole menu before leaving a shared computer and configure Guacamole session expiry/idle timeout. Guacamole may also prompt for the assigned Windows login. The iframe has a narrow sandbox, HTTPS-only URL validation, no embedded RDP passwords, no old Browserless token, a response-specific script nonce and strict CSP.
 
 ## Verification checklist before enabling customers
