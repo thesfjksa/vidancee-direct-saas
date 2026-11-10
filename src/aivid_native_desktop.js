@@ -24,6 +24,8 @@ function state(now=Date.now()){
     online:!!(active?.frame&&active.expires>now&&now-active.lastFrameAt<FRESH_MS),
     pairing:!!(active?.pairHash&&active.pairUntil>now),
     lastFrameAt:active?.lastFrameAt||null,controller:active?.controller||null,
+    lastInputId:active?.lastInputId||0,lastInputStatus:active?.lastInputStatus||null,
+    lastInputMessage:active?.lastInputMessage||null,lastInputAt:active?.lastInputAt||null,
     expiresAt:active?.expires?new Date(active.expires).toISOString():null,
     snapshotWidth:active?.width||0,snapshotHeight:active?.height||0,
     notice:'Windows-native mouse and keyboard; only the Edge webpage viewport is streamed. Remote browser navigation shortcuts are blocked.'};
@@ -32,7 +34,8 @@ function pairCode(now=Date.now()){
   const code=crypto.randomBytes(16).toString('hex').toUpperCase();
   active={pairHash:hash(code),pairUntil:now+PAIR_MS,attempts:0,tokenHash:null,
     expires:0,frame:null,lastFrameAt:0,lastPublished:0,width:0,height:0,
-    actions:[],controller:null,controllerAt:0,nextId:0,lastCommandAt:0};
+    actions:[],controller:null,controllerAt:0,nextId:0,lastCommandAt:0,
+    lastInputId:0,lastInputStatus:null,lastInputMessage:null,lastInputAt:0};
   return {code,expiresAt:new Date(now+PAIR_MS).toISOString()};
 }
 function pair(code,now=Date.now()){
@@ -112,6 +115,18 @@ function next(token,now=Date.now()){
   const {expires,...command}=a;
   return {action:command};
 }
+function acknowledge(token,report,now=Date.now()){
+  const s=auth(token,now);
+  const id=Number(report?.id);
+  if(!Number.isSafeInteger(id)||id<1||id>s.nextId||id<=s.lastInputId)
+    throw err('Invalid or outdated native input acknowledgment.',400);
+  if(typeof report.executed!=='boolean')throw err('Invalid native input result.',400);
+  s.lastInputId=id;s.lastInputStatus=report.executed?'executed':'blocked';
+  s.lastInputMessage=report.executed?'Action performed in Windows Edge':
+    String(report.message||'Windows blocked this action.').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,180);
+  s.lastInputAt=now;
+  return {acknowledged:true};
+}
 function release(userId){
   if(active?.controller===String(userId)){active.controller=null;active.controllerAt=0;active.actions=[];}
 }
@@ -156,6 +171,9 @@ async function handle(req,res,route,{requireDatabase,requireUser,loadSettings=re
         send(res,200,{ok:true,...result});return true;
       }
       if(route===API+'host/next'&&req.method==='GET'){send(res,200,{ok:true,...next(token,now())});return true;}
+      if(route===API+'host/ack'&&req.method==='POST'){
+        send(res,200,{ok:true,...acknowledge(token,await readJson(req),now())});return true;
+      }
       if(route===API+'host/stop'&&req.method==='POST'){stop();send(res,200,{ok:true});return true;}
       throw err('Not found.',404);
     }
@@ -196,4 +214,4 @@ async function admin(req,res,route,{loadSettings=readConfig}={}){
   }catch(e){send(res,e?.nativeSafe?e.statusCode:503,{ok:false,error:e?.nativeSafe?e.message:'Windows Studio is unavailable.'});return true;}
 }
 module.exports={VIEW,MAX_FRAME,PAIR_MS,SESSION_MS,FRESH_MS,CONTROL_TTL_MS,
-  pairCode,pair,auth,stop,image,frame,inputShape,enqueue,next,release,state,handle,admin};
+  pairCode,pair,auth,stop,image,frame,inputShape,enqueue,next,acknowledge,release,state,handle,admin};
