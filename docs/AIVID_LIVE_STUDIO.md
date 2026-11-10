@@ -1,3 +1,11 @@
+# Superseded: RDP-based Premium Studio (10 November 2026)
+
+The **interactive** `/aivid-live-studio` route now uses **Apache Guacamole + the owner's Windows RDP (Microsoft Edge)**, not Browserless. The old `/api/aivid-live-studio/start`, upload and download endpoints no longer create Browserless sessions; authorized calls return HTTP 410. For gateway requirements, isolation, restricted customer identities and Windows file transfer, see **[AIVID_RDP_VIEWER.md](AIVID_RDP_VIEWER.md)**. Existing Browserless as an optional backend *generation adapter* remains separate from the interactive desktop.
+
+The following content is a historical description of the earlier Browserless pilot, **not current deployment instructions**.
+
+---
+
 # CMMTools AIVID Interactive Live Studio (private pilot)
 
 ## What this does
