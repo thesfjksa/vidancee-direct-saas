@@ -133,7 +133,7 @@ const {
 } = require('./src/auth.js');
 const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = require('./src/pricing.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
-const { trimReferenceVideos, validateAividVideoReferences } = require('./src/reference_trim.js');
+const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, verifyFalCatalogKey, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
@@ -671,13 +671,6 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('vidancee',()=>publicProviderCatalog('vidancee',{creditsPerUsd:providerSettings.vidancee.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
-  // Premium AIVID choices remain in Video Studio even when an already paired
-  // RDP agent temporarily disconnects. The AIVID quote/queue gates still
-  // refuse a paid submission unless the Edge agent and source are ready.
-  if(access.aivid){
-    const config=await require('./src/aivid_settings.js').getAividSettings().catch(()=>null);
-    video.push(...require('./src/aivid_models.js').customerCatalog(config));
-  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {
     video:video.filter(model=>!isRetiredModel(model)),
@@ -783,10 +776,6 @@ async function quoteModelForUser(userId,body){
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
-  }
-  if(mediaType==='video'&&require('./src/aivid_models.js').isAividModel(body.model)){
-    if(!access.aivid)throw httpError(403,'Premium models are not enabled for your account.');
-    return require('./src/aivid_models.js').quoteAivid(await require('./src/aivid_settings.js').getAividSettings(),body,{preview:true});
   }
   if(isWxksaiModel(body.model) && mediaType==='video'){
     if(!access.wxksai || !providerSettings.wxksai.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -916,9 +905,6 @@ async function enableBrowserUploads(){
 
 // The longest reference video (total, or per clip) a video model accepts.
 async function referenceVideoLimit(id){
-  const {aividModel,aividReferenceVideoLimit}=require('./src/aivid_models.js');
-  const premium=aividModel(id);
-  if(premium)return aividReferenceVideoLimit(premium);
   if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
   const provider=isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
@@ -947,19 +933,6 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
   // Cartoon Studio runs on MiniMax H3 (vgenv) or Seedance Lite (Sluice).
   const cartoonOptions=body.cartoonStyle?normalizeCartoonRequest(body):null;
 
-  if(!cartoonOptions&&require('./src/aivid_models.js').isAividModel(requestedModel)){
-    if(!customerAccess.aivid)throw httpError(403,'Premium models are not enabled for your account.');
-    const config=await require('./src/aivid_settings.js').getAividSettings();
-    const {aividModel,capabilities,quoteAivid,aividReferenceVideoLimit}=require('./src/aivid_models.js');
-    const spec=aividModel(requestedModel);
-    validateAividVideoReferences(body.videos,aividReferenceVideoLimit(spec));
-    const quote=await quoteAivid(config,body);
-    generation=await createVideo(user.id,{...body,...quote},{provider:'aivid',dynamicModel:true,
-      defaultResolution:quote.resolution,referenceCapabilities:capabilities(spec),aividManualHandoff:config.manualHandoff,
-      validatePreparedReferences:({images,videos,audios})=>require('./src/provider/aivid.js').validateJob(body,[...images,...videos.map(r=>({...r,kind:'video'})),...audios.map(r=>({...r,kind:'audio'}))]),
-      costOverride:quote.cost,providerCost:quote.sourceCredits,providerCostUnit:'aivid_credits',maxCustomerCredits:body.maxCustomerCredits,
-      generationOptions:{quotedSourceCredits:quote.sourceCredits,sourceUsd:quote.sourceUsd,sourceUsdPerAividCredit:0.12,model:requestedModel}});
-  }
   if(!cartoonOptions&&isApi888Model(requestedModel)){
     if(!customerAccess.api888||!providerSettings.api888Enabled||!providerSettings.api888ApiKey)throw httpError(503,'888API video generation is unavailable.');
     const model=await getProviderModelByPublicId('api888',requestedModel,'video');

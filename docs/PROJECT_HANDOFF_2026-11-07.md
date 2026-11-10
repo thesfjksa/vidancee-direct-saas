@@ -1,3 +1,9 @@
+## 10 November 2026 — Retire AIVID customer models and flatten the video picker
+
+- Removed the four AIVID models from customer catalogs, quotes, and new submissions. Existing AIVID jobs, Admin handling, and the standalone browser extension remain available.
+- Removed picker groups. Models with successful jobs appear first by lowest average latency, then higher success rate for equal latency. Models with 0% success and models without performance data follow. The picker reorders on the existing Dope metrics refresh and preserves native option indexes and focus.
+- Added regression coverage for retired IDs and ordering after the performance refresh. Production requires deploying the updated web app.
+
 > **Current UI — 10 November 2026 (merged PR #249):** In the signed-in top navigation, the download control appears directly beside **Library** as a compact **Extension** link, using the same neutral 42px button height, spacing, icon size and hover treatment as Library. The former bright turquoise oversized “Download Extension” link is superseded. It still downloads `/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip`; the Chrome/Edge package, user-managed **Allow in Incognito** setting, popup launcher, and other functionality are unchanged. `public/index.html` requests `studio.css?v=cmm-16` so the new styling is refreshed. **Implementation is merged into GitHub `main`, but Hostinger deployment and browser verification remain unconfirmed.**
 
 ## 10 November 2026 — CMMTools Video Studio browser extension self-service download (separate from Windows/RDP)
