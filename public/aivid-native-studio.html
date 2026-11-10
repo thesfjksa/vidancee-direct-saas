@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CMMTools · Interactive Premium Studio</title><meta name="referrer" content="no-referrer">
+<style>
+:root{color-scheme:dark;font:14px/1.48 Inter,system-ui,sans-serif;background:#0b1321;color:#eef5ff}*{box-sizing:border-box}body{margin:0}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 20px;background:#14243b;border-bottom:1px solid #365373}
+.logo{font-size:20px;font-weight:800}.logo b{color:#77b0ff}h1{font-size:17px;margin:0;font-weight:600}.spacer{flex:1}
+button,a{font:inherit;font-weight:600;border:1px solid #45658d;background:#243b5d;color:#f3f8ff;text-decoration:none;border-radius:9px;padding:9px 13px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}button.primary{background:#2d66cd;border-color:#387fe6}
+main{padding:13px;max-width:1580px;margin:0 auto;display:grid;gap:13px}.summary{background:#15283f;border:1px solid #2f4a6b;border-radius:11px;padding:12px 15px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.state{font-weight:700;color:#9cc3ff}
+.frame{min-height:300px;border:1px solid #3a5a80;border-radius:12px;background:#090f1c;display:flex;justify-content:center;align-items:center;overflow:hidden;position:relative}
+.frame img{max-width:100%;height:auto;max-height:76vh;display:block;cursor:crosshair;user-select:none;-webkit-user-drag:none}
+.empty{color:#abbdd5;padding:70px 25px;text-align:center;max-width:520px}
+textarea{background:#0d1c30;color:#fff;border:1px solid #506c93;border-radius:8px;min-height:48px;max-height:120px;padding:10px;font:inherit;flex:1;min-width:170px;resize:vertical}
+kbd{font-family:inherit;font-size:12px;border:1px solid #45658d;border-radius:5px;padding:2px 5px}.small{font-size:12px;color:#b4c9e3}
+.hidden{display:none!important}
+@media(max-width:640px){header{padding:10px}main{padding:8px}.frame{min-height:240px}}
+</style></head><body>
+<header><div class="logo">CMM<b>Tools</b></div><h1>Interactive Premium Studio</h1><div class="spacer"></div><a href="/app">Video Studio</a><button id="release">Release control</button><button id="refresh">Refresh</button></header>
+<main>
+<div class="summary"><span id="status" class="state">Connecting to Windows browser…</span>
+<div id="details" class="small">This is a Windows-native remote webpage view, not a browser simulation. The address bar, desktop and other windows are not streamed.</div></div>
+<div class="frame" id="area" aria-label="Remote interactive webpage"><img id="screenshot" draggable="false" class="hidden" alt="CMMTools remote webpage preview"><div id="empty" class="empty">No Windows browser is connected. Ask the CMMTools administrator to open AIVID in their dedicated Windows Edge window and start the CMMTools native helper.</div></div>
+<div class="toolbar"><label for="entry">Type into selected AIVID field</label><textarea id="entry" rows="2" placeholder="Click the desired text field in the preview, type your prompt here, then choose Send text."></textarea><button class="primary" id="send">Send text</button></div>
+<div class="toolbar"><button id="enter">Enter</button><button id="tab">Tab</button><button id="backspace">Backspace</button><button id="escape">Escape</button><button id="up">↑</button><button id="down">↓</button><button id="scrollUp">Scroll up</button><button id="scrollDown">Scroll down</button><span id="notice" class="small" role="status"></span></div>
+<p class="small">Mouse clicks and text are sent as restricted native Windows input to the foreground AIVID browser viewport. <strong>No Playwright, CDP, page scripts, browser automation or AIVID login cookies</strong> are used. The administrator must complete login and verification manually. Native file chooser transfers and downloads are not yet integrated; this pilot covers clicking, typing, scrolling and form controls. Manual Generate costs are billed directly to the AIVID account, outside CMMTools wallets.</p>
+</main>
+<script nonce="__CMM_NONCE__">
+'use strict';
+const $=id=>document.getElementById(id);
+let busyFrame=false,currentURL='',lastAction=0,lastError='',connected=false;
+function blank(message){connected=false;$('status').textContent=message;$('screenshot').classList.add('hidden');$('empty').classList.remove('hidden');if(currentURL){URL.revokeObjectURL(currentURL);currentURL='';}$('screenshot').removeAttribute('src');}
+async function poll(){
+ if(document.visibilityState==='hidden'||busyFrame)return;busyFrame=true;
+ try{
+  const res=await fetch('/api/aivid-native/status',{cache:'no-store',credentials:'same-origin',redirect:'error'});
+  const s=await res.json();if(!res.ok||!s.ok)throw Error(s.error||'Studio connection unavailable');
+  if(!s.online){blank(s.paired?'Windows host connected — open the AIVID browser viewport':'Windows host offline — ask Admin to pair it');return;}
+  const r=await fetch('/api/aivid-native/frame',{cache:'no-store',credentials:'same-origin',redirect:'error'});
+  if(r.status===204){blank('Waiting for Windows page preview');return;}
+  if(!r.ok||!(r.headers.get('content-type')||'').startsWith('image/jpeg'))throw Error('Preview temporarily unavailable');
+  const image=await r.blob();if(image.size>500000)throw Error('Preview exceeds limit');
+  const next=URL.createObjectURL(image);$('screenshot').src=next;$('screenshot').classList.remove('hidden');$('empty').classList.add('hidden');
+  if(currentURL)URL.revokeObjectURL(currentURL);currentURL=next;connected=true;
+  $('status').textContent='Interactive session · Connected';
+  $('details').textContent='Windows-native browser viewport · '+s.snapshotWidth+' × '+s.snapshotHeight+' · Updated '+new Date(s.lastFrameAt).toLocaleTimeString();
+ }catch(e){blank(e.message||'Studio connection interrupted');}finally{busyFrame=false;}
+}
+async function input(v){
+ if(!connected)return;
+ const t=Date.now();if(t-lastAction<100)return;lastAction=t;
+ try{
+  const res=await fetch('/api/aivid-native/input',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify(v),credentials:'same-origin',cache:'no-store',redirect:'error'});
+  const d=await res.json();if(!res.ok||!d.ok)throw Error(d.error||'Remote input rejected');
+  $('notice').textContent='Sent';lastError='';
+ }catch(e){if(e.message!==lastError){$('notice').textContent=e.message;lastError=e.message;}}
+}
+$('screenshot').addEventListener('click',e=>{
+ const rect=e.currentTarget.getBoundingClientRect();
+ const x=Math.max(0,Math.min(10000,Math.round((e.clientX-rect.left)/rect.width*10000)));
+ const y=Math.max(0,Math.min(10000,Math.round((e.clientY-rect.top)/rect.height*10000)));
+ void input({action:'click',x,y});
+});
+$('screenshot').addEventListener('wheel',e=>{e.preventDefault();void input({action:'wheel',delta:e.deltaY>0?-2:2});},{passive:false});
+$('send').addEventListener('click',async()=>{
+ const text=$('entry').value;if(!text)return;
+ // Send in moderate chunks to keep remote input bounded.
+ for(let at=0;at<text.length;at+=240){await input({action:'type',text:text.slice(at,at+240)});await new Promise(resolve=>setTimeout(resolve,170));}
+ $('entry').value='';
+});
+for(const [id,key] of [['enter','Enter'],['tab','Tab'],['backspace','Backspace'],['escape','Escape'],['up','ArrowUp'],['down','ArrowDown']])
+ $(id).addEventListener('click',()=>void input({action:'key',key}));
+$('scrollUp').addEventListener('click',()=>void input({action:'wheel',delta:2}));
+$('scrollDown').addEventListener('click',()=>void input({action:'wheel',delta:-2}));
+$('release').addEventListener('click',async()=>{
+ try{await fetch('/api/aivid-native/release',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:'{}'});$('notice').textContent='Control released';}catch{}
+});
+$('refresh').addEventListener('click',poll);document.addEventListener('visibilitychange',poll);
+const t=setInterval(poll,1700);window.addEventListener('pagehide',()=>{clearInterval(t);if(currentURL)URL.revokeObjectURL(currentURL)});poll();
+</script></body></html>
