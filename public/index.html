@@ -132,6 +132,7 @@
               <select id="model" onchange="handleVideoModelChange()"></select>
               <div id="videoCatalogEmpty" class="model-warning hide" role="status" aria-live="polite"></div>
               <div id="videoModelWarning" class="model-warning hide" role="note"></div>
+              <a id="premiumDesktopLink" href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="model-capability-summary hide">Open secure Premium desktop · Microsoft Edge on Windows RDP</a>
               <div id="videoModelCapabilitySummary" class="model-capability-summary"></div>
 
               <div class="control-grid">
@@ -1681,6 +1682,8 @@ function renderDurations(resetResolution=false, refreshPrice=true){
   }
   renderGatewayVideoSettings(m);
   showModelWarning('videoModelWarning',m);
+  const desktopLink=$('premiumDesktopLink');
+  if(desktopLink)desktopLink.classList.toggle('hide',!m?.premium);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
   const previousRatio=$('ratio').value;
   $('ratio').innerHTML=modelRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
