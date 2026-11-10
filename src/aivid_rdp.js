@@ -59,10 +59,10 @@ class RdpStore {
     return result.affectedRows === 1;
   }
   async cancel(id) { await this.db.execute("UPDATE aivid_rdp_commands SET state='cancelled' WHERE id=? AND state<>'done'", [id]); }
-  async claim(deviceId, readOnly) {
+  async claim(deviceId, readOnly, liveOnly = false) {
     await ensureRdpTables(this.db);
     const [rows] = await this.db.execute("SELECT id FROM aivid_rdp_commands WHERE device_id=? AND state='queued' AND expires_at>UTC_TIMESTAMP(3)" +
-      (readOnly ? " AND kind IN ('preflight','live')" : '') + ' ORDER BY created_at,id LIMIT 1', [deviceId]);
+      (liveOnly ? " AND kind='live'" : readOnly ? " AND kind IN ('preflight','live')" : '') + ' ORDER BY created_at,id LIMIT 1', [deviceId]);
     if (!rows.length || !await this.move(rows[0].id, 'queued', 'running')) return null;
     return this.get(rows[0].id);
   }
@@ -249,8 +249,8 @@ class AividRdpService {
     const matched = browser === selected;
     const reported = !matched && status === 'ready' ? 'starting' : status;
     await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status: reported, browser, seenAt: new Date(this.now()).toISOString() }));
-    if (!matched || ['busy', 'starting', 'needs_verification'].includes(status)) return { browser: selected, command: null };
-    const command = await this.store.claim(device.deviceId, status !== 'ready');
+    if (!matched || ['busy', 'starting'].includes(status)) return { browser: selected, command: null };
+    const command = await this.store.claim(device.deviceId, status !== 'ready', status === 'needs_verification');
     return { browser: selected, command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
   }
   async command(device, id) {
