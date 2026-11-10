@@ -1,3 +1,9 @@
+## 2026-11-10 — CMMTools Studio extension download beside Library
+
+- Added **Download Extension** button directly after Library in the signed-in top navigation, with responsive styling and a persistent ZIP download URL served by CMMTools (`GET/HEAD /downloads/CMMTools_Video_Studio_Launcher_v1.5.zip`). ZIP checked into `public/downloads`; it installs by extracting and using Chrome/Edge **Load unpacked**.
+- Bundled latest v1.5 branded, animated app-window extension: hide header/sidebar logo, Billing/Referral tabs and footer links/logo; prevent header credit balance click-through; keep user-managed Allow in Incognito option. Direct customer-owned account sign-in; no Playwright, RDP, source payment automation or credential proxy.
+- Disclosure: this is cosmetic UI customization. Extension Details/browser security surfaces expose the provider origin, and hidden billing routes remain potentially reachable. No live signed-in acceptance or Hostinger deployment has yet been confirmed. No MySQL, worker or provider pricing changes.
+
 ## AIVID inline MP4 collection
 
 - RDP collection first uses the exact saved job detail page. Pending/missing/unavailable details fall back to account history: scroll to the single card whose media source matches the saved ID and click Save. A confirmed failed status never falls through. Card order and prompt text are never used as identity. Media filenames can differ from the job ID when bound to that exact detail page’s own download popup; history matches remain strict.
