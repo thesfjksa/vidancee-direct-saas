@@ -297,3 +297,33 @@ test('security verification pauses browser checks and leaves queued commands unc
   await assert.rejects(new AividRdpClient({rdpDevice:device,store:f.store}).preflight(value),{aividCode:'session_verification'});
   assert.equal(f.store.rows.size,1);
 });
+
+
+test('Windows-only live preview and MP4 retrieval use paired agent RPC without touching paid job flow',async()=>{
+ const f=fixture();
+ const mp4=Buffer.concat([Buffer.from([0,0,0,16]),Buffer.from('ftyp'),Buffer.alloc(32,8)]);
+ const agent=new Agent({transport:f.transport,clientFactory:()=>{throw new Error('Live browser must not use the paid provider adapter.');}});
+ agent.live={run:async payload=>payload.action==='download'?{state:'download',data:mp4}:{
+   state:'frame',jpeg:'',url:'https://aivid.dev/',notice:'Private Edge profile',fileName:'',
+   uploadPending:false,downloadReady:false,secretKey:Buffer.from('test-key').toString('base64')
+ }};
+ const framePromise=f.client.run('live',{owner:'42',action:'open'},{timeoutMs:15000});
+ await flush();
+ const first=await f.service.poll(f.device,'ready','edge');
+ assert.equal(first.command.kind,'live');
+ assert.equal(first.command.payload.owner,'42');
+ await agent.execute(first.command);
+ const frame=await framePromise;
+ assert.equal(frame.state,'frame');
+ assert.equal(frame.notice,'Private Edge profile');
+ assert.equal(frame.secretKey,Buffer.from('test-key').toString('base64'));
+ const downloadPromise=f.client.run('live',{owner:'42',action:'download'},{timeoutMs:15000});
+ await flush();
+ const next=await f.service.poll(f.device,'ready','edge');
+ assert.equal(next.command.kind,'live');
+ await agent.execute(next.command);
+ const download=await downloadPromise;
+ assert.equal(download.state,'download');
+ assert.deepEqual(download.output.data,mp4);
+ assert.equal(f.store.rows.size,0,'Completed live commands must be deleted with their temporary MySQL chunks.');
+});
