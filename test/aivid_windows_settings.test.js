@@ -72,6 +72,10 @@ test('Admin cannot grant Windows Studio to unknown or disabled CMMTools accounts
   const emails={...input,allowedIds:[],allowedEmails:['owner@example.com']};
   await assert.rejects(saveConfig(emails,{db:{execute:async()=>[[]]},write:async()=>{writes++;}}),/does not exist or is disabled/);
   assert.equal(writes,0);
+  // Revocation must succeed even if an approved customer has been deleted.
+  const turnedOff=await saveConfig({...input,enabled:false},{db:{execute:async()=>{throw Error('should not query deleted users');}},write:async()=>{writes++;}});
+  assert.equal(turnedOff.enabled,false);
+  assert.equal(writes,1);
 });
 
 test('Admin UI and API include a feature switch, restricted accounts, billing warning and persistent save',()=>{
