@@ -66,16 +66,26 @@ const publicId = endpoint => 'fal_' + slug(endpoint);
 const isFalImageModel = id => /^fal_/.test(String(id || ''));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function platform(path, { apiKey = '', fetchImpl = fetch, attempts = 6 } = {}) {
+async function platform(path, { apiKey = '', fetchImpl = fetch, attempts = 6, timeoutMs = 60000 } = {}) {
   for (let attempt = 1; ; attempt++) {
     const response = await fetchImpl(API + path, {
       headers: { accept: 'application/json', ...(apiKey ? { authorization: 'Key ' + apiKey } : {}) },
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (response.status === 429 && attempt < attempts) { await response.body?.cancel?.().catch(() => {}); await sleep(2000 * attempt); continue; }
     const body = await response.json().catch(() => null);
     if (!response.ok) throw Object.assign(new Error('fal.ai catalog request failed (HTTP ' + response.status + ').'), { providerStatus: response.status });
     return body;
+  }
+}
+
+async function verifyFalCatalogKey(apiKey, fetchImpl = fetch) {
+  if (!apiKey) throw Object.assign(new Error('Enter a fal.ai API key first.'), { statusCode: 400 });
+  const result = await platform('/models/pricing?endpoint_id=fal-ai%2Fflux%2Fdev', {
+    apiKey, fetchImpl, attempts: 1, timeoutMs: 8000,
+  });
+  if (!Array.isArray(result?.prices) || !result.prices.some(row => row?.endpoint_id === 'fal-ai/flux/dev')) {
+    throw Object.assign(new Error('fal.ai did not return a pricing record for this key.'), { statusCode: 502 });
   }
 }
 
@@ -315,64 +325,93 @@ function distinctLabels(models) {
   return models;
 }
 
+async function eachCatalogBatch(items, callback, signal, width = 4) {
+  for (let i = 0; i < items.length; i += width) {
+    if (signal.aborted) break;
+    await Promise.all(items.slice(i, i + width).map(callback));
+  }
+}
+
 // Both fal image categories, with the schema and price of the exact endpoint.
-async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
+async function fetchFalImageCatalog({ apiKey, fetchImpl: request = fetch, timeoutMs = 4 * 60 * 1000 } = {}) {
   if (!apiKey) throw Object.assign(new Error('Save a fal.ai API key in Admin first.'), { statusCode: 400 });
+  const deadline = AbortSignal.timeout(timeoutMs);
+  const fetchImpl = (url, options) => request(url, { ...options, signal: AbortSignal.any([deadline, options.signal]) });
   const list = async category => {
     const models = [];
+    const seen = new Set();
     let cursor = '';
-    for (let page = 0; page < 30; page++) {
-      const r = await platform('/models?category=' + category + '&status=active&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { apiKey, fetchImpl });
-      for (const m of r?.models || []) if (m?.endpoint_id && m.metadata?.status !== 'deprecated') {
+    for (;;) {
+      const r = await platform('/models?category=' + category + '&status=active&limit=100&sort=recent' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { apiKey, fetchImpl, attempts: 2, timeoutMs: 15000 });
+      if (!Array.isArray(r?.models)) throw new Error('fal.ai returned an invalid image model list.');
+      for (const m of r.models) if (m?.endpoint_id && m.metadata?.status !== 'deprecated') {
         models.push([m.endpoint_id, { ...m.metadata, category }]);
       }
-      if (!r?.has_more || !r.next_cursor) break;
+      if (!r.has_more) return models;
+      if (typeof r.next_cursor !== 'string' || !r.next_cursor || seen.has(r.next_cursor)) {
+        throw new Error('fal.ai returned an incomplete image model listing.');
+      }
       cursor = r.next_cursor;
+      seen.add(cursor);
     }
-    return models;
   };
   const [textModels, editModels] = await Promise.all([list('text-to-image'), list('image-to-image')]);
   const metadata = new Map(textModels);
   for (const [id, info] of editModels) if (!metadata.has(id)) metadata.set(id, info);
-  const ids = [...metadata.keys()];
-  const entries = [], prices = new Map();
-  // Schemas: the expanded listing is requested without the key (with the key
-  // fal answered without the OpenAPI document, so every model looked like it
-  // had no prompt). Missing documents fall back to fal's per-model file.
-  for (let i = 0; i < ids.length; i += 10) {
-    const q = ids.slice(i, i + 10).map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
-    try { entries.push(...((await platform('/models?' + q + '&expand=openapi-3.0', { fetchImpl }))?.models || [])); } catch {}
-  }
-  const byId = new Map(entries.map(e => [e.endpoint_id, e]));
-  for (const id of ids) {
-    const entry = byId.get(id);
-    if (entry?.openapi?.paths) continue;
-    try {
-      const r = await fetchImpl('https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(30000) });
-      if (!r.ok) continue;
-      const openapi = await r.json();
-      if (entry) entry.openapi = openapi; else { const e = { endpoint_id: id, metadata: {}, openapi }; entries.push(e); byId.set(id, e); }
-    } catch {}
-  }
-  const priceErrors = [];
+  const priority = new Set([...Object.keys(GPT_IMAGE), ...Object.values(GPT_EDITS).map(spec => spec.endpoint)]);
+  const ids = [...metadata.keys()].sort((a, b) => Number(priority.has(b)) - Number(priority.has(a)));
+  const byId = new Map(), prices = new Map(), priceErrors = [];
+  const batches = size => Array.from({ length: Math.ceil(ids.length / size) }, (_, index) => ids.slice(index * size, (index + 1) * size));
+  const query = batch => batch.map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
+
+  // Read prices independently of OpenAPI. A slow schema request should not
+  // prevent a verified model from being priced before the deadline.
   const loadPrices = async batch => {
-    const q = batch.map(id => 'endpoint_id=' + encodeURIComponent(id)).join('&');
-    try { for (const p of (await platform('/models/pricing?' + q, { apiKey, fetchImpl }))?.prices || []) prices.set(p.endpoint_id, p); return true; }
-    catch (error) { priceErrors.push(error.providerStatus || error.message); return false; }
-  };
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    // One unknown endpoint can fail a whole batch: retry those one by one.
-    if (!(await loadPrices(batch)) && batch.length > 1) for (const id of batch) await loadPrices([id]);
-  }
-  if (!entries.length) throw Object.assign(new Error('fal.ai returned no image models.'), { statusCode: 502 });
-  for (const [id, spec] of Object.entries(GPT_EDITS)) {
-    if (metadata.has(id) && metadata.has(spec.endpoint) &&
-        (!byId.get(id)?.openapi?.paths || !byId.get(spec.endpoint)?.openapi?.paths)) {
-      throw Object.assign(new Error('fal.ai did not return all active GPT Image schemas. The saved catalog was kept.'), { statusCode: 502 });
+    try {
+      const result = await platform('/models/pricing?' + query(batch), { apiKey, fetchImpl, attempts: 2, timeoutMs: 15000 });
+      if (!Array.isArray(result?.prices)) throw new Error('Invalid fal.ai pricing response.');
+      for (const price of result.prices) prices.set(price.endpoint_id, price);
+    } catch (error) {
+      if ([401, 403].includes(error.providerStatus)) throw error;
+      if (batch.length > 1 && [400, 404, 422].includes(error.providerStatus) && !deadline.aborted) {
+        // Split a rejected batch without a fan-out of retries on rate limits.
+        const middle = Math.ceil(batch.length / 2);
+        await loadPrices(batch.slice(0, middle));
+        if (!deadline.aborted) await loadPrices(batch.slice(middle));
+      } else priceErrors.push(error.providerStatus || error.message);
     }
+  };
+  const loadSchemas = async () => {
+    await eachCatalogBatch(batches(10), async batch => {
+      try {
+        const result = await platform('/models?' + query(batch) + '&expand=openapi-3.0', { fetchImpl, attempts: 2, timeoutMs: 15000 });
+        for (const entry of result?.models || []) if (entry.openapi?.paths) byId.set(entry.endpoint_id, entry);
+      } catch {}
+    }, deadline);
+    await eachCatalogBatch(ids, async id => {
+      if (byId.has(id)) return;
+      try {
+        const r = await fetchImpl('https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(15000) });
+        if (!r.ok) return;
+        const openapi = await r.json();
+        if (openapi?.paths) byId.set(id, { endpoint_id: id, openapi });
+      } catch {}
+    }, deadline);
+  };
+  await Promise.all([loadSchemas(), eachCatalogBatch(batches(50), loadPrices, deadline, 2)]);
+
+  const estimated = new Set([...Object.keys(GPT_IMAGE), ...Object.values(GPT_EDITS).map(spec => spec.endpoint)]);
+  const unresolved = new Set(ids.filter(id => !byId.has(id) || (!prices.has(id) && !estimated.has(id))));
+  // Keep the last verified text/edit pairing if its edit data is temporarily missing.
+  const incomplete = new Set(unresolved);
+  for (const id of ids) {
+    const edits = GPT_EDITS[id] ? [GPT_EDITS[id].endpoint] : editCandidates(id);
+    const edit = edits.find(candidate => metadata.has(candidate));
+    if (edit && unresolved.has(edit)) incomplete.add(id);
+    if (edit && unresolved.has(id) && GPT_EDITS[id]) incomplete.add(edit);
   }
-  const described = ids.filter(id => byId.has(id)).map(id => {
+  const partial = deadline.aborted || priceErrors.length > 0 || incomplete.size > 0;
+  const described = ids.filter(id => !incomplete.has(id)).map(id => {
     const entry = byId.get(id);
     const editEndpoint = GPT_EDITS[id]?.endpoint;
     const pairedEdit = (editEndpoint && metadata.has(editEndpoint) ? editEndpoint
@@ -386,8 +425,12 @@ async function fetchFalImageCatalog({ apiKey, fetchImpl = fetch } = {}) {
   const reasons = {}, units = {};
   for (const m of models) if (!m.options.adapterSupported) { const r = m.options.setupReason.replace(/\(.*\)/, '(…)'); reasons[r] = (reasons[r] || 0) + 1; }
   for (const p of prices.values()) units[p.unit + ' ' + p.currency] = (units[p.unit + ' ' + p.currency] || 0) + 1;
-  models.diagnostics = { listed: ids.length, described: entries.length, priced: prices.size, priceErrors: [...new Set(priceErrors)].slice(0, 5), reasons, units };
-  return models;
+  const imported = models;
+  if (!imported.length || !imported.some(model => model.options.adapterSupported)) {
+    throw Object.assign(new Error('fal.ai returned no usable models with verified schemas and prices. The saved catalog was kept.'), { statusCode: 502 });
+  }
+  imported.diagnostics = { partial, listed: ids.length, described: byId.size, missingSchemas: ids.length - byId.size, priced: prices.size, unresolved: incomplete.size, priceErrors: [...new Set(priceErrors)].slice(0, 5), reasons, units };
+  return imported;
 }
 
 // Generation: submit to fal's queue, wait for the result, download the image.
@@ -447,4 +490,4 @@ class FalImageClient {
   }
 }
 
-module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, FalImageClient, inputSchema, applySavedGptEdit, compatibleEditSettings, editCandidates };
+module.exports = { PROVIDER, RATIOS, isFalImageModel, publicId, describeFalImageModel, distinctLabels, fetchFalImageCatalog, verifyFalCatalogKey, FalImageClient, inputSchema, applySavedGptEdit, compatibleEditSettings, editCandidates };
