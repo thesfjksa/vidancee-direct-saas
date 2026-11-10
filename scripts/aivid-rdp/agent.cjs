@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { connectNative, browserProfile, collectSavedVideo, takeLock } = require('./native.cjs');
+const { WindowsLive } = require('./live.cjs');
 const adapter = require(require('node:fs').existsSync(path.join(__dirname, 'provider/aivid.js')) ? './provider/aivid.js' : '../../src/provider/aivid.js');
 const CHUNK = 1024 * 1024, MAX_OUTPUT = 100 * CHUNK;
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -61,7 +62,7 @@ async function saveConfig(root, value, codec = protect) {
 }
 class Agent {
   constructor({ root = __dirname, transport, connect, clientFactory, pause = delay, now = Date.now } = {}) {
-    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false; this.browser = 'edge';
+    this.root = root; this.transport = transport; this.pause = pause; this.now = now; this.status = 'starting'; this.stopping = false; this.browser = 'edge'; this.live = null;
     this.connect = connect || (() => connectNative(browserProfile(root, this.browser), { browser: this.browser }));
     this.clientFactory = clientFactory || (limit => new adapter.AividBrowserlessClient({ connect: this.connect, collectFromHistory: (page,id) => collectSavedVideo(page,id,{checkChallenge:adapter.assertNoAividChallenge}), maxSourceCredits: limit,
       onProgress: code => console.log('Checking AIVID: ' + code.replaceAll('_', ' ') + '...'),
@@ -98,8 +99,34 @@ class Agent {
       if (data.length !== ref.size || hash(data) !== ref.sha256) throw new Error('Reference integrity check failed.');
       references.push({ kind: ref.kind, mimeType: ref.mimeType, data });
     }
-    const client = this.clientFactory(Number(command.payload.maxSourceCredits) || 0);
+    const client = command.kind === 'live' ? null : this.clientFactory(Number(command.payload.maxSourceCredits) || 0);
     let result;
+    if(command.kind==='live'){
+      this.live ||= new WindowsLive({root:this.root});
+      let bytes=null;
+      if(command.payload.action==='upload'){
+        const meta=command.payload.file;
+        if(!meta||!Number.isSafeInteger(meta.size)||meta.size<1||meta.size>30*CHUNK||!/^[a-f0-9]{64}$/.test(meta.sha256)||
+          typeof meta.mime!=='string'||typeof meta.name!=='string')throw new Error('Invalid customer reference metadata.');
+        const chunks=[];let count=0;
+        for(let i=0;i<Math.ceil(meta.size/CHUNK);i++){
+          const part=await this.transport.request(route+'/input/'+i,{method:'GET',binary:true});
+          count+=part.length;if(count>30*CHUNK)throw new Error('Reference upload too large.');chunks.push(part);
+        }
+        bytes=Buffer.concat(chunks,count);
+        if(bytes.length!==meta.size||hash(bytes)!==meta.sha256)throw new Error('Reference checksum mismatch.');
+      }
+      result=await this.live.run(command.payload,bytes);
+      if(result.state==='download'){
+        const data=result.data;
+        if(!Buffer.isBuffer(data)||data.length<12||data.length>MAX_OUTPUT||data.toString('ascii',4,8)!=='ftyp')
+          throw new Error('Only complete MP4 video downloads are supported.');
+        for(let i=0;i<Math.ceil(data.length/CHUNK);i++)
+          await this.report(route+'/chunks/'+i,data.subarray(i*CHUNK,(i+1)*CHUNK));
+        result={state:'download',size:data.length,chunks:Math.ceil(data.length/CHUNK),sha256:hash(data)};
+      }
+    }
+    else
     if (command.kind === 'preflight') result = await client.preflight(command.payload.value, references);
     else if(command.kind==='reference_check')result=await client.checkReferences(command.payload.value,references);
     else if (command.kind === 'submit') {
@@ -188,14 +215,15 @@ class Agent {
             const previous = this.status;
             this.status = 'busy';
             const timer = setInterval(() => this.transport.request('/poll', { body: { status: 'busy', browser: this.browser } }).catch(() => {}), 10000);
-            try { await this.execute(command); this.status = 'ready'; console.log('RDP operation finished.'); }
+            try { await this.execute(command); this.status = command.kind==='live'?previous:'ready'; console.log('RDP operation finished.'); }
             catch (error) {
               if (error.statusCode === 401) throw error;
               const errorCode = adapter.diagnosticCode(error);
-              await this.transport.request('/commands/' + command.id + '/result', { body: { error: true, errorCode } }).catch(() => {});
+              await this.transport.request('/commands/' + command.id + '/result', { body: { error: true, errorCode,
+                ...(command.kind==='live'?{message:String(error.message||'Interactive Edge operation failed.').slice(0,180)}:{}) } }).catch(() => {});
               const sessionFailure = ['browser_connection', 'session_sign_in', 'session_page_left',
                 'session_check', 'session_form_missing', 'session_form_ambiguous'].includes(errorCode);
-              this.status = errorCode==='session_verification'?'needs_verification':sessionFailure?'needs_login':previous;
+              this.status = command.kind==='live'?previous:errorCode==='session_verification'?'needs_verification':sessionFailure?'needs_login':previous;
               if (sessionFailure) nextSessionCheck = this.now() + 30000;
               console.log('AIVID operation needs attention. Existing paid jobs remain protected.');
               console.log('AIVID [' + errorCode + ']: ' + adapter.diagnosticMessage(errorCode));
@@ -207,7 +235,7 @@ class Agent {
         }
         await this.pause(2000);
       }
-    } finally { await release(); }
+    } finally { await this.live?.shutdown().catch(()=>{}); await release(); }
   }
 }
 async function readPairingInput(input = process.stdin) {
