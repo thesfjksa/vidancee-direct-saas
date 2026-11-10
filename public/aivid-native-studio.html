@@ -82,7 +82,7 @@ async function poll(){
   if(!resp.ok||!info.ok)throw Error(info.error||'Host not available');
   if(info.lastInputId>lastAckId){
     lastAckId=info.lastInputId;
-    lastAckMessage=info.lastInputStatus==='executed'?'Executed in Windows Edge':
+    lastAckMessage=info.lastInputStatus==='executed'?'Dispatched by Windows helper':
       'Windows blocked action: '+(info.lastInputMessage||'Check the focused AIVID window');
     alertText('#'+lastAckId+' · '+lastAckMessage);
   }
