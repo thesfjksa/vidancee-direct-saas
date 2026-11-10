@@ -124,6 +124,13 @@ async function handle(req,res,route,{requireDatabase,requireUser,
         res.writeHead(200,cors(res,origin,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}));
         res.end(JSON.stringify({ok:true,...result}));return true;
       }
+      if(route===EXT+'disconnect'){
+        const token=String(req.headers['x-cmm-share-token']||'');
+        assertPublisher(token,origin,now());
+        stop();
+        res.writeHead(200,cors(res,origin,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}));
+        res.end(JSON.stringify({ok:true,connected:false,paired:false}));return true;
+      }
       if(route===EXT+'frame'){
         const token=String(req.headers['x-cmm-share-token']||'');
         assertPublisher(token,origin,now()); // Reject before reading large request body.
