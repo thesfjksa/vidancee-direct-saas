@@ -32,8 +32,14 @@ test('top navigation offers extension download immediately after Library', () =>
   assert.match(html, /href="\/downloads\/CMMTools_Video_Studio_Launcher_v1\.5\.zip"/);
   assert.match(html, /download="CMMTools_Video_Studio_Launcher_v1\.5\.zip"/);
   assert.match(html, /aria-label="Download CMMTools Video Studio extension"/);
+  // Keep the download control visually aligned with Library, not an oversized promo pill.
+  assert.match(html, /class="extension-download"[^>]+>[\\s\\S]*?<span>Extension<\\/span><\\/a>/);
+  assert.doesNotMatch(html, /<span>Download Extension<\\/span>/);
   const css = fs.readFileSync(path.join(root, 'public', 'studio.css'), 'utf8');
   assert.match(css, /\.main-nav\s*>\s*a\.extension-download/);
+  assert.match(css, /a\\.extension-download\\s*\\{[\\s\\S]*?height:\\s*42px/);
+  assert.match(css, /a\\.extension-download\\s*\\{[\\s\\S]*?background:\\s*transparent/);
+  assert.doesNotMatch(css, /a\\.extension-download\\s*\\{[^}]*#eefafa/);
 });
 
 test('download endpoint supports GET and HEAD with ZIP attachment headers', () => {
