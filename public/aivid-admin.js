@@ -152,6 +152,7 @@
       await api('/admin/aivid/tab-share/stop',{method:'POST',body:'{}'});
       el('aividTabShareCode').value='';el('aividTabSharePairRow').hidden=true;
       await window.loadTabShareAdmin();
+      await window.loadNativeHost();
     }catch(e){el('aividTabShareState').textContent='Could not revoke sharing: '+e.message;}
     finally{button.disabled=false;}
   };
@@ -166,6 +167,60 @@
       document.body.appendChild(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),30000);
     }catch(e){el('aividTabShareState').className='err';el('aividTabShareState').textContent=e.message;}
+    finally{button.disabled=false;}
+  };
+  // Owner-operated Windows-native interactive browser, not Playwright.
+  window.loadNativeHost=async()=>{
+    const state=el('aividNativeState');
+    try{
+      const d=await api('/admin/aivid/native/status');
+      state.className=d.online?'ok':'muted';
+      state.textContent=d.online?'Native Edge host ONLINE · interactive · last frame '+
+        new Date(d.lastFrameAt).toLocaleTimeString()+' · browser area '+d.snapshotWidth+' × '+d.snapshotHeight:
+        d.paired?'Host paired; awaiting a focused AIVID webpage in the dedicated Windows account.':
+        d.pairing?'Native host code generated; run the downloaded Windows helper.':
+        'Native Windows host disconnected. Download Windows ZIP and create a fresh code.';
+      return d;
+    }catch(e){state.className='err';state.textContent=e.message;return null;}
+  };
+  window.downloadNativeHost=async()=>{
+    const button=el('aividNativeDownload');button.disabled=true;
+    try{
+      const response=await fetch('/admin/aivid/native/download',{headers:{'x-admin-token':token},cache:'no-store'});
+      if(!response.ok||(response.headers.get('content-type')||'')!=='application/zip')
+        throw Error('Could not download native Windows helper.');
+      const url=URL.createObjectURL(await response.blob());
+      const link=document.createElement('a');link.href=url;link.download='CMMTools-Windows-Interactive-Host.zip';
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }catch(e){el('aividNativeState').className='err';el('aividNativeState').textContent=e.message;}
+    finally{button.disabled=false;}
+  };
+  window.pairNativeHost=async()=>{
+    if(!confirm('Pair restricted native Windows remote input?\n\nUse a dedicated STANDARD Windows user with no personal files or administrator privileges. The customer can click Generate and charge your AIVID account directly.'))return;
+    const button=el('aividNativePair');button.disabled=true;
+    try{
+      const d=await api('/admin/aivid/native/pair',{method:'POST',body:'{}'});
+      el('aividNativeCode').value=d.code;el('aividNativePairRow').hidden=false;
+      el('aividNativeState').className='muted';
+      el('aividNativeState').textContent='Pairing code valid until '+new Date(d.expiresAt).toLocaleTimeString()+
+        '. Run Start-CMMTools-Remote.cmd on your dedicated Windows RDP and paste the code.';
+    }catch(e){el('aividNativeState').className='err';el('aividNativeState').textContent=e.message;}
+    finally{button.disabled=false;}
+  };
+  window.copyNativeCode=async()=>{
+    const field=el('aividNativeCode');if(!field.value)return;
+    try{await navigator.clipboard.writeText(field.value);el('aividNativeState').textContent='Code copied; paste in the Windows helper.';}
+    catch{field.select();el('aividNativeState').textContent='Code selected. Press Ctrl+C.';}
+  };
+  window.stopNativeHost=async()=>{
+    if(!confirm('Immediately revoke native Windows interactive control and disconnect its screen relay?'))return;
+    const button=el('aividNativeStop');button.disabled=true;
+    try{
+      await api('/admin/aivid/native/stop',{method:'POST',body:'{}'});
+      el('aividNativeCode').value='';el('aividNativePairRow').hidden=true;
+      await window.loadNativeHost();
+    }catch(e){el('aividNativeState').className='err';el('aividNativeState').textContent=e.message;}
     finally{button.disabled=false;}
   };
   window.loadWindowsStudioAdmin=async ({strict=false}={})=>{
@@ -204,7 +259,7 @@
       status.textContent='Approve a trusted CMMTools account and acknowledge direct AIVID billing.';
       status.className='err';return;
     }
-    if(form.enabled&&!confirm('Enable the private Windows Edge browser for approved users?\n\nGenerate clicks charge the AIVID provider account DIRECTLY, not the CMMTools wallet.'))return;
+    if(form.enabled&&!confirm('Enable Windows Premium Studio for the approved users?\n\nInteractive controls operate the normal Windows Edge viewport through a separately paired native helper. Generate clicks charge the AIVID provider account DIRECTLY, not the CMMTools wallet. Use a dedicated standard Windows account.'))return;
     windowsStudioSaving=true;button.disabled=true;
     status.className='muted';status.textContent='Saving Windows Studio settings in the CMMTools database…';
     try{
@@ -212,6 +267,7 @@
       const verified=await window.loadWindowsStudioAdmin({strict:true});
       if(JSON.stringify(saved.settings)!==JSON.stringify(verified))throw Error('Saved state could not be verified. Refresh Admin.');
       await window.loadTabShareAdmin();
+      await window.loadNativeHost();
       status.className='ok';status.textContent='Saved and verified: Windows Premium Studio '+(verified.enabled?'ON':'OFF')+
         ' · '+(verified.allowedIds.length+verified.allowedEmails.length)+' trusted account(s).';
     }catch(error){status.className='err';status.textContent=error.message;}
@@ -240,6 +296,7 @@
       paintLogin(data.login || { state: 'idle' });
       await window.loadWindowsStudioAdmin();
       await window.loadTabShareAdmin();
+      await window.loadNativeHost();
       if (savedMode === 'rdp') {
         const rdp = data.rdp || {};
         const browserName = 'Microsoft Edge';

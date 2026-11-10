@@ -1300,6 +1300,7 @@ const server=http.createServer(async (req,res)=>{
 
   try {
     if (await require('./src/aivid_rdp_http.js').handle(req,res,routePath,{readJson,requireDatabase})) return;
+    if (await require('./src/aivid_native_desktop.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     if (await require('./src/aivid_tab_share.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     if (await require('./src/aivid_rdp_viewer.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     const studioAssets={
@@ -2557,6 +2558,17 @@ const server=http.createServer(async (req,res)=>{
           'x-content-type-options':'nosniff','content-disposition':'attachment; filename="CMMTools-Manual-Edge-Tab-Share.zip"'});
         zip.outputStream.pipe(res);zip.end();return;
       }
+      if(routePath==='/admin/aivid/native/download'&&req.method==='GET'){
+        requireDatabase();
+        const zip=new (require('yazl').ZipFile)();
+        for(const file of ['CMMTools-Remote.ps1','Start-CMMTools-Remote.cmd','README.txt'])
+          zip.addFile(path.join(__dirname,'scripts','aivid-native-host',file),file);
+        zip.on('error',error=>res.destroy(error));
+        res.writeHead(200,{'content-type':'application/zip','cache-control':'no-store',
+          'x-content-type-options':'nosniff','content-disposition':'attachment; filename="CMMTools-Windows-Interactive-Host.zip"'});
+        zip.outputStream.pipe(res);zip.end();return;
+      }
+      if(await require('./src/aivid_native_desktop.js').admin(req,res,routePath))return;
       if(await require('./src/aivid_tab_share.js').handleAdmin(req,res,routePath,{readJson}))return;
       // Interactive Edge Studio settings: Admin-authorized and persisted in app_settings.
        if(routePath==='/admin/aivid/windows-studio'){
@@ -2567,6 +2579,7 @@ const server=http.createServer(async (req,res)=>{
            const saved=await studio.saveConfig(await readJson(req));
            // Every Admin access update revokes old extension pairing immediately.
            require('./src/aivid_tab_share.js').stop();
+           require('./src/aivid_native_desktop.js').stop();
            logActivity({category:'admin',event:'aivid.windows_studio_settings_saved',provider:'aivid',
              message:'Windows Premium Studio '+(saved.enabled?'enabled':'disabled')+' by Admin',
              details:{enabled:saved.enabled,approvedAccounts:saved.allowedIds.length+saved.allowedEmails.length,
