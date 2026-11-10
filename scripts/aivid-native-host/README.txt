@@ -3,7 +3,7 @@ If you see a connected screen that looks tiny or blurry, or buttons say "Sent" b
 - Re-download this ZIP after redeploying the latest CMMTools main, close the old helper and use this updated Start-CMMTools-Remote.cmd.
 - The helper now captures up to 1600-pixel-wide JPEGs at quality up to 76, refreshing about once per second (previously 1280 / quality 44 / every 1.5 seconds).
 - The web viewer offers Fit, Actual size, Theater and Fullscreen, plus direct keyboard control: click the webpage preview then type on your keyboard (no Playwright).
-- A command now shows Queued followed by Executed in Windows Edge, or a specific Windows blocked message. It is not enough for CMMTools merely to say Queued.
+- A command now shows Queued followed by Dispatched by Windows helper, or a specific Windows blocked message. It is not enough for CMMTools merely to say Queued.
 - If input is blocked, keep the AIVID Edge window IN THE FOREGROUND (not the black PowerShell window, Windows desktop, another application or a file-picker).
 - To type a long prompt, click the desired AIVID field in the viewer, use the Compose text input below the preview and select Send text. Each chunk waits for Windows execution confirmation.
 - If clicks work but the font remains small, use Fullscreen/Theater, set your Windows RDP display resolution higher and Edge zoom to 100% or 125%. Do not raise zoom until you can see the Generate controls clearly.
