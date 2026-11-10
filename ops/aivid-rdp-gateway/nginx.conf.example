@@ -1,0 +1,50 @@
+# Place this TLS virtual host on the Guacamole VPS (or adapt to existing Nginx).
+# DNS: rdp.cmmtools.site -> gateway VPS.
+# Obtain valid TLS certificates before enabling the gateway.
+server {
+    listen 443 ssl;
+    server_name rdp.cmmtools.site;
+
+    ssl_certificate     /etc/letsencrypt/live/rdp.cmmtools.site/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/rdp.cmmtools.site/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    location = / {
+        return 302 /guacamole/;
+    }
+
+    location /guacamole/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        client_max_body_size 100m;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $http_connection;
+
+        # Guacamole MUST authenticate every customer separately. Remove
+        # SAMEORIGIN X-Frame-Options ONLY here and replace it with a narrow
+        # CSP origin allowlist so CMMTools can embed the login and RDP viewer.
+        proxy_hide_header X-Frame-Options;
+        add_header Content-Security-Policy "frame-ancestors https://cmmtools.site" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+    }
+}
+
+# Optional redirect from HTTP after TLS is working.
+server {
+    listen 80;
+    server_name rdp.cmmtools.site;
+    return 301 https://$host$request_uri;
+}
