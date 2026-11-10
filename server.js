@@ -1333,6 +1333,14 @@ const server=http.createServer(async (req,res)=>{
       res.writeHead(200,{'content-type':contentType,'content-length':data.length,'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'});
       return res.end(req.method==='HEAD'?undefined:data);
     }
+    // Public, versioned Chrome/Edge launcher ZIP. Local display customization only.
+    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip') {
+      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Launcher_v1.5.zip'));
+      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,
+        'content-disposition':'attachment; filename="CMMTools_Video_Studio_Launcher_v1.5.zip"',
+        'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
+      return res.end(req.method==='HEAD'?undefined:file);
+    }
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/developers') return sendHtml(res,200,developerPage);
     if (req.method==='GET' && routePath==='/developers/docs') return sendHtml(res,200,developerDocsPage);
