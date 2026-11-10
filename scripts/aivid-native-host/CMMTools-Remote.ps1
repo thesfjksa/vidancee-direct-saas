@@ -141,7 +141,8 @@ function Take-Jpeg($rect){
   $g=[System.Drawing.Graphics]::FromImage($source)
   try{$g.CopyFromScreen([int]$rect.Left,[int]$rect.Top,0,0,$source.Size,[System.Drawing.CopyPixelOperation]::SourceCopy)}
   finally{$g.Dispose()}
-  $w=[Math]::Min(1280,$width)
+  # Retain more text detail than the initial 1280px/quality-44 pilot.
+  $w=[Math]::Min(1600,$width)
   $h=[Math]::Max(200,[Math]::Round($height*($w/[double]$width)))
   $target=[System.Drawing.Bitmap]::new($w,$h)
   $drawing=[System.Drawing.Graphics]::FromImage($target)
@@ -151,7 +152,7 @@ function Take-Jpeg($rect){
   }finally{$drawing.Dispose();$source.Dispose()}
   try{
     $codec=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|Where-Object{$_.MimeType -eq 'image/jpeg'}|Select-Object -First 1
-    foreach($quality in @(44,30,18)){
+    foreach($quality in @(76,65,54,42,30)){
       $mem=New-Object System.IO.MemoryStream
       $params=[System.Drawing.Imaging.EncoderParameters]::new(1)
       $params.Param[0]=[System.Drawing.Imaging.EncoderParameter]::new(
@@ -187,6 +188,9 @@ function Apply-RemoteInput($command,[IntPtr]$target){
     'wheel' {
       $delta=[int]$command.delta
       if([Math]::Abs($delta) -gt 3 -or $delta -eq 0){throw 'Scroll rejected.'}
+      # Move the native cursor into the document before scrolling, not on the
+      # helper window or another part of Windows where wheel events do nothing.
+      [CMMWindowsBrowser]::SetCursorPos([int]($r.Left+$r.Width/2),[int]($r.Top+$r.Height/2))|Out-Null
       [CMMWindowsBrowser]::Wheel($delta)
     }
     'type' {
@@ -231,10 +235,23 @@ function Main {
     while($true){
       $poll=Send-HostRequest 'next' 'Get'
       if(-not $poll.ok){throw 'CMMTools remote session has ended.'}
-      if($poll.action){try{Apply-RemoteInput $poll.action $window}catch{
-        if($lastWarning -ne $_.Exception.Message){Write-Warning $_.Exception.Message;$lastWarning=$_.Exception.Message}
-      }}
-      if(([DateTime]::UtcNow-$lastImage).TotalMilliseconds -ge 1500){
+      if($poll.action){
+        $executed=$false;$inputError=''
+        try{
+          Apply-RemoteInput $poll.action $window
+          $executed=$true
+        }catch{
+          $inputError=$_.Exception.Message
+          if($lastWarning -ne $inputError){Write-Warning $inputError;$lastWarning=$inputError}
+        }
+        try{
+          $ack=Send-HostRequest 'ack' 'Post' @{id=[int]$poll.action.id;executed=$executed;message=$inputError}
+          if(-not $ack.ok){throw 'Input result rejected by CMMTools.'}
+        }catch{
+          Write-Warning ('Could not deliver input result: '+$_.Exception.Message)
+        }
+      }
+      if(([DateTime]::UtcNow-$lastImage).TotalMilliseconds -ge 1000){
         $lastImage=[DateTime]::UtcNow
         try{
           $rect=Get-WebViewport $window
@@ -252,7 +269,7 @@ function Main {
           if($lastWarning -ne $_.Exception.Message){Write-Warning $_.Exception.Message;$lastWarning=$_.Exception.Message}
         }
       }
-      Start-Sleep -Milliseconds 220
+      Start-Sleep -Milliseconds 150
     }
   }finally{
     if($script:token){try{Send-HostRequest 'stop' 'Post' @{}|Out-Null}catch{}}
