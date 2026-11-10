@@ -1673,6 +1673,8 @@ function renderConfig(){
 
 function renderDurations(resetResolution=false, refreshPrice=true){
   const m=(config.pricing||[]).find(x=>x.id===$('model').value)||(config.pricing||[])[0];
+  const desktopLink=$('premiumDesktopLink');
+  if(desktopLink)desktopLink.classList.toggle('hide',!m?.premium);
   if(!m){
     $('duration').innerHTML='';
     $('ratio').innerHTML='';
@@ -1682,8 +1684,6 @@ function renderDurations(resetResolution=false, refreshPrice=true){
   }
   renderGatewayVideoSettings(m);
   showModelWarning('videoModelWarning',m);
-  const desktopLink=$('premiumDesktopLink');
-  if(desktopLink)desktopLink.classList.toggle('hide',!m?.premium);
   const modelRatios=Array.isArray(m.aspectRatios)&&m.aspectRatios.length?m.aspectRatios:(config.aspectRatios||[]);
   const previousRatio=$('ratio').value;
   $('ratio').innerHTML=modelRatios.map(r=>'<option>'+escapeHtml(r)+'</option>').join('');
