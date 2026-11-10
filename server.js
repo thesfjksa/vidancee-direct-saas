@@ -2546,7 +2546,22 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vidancee',vidanceeMediaModels());
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
-      if(req.method==='GET'&&routePath==='/admin/aivid/status'){
+      // Interactive Edge Studio settings: Admin-authorized and persisted in app_settings.
+       if(routePath==='/admin/aivid/windows-studio'){
+         requireDatabase();
+         const studio=require('./src/aivid_windows_settings.js');
+         if(req.method==='GET')return sendJson(res,200,{ok:true,settings:await studio.readConfig()});
+         if(req.method==='POST'){
+           const saved=await studio.saveConfig(await readJson(req));
+           logActivity({category:'admin',event:'aivid.windows_studio_settings_saved',provider:'aivid',
+             message:'Windows Premium Studio '+(saved.enabled?'enabled':'disabled')+' by Admin',
+             details:{enabled:saved.enabled,approvedAccounts:saved.allowedIds.length+saved.allowedEmails.length,
+               directBillingAcknowledged:saved.directBillingAcknowledged}});
+           return sendJson(res,200,{ok:true,settings:saved});
+         }
+         return sendJson(res,405,{ok:false,error:'Method not allowed.'});
+       }
+       if(req.method==='GET'&&routePath==='/admin/aivid/status'){
         requireDatabase();
         return sendJson(res,200,{ok:true,...await require('./src/aivid_admin.js').getAividAdminService().status()});
       }
