@@ -1,0 +1,5 @@
+.env
+initdb.sql
+drives/
+*.pem
+*.key
