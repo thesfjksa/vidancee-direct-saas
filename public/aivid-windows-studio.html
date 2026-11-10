@@ -31,6 +31,8 @@ input[type=text],input[type=password]{min-height:37px;min-width:180px;flex:1;bor
    <div class="row">
      <input type="text" id="typed" placeholder="Type text into the selected Edge field" autocomplete="off" aria-label="Text to type into remote Edge">
      <button id="sendText" disabled>Type into Edge</button>
+     <input type="password" id="secret" autocomplete="off" placeholder="Password (encrypted before sending)" aria-label="Secure password entry">
+     <button id="sendSecret" disabled>Type password securely</button>
      <button id="tab" disabled>Tab</button><button id="enter" disabled>Enter</button>
      <button id="backspace" disabled>Backspace</button><button id="escape" disabled>Escape</button>
      <button id="refresh" disabled>Refresh preview</button>
@@ -49,8 +51,8 @@ input[type=text],input[type=password]{min-height:37px;min-width:180px;flex:1;bor
 </main>
 <script nonce="__CMM_NONCE__">
 const $=id=>document.getElementById(id);
-let active=false,busy=false,frameTimer=null,pendingUpload=false;
-const controls=['sendText','tab','enter','backspace','escape','refresh','upload','save'];
+let active=false,busy=false,frameTimer=null,pendingUpload=false,publicKey='';
+const controls=['sendText','sendSecret','tab','enter','backspace','escape','refresh','upload','save'];
 function message(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
 function buttons(){for(const id of controls)$(id).disabled=!active||busy||(id==='save'&&!$('save').dataset.ready);
  $('connect').disabled=busy||active;$('stop').disabled=busy||!active;}
@@ -58,6 +60,7 @@ function showFrame(value){
  if(value.state!=='frame')return;
  if(value.jpeg){$('screen').src='data:image/jpeg;base64,'+value.jpeg;$('screen').classList.remove('hide');$('empty').classList.add('hide');}
  pendingUpload=Boolean(value.uploadPending);
+ publicKey=value.secretKey||'';
  $('fileNote').textContent=pendingUpload?'AIVID reference picker is ready. Click Upload reference to choose your local file.':'Click AIVID’s own reference-upload control first, then choose Upload reference here.';
  $('save').dataset.ready=value.downloadReady?'1':'';
  message(value.notice||(value.url?'Viewing '+value.url:'Remote Edge ready.'));
@@ -94,6 +97,22 @@ $('stop').addEventListener('click',()=>request('close'));
 $('refresh').addEventListener('click',()=>request('frame'));
 $('sendText').addEventListener('click',()=>{const text=$('typed').value;if(text)request('type',{text});$('typed').value='';});
 $('typed').addEventListener('keydown',e=>{if(e.key==='Enter'&&active){e.preventDefault();$('sendText').click();}});
+$('sendSecret').addEventListener('click',async()=>{
+ const text=$('secret').value;if(!text)return;
+ $('secret').value='';
+ try{
+   if(!publicKey)throw new Error('Open or refresh your private Edge session before typing a password.');
+   const pem=atob(publicKey).replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s+/g,'');
+   const spki=Uint8Array.from(atob(pem),c=>c.charCodeAt(0));
+   const key=await crypto.subtle.importKey('spki',spki,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
+   const bytes=new TextEncoder().encode(text);
+   const encrypted=await crypto.subtle.encrypt({name:'RSA-OAEP'},key,bytes);
+   bytes.fill(0);
+   const ciphertext=btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+   await request('secret',{ciphertext});
+ }catch(error){message(error.message||'Secure password entry is unavailable.',true);}
+});
+$('secret').addEventListener('keydown',e=>{if(e.key==='Enter'&&active){e.preventDefault();$('sendSecret').click();}});
 for(const [id,key] of [['tab','Tab'],['enter','Enter'],['backspace','Backspace'],['escape','Escape']])
  $(id).addEventListener('click',()=>request('key',{key}));
 $('screen').addEventListener('click',e=>{
