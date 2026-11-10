@@ -84,6 +84,25 @@ test('File validation only permits expected reference media extensions and nonem
  assert.throws(()=>validFile({name:'clip.mp4',mimeType:'text/html',data:Buffer.from([1])}),/match/);
  assert.throws(()=>validFile({name:'clip.mp4',mimeType:'video/mp4',data:Buffer.alloc(0)}),/Empty/);
 });
+test('Multipart reference uploads are parsed from the actual HTTP stream',async()=>{
+ const {PassThrough}=require('node:stream');
+ const {parseUploads}=require('../src/aivid_embed.js');
+ const boundary='----cmm-live-test-boundary';
+ const body=Buffer.concat([
+  Buffer.from('--'+boundary+'\r\nContent-Disposition: form-data; name="reference"; filename="frame.png"\r\nContent-Type: image/png\r\n\r\n'),
+  Buffer.from([137,80,78,71,13,10,26,10]),
+  Buffer.from('\r\n--'+boundary+'--\r\n'),
+ ]);
+ const req=new PassThrough();
+ req.headers={'content-type':'multipart/form-data; boundary='+boundary,'content-length':String(body.length)};
+ const promise=parseUploads(req);req.end(body);
+ const uploaded=await promise;
+ assert.equal(uploaded.length,1);
+ assert.equal(uploaded[0].name,'frame.png');
+ assert.equal(uploaded[0].mimeType,'image/png');
+ assert.deepEqual(uploaded[0].data,Buffer.from([137,80,78,71,13,10,26,10]));
+});
+
 test('Unapproved users and cross-site upload requests remain denied',async()=>{
  const {handle}=require('../src/aivid_embed.js');
  const previous=process.env.AIVID_LIVE_VIEW_ENABLED;
