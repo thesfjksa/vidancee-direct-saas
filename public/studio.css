@@ -29,6 +29,14 @@
 .main-nav button:focus-visible { outline: 2px solid var(--turquoise); outline-offset: 1px; }
 .main-nav button.active { color: var(--text); font-weight: 650; background: #fff; box-shadow: 0 1px 2px rgba(15,29,43,.08), 0 2px 8px rgba(15,29,43,.06); }
 .main-nav > button.active { border-color: var(--line); }
+
+/* CMMTools Video Studio extension download: adjacent to Library, visible on all breakpoints. */
+.main-nav > a.extension-download { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; min-height: 34px; padding: 0 12px; border: 1px solid #b9dfe5; border-radius: 9px; background: #eefafa; color: #056b82; font-size: 13px; line-height: 1.2; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.main-nav > a.extension-download svg { width: 17px; height: 17px; flex: 0 0 auto; stroke-width: 1.7; }
+.main-nav > a.extension-download:hover { background: #dff5f7; border-color: #92cfd8; color: #03556b; }
+.main-nav > a.extension-download:focus-visible { outline: 2px solid var(--turquoise); outline-offset: 2px; }
+@media (max-width:620px) { .main-nav > a.extension-download { padding: 0 10px; font-size: 13px; } .main-nav > a.extension-download svg { width:16px; height:16px; } }
+
 .main-nav button.active svg { color: var(--accent); }
 
 /* ---------- Creation workspace ---------- */
