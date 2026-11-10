@@ -125,12 +125,25 @@ class GenerationWorker {
     this.vercelQueue.start();
     this.api888Queue.start();
     this.falImageQueue.start();
-    // fal.ai image catalog and prices: shortly after start, then daily.
-    const syncFal=()=>Promise.resolve().then(()=>require('./fal_image_queue.js').syncFalImageModels())
-      .then(models=>models&&logActivity({category:'system',event:'fal.images_synced',provider:'falimg',message:'fal.ai image models synced',details:{total:models.length,ready:models.filter(m=>m.ready).length,...(models.diagnostics||{})}}))
-      .catch(error=>logActivity({level:'warn',category:'system',event:'fal.images_sync_failed',provider:'falimg',message:String(error.message||error).slice(0,300)}));
-    this.falSyncTimer=setTimeout(()=>{syncFal();this.falSyncInterval=setInterval(syncFal,24*60*60*1000);this.falSyncInterval.unref?.();},60000);
-    this.falSyncTimer.unref?.();
+    const {falCatalogStatus,queueFalCatalogSync,runFalCatalogSync}=require('./fal_catalog_jobs.js');
+    const queueDailyCatalog=async()=>{
+      try{
+        const last=await falCatalogStatus();
+        if(Date.now()-(Date.parse(last.requestedAt)||0)>=24*60*60*1000 && (await getProviderSettings()).falApiKey){
+          await queueFalCatalogSync();
+        }
+      }catch(error){console.error('[worker] fal.ai catalog schedule failed:',error.message);}
+    };
+    const pollCatalog=async()=>{
+      try{await runFalCatalogSync();}
+      catch(error){console.error('[worker] fal.ai catalog queue failed:',error.message);}
+      finally{if(!this.stopped)this.falCatalogPollTimer=setTimeout(pollCatalog,3000).unref();}
+    };
+    this.falCatalogPollTimer=setTimeout(pollCatalog,1000).unref();
+    this.falSyncTimer=setTimeout(()=>{
+      void queueDailyCatalog();
+      this.falSyncInterval=setInterval(queueDailyCatalog,24*60*60*1000).unref();
+    },60000).unref();
     // Once per start: re-fetch recent 888API videos that were saved incomplete.
     setTimeout(()=>Promise.resolve().then(()=>this.api888Queue.repairIncompleteVideos(getPool())).catch(()=>{}),30000).unref?.();
     this.argoLinkQueue.start();
@@ -153,7 +166,7 @@ class GenerationWorker {
     this.vercelQueue.stop();
     this.api888Queue.stop();
     this.falImageQueue.stop();
-    clearTimeout(this.falSyncTimer);clearInterval(this.falSyncInterval);
+    clearTimeout(this.falSyncTimer);clearInterval(this.falSyncInterval);clearTimeout(this.falCatalogPollTimer);
     this.argoLinkQueue.stop();
     this.higgsfieldQueue.stop();
     this.sluiceQueue.stop();
