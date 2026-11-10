@@ -120,8 +120,7 @@ async function ensureSettingsTable(db=getPool()) {
   settingsTableReady.add(db);
 }
 
-async function rowsMap() {
-  const db = getPool();
+async function rowsMap(db = getPool()) {
   await ensureSettingsTable(db);
   const [rows] = await db.query('SELECT setting_key, setting_value, is_secret FROM app_settings');
   return new Map(rows.map(r => [r.setting_key, r]));
@@ -190,8 +189,8 @@ function asBool(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ''));
 }
 
-async function getProviderSettings() {
-  const rows = await rowsMap();
+async function getProviderSettings(db = getPool()) {
+  const rows = await rowsMap(db);
   const read = key => {
     const row = rows.get(key);
     if (!row) return DEFAULTS[key];

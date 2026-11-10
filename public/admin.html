@@ -348,11 +348,11 @@
           <div class="field"><label class="muted" for="falInflight">Max inflight upscales</label><input id="falInflight" type="number" min="1" max="10" value="3">
           </div><div class="field"><label class="muted" for="falCreditsPerUsd">Customer credits per USD</label><input id="falCreditsPerUsd" readonly title="Fixed: 24 credits per rupee of cost (Rs 280 per USD); the plan price carries the profit." type="number" min="0.01" max="1000000" step="any">
           </div><div class="muted" style="margin:10px 0">fal charges per second: up to 1080p $0.0072, 2K $0.0144, 4K $0.0288. Also used for Video Studio 720p and 1080p (ArgoLink renders lower and fal upscales).</div>
-          <button class="secondary" onclick="checkFal()">Check saved key</button>
-          <button class="secondary" onclick="syncFalImages()">Sync fal.ai image models</button>
-          <div id="falActionMsg" class="muted" style="margin-top:10px"></div>
-        <details class="provider-notes"><summary>Setup notes &amp; pricing</summary><div class="muted" style="margin-top:8px">Image Studio also offers fal.ai's text-to-image models (priced from fal's published per-image or per-megapixel rates at the credit rate above). Sync runs automatically once a day; use the button after topping up or to pick up new models. Turn single models off under Model names / provider models.</div>
-          </details></div>
+          <button id="falSyncButton" class="secondary" type="button" onclick="syncFalImages()">Connect &amp; import image models</button>
+          <p class="muted">Enter a new key or leave it blank to reuse the saved key. The import runs in the background and refreshes daily. Use the source switch and save settings to control customer access.</p>
+          <div id="falActionMsg" class="muted" role="status"></div>
+          <div id="falModelSummary" class="muted"></div>
+        </div>
         <div class="card provider-source-card" data-provider-source="vibi" hidden="hidden">
           <div class="source-head">
             <h3>Voice Studio · Vibi</h3>
@@ -1039,11 +1039,69 @@ async function setCloudStorage(change){
   try{await api('/admin/storage/r2/state',{method:'POST',body:JSON.stringify(change)});message.textContent='Saved.';await loadCloudStorage();}
   catch(error){message.textContent=error.message;}
 }
-async function syncFalImages(){
-  const m=$('falActionMsg');m.textContent='Reading fal.ai image models and prices (about a minute)...';
-  try{const d=await api('/admin/fal/images/sync',{method:'POST',body:'{}'});m.textContent='fal.ai image models synced: '+d.ready+' ready for customers of '+d.total+' listed.'+(d.diagnostics?' Prices read: '+d.diagnostics.priced+'. Left off: '+Object.entries(d.diagnostics.reasons||{}).map(([r,n])=>n+' × '+r).join('; '):'');}
-  catch(e){m.textContent='Sync failed: '+e.message;}
+async function loadFalModels(){
+  const panel=$('falModelSummary');
+  try{
+    const {models}=await api('/admin/provider-models?provider=falimg');
+    panel.innerHTML='<details class="provider-notes"><summary>'+models.filter(model=>model.ready&&model.enabled&&model.available).length+' enabled · '+models.length+' in inventory</summary>'+
+      models.map(model=>'<label style="display:flex;gap:8px;padding:4px"><input type="checkbox" style="width:auto" '+
+        (model.enabled?'checked ':'')+(!model.available||!model.ready?'disabled ':'')+
+        'onchange="toggleFalModel('+Number(model.id)+',this)"> '+esc(model.label)+(model.setupReason?' <span class="muted">· '+esc(model.setupReason)+'</span>':'')+'</label>').join('')+'</details>';
+  }catch(error){panel.textContent='Image inventory unavailable: '+error.message;}
 }
+async function toggleFalModel(id, checkbox){
+  checkbox.disabled=true;
+  try{
+    await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({provider:'falimg',enabled:checkbox.checked})});
+  }catch(error){
+    checkbox.checked=!checkbox.checked;
+    $('falActionMsg').textContent=error.message;
+  }finally{checkbox.disabled=false;}
+}
+let falSyncTimer;
+async function showFalSync(start=false){
+  clearTimeout(falSyncTimer);
+  const status=$('falActionMsg'),button=$('falSyncButton'),key=$('falApiKey');
+  button.disabled=true;
+  status.className='muted';
+  try{
+    const options={signal:AbortSignal.timeout(15000)};
+    const apiKey=key.value.trim();
+    if(start){
+      options.method='POST';
+      options.body=JSON.stringify({background:true,apiKey});
+      status.textContent='Checking the key and starting the image import…';
+    }
+    const {job}=await api('/admin/fal/images/sync',options);
+    if(start){
+      if(key.value.trim()===apiKey)key.value='';
+      $('clearFalApiKey').checked=false;
+      $('falSecretStatus').textContent='Saved key: configured';
+    }
+    if(job.status==='queued'||job.status==='running'){
+      const seconds=Math.max(0,Math.floor((Date.now()-Date.parse(job.startedAt||job.requestedAt))/1000));
+      const elapsed=Number.isFinite(seconds)?' · '+Math.floor(seconds/60)+'m '+seconds%60+'s elapsed':'';
+      status.textContent=(job.status==='queued'?'Import queued for the worker':'Importing image models, schemas and prices')+elapsed;
+      falSyncTimer=setTimeout(showFalSync,3000);
+      return;
+    }
+    if(job.status==='completed'){
+      await loadFalModels();
+      const listed=job.diagnostics?.listed;
+      const total=listed?' · '+listed+' active fal.ai endpoints discovered':'';
+      status.textContent=(job.diagnostics?.partial?'Partial import. Existing models were kept. ':'Import complete. ')+
+        job.ready+' supported models in the saved catalog'+total+'.';
+    }else if(job.status==='failed'){
+      status.className='err';
+      status.textContent='Import failed. '+job.error;
+    }
+  }catch(error){
+    status.className='err';
+    status.textContent=error.message;
+  }
+  button.disabled=false;
+}
+function syncFalImages(){return showFalSync(true);}
 async function loadDriveStorage(){
   const target=$('gdriveStorageStatus');target.textContent='Checking Google Drive...';
   try{
@@ -1263,6 +1321,8 @@ async function loadProviderSettings(){try{
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
   $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
   $('providerCharges').value=s.allowProviderCharges?'true':'false';
+  loadFalModels();
+  showFalSync();
 }catch(e){$('providerSettingsMsg').className='err';$('providerSettingsMsg').textContent=e.message}}
 async function saveProviderSettings(){
   const m=$('providerSettingsMsg');m.className='muted';m.textContent='Saving settings...';
@@ -1280,7 +1340,7 @@ async function saveProviderSettings(){
     longAiEnabled:$('longaiEnabled').checked,longAiApiKey:$('longaiApiKey').value.trim(),clearLongAiApiKey:$('clearLongAiApiKey').checked,
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
     vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeEmail:$('clearVidanceeApiKey').checked,vidanceePassword:$('vidanceePassword').value,clearVidanceePassword:$('clearVidanceePassword').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
-    falEnabled:$('falEnabled').checked,falApiKey:$('falApiKey').value.trim(),clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
+    falEnabled:$('falEnabled').checked,clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
     vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
   };
@@ -1433,11 +1493,7 @@ async function revokeSupportKey(){
   try{await api('/admin/support-key/revoke',{method:'POST',body:'{}'});$('supportKeyOut').classList.add('hide');loadSupportKey();}
   catch(e){alert(e.message);}
 }
-async function checkFal(){
-  const msg=$('falActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
-  try{await api('/admin/fal/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent='Connected · fal.ai accepted the key';}
-  catch(e){msg.className='err';msg.textContent=e.message;}
-}
+
 async function checkArgo(){
   const msg=$('argoActionMsg');msg.className='muted';msg.textContent='Checking saved login...';
   try{const d=await api('/admin/argolink/check',{method:'POST',body:'{}'});msg.className='ok';msg.textContent=d.balance?'Connected · '+d.balance.remaining+' '+d.balance.unit+' available':'Connected · balance not reported';}

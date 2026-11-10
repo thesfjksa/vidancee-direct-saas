@@ -135,7 +135,7 @@ const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = requi
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos, validateAividVideoReferences } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
-const { isFalImageModel, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
+const { isFalImageModel, verifyFalCatalogKey, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
 const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
 const {
@@ -179,7 +179,6 @@ const {
 } = require('./src/settings.js');
 const { verifyAssetSignature, verifyOutputSignature } = require('./src/provider/assets.js');
 const { createUpscaleJob, publicUpscalerConfig, quoteForCustomer } = require('./src/upscaler.js');
-const { FalClient } = require('./src/provider/fal.js');
 const { VercelGatewayClient } = require('./src/provider/vercel.js');
 const { ArgoLinkClient } = require('./src/provider/argolink.js');
 const { Api888Client } = require('./src/provider/api888.js');
@@ -2195,13 +2194,34 @@ const server=http.createServer(async (req,res)=>{
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
 
 
-      if(req.method==='POST'&&routePath==='/admin/fal/images/sync'){
-        requireDatabase();
-        const models=await require('./src/fal_image_queue.js').syncFalImageModels();
-        if(!models)return sendJson(res,400,{ok:false,error:'Save a fal.ai API key first.'});
-        const ready=models.filter(m=>m.ready).length;
-        logActivity({category:'admin',event:'fal.images_synced',provider:FAL_IMAGE_PROVIDER,message:'fal.ai image models synced',details:{total:models.length,ready,...(models.diagnostics||{})}});
-        return sendJson(res,200,{ok:true,total:models.length,ready,diagnostics:models.diagnostics||null});
+      if(routePath==='/admin/fal/images/sync'){
+        const {falCatalogStatus,queueFalCatalogSync}=require('./src/fal_catalog_jobs.js');
+        if(req.method==='GET'){
+          requireDatabase();
+          return sendJson(res,200,{ok:true,job:await falCatalogStatus()});
+        }
+        if(req.method==='POST'){
+          const input=await readJson(req);
+          if(input?.background!==true){
+            return sendJson(res,409,{ok:false,error:'Reload the Admin page to use the new fal.ai connection workflow.'});
+          }
+          if(input.apiKey!==undefined && (typeof input.apiKey!=='string'||input.apiKey.length>512)){
+            return sendJson(res,400,{ok:false,error:'Invalid fal.ai API key.'});
+          }
+          requireDatabase();
+          const {falApiKey}=await getProviderSettings();
+          const apiKey=input.apiKey?.trim()||falApiKey;
+          const current=await falCatalogStatus();
+          if(['queued','running'].includes(current.status)){
+            if(apiKey!==falApiKey)return sendJson(res,409,{ok:false,error:'Wait for the current image import to finish before changing the key.'});
+            return sendJson(res,202,{ok:true,job:current});
+          }
+          await verifyFalCatalogKey(apiKey);
+          if(apiKey!==falApiKey)await updateProviderSettings({falApiKey:apiKey});
+          const job=await queueFalCatalogSync();
+          wakeGenerationWorker(req);
+          return sendJson(res,202,{ok:true,job});
+        }
       }
       if(req.method==='GET'&&routePath==='/admin/storage/r2'){
         requireDatabase();
@@ -2328,7 +2348,7 @@ const server=http.createServer(async (req,res)=>{
       }
       if(req.method==='POST'&&routePath==='/admin/fal/check'){
         requireDatabase();const s=await getProviderSettings();
-        await new FalClient({apiKey:s.falApiKey}).verifyKey();
+        await verifyFalCatalogKey(s.falApiKey);
         return sendJson(res,200,{ok:true});
       }
       // Admin-confirmed, idempotent recovery of already-completed provider
