@@ -4,7 +4,7 @@
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {Transport,loadConfig,saveConfig,readPairingInput}=require('./agent.cjs');
-const FILES=['agent.cjs','native.cjs','provider/aivid.js','provider/aivid_uploads.js','provider/browserless.js','aivid_models.js','live.cjs'];
+const FILES=['agent.cjs','native.cjs','provider/aivid.js','provider/aivid_uploads.js','provider/browserless.js','aivid_models.js'];
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 function validateManifest(m){
  if(m?.protocol!==1||!/^[a-f0-9]{64}$/.test(m.version)||!Array.isArray(m.files)||m.files.length!==FILES.length)throw Error('Invalid worker release.');
