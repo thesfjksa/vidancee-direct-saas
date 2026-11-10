@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "CMMTools Manual AIVID Tab Share",
+  "version": "1.0.0",
+  "description": "View-only screenshots of the AIVID tab you open manually in normal Microsoft Edge. No browser automation.",
+  "minimum_chrome_version": "110",
+  "permissions": [
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://cmmtools.site/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Share this AIVID tab with CMMTools (view-only)"
+  }
+}
