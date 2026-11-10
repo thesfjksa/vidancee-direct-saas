@@ -122,7 +122,7 @@ function acknowledge(token,report,now=Date.now()){
     throw err('Invalid or outdated native input acknowledgment.',400);
   if(typeof report.executed!=='boolean')throw err('Invalid native input result.',400);
   s.lastInputId=id;s.lastInputStatus=report.executed?'executed':'blocked';
-  s.lastInputMessage=report.executed?'Action performed in Windows Edge':
+  s.lastInputMessage=report.executed?'Windows helper dispatched input (check AIVID for effect)':
     String(report.message||'Windows blocked this action.').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,180);
   s.lastInputAt=now;
   return {acknowledged:true};
