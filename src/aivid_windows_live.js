@@ -160,7 +160,7 @@ async function handle(req,res,route,{requireUser,requireDatabase,checkSourceAcce
     }
     throw failure('Method not allowed.',405);
   }catch(error){
-    const status=[400,403,404,405,409,413,503].includes(error?.statusCode)?error.statusCode:503;
+    const status=[400,401,403,404,405,409,413,503].includes(error?.statusCode)?error.statusCode:503;
     send(res,status,{ok:false,error:error?.statusCode?error.message:'Windows Premium Studio is unavailable. Check that the Edge agent is connected.'});return true;
   }
 }
