@@ -35,6 +35,24 @@ class Api888Client {
       throw Object.assign(new Error('888API pricing was empty or unsuccessful. Existing models were preserved.'),{statusCode:502});
     return body;
   }
+  async modelStatus(){
+    if(!this.apiKey)throw new Error('Configure an 888API token in Admin first.');
+    const response=await this.fetch(ORIGIN+'/v1/model-status',{
+      method:'GET',headers:{authorization:'Bearer '+this.apiKey,accept:'application/json'},
+      redirect:'error',signal:AbortSignal.timeout(20000),
+    });
+    if(!response.ok){
+      await response.body?.cancel?.().catch(()=>{});
+      const retryAfter=response.headers.get('retry-after');
+      const retryAfterMs=retryAfter&&(/^\d+$/.test(retryAfter)?Number(retryAfter)*1000:Date.parse(retryAfter)-Date.now());
+      throw Object.assign(new Error('888API model status is unavailable (HTTP '+response.status+').'),{
+        retryAfterMs:response.status===429&&Number.isFinite(retryAfterMs)?retryAfterMs:0,
+      });
+    }
+    const body=JSON.parse((await readBounded(response,API888_JSON_LIMIT)).toString('utf8'));
+    if(body?.success!==true||!Array.isArray(body.data?.models))throw new Error('888API returned invalid model status.');
+    return body.data;
+  }
   // Public endpoint behind 888API's pricing-page status labels; needs no key.
   async modelHealth(){
     let response;

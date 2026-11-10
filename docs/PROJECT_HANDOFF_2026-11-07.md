@@ -1,3 +1,9 @@
+## 10 November 2026 — 888API model performance
+
+- Video and Image Studio display the 888API 24-hour success rate and average latency when reported. Both providers share the existing flat sort order. The 888API snapshot refreshes every ten minutes and preserves its last known values if the upstream request fails.
+- The read-only status request uses the saved server-side 888API token. Customer responses require account access and include only eligible models from the studio catalog. The status feed does not affect generation access or billing.
+- Added tests for cache refresh, key rotation, rate limiting, and sorting Dope and 888API cards together. Production deployment of the web app is pending.
+
 ## 10 November 2026 — Retire AIVID customer models and flatten the video picker
 
 - Removed the four AIVID models from customer catalogs, quotes, and new submissions. Existing AIVID jobs, Admin handling, and the standalone browser extension remain available.

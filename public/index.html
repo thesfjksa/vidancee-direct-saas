@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
 <link rel="stylesheet" href="/studio.css?v=cmm-17">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
-<script src="/dope-performance.js?v=3"></script>
+<script src="/dope-performance.js?v=4"></script>
 </head>
 <body>
 
@@ -1052,7 +1052,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
-  const performance=id==='model' ? globalThis.dopePerformanceMarkup?.(o.value,true)||'' : '';
+  const performance=id==='model'||id==='imageModel' ? globalThis.modelPerformanceMarkup?.(o.value,true)||'' : '';
   const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)),modelPickerSource(id,i))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
@@ -1254,7 +1254,7 @@ function rebuildCustomSelect(id){
   ).join('');
   if(empty)empty.insertAdjacentHTML('beforebegin',optionsHtml);
   else optionsRoot.insertAdjacentHTML('beforeend',optionsHtml);
-  if(id==='model')globalThis.sortDopePerformanceOptions?.(optionsRoot);
+  if(id==='model'||id==='imageModel')globalThis.sortDopePerformanceOptions?.(optionsRoot);
   if(searchWrap){
     const input=searchWrap.querySelector('input');
     if(input){input.value='';filterCustomSelectOptions(wrap,'')}

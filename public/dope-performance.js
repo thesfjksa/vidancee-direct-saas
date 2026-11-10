@@ -1,24 +1,26 @@
 (() => {
   'use strict';
 
-  const refreshMs = 10 * 60 * 1000;
-  const selector = '[data-dope-performance]';
-  let snapshot;
-  let refreshAfter = 0;
-  let refreshTimer;
-  let refreshing = false;
+  const sources = {
+    dope: { refreshMs: 10 * 60 * 1000 },
+    api888: { refreshMs: 10 * 60 * 1000 },
+  };
+  const sourceFor = id => sources[id?.startsWith('api888_') ? 'api888' : 'dope'];
+  const metricsFor = id => sourceFor(id).snapshot?.models[id];
 
   function describe(id, card = false) {
     const heading = '24h performance';
-    const metrics = snapshot?.models[id];
+    const { snapshot } = sourceFor(id);
+    const metrics = metricsFor(id);
     if (!metrics) {
       const status = !snapshot ? 'Loading…' : snapshot.stale ? 'Unavailable' : 'No data';
       return card ? '<span class="model-picker-performance-heading">' + heading +
         '</span><span>' + status + '</span>' : heading + ' · ' + status;
     }
     const seconds = Math.round(metrics.averageLatencyMs / 1000);
-    const latency = seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
-    const success = metrics.successRate.toFixed(2) + '%';
+    const latency = metrics.averageLatencyMs === null ? '—' :
+      seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+    const success = metrics.successRate === null ? '—' : metrics.successRate.toFixed(2) + '%';
     if (card) {
       return '<span class="model-picker-performance-heading">' + heading + '</span>' +
         '<span class="model-picker-metric">Success <strong>' + success + '</strong></span>' +
@@ -33,8 +35,9 @@
     if (!root) return;
     const items = [...root.children].filter(item => item.matches('.custom-select-option')).map(item => ({
       item,
-      metrics: snapshot?.models[item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance],
+      metrics: metricsFor(item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance),
     }));
+    // Fast failures must not outrank successful jobs.
     const tier = metrics => metrics?.successRate > 0 ? 0 : metrics ? 1 : 2;
     const latency = metrics => metrics?.averageLatencyMs ?? Infinity;
     items.sort((a, b) => tier(a.metrics) - tier(b.metrics) ||
@@ -48,39 +51,43 @@
     if (root.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
   }
 
-  async function refresh() {
-    if (refreshing || Date.now() < refreshAfter) return;
-    refreshing = true;
-    clearTimeout(refreshTimer);
+  async function refresh(name) {
+    const state = sources[name];
+    if (state.refreshing || Date.now() < (state.refreshAfter || 0)) return;
+    state.refreshing = true;
+    clearTimeout(state.refreshTimer);
+    const sourceSelector = '[data-dope-performance^="' + name + '_"]';
     try {
-      const response = await fetch('/api/dope-performance', { cache: 'no-store' });
+      const response = await fetch('/api/' + name + '-performance', { cache: 'no-store' });
       if (!response.ok) throw new Error('Performance unavailable');
       const next = await response.json();
       if (!next?.models || typeof next.models !== 'object') throw new Error('Invalid performance response');
-      snapshot = next;
+      state.snapshot = next;
     } catch {
-      snapshot = { models: {}, ...snapshot, stale: true };
+      state.snapshot = { models: {}, ...state.snapshot, stale: true };
     } finally {
-      refreshing = false;
-      refreshAfter = Date.now() + refreshMs;
-      refreshTimer = setTimeout(() => {
-        refreshAfter = 0;
-        if (document.querySelector(selector)) void refresh();
-      }, refreshMs);
+      state.refreshing = false;
+      state.refreshAfter = Date.now() + state.refreshMs;
+      state.refreshTimer = setTimeout(() => {
+        state.refreshAfter = 0;
+        if (document.querySelector(sourceSelector)) void refresh(name);
+      }, state.refreshMs);
     }
-    for (const node of document.querySelectorAll(selector)) {
+    for (const node of document.querySelectorAll(sourceSelector)) {
       if (node.hasAttribute('data-dope-performance-card')) node.innerHTML = describe(node.dataset.dopePerformance, true);
       else node.textContent = describe(node.dataset.dopePerformance);
-      node.title = snapshot.updatedAt ? 'Dope metrics checked ' + new Date(snapshot.updatedAt).toLocaleString() : '';
+      const updatedAt = state.snapshot.updatedAt;
+      node.title = updatedAt ? 'Performance updated ' + new Date(updatedAt).toLocaleString() : '';
     }
     sortOptions(document.querySelector('#modelPicker .model-picker-options'));
+    sortOptions(document.querySelector('#imageModelPicker .model-picker-options'));
   }
 
   window.sortDopePerformanceOptions = sortOptions;
-  window.dopePerformanceMarkup = function (modelId, card = false) {
+  window.modelPerformanceMarkup = window.dopePerformanceMarkup = function (modelId, card = false) {
     const id = String(modelId || '').replace(/^wxksai_/, 'dope_');
-    if (!/^dope_[a-z0-9_]+$/.test(id)) return '';
-    void refresh();
+    if (!/^(dope|api888)_[a-zA-Z0-9_]+$/.test(id)) return '';
+    void refresh(id.startsWith('api888_') ? 'api888' : 'dope');
     if (card) return '<span class="model-picker-performance" data-dope-performance-card data-dope-performance="' +
       id + '">' + describe(id, true) + '</span>';
     return '<small class="muted" style="display:block" data-dope-performance="' + id + '">' + describe(id) + '</small>';
