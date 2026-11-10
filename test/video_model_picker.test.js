@@ -33,6 +33,24 @@ test('Video Studio places MiniMax Beast in the MiniMax dropdown beside H3 varian
   assert.match(mini,/model-picker-count">3<\/span>/);
   assert.ok(!mini.includes('Seedance Mini · Dope'));
 });
+test('Video Studio groups every restored AIVID offering inside one Premium submenu',()=>{
+  const models=[
+    {value:'aivid_seedance_2_0_mini',textContent:'Seedance 2.0 (Mini) · Premium'},
+    {value:'aivid_seedance_2_0',textContent:'Seedance 2.0 · Premium'},
+    {value:'aivid_seedance_2_0_fast',textContent:'Seedance 2.0 (Fast) · Premium'},
+    {value:'aivid_seedance_2_5',textContent:'Seedance 2.5 · Premium'},
+    {value:'minimax_beast',textContent:'Minimax Beast'},
+  ];
+  const html=context.videoModelOptionsHtml({options:models,selectedIndex:0});
+  const premium=html.match(/<details class="model-picker-group"><summary>Premium[\s\S]*?<\/details>/)?.[0];
+  assert.ok(premium);
+  assert.match(premium,/model-picker-count">4<\/span>/);
+  for(const m of models.slice(0,4)){
+    assert.equal(context.videoModelGroup(m.value),'Premium');
+    assert.ok(premium.includes(m.textContent),m.value);
+  }
+  assert.ok(!premium.includes('Minimax Beast'));
+});
 test('Dope quote failures show a retry action rather than at-submit credits',()=>{
   const start=studio.indexOf('async function updateCost('),end=studio.indexOf('function clearReferenceItems()',start);
   assert.ok(start>0&&end>start);
