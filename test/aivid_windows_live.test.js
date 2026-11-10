@@ -45,7 +45,7 @@ test('Windows browser actions permit only safe coordinates, typed text and simpl
   assert.throws(()=>validateAction({action:'key',key:'Control+Shift+I'}),/Unrestricted/);
   assert.throws(()=>validateAction({action:'navigate',url:'file:///C:/Users'}),/Unsupported/);
   assert.throws(()=>validateAction({action:'type',text:'A'.repeat(3001)}),/3,000/);
-  assert.throws(()=>validateAction({action:'type',text:'abc\nxyz'}),/printable/);
+  assert.throws(()=>validateAction({action:'type',text:'abc\x01xyz'}),/printable/);
 });
 test('File references have extension/size restrictions and path stripping',()=>{
   const image=Buffer.from('test image');
