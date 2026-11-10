@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const {allowed,gatewayUrl,assertEnabled,handle}=require('../src/aivid_rdp_viewer.js');
+const {allowed,gatewayUrl,assertEnabled,customerSourceAllowed,handle}=require('../src/aivid_rdp_viewer.js');
 
 const USER={id:42,email:'pilot@example.com',status:'active'};
 const CONFIG={
@@ -51,7 +51,7 @@ function reply(){
     end(value){result.body=value;}};
 }
 function handlers(user=USER){
-  return {requireDatabase:()=>{},requireUser:async()=>user};
+  return {requireDatabase:()=>{},requireUser:async()=>user,checkSourceAccess:async()=>true};
 }
 
 async function withEnv(values,run){
@@ -112,4 +112,20 @@ test('Studio model picker links only selected Premium models to the RDP workspac
   const server=fs.readFileSync(require.resolve('../server.js'),'utf8');
   assert.match(server,/require\('\.\/src\/aivid_rdp_viewer\.js'\)\.handle/);
   assert.doesNotMatch(server,/require\('\.\/src\/aivid_embed\.js'\)\.handle/);
+});
+
+test('RDP page rejects customers with explicitly disabled AIVID source grants',async()=>{
+  const allowedAccess={execute:async(_sql,args)=>{assert.deepEqual(args,[42,'aivid']);return [[{enabled:1}]];}};
+  const deniedAccess={execute:async()=>[[{enabled:0}]]};
+  const defaultAccess={execute:async()=>[[]]};
+  assert.equal(await customerSourceAllowed(42,allowedAccess),true);
+  assert.equal(await customerSourceAllowed(42,defaultAccess),true);
+  assert.equal(await customerSourceAllowed(42,deniedAccess),false);
+  await withEnv(CONFIG,async()=>{
+    const res=reply();
+    await handle({method:'GET'},res,'/rdp-studio',{...handlers(),checkSourceAccess:async()=>false});
+    assert.equal(res.result.status,403);
+    assert.match(res.result.body,/disabled in this customer/);
+    assert.doesNotMatch(res.result.body,/rdp\.cmmtools\.site/);
+  });
 });
