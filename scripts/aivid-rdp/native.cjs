@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const { existsSync } = require('node:fs');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function browserLabel() { return 'Microsoft Edge'; }
@@ -305,7 +306,10 @@ class WindowsLive {
     const dir=path.join(this.root,'.aivid-live-profile-u'+target);
     await fs.mkdir(dir,{recursive:true,mode:0o700});
     const context=await this.launch(dir);
+    const keys=crypto.generateKeyPairSync('rsa',{modulusLength:2048,
+      publicKeyEncoding:{format:'pem',type:'spki'},privateKeyEncoding:{format:'pem',type:'pkcs8'}});
     const state={owner:target,context,page:null,expires:this.now()+TTL,
+      secretKey:Buffer.from(keys.publicKey).toString('base64'),privateKey:keys.privateKey,
       chooser:null,download:null,notice:'Dedicated Edge profile. Provider sign-in is separate from the AIVID job agent.'};
     this.state=state;
     await context.route('**/*',async route=>{
@@ -340,7 +344,7 @@ class WindowsLive {
     if(action==='close'){
       if(this.state&&this.state.owner!==owner&&this.state.expires>this.now())throw new Error('Browser belongs to another customer.');
       await this.shutdown();
-      return {state:'frame',jpeg:'',url:'',notice:'Closed your private browser session.',fileName:'',uploadPending:false,downloadReady:false};
+      return {state:'frame',jpeg:'',url:'',notice:'Closed your private browser session.',fileName:'',uploadPending:false,downloadReady:false,secretKey:''};
     }
     const s=this.state;
     if(!s||s.owner!==owner||s.expires<=this.now()){
@@ -352,7 +356,22 @@ class WindowsLive {
     if(!page)throw new Error('The Edge browser was closed.');
     if(action==='click')await page.mouse.click(payload.x,payload.y);
     else if(action==='scroll')await page.mouse.wheel(0,payload.delta);
-    else if(action==='type')await page.keyboard.insertText(payload.text);
+    else if(action==='type'){
+      const secretField=await page.evaluate(()=>{const a=document.activeElement;return a?.tagName==='INPUT'&&
+        (a.type==='password'||/password/i.test(a.autocomplete||''));}).catch(()=>false);
+      if(secretField)throw new Error('Use Type password securely for a password field.');
+      await page.keyboard.insertText(payload.text);
+    }
+    else if(action==='secret'){
+      if(typeof payload.ciphertext!=='string'||payload.ciphertext.length>512)throw new Error('Invalid encrypted password.');
+      let plaintext;
+      try{plaintext=crypto.privateDecrypt({key:s.privateKey,oaepHash:'sha256'},Buffer.from(payload.ciphertext,'base64'));}
+      catch{throw new Error('Secure password transfer failed. Refresh the private browser and retry.');}
+      try{
+        if(plaintext.length<1||plaintext.length>190)throw new Error('Password must be at most 190 bytes.');
+        await page.keyboard.insertText(plaintext.toString('utf8'));
+      }finally{plaintext.fill(0);}
+    }
     else if(action==='key')await page.keyboard.press(payload.key==='Space'?'Space':payload.key);
     else if(action==='upload'){
       if(!s.chooser||!file)throw new Error('Click an AIVID reference upload field first.');
@@ -377,7 +396,7 @@ class WindowsLive {
     if(jpeg.length>MAX_FRAME)throw new Error('The browser preview is too large.');
     return {state:'frame',jpeg:jpeg.toString('base64'),url:allowedUrl(page.url(),true)?page.url().slice(0,290):'',
       notice:s.notice.slice(0,290),fileName:s.download?safeName(s.download.suggestedFilename()):'',
-      uploadPending:Boolean(s.chooser),downloadReady:Boolean(s.download)};
+      uploadPending:Boolean(s.chooser),downloadReady:Boolean(s.download),secretKey:s.secretKey};
   }
 }
 
