@@ -278,7 +278,7 @@ function allowedUrl(value,navigation=false){
      /^(?:127|0|10|192\.168)\./.test(host)||/^172\.(?:1[6-9]|2\d|3[01])\./.test(host)||host==='169.254.169.254')
     return false;
   if(!navigation)return true;
-  return host==='aivid.dev'||host.endsWith('.aivid.dev')||
+  return host==='aivid.dev'||host.endsWith('.aivid.dev')||host==='challenges.cloudflare.com'||
     host==='google.com'||host.endsWith('.google.com')||
     host==='googleusercontent.com'||host.endsWith('.googleusercontent.com');
 }
