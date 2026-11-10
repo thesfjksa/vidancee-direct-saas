@@ -20,8 +20,8 @@ class MemoryStore {
     Object.assign(row, { state: to, response }); return true;
   }
   async cancel(id) { const r = this.rows.get(id); if (r && r.state !== 'done') r.state = 'cancelled'; }
-  async claim(deviceId, readOnly) {
-    const row = [...this.rows.values()].find(r => r.device_id === deviceId && r.state === 'queued' && r.expiresAt > Date.now() && (!readOnly || r.kind === 'preflight'));
+  async claim(deviceId, readOnly, liveOnly = false) {
+    const row = [...this.rows.values()].find(r => r.device_id === deviceId && r.state === 'queued' && r.expiresAt > Date.now() && (!readOnly || ['preflight','live'].includes(r.kind)) && (!liveOnly || r.kind === 'live'));
     if (!row || !await this.move(row.id, 'queued', 'running')) return null; return this.get(row.id);
   }
   async chunk(id, i, data) {
