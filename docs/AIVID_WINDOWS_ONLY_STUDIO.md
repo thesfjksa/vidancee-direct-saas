@@ -7,7 +7,7 @@ This replaces Guacamole as the **preferred interactive** route when enabled. No 
 ## Architecture
 
 1. A signed-in CMMTools user opens \`https://cmmtools.site/aivid-live-studio\`.
-2. The web app checks a **separate explicit Windows-view user ID/email allowlist**, the existing customer **AIVID Sources** opt-out, and the admin's \`AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK\` flag. Nothing operates with the flag off.
+2. The web app checks a **separate explicit Windows-view user ID/email allowlist**, the existing customer **AIVID Sources** opt-out, and the Admin-saved direct-billing acknowledgment. Nothing operates with the flag off.
 3. The customer clicks **Open private Edge**. The app creates a short-lived \`live\` command in the existing \`aivid_rdp_commands\` table.
 4. The **existing paired Windows AIVID-Agent.exe** polls that command over authenticated outbound HTTPS, starts Microsoft Edge with the profile \`.aivid-live-profile-u<customerId>\` (never \`.aivid-rdp-edge-profile\`), and captures a JPEG of the isolated browser **page**. The screenshot is returned as short-lived request data, **not** public storage.
 5. Customer click, scroll, type, safe keypress and snapshot operations use the same single-use MySQL RPC. Each command is removed on completion. Refresh is typically every six seconds when visible. This is interactive browser automation, **not full-frame-rate RDP streaming**, and is slower on congested hosts.
@@ -17,14 +17,13 @@ This replaces Guacamole as the **preferred interactive** route when enabled. No 
 
 ## No-CLI setup (Hostinger + Windows)
 
-- Hostinger web application's **Environment Variables** UI: add the following *on the CMMTools web app only* (not the worker):
-  - \`AIVID_WINDOWS_VIEW_ENABLED=true\`
-  - \`AIVID_WINDOWS_VIEW_ALLOWED_IDS=<CMMTools_user_ID>\` (start with **your own** account only)
-  - \`AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK=true\` **only after** acknowledging that manual provider Generate clicks bill the directly signed-in AIVID account without using CMMTools wallet controls
-- Leave \`AIVID_RDP_VIEW_ENABLED=false\`; that is the older, separate Guacamole integration. \`AIVID_WINDOWS_VIEW_ALLOWED_EMAILS\` is an optional alternative allowlist to IDs, but use specific trusted users only.
+- Open **CMMTools → Admin → Provider → Connections → AIVID → Windows Premium Studio**. No environment variables are needed for this feature.
+- Tick **Enable interactive Windows Premium Studio**, enter your existing active CMMTools login email or user ID (at most three explicitly trusted accounts), and tick the **Direct AIVID billing acknowledgment** only after accepting that manual Generate clicks charge the source account, not CMMTools wallets.
+- Click **Save Windows Studio settings**. The saved enabled state and user allowlist are verified by reloading the database. If the saved status does not match, fix the database connection before allowing use. Default state is **disabled**.
+- This replaces the old `AIVID_WINDOWS_VIEW_*` Hostinger environment variables; old flags are ignored. The separate optional Linux Guacamole viewer has its own settings and is not part of this flow.
 - Redeploy **both** Hostinger web and worker applications from the latest GitHub \`main\`; check deployed revision and logs. Web app needs MySQL reads/writes to the existing \`aivid_rdp_commands\` and \`aivid_rdp_chunks\` tables.
 - Keep your **already-paired Microsoft Edge-only AIVID-Agent.exe** running on Windows. The existing verified \`AIVID-Agent.exe\` managed updater recognizes the **unchanged six-file release manifest**, retrieves a new signed/hash-verified release while idle, and restarts the managed worker between jobs. No new CLI or replacement EXE is required if the compatible v3.0.3 bootstrap is installed. Never stop it while a paid submission/collection is uncertain.
-- Open CMMTools Video Studio → select a **Premium** model → **Open secure Premium desktop** (link is the preexisting label; the page itself clearly states it is a **browser-only** view), or visit \`https://cmmtools.site/aivid-live-studio\`.
+- Open CMMTools Video Studio → select a **Premium** model → **Open Windows Premium Studio** (the page is a **browser-only** view), or visit \`https://cmmtools.site/aivid-live-studio\`.
 - Click **Open private Edge** and manually sign into AIVID within that dedicated, empty Edge profile. Google's sign-in policy may block browsers launched with automation controls, and CAPTCHA may still require manual interaction; this flow does not bypass either.
 - Click the AIVID website's actual upload/select input, then use **Upload reference to AIVID** to select a local file. The page accepts PNG, JPG, WebP, MP4, MOV, WebM, MP3, WAV and M4A, one file per chooser, up to 30 MiB.
 - To download, initiate the provider's **Download** button in the Edge preview, then click **Save finished video** in CMMTools when ready. Only finished MP4 files up to 100 MiB are supported. Do not repeatedly click Generate if a paid submission status is uncertain.

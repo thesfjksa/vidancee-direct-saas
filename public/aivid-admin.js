@@ -108,6 +108,62 @@
       el('aividLoginMessage').textContent = 'Status could not be refreshed. Use Refresh status to reconnect to this attempt.';
     }
   }
+  // This is deliberately independent of queued AIVID generation controls.
+  let windowsStudioSaving=false;
+  const windowsList=value=>String(value||'').split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean);
+  window.markWindowsStudioDirty=()=>{
+    const state=el('aividWindowsStudioState');
+    state.textContent='Unsaved Windows Studio changes — click Save Windows Studio settings.';
+    state.className='muted';
+  };
+  window.loadWindowsStudioAdmin=async ({strict=false}={})=>{
+    const status=el('aividWindowsStudioState'),badge=el('aividWindowsStudioBadge');
+    try{
+      const data=await api('/admin/aivid/windows-studio');
+      const c=data.settings;
+      el('aividWindowsStudioEnabled').checked=c.enabled===true;
+      el('aividWindowsStudioEmails').value=(c.allowedEmails||[]).join(', ');
+      el('aividWindowsStudioIds').value=(c.allowedIds||[]).join(', ');
+      el('aividWindowsStudioBillingAck').checked=c.directBillingAcknowledged===true;
+      const accounts=(c.allowedIds||[]).length+(c.allowedEmails||[]).length;
+      badge.textContent=c.enabled?'Enabled · '+accounts+' approved':'Disabled';
+      status.className=c.enabled?'ok':'muted';
+      status.textContent='Saved in Admin: '+(c.enabled?'Enabled':'Disabled')+' · '+accounts+
+        ' trusted account'+(accounts===1?'':'s')+' · Direct AIVID billing '+
+        (c.directBillingAcknowledged?'acknowledged':'not acknowledged')+'. No Hostinger environment variables needed.';
+      return c;
+    }catch(error){
+      status.textContent='Unable to read Windows Studio settings: '+error.message;
+      status.className='err';badge.textContent='Check settings';
+      if(strict)throw error;
+      return null;
+    }
+  };
+  window.saveWindowsStudioAdmin=async()=>{
+    if(windowsStudioSaving)return;
+    const status=el('aividWindowsStudioState'),button=el('aividWindowsStudioSave');
+    const form={
+      enabled:el('aividWindowsStudioEnabled').checked,
+      allowedEmails:windowsList(el('aividWindowsStudioEmails').value),
+      allowedIds:windowsList(el('aividWindowsStudioIds').value),
+      directBillingAcknowledged:el('aividWindowsStudioBillingAck').checked
+    };
+    if(form.enabled&&(!form.directBillingAcknowledged||!form.allowedEmails.length&&!form.allowedIds.length)){
+      status.textContent='Approve a trusted CMMTools account and acknowledge direct AIVID billing.';
+      status.className='err';return;
+    }
+    if(form.enabled&&!confirm('Enable the private Windows Edge browser for approved users?\n\nGenerate clicks charge the AIVID provider account DIRECTLY, not the CMMTools wallet.'))return;
+    windowsStudioSaving=true;button.disabled=true;
+    status.className='muted';status.textContent='Saving Windows Studio settings in the CMMTools database…';
+    try{
+      const saved=await api('/admin/aivid/windows-studio',{method:'POST',body:JSON.stringify(form)});
+      const verified=await window.loadWindowsStudioAdmin({strict:true});
+      if(JSON.stringify(saved.settings)!==JSON.stringify(verified))throw Error('Saved state could not be verified. Refresh Admin.');
+      status.className='ok';status.textContent='Saved and verified: Windows Premium Studio '+(verified.enabled?'ON':'OFF')+
+        ' · '+(verified.allowedIds.length+verified.allowedEmails.length)+' trusted account(s).';
+    }catch(error){status.className='err';status.textContent=error.message;}
+    finally{windowsStudioSaving=false;button.disabled=false;}
+  };
   window.loadAividAdmin = async ({strict=false}={}) => {
     clearTimeout(timer);
     try {
@@ -129,6 +185,7 @@
         : 'No browser session saved yet.';
       el('aividConnectionBadge').textContent = data.sessionExpired ? 'Session expired' : data.configured ? 'Session saved' : 'Not connected';
       paintLogin(data.login || { state: 'idle' });
+      await window.loadWindowsStudioAdmin();
       if (savedMode === 'rdp') {
         const rdp = data.rdp || {};
         const browserName = 'Microsoft Edge';

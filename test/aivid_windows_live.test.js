@@ -10,30 +10,15 @@ const {WindowsLive,allowedUrl}=require('../scripts/aivid-rdp/native.cjs');
 const {runtime}=require('../src/aivid_runtime.js');
 const {validateManifest}=require('../scripts/aivid-rdp/worker.cjs');
 
-const settings={
-  AIVID_WINDOWS_VIEW_ENABLED:'true',
-  AIVID_WINDOWS_VIEW_ALLOWED_IDS:'42',
-  AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK:'true',
-};
-async function env(value,run){
-  const before=Object.fromEntries(Object.keys(value).map(k=>[k,process.env[k]]));
-  try{for(const [key,v]of Object.entries(value))if(v===undefined)delete process.env[key];else process.env[key]=v;return await run();}
-  finally{for(const [key,v]of Object.entries(before))if(v===undefined)delete process.env[key];else process.env[key]=v;}
-}
-test('Windows-only feature is disabled until the owner selects allowed customer and acknowledges direct source billing',async()=>{
-  await env({AIVID_WINDOWS_VIEW_ENABLED:undefined,AIVID_WINDOWS_VIEW_ALLOWED_IDS:undefined,
-    AIVID_WINDOWS_VIEW_ALLOWED_EMAILS:undefined,AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK:undefined},()=>{
-    assert.equal(enabled(),false);
-    assert.equal(allowed({id:42}),false);
-  });
-  await env(settings,()=>{
-    assert.equal(allowed({id:42,email:'test@example.com'}),true);
-    assert.equal(allowed({id:84,email:'other@example.com'}),false);
-    assert.equal(authorized({id:42}),true);
-  });
-  await env({...settings,AIVID_WINDOWS_VIEW_DIRECT_BILLING_ACK:'false'},()=>{
-    assert.throws(()=>authorized({id:42}),/bills the provider account directly/);
-  });
+const settings={enabled:true,allowedIds:['42'],allowedEmails:[],directBillingAcknowledged:true};
+test('Windows Studio requires saved Admin config, not Hostinger environment variables',()=>{
+  const disabled={enabled:false,allowedIds:[],allowedEmails:[],directBillingAcknowledged:false};
+  assert.equal(enabled(disabled),false);
+  assert.equal(allowed({id:42},disabled),false);
+  assert.equal(allowed({id:42,email:'test@example.com'},settings),true);
+  assert.equal(allowed({id:84,email:'other@example.com'},settings),false);
+  assert.equal(authorized({id:42},settings),true);
+  assert.throws(()=>authorized({id:42},{...settings,directBillingAcknowledged:false}),/Direct AIVID billing/);
 });
 test('Windows browser actions permit only safe coordinates, typed text and simple keys',()=>{
   assert.deepEqual(validateAction({action:'click',x:1280,y:760}),{action:'click',x:1280,y:760});
@@ -124,9 +109,10 @@ function response(){
     end(body){this.body=body;}};
 }
 test('Windows browser page and controls stay behind CMMTools login, source access and same-origin POST',async()=>{
-  await env(settings,async()=>{
+  {
+
     const handlers={requireDatabase:()=>{},requireUser:async()=>({id:42,email:'test@example.com'}),
-      checkSourceAccess:async()=>true,
+      checkSourceAccess:async()=>true,loadSettings:async()=>settings,
       runner:async(_user,action)=>({state:'frame',jpeg:'',url:'https://aivid.dev/',
         notice:action.action,fileName:'',uploadPending:false,downloadReady:false})};
     let r=response();
@@ -150,5 +136,5 @@ test('Windows browser page and controls stay behind CMMTools login, source acces
     r=response();
     await handle({method:'GET',headers:{}},r,'/rdp-studio',{...handlers,checkSourceAccess:async()=>false});
     assert.equal(r.status,403);
-  });
+  }
 });
