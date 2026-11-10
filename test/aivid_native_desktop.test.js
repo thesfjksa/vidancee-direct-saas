@@ -85,7 +85,7 @@ test('Native host ack reports actual execution/focus rejection to customer inste
  x.acknowledge(token,{id:second.id,executed:true},510650);
  status=x.state(510651);
  assert.equal(status.lastInputStatus,'executed');
- assert.match(status.lastInputMessage,/performed in Windows Edge/);
+ assert.match(status.lastInputMessage,/dispatched input/);
  x.stop();
 });
 test('Interactive UI offers direct keyboard controls, fullscreen, actual size and decode-safe refresh',()=>{
