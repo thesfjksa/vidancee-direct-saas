@@ -259,7 +259,7 @@
       status.textContent='Approve a trusted CMMTools account and acknowledge direct AIVID billing.';
       status.className='err';return;
     }
-    if(form.enabled&&!confirm('Enable the private Windows Edge browser for approved users?\n\nGenerate clicks charge the AIVID provider account DIRECTLY, not the CMMTools wallet.'))return;
+    if(form.enabled&&!confirm('Enable Windows Premium Studio for the approved users?\n\nInteractive controls operate the normal Windows Edge viewport through a separately paired native helper. Generate clicks charge the AIVID provider account DIRECTLY, not the CMMTools wallet. Use a dedicated standard Windows account.'))return;
     windowsStudioSaving=true;button.disabled=true;
     status.className='muted';status.textContent='Saving Windows Studio settings in the CMMTools database…';
     try{
