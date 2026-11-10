@@ -319,9 +319,10 @@ class AividRdpService {
     } else if(command.kind==='live' && input.state==='frame' && typeof input.jpeg==='string' && input.jpeg.length<=650000 &&
       /^[A-Za-z0-9+/]*={0,2}$/.test(input.jpeg) && typeof input.url==='string' && input.url.length<300 &&
       typeof input.notice==='string' && input.notice.length<300 && typeof input.fileName==='string' && input.fileName.length<150 &&
-      typeof input.uploadPending==='boolean' && typeof input.downloadReady==='boolean'){
+      typeof input.uploadPending==='boolean' && typeof input.downloadReady==='boolean'&&
+      typeof input.secretKey==='string'&&input.secretKey.length<=1500 && /^[A-Za-z0-9+/]*={0,2}$/.test(input.secretKey)){
       result={state:'frame',jpeg:input.jpeg,url:input.url,notice:input.notice,fileName:input.fileName,
-        uploadPending:input.uploadPending,downloadReady:input.downloadReady};
+        uploadPending:input.uploadPending,downloadReady:input.downloadReady,secretKey:input.secretKey};
     }
     else if(command.kind==='live' && command.payload.action==='download' && input.state==='download' &&
       Number.isSafeInteger(input.size)&&input.size>=12&&input.size<=MAX_OUTPUT &&
