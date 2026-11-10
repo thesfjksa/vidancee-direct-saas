@@ -104,7 +104,7 @@ function Get-WebViewport([IntPtr]$h){
   $best=$null;$maxArea=0
   try{
     $root=[System.Windows.Automation.AutomationElement]::FromHandle($h)
-    $condition=New-Object System.Windows.Automation.PropertyCondition(
+    $condition=[System.Windows.Automation.PropertyCondition]::new(
       [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
       [System.Windows.Automation.ControlType]::Document)
     $docs=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
@@ -128,13 +128,13 @@ function Get-WebViewport([IntPtr]$h){
 function Take-Jpeg($rect){
   $width=[int]$rect.Width;$height=[int]$rect.Height
   if($width -lt 320 -or $height -lt 200 -or $width -gt 5000 -or $height -gt 3000){throw 'Invalid webpage viewport.'}
-  $source=New-Object System.Drawing.Bitmap($width,$height)
+  $source=[System.Drawing.Bitmap]::new($width,$height)
   $g=[System.Drawing.Graphics]::FromImage($source)
   try{$g.CopyFromScreen([int]$rect.Left,[int]$rect.Top,0,0,$source.Size,[System.Drawing.CopyPixelOperation]::SourceCopy)}
   finally{$g.Dispose()}
   $w=[Math]::Min(1280,$width)
   $h=[Math]::Max(200,[Math]::Round($height*($w/[double]$width)))
-  $target=New-Object System.Drawing.Bitmap($w,$h)
+  $target=[System.Drawing.Bitmap]::new($w,$h)
   $drawing=[System.Drawing.Graphics]::FromImage($target)
   try{
     $drawing.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBilinear
@@ -144,8 +144,8 @@ function Take-Jpeg($rect){
     $codec=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|Where-Object{$_.MimeType -eq 'image/jpeg'}|Select-Object -First 1
     foreach($quality in @(44,30,18)){
       $mem=New-Object System.IO.MemoryStream
-      $params=New-Object System.Drawing.Imaging.EncoderParameters(1)
-      $params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter(
+      $params=[System.Drawing.Imaging.EncoderParameters]::new(1)
+      $params.Param[0]=[System.Drawing.Imaging.EncoderParameter]::new(
         [System.Drawing.Imaging.Encoder]::Quality,[long]$quality)
       try{$target.Save($mem,$codec,$params);$bytes=$mem.ToArray()}
       finally{$params.Dispose();$mem.Dispose()}
@@ -197,7 +197,7 @@ function Apply-RemoteInput($command,[IntPtr]$target){
 }
 function Main {
   $id=[System.Security.Principal.WindowsIdentity]::GetCurrent()
-  $principal=New-Object System.Security.Principal.WindowsPrincipal($id)
+  $principal=[System.Security.Principal.WindowsPrincipal]::new($id)
   if($principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)){
     throw 'For safety, do NOT run this helper elevated. Use a dedicated standard Windows account and retry.'
   }
