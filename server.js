@@ -1300,7 +1300,7 @@ const server=http.createServer(async (req,res)=>{
 
   try {
     if (await require('./src/aivid_rdp_http.js').handle(req,res,routePath,{readJson,requireDatabase})) return;
-    if (await require('./src/aivid_windows_live.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
+    if (await require('./src/aivid_tab_share.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     if (await require('./src/aivid_rdp_viewer.js').handle(req,res,routePath,{requireUser,requireDatabase})) return;
     const studioAssets={
       '/brand.css':['brand.css','text/css; charset=utf-8'],
@@ -2546,6 +2546,18 @@ const server=http.createServer(async (req,res)=>{
         const models=await syncProviderModels('vidancee',vidanceeMediaModels());
         return sendJson(res,200,{ok:true,models,total:models.length,ready:models.filter(m=>m.ready&&m.enabled&&m.available).length});
       }
+      // Manually opened normal Edge tab: signed, view-only extension pairing.
+      // This is under the existing x-admin-token authorization gate.
+      if(routePath==='/admin/aivid/tab-share/extension'&&req.method==='GET'){
+        const zip=new (require('yazl').ZipFile)();
+        for(const file of ['manifest.json','background.js','controller.html','controller.js'])
+          zip.addFile(path.join(__dirname,'scripts','aivid-tab-share-extension',file),file);
+        zip.on('error',error=>res.destroy(error));
+        res.writeHead(200,{'content-type':'application/zip','cache-control':'no-store',
+          'x-content-type-options':'nosniff','content-disposition':'attachment; filename="CMMTools-Manual-Edge-Tab-Share.zip"'});
+        zip.outputStream.pipe(res);zip.end();return;
+      }
+      if(await require('./src/aivid_tab_share.js').handleAdmin(req,res,routePath,{readJson}))return;
       // Interactive Edge Studio settings: Admin-authorized and persisted in app_settings.
        if(routePath==='/admin/aivid/windows-studio'){
          requireDatabase();
