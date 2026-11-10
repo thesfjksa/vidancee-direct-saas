@@ -37,6 +37,12 @@ function gatewayUrl(env=process.env){
   return u.origin+'/guacamole/';
 }
 
+async function customerSourceAllowed(userId,db=require('./db.js').getPool()){
+  const [rows]=await db.execute('SELECT enabled FROM user_provider_access WHERE user_id=? AND provider=? LIMIT 1',
+    [Number(userId),'aivid']);
+  return !rows.length||Number(rows[0].enabled)===1;
+}
+
 function assertEnabled(user,env=process.env){
   if(!allowed(user,env))throw error('Remote desktop is not enabled for this CMMTools account.');
   if(!enabled(env.AIVID_RDP_VIEW_ISOLATION_ACK))
@@ -66,7 +72,7 @@ function page(res,url){
   res.end(html);
 }
 
-async function handle(req,res,route,{requireUser,requireDatabase}={}){
+async function handle(req,res,route,{requireUser,requireDatabase,checkSourceAccess=customerSourceAllowed}={}){
   if(!PAGE_ROUTES.has(route)&&route!==CONFIG_ROUTE&&!route.startsWith(LEGACY_API_PREFIX))return false;
   try{
     // Authenticate before inspecting the feature configuration or
@@ -74,6 +80,7 @@ async function handle(req,res,route,{requireUser,requireDatabase}={}){
     requireDatabase();
     const user=await requireUser(req);
     const url=assertEnabled(user);
+    if(!await checkSourceAccess(user.id))throw error('Premium desktop access was disabled in this customer’s AIVID Sources settings.');
     if(PAGE_ROUTES.has(route)&&req.method==='GET'){page(res,url);return true;}
     if(route===CONFIG_ROUTE&&req.method==='GET'){
       reply(res,200,{ok:true,gatewayUrl:url,transport:'rdp',fileTransfer:'guacamole-virtual-drive',
@@ -89,4 +96,4 @@ async function handle(req,res,route,{requireUser,requireDatabase}={}){
     return true;
   }
 }
-module.exports={allowed,gatewayUrl,assertEnabled,handle,page};
+module.exports={allowed,gatewayUrl,assertEnabled,customerSourceAllowed,handle,page};
