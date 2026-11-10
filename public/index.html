@@ -9,9 +9,9 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-14">
+<link rel="stylesheet" href="/studio.css?v=cmm-15">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
-<script src="/dope-performance.js"></script>
+<script src="/dope-performance.js?v=2"></script>
 </head>
 <body>
 
@@ -1063,7 +1063,7 @@ function modelPickerTitle(id){
 }
 
 function modelPickerOptionHtml(id,o,i,selected){
-  const performance=id==='model' ? globalThis.dopePerformanceMarkup?.(o.value)||'' : '';
+  const performance=id==='model' ? globalThis.dopePerformanceMarkup?.(o.value,true)||'' : '';
   const price=id==='model'?'<span class="model-picker-price">'+pickerCreditMarkup(pickerCreditSummary(modelPickerSource(id,i)),modelPickerSource(id,i))+'</span>':'';
   const tags=modelPickerTags(id,i).map(tag=>'<span class="model-picker-tag">'+escapeHtml(tag)+'</span>').join('');
   const icon=id==='imageModel'
@@ -1071,10 +1071,10 @@ function modelPickerOptionHtml(id,o,i,selected){
     :id==='voiceModel'
       ?'<path d="M5 15V9M9.5 18V6M14.5 16V8M19 13v-2"/>'
       :'<rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/>';
-  return '<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+
+  return '<button type="button" class="custom-select-option'+(performance?' has-performance-panel':'')+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+
     '<span class="model-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'+icon+'</svg></span>'+
-    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>' +price+performance+(tags?'<span class="model-picker-tags">'+tags+'</span>':'')+'</span>'+
-    '<span class="model-picker-check">✓</span>'+
+    '<span class="model-picker-copy"><span class="model-picker-name">'+escapeHtml(o.textContent)+'</span>' +price+(tags?'<span class="model-picker-tags">'+tags+'</span>':'')+'</span>'+
+    performance+'<span class="model-picker-check">✓</span>'+
   '</button>';
 }
 
@@ -1296,6 +1296,7 @@ function rebuildCustomSelect(id){
   ).join('');
   if(empty)empty.insertAdjacentHTML('beforebegin',optionsHtml);
   else optionsRoot.insertAdjacentHTML('beforeend',optionsHtml);
+  if(id==='model')globalThis.sortDopePerformanceOptions?.(optionsRoot);
   if(searchWrap){
     const input=searchWrap.querySelector('input');
     if(input){input.value='';filterCustomSelectOptions(wrap,'')}

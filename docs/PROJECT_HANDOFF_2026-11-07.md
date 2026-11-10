@@ -1,3 +1,9 @@
+## 10 November 2026 — Video model picker performance layout
+
+- Models with 24-hour Dope performance samples appear first, with the original order kept within each tier. The picker reorders after each refresh without changing the selected model, quote index or provider groups.
+- Video cards show pricing and capabilities on the left and performance on the right. On narrow screens the metrics move below the model details. Admin performance formatting stays as before.
+- Deploy the web app to publish the picker update. The generation worker needs no changes.
+
 ## 10 November 2026 — AIVID interactive iframe: sign-in popup and reference/video transfer bridges
 
 - **Owner request:** Repeated CAPTCHA/verification blocks the automated AIVID Premium RDP flow. Provide an interactive embedded AIVID experience in which the user operates the actual provider video editor, can attempt Google sign-in, upload local reference files and download saved videos. **This does not claim to bypass CAPTCHA** or Google's restrictions on automated/embedded sign-in.
