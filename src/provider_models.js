@@ -94,12 +94,11 @@ function normalizeDiscoveredModel(model) {
   };
 }
 
-async function syncProviderModels(provider, discoveredModels) {
-  const db = getPool();
+async function syncProviderModels(provider, discoveredModels, connection = null, { preserveExisting = false } = {}) {
   const normalized = (Array.isArray(discoveredModels) ? discoveredModels : []).map(normalizeDiscoveredModel);
-  const conn = await db.getConnection();
+  const conn = connection || await getPool().getConnection();
   try {
-    await conn.beginTransaction();
+    if (!connection) await conn.beginTransaction();
     // Previously unsupported 888API models are not silently activated for
     // paying users when a new code deployment adds their request adapters.
     // Keep existing runnable models' explicit Admin enable state untouched.
@@ -113,7 +112,7 @@ async function syncProviderModels(provider, discoveredModels) {
         previousApi888.set(row.provider_model_id,wasSupported);
       }
     }
-    await conn.execute('UPDATE provider_models SET available=0 WHERE provider=?', [provider]);
+    if (!preserveExisting) await conn.execute('UPDATE provider_models SET available=0 WHERE provider=?', [provider]);
 
     for (const model of normalized) {
       await conn.execute(
@@ -157,15 +156,15 @@ async function syncProviderModels(provider, discoveredModels) {
       }
     }
 
-    await conn.commit();
+    if (!connection) await conn.commit();
   } catch (error) {
-    await conn.rollback();
+    if (!connection) await conn.rollback();
     throw error;
   } finally {
-    conn.release();
+    if (!connection) conn.release();
   }
 
-  return listProviderModels(provider);
+  return listProviderModels(provider, { db: connection || getPool() });
 }
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
@@ -289,8 +288,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
   return base;
 }
 
-async function listProviderModels(provider, { mediaType = '', enabledOnly = false, availableOnly = false } = {}) {
-  const db = getPool();
+async function listProviderModels(provider, { mediaType = '', enabledOnly = false, availableOnly = false, db = getPool() } = {}) {
   const clauses = ['provider=?'];
   const params = [String(provider)];
   if (mediaType === 'video' || mediaType === 'image') {
