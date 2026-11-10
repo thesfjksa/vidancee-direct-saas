@@ -1,5 +1,9 @@
 # AIVID on the owner's Windows RDP
 
+> **Interactive customer RDP viewer (10 Nov 2026):** CMMTools now includes a **separately authenticated Apache Guacamole RDP viewer** at `/aivid-live-studio` with native Windows redirected-drive uploads/downloads. It does **not** reuse or reveal the existing Edge agent account, and it does **not** use Browserless for this interactive feature. The gateway requires a dedicated VPS/Guacamole deployment and isolated Windows/customer logins. See [AIVID_RDP_VIEWER.md](AIVID_RDP_VIEWER.md). The existing agent automation and paid AIVID queue are unchanged.
+
+
+
 > **Current 10 November 2026 browser policy:** The Windows RDP worker uses **Microsoft Edge only**. Admin has no Chrome/Edge selector. Preserve the paired agent and all receipts, and retain both private profiles (the former Chrome profile is not used). Download the current complete Windows package, sign in with AIVID-Login.exe using `.aivid-rdp-edge-profile`, close the Edge login window, then start AIVID-Agent.exe. Old Chrome-agent heartbeats cannot claim new jobs. Other provider and browserless workflows are unchanged.
 
 > **Current 7 November 2026 incident/recovery handoff:** [PROJECT_HANDOFF_2026-11-07.md](PROJECT_HANDOFF_2026-11-07.md). PRs #175–#186 are merged, including F12/CDP diagnostics, history-based collection, stage-specific errors, Admin job history, retry feedback and a distinct MP4 asset-ID fix. The owner later reported completed AIVID videos that CMMTools failed to collect and a Retry collection click with no apparent feedback; no live end-to-end recovery has been verified. Keep accepted/uncertain jobs for account-history reconciliation and never re-submit them automatically.
