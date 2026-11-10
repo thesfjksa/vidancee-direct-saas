@@ -8,14 +8,38 @@
   let refreshTimer;
   let refreshing = false;
 
-  function describe(id) {
-    if (!snapshot) return '24h performance · Loading…';
-    const metrics = snapshot.models[id];
-    if (!metrics) return snapshot.stale ? '24h performance · Unavailable' : '24h performance · No data';
+  function describe(id, card = false) {
+    const heading = '24h performance';
+    const metrics = snapshot?.models[id];
+    if (!metrics) {
+      const status = !snapshot ? 'Loading…' : snapshot.stale ? 'Unavailable' : 'No data';
+      return card ? '<span class="model-picker-performance-heading">' + heading +
+        '</span><span>' + status + '</span>' : heading + ' · ' + status;
+    }
     const seconds = Math.round(metrics.averageLatencyMs / 1000);
     const latency = seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
-    return '24h · ' + metrics.successRate.toFixed(2) + '% success · ' + latency + ' avg latency' +
+    const success = metrics.successRate.toFixed(2) + '%';
+    if (card) {
+      return '<span class="model-picker-performance-heading">' + heading + '</span>' +
+        '<span class="model-picker-metric">Success <strong>' + success + '</strong></span>' +
+        '<span class="model-picker-metric">Avg latency <strong>' + latency + '</strong></span>' +
+        (snapshot.stale ? '<span class="model-picker-performance-stale">Last known</span>' : '');
+    }
+    return '24h · ' + success + ' success · ' + latency + ' avg latency' +
       (snapshot.stale ? ' · Last known' : '');
+  }
+
+  function sortOptions(root) {
+    if (!root) return;
+    const items = [...root.children].filter(item => item.matches('.custom-select-option,.model-picker-group'));
+    const firstIndex = item => Number(item.dataset.index ?? item.querySelector('.custom-select-option')?.dataset.index);
+    const hasData = item => Boolean(snapshot?.models[item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance]);
+    items.sort((a, b) => Number(hasData(b)) - Number(hasData(a)) || firstIndex(a) - firstIndex(b));
+    const focused = document.activeElement;
+    items.forEach((item, index) => {
+      if (root.children[index] !== item) root.insertBefore(item, root.children[index]);
+    });
+    if (root.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
   }
 
   async function refresh() {
@@ -39,15 +63,20 @@
       }, refreshMs);
     }
     for (const node of document.querySelectorAll(selector)) {
-      node.textContent = describe(node.dataset.dopePerformance);
+      if (node.hasAttribute('data-dope-performance-card')) node.innerHTML = describe(node.dataset.dopePerformance, true);
+      else node.textContent = describe(node.dataset.dopePerformance);
       node.title = snapshot.updatedAt ? 'Dope metrics checked ' + new Date(snapshot.updatedAt).toLocaleString() : '';
     }
+    sortOptions(document.querySelector('#modelPicker .model-picker-options'));
   }
 
-  window.dopePerformanceMarkup = function (modelId) {
+  window.sortDopePerformanceOptions = sortOptions;
+  window.dopePerformanceMarkup = function (modelId, card = false) {
     const id = String(modelId || '').replace(/^wxksai_/, 'dope_');
     if (!/^dope_[a-z0-9_]+$/.test(id)) return '';
     void refresh();
+    if (card) return '<span class="model-picker-performance" data-dope-performance-card data-dope-performance="' +
+      id + '">' + describe(id, true) + '</span>';
     return '<small class="muted" style="display:block" data-dope-performance="' + id + '">' + describe(id) + '</small>';
   };
 })();
