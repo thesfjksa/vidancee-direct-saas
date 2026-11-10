@@ -65,6 +65,42 @@ test('Only one owner controls the viewport; Admin can revoke all queued inputs',
  x.stop();
  assert.throws(()=>x.next(token,510600),/expired or was revoked/);
 });
+test('Native host ack reports actual execution/focus rejection to customer instead of claiming Sent',()=>{
+ x.stop();
+ const code=x.pairCode(500000).code,token=x.pair(code,500002).token;
+ x.image(jpeg,1024,640,token,510000);
+ const first=x.enqueue('54',{action:'click',x:2400,y:3000},510200);
+ assert.equal(x.state(510201).lastInputId,0);
+ const cmd=x.next(token,510300).action;
+ assert.equal(cmd.id,first.id);
+ assert.deepEqual(x.acknowledge(token,{id:cmd.id,executed:false,message:'Bring the AIVID Edge window to the foreground'},510350),
+   {acknowledged:true});
+ let status=x.state(510400);
+ assert.equal(status.lastInputId,first.id);
+ assert.equal(status.lastInputStatus,'blocked');
+ assert.match(status.lastInputMessage,/foreground/);
+ assert.throws(()=>x.acknowledge(token,{id:cmd.id,executed:true},510450),/Invalid or outdated/);
+ const second=x.enqueue('54',{action:'type',text:'A safe test'},510500);
+ x.next(token,510600);
+ x.acknowledge(token,{id:second.id,executed:true},510650);
+ status=x.state(510651);
+ assert.equal(status.lastInputStatus,'executed');
+ assert.match(status.lastInputMessage,/dispatched input/);
+ x.stop();
+});
+test('Interactive UI offers direct keyboard controls, fullscreen, actual size and decode-safe refresh',()=>{
+ const root=path.join(__dirname,'..');
+ const viewer=fs.readFileSync(path.join(root,'public/aivid-native-studio.html'),'utf8');
+ const ps=fs.readFileSync(path.join(root,'scripts/aivid-native-host','CMMTools-Remote.ps1'),'utf8');
+ assert.match(viewer,/requestFullscreen/);
+ assert.match(viewer,/Actual size/);
+ assert.match(viewer,/addEventListener\('keydown'/);
+ assert.match(viewer,/lastInputStatus/);
+ assert.match(viewer,/await decoder\.decode\(\)/);
+ assert.match(ps,/Math\]::Min\(1600,\$width\)/);
+ assert.match(ps,/Send-HostRequest 'ack'/);
+ assert.match(ps,/Get-WebViewport/);
+});
 test('Viewer is authenticated; non-approved viewers and cross-site input are rejected',async()=>{
  x.stop();
  let res=await ask('GET','/api/aivid-native/status');

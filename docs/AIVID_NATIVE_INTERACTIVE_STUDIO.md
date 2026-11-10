@@ -1,3 +1,17 @@
+## Viewer usability update — 10 November 2026
+
+The initial interactive pilot connected but displayed a small, blurry ~1280x620 still and had no confirmation that a Windows click or typing action was actually executed. The new version includes:
+
+- Screen capture up to **1600px** at JPEG quality up to **76** (previously 1280px / quality 44), with a host capture cadence of about **1 second**. The customer viewer polls around every 1.1 seconds, skips duplicate frames and decodes the next JPEG before swapping it in.
+- **Fit**, **Actual size** (scroll/pan), **Theater**, and **Fullscreen** display modes. The viewer's mouse position uses the actual displayed image dimensions, not the surrounding padding.
+- **Direct keyboard control**: click the remote AIVID webpage image to focus it; then type with the normal keyboard (input is batched), or compose a long prompt using the text field and Send text. Remote shortcuts are still restricted; no Ctrl+L, Alt+Tab, address bar or Windows key.
+- **Verified native execution feedback**: each queued command has an ID. The Windows helper reports executed or blocked (for example, it lost AIVID foreground focus) via token-authenticated \`/api/aivid-native/host/ack\`. The CMMTools viewer distinguishes **Queued** from **Dispatched by Windows helper** and shows rejection reasons, rather than claiming every queued action was successful. Only one controller remains authorized.
+- **Scroll targeting**: Windows native helper moves the pointer into the center of the verified webpage rectangle before sending scroll-wheel input, so it doesn't scroll a different window.
+
+**Upgrade:** redeploy the latest CMMTools web \`main\`, then download the **updated** Windows Host ZIP in Admin, extract/replace the earlier helper, close the old helper session, generate a fresh Admin pairing code, and launch the updated \`.cmd\`. Changes to the website alone are insufficient because the original Windows helper does not report input results and captures at lower resolution.
+
+**Limits:** JPEG polling remains less fluid than actual RDP/WebRTC. Windows Edge UI Automation capture and native input still require a real RDP acceptance test. Do not grant customers access until that test succeeds in a dedicated standard Windows account. CMMTools can present the webpage without an address bar, but it cannot guarantee customers can never infer the provider's domain via content or outbound links.
+
 # Native interactive Windows AIVID viewport in CMMTools — no URL bar, no Playwright
 
 **Implementation:** opt-in experimental Windows-only pilot. The customer opens \`https://cmmtools.site/aivid-interactive-studio\` to see **only the AIVID webpage viewport** in a branded CMMTools viewer. The customer can click, enter prompts, scroll and activate Generate. The genuine browser remains **Microsoft Edge opened manually and signed in by the owner on Windows RDP**. The customer **does not receive the \`aivid.dev\` address bar or browser login cookies**. AIVID's logo/content may remain visible, as requested. No Playwright, Puppeteer, Chrome debugger, DOM scripts, browser extension injection, or Browserless is used for this *interactive viewer*.
