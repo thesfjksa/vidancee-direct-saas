@@ -355,6 +355,55 @@ textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
   font-weight: 700;
 }
 .custom-select.model-picker .custom-select-option.selected .model-picker-check { color: var(--accent-2); background: var(--accent-soft); }
+
+.custom-select.model-picker .custom-select-option.has-performance-panel {
+  grid-template-columns: 38px minmax(0,1fr) minmax(120px, .46fr) 22px;
+}
+.model-picker-performance {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.75px;
+  line-height: 1.35;
+}
+.model-picker-performance-heading {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.model-picker-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.model-picker-metric strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.model-picker-performance-stale { font-size: 10px; }
+@media (max-width: 480px) {
+  .custom-select.model-picker .custom-select-option.has-performance-panel {
+    grid-template-columns: 34px minmax(0,1fr) 20px;
+    row-gap: 8px;
+  }
+  .has-performance-panel .model-picker-check { grid-area: 1 / 3; }
+  .has-performance-panel .model-picker-performance {
+    grid-column: 2 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 10px;
+    padding: 7px 0 0;
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+  }
+  .has-performance-panel .model-picker-performance-heading { grid-column: 1 / -1; }
+  .has-performance-panel .model-picker-metric { flex-wrap: wrap; gap: 2px 5px; justify-content: flex-start; }
+}
+
 /* Aspect ratios use a viewport-level shape picker above the creator panel. */
 .custom-select.ratio-picker .custom-select-menu { position: fixed; inset: 0; margin: auto; width: min(580px,calc(100vw - 32px)); height: fit-content; max-height: calc(100dvh - 40px); padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg); flex-direction: column; }
 .custom-select.ratio-picker.open .custom-select-menu { display: flex; }
