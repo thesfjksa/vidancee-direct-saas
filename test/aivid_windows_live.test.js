@@ -39,6 +39,9 @@ test('Windows browser actions permit only safe coordinates, typed text and simpl
   assert.deepEqual(validateAction({action:'click',x:1280,y:760}),{action:'click',x:1280,y:760});
   assert.deepEqual(validateAction({action:'type',text:'hello @ google.com'}),{action:'type',text:'hello @ google.com'});
   assert.deepEqual(validateAction({action:'key',key:'Enter'}),{action:'key',key:'Enter'});
+  assert.throws(()=>validateAction({action:'secret',ciphertext:'cleartext-password'}),/encrypted password/);
+  const ciphertext=Buffer.alloc(256,7).toString('base64');
+  assert.deepEqual(validateAction({action:'secret',ciphertext}),{action:'secret',ciphertext});
   assert.throws(()=>validateAction({action:'click',x:-1,y:5}),/outside/);
   assert.throws(()=>validateAction({action:'click',x:5.4,y:1}),/outside/);
   assert.throws(()=>validateAction({action:'key',key:'Control+O'}),/Unrestricted/);
@@ -76,7 +79,9 @@ test('Windows Edge view is restricted to one customer and a dedicated profile, n
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'cmm-live-test-'));
   t.after(()=>fs.rm(folder,{recursive:true,force:true}));
   class MockPage extends EventEmitter{
-    constructor(){super();this.mouse={click:async()=>{}};this.keyboard={insertText:async()=>{},press:async()=>{}};}
+    constructor(){super();this.isPassword=false;this.inserted='';this.mouse={click:async()=>{}};
+      this.keyboard={insertText:async text=>{this.inserted=text;},press:async()=>{}};}
+    async evaluate(){return this.isPassword;}
     isClosed(){return false;}url(){return 'https://aivid.dev/';}
     async screenshot(){return Buffer.from([0xff,0xd8,0xff,0xd9]);}
     async goto(){}async close(){this.emit('close');}
@@ -92,6 +97,14 @@ test('Windows Edge view is restricted to one customer and a dedicated profile, n
   }});
   const first=await session.run({owner:'42',action:'open'});
   assert.equal(first.state,'frame');
+  assert.match(first.secretKey,/^[A-Za-z0-9+/]+=*$/);
+  const pem=Buffer.from(first.secretKey,'base64').toString('utf8');
+  const secret= require('node:crypto').publicEncrypt({key:pem,oaepHash:'sha256'},Buffer.from('test-private-password')).toString('base64');
+  contexts[0].p.isPassword=true;
+  await assert.rejects(session.run({owner:'42',action:'type',text:'unsafe-cleartext'}),/Type password securely/);
+  await session.run({owner:'42',action:'secret',ciphertext:secret});
+  assert.equal(contexts[0].p.inserted,'test-private-password');
+  contexts[0].p.isPassword=false;
   assert.match(profile,/\.aivid-live-profile-u42$/);
   assert.doesNotMatch(profile,/\.aivid-rdp-edge-profile/);
   await assert.rejects(session.run({owner:'43',action:'open'}),/Another isolated Premium browser/);
