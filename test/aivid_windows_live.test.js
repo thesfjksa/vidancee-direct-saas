@@ -60,7 +60,7 @@ test('File references have extension/size restrictions and path stripping',()=>{
   assert.throws(()=>validateUpload('big.mp4',Buffer.alloc(30*1024*1024+1)),/at most 30/);
 });
 test('Paired Edge browser limits document navigation to AIVID and Google, never Windows private addresses',()=>{
-  for(const url of ['https://aivid.dev/','https://accounts.google.com/signin','https://sub.aivid.dev/foo']){
+  for(const url of ['https://aivid.dev/','https://accounts.google.com/signin','https://sub.aivid.dev/foo','https://challenges.cloudflare.com/turnstile/']){
     assert.equal(allowedUrl(url,true),true,url);
   }
   for(const url of ['file:///C:/Windows','http://localhost:1234/','http://169.254.169.254/latest',
