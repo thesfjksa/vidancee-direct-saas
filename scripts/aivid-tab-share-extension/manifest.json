@@ -5,8 +5,7 @@
   "description": "View-only screenshots of the AIVID tab you open manually in normal Microsoft Edge. No browser automation.",
   "minimum_chrome_version": "110",
   "permissions": [
-    "activeTab",
-    "tabs"
+    "activeTab"
   ],
   "host_permissions": [
     "https://cmmtools.site/*"
