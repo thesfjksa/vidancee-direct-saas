@@ -672,8 +672,13 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('vidancee',()=>publicProviderCatalog('vidancee',{creditsPerUsd:providerSettings.vidancee.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
-  // AIVID models are retired from all new customer selections. Keep the
-  // existing AIVID queue/worker/Admin connection intact for old generations.
+  // Premium AIVID choices remain in Video Studio even when an already paired
+  // RDP agent temporarily disconnects. The AIVID quote/queue gates still
+  // refuse a paid submission unless the Edge agent and source are ready.
+  if(access.aivid){
+    const config=await require('./src/aivid_settings.js').getAividSettings().catch(()=>null);
+    video.push(...require('./src/aivid_models.js').customerCatalog(config));
+  }
   video=[...video,...directVideoModels(access,providerSettings)];
   return {
     video:video.filter(model=>!isRetiredModel(model)),
@@ -716,7 +721,7 @@ async function adminModelNameList(){
 // Pricing page (no sign-in needed). Cached for 10 minutes.
 // Seedance 2.5 on ArgoLink looks expensive next to the rest, so the Pricing
 // page leaves it out; Seedance Lite (Sluice) stays.
-const PRICING_PAGE_HIDDEN=['argo_seedance_2_5'];
+const PRICING_PAGE_HIDDEN=['argo_seedance_2_5','aivid_seedance_2_0_mini','aivid_seedance_2_0','aivid_seedance_2_0_fast','aivid_seedance_2_5'];
 let priceExamplesCache=null;
 async function priceExamples(){
   if(priceExamplesCache&&Date.now()-priceExamplesCache.at<10*60*1000)return priceExamplesCache.data;
