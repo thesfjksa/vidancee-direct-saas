@@ -2565,6 +2565,8 @@ const server=http.createServer(async (req,res)=>{
          if(req.method==='GET')return sendJson(res,200,{ok:true,settings:await studio.readConfig()});
          if(req.method==='POST'){
            const saved=await studio.saveConfig(await readJson(req));
+           // Every Admin access update revokes old extension pairing immediately.
+           require('./src/aivid_tab_share.js').stop();
            logActivity({category:'admin',event:'aivid.windows_studio_settings_saved',provider:'aivid',
              message:'Windows Premium Studio '+(saved.enabled?'enabled':'disabled')+' by Admin',
              details:{enabled:saved.enabled,approvedAccounts:saved.allowedIds.length+saved.allowedEmails.length,
