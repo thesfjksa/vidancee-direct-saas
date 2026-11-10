@@ -31,12 +31,18 @@
 
   function sortOptions(root) {
     if (!root) return;
-    const items = [...root.children].filter(item => item.matches('.custom-select-option,.model-picker-group'));
-    const firstIndex = item => Number(item.dataset.index ?? item.querySelector('.custom-select-option')?.dataset.index);
-    const hasData = item => Boolean(snapshot?.models[item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance]);
-    items.sort((a, b) => Number(hasData(b)) - Number(hasData(a)) || firstIndex(a) - firstIndex(b));
+    const items = [...root.children].filter(item => item.matches('.custom-select-option')).map(item => ({
+      item,
+      metrics: snapshot?.models[item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance],
+    }));
+    const tier = metrics => metrics?.successRate > 0 ? 0 : metrics ? 1 : 2;
+    const latency = metrics => metrics?.averageLatencyMs ?? Infinity;
+    items.sort((a, b) => tier(a.metrics) - tier(b.metrics) ||
+      latency(a.metrics) - latency(b.metrics) ||
+      (b.metrics?.successRate ?? -1) - (a.metrics?.successRate ?? -1) ||
+      Number(a.item.dataset.index) - Number(b.item.dataset.index));
     const focused = document.activeElement;
-    items.forEach((item, index) => {
+    items.forEach(({ item }, index) => {
       if (root.children[index] !== item) root.insertBefore(item, root.children[index]);
     });
     if (root.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
