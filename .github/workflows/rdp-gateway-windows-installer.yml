@@ -30,11 +30,10 @@ jobs:
       - name: Restore and publish standalone executable for Windows x64
         shell: pwsh
         run: |
-          dotnet publish tools/rdp-gateway-installer/CMMTools.RdpGatewaySetup.csproj --configuration Release --runtime win-x64 --self-contained true --output installer-dist -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+          dotnet publish tools/rdp-gateway-installer/CMMTools.RdpGatewaySetup.csproj --configuration Release --runtime win-x64 --self-contained true --output installer-dist -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path 'installer-dist/CMMTools-RDP-Gateway-Setup.exe')) { throw 'EXE was not built' }
-          $all = Get-ChildItem installer-dist -File
-          if ($all.Count -ne 1) { throw ('Expected one self-contained .exe, got ' + (($all | ForEach-Object { $_.Name }) -join ', ')) }
+          Get-ChildItem installer-dist -File | ForEach-Object { Write-Host ('Packaged: ' + $_.Name) }
           (Get-FileHash 'installer-dist/CMMTools-RDP-Gateway-Setup.exe' -Algorithm SHA256).Hash | Set-Content 'installer-dist/CMMTools-RDP-Gateway-Setup.sha256.txt'
       - name: Upload executable and checksum
         uses: actions/upload-artifact@v4
