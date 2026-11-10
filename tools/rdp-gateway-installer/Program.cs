@@ -383,7 +383,7 @@ internal sealed class SetupWindow : Form
                 "sudo -n bash " + stage + "/deploy.sh");
             command.CommandTimeout = TimeSpan.FromMinutes(25);
             var result = command.Execute();
-            return new Deployment(result + "\n" + command.Error, command.ExitStatus, adminPass);
+            return new Deployment(result + "\n" + command.Error, command.ExitStatus ?? -1, adminPass);
         }
         finally
         {
