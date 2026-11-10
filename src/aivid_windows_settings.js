@@ -48,7 +48,8 @@ async function verifyAccounts(config,db=getPool()){
 }
 async function saveConfig(input,{write=setSettingValue,db=getPool()}={}){
   const config=normalized(input);
-  await verifyAccounts(config,db);
+  // Disabling must always work, even if a previously approved customer was deleted or suspended.
+  if(config.enabled)await verifyAccounts(config,db);
   // One atomic row update; next customer request reads fresh, current settings.
   await write(KEY,JSON.stringify(config));
   return config;
