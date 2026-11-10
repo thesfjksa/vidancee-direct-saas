@@ -1,7 +1,7 @@
 'use strict';
 // Authenticated, immutable-per-process worker release. No account data enters it.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const FILES={'agent.cjs':'scripts/aivid-rdp/agent.cjs','native.cjs':'scripts/aivid-rdp/native.cjs','provider/aivid.js':'src/provider/aivid.js','provider/aivid_uploads.js':'src/provider/aivid_uploads.js','provider/browserless.js':'src/provider/browserless.js','aivid_models.js':'src/aivid_models.js','live.cjs':'scripts/aivid-rdp/live.cjs'};
+const FILES={'agent.cjs':'scripts/aivid-rdp/agent.cjs','native.cjs':'scripts/aivid-rdp/native.cjs','provider/aivid.js':'src/provider/aivid.js','provider/aivid_uploads.js':'src/provider/aivid_uploads.js','provider/browserless.js':'src/provider/browserless.js','aivid_models.js':'src/aivid_models.js'};
 let release;
 function runtime(){
  if(release)return release;
