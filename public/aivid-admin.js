@@ -116,6 +116,58 @@
     state.textContent='Unsaved Windows Studio changes — click Save Windows Studio settings.';
     state.className='muted';
   };
+  // The extension is deliberately view-only: not a browser automation agent.
+  window.loadTabShareAdmin=async()=>{
+    const status=el('aividTabShareState');
+    try{
+      const d=await api('/admin/aivid/tab-share/status');
+      status.className=d.connected?'ok':'muted';
+      status.textContent=d.connected?'AIVID tab sharing LIVE · view-only · last screenshot '+
+        new Date(d.lastFrameAt).toLocaleTimeString():d.paired?
+        'Extension paired; waiting for an active AIVID screenshot in the normal Edge browser.':
+        d.pairPending?'Waiting for the extension to pair with your 5-minute code.':'No extension connected. Generate a pairing code to share.';
+      return d;
+    }catch(e){status.className='err';status.textContent='Sharing status error: '+e.message;return null;}
+  };
+  window.pairTabShareExtension=async()=>{
+    const button=el('aividTabSharePair'),status=el('aividTabShareState');
+    button.disabled=true;status.className='muted';status.textContent='Creating a one-time code…';
+    try{
+      const d=await api('/admin/aivid/tab-share/pair',{method:'POST',body:'{}'});
+      el('aividTabShareCode').value=d.code;el('aividTabSharePairRow').hidden=false;
+      status.textContent='Pairing code created, expires '+new Date(d.expiresAt).toLocaleTimeString()+
+        '. Paste it in the Edge extension controller. Click Start sharing there.';
+    }catch(e){status.className='err';status.textContent=e.message;}finally{button.disabled=false;}
+  };
+  window.copyTabSharePairCode=async()=>{
+    const field=el('aividTabShareCode');
+    if(!field.value)return;
+    try{await navigator.clipboard.writeText(field.value);el('aividTabShareState').textContent='Pairing code copied. Paste it in the Edge extension controller.';}
+    catch{field.select();el('aividTabShareState').textContent='Pairing code selected. Press Ctrl+C to copy.';}
+  };
+  window.stopTabShareAdmin=async()=>{
+    if(!confirm('Revoke the Edge extension and stop sharing the AIVID tab?'))return;
+    const button=el('aividTabShareStop');button.disabled=true;
+    try{
+      await api('/admin/aivid/tab-share/stop',{method:'POST',body:'{}'});
+      el('aividTabShareCode').value='';el('aividTabSharePairRow').hidden=true;
+      await window.loadTabShareAdmin();
+    }catch(e){el('aividTabShareState').textContent='Could not revoke sharing: '+e.message;}
+    finally{button.disabled=false;}
+  };
+  window.downloadTabShareExtension=async()=>{
+    const button=el('aividTabShareDownload');button.disabled=true;
+    try{
+      const response=await fetch('/admin/aivid/tab-share/extension',{headers:{'x-admin-token':token},cache:'no-store'});
+      if(!response.ok||(response.headers.get('content-type')||'')!=='application/zip')
+        throw Error('Could not download the CMMTools Edge extension.');
+      const url=URL.createObjectURL(await response.blob());
+      const link=document.createElement('a');link.href=url;link.download='CMMTools-Manual-Edge-Tab-Share.zip';
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }catch(e){el('aividTabShareState').className='err';el('aividTabShareState').textContent=e.message;}
+    finally{button.disabled=false;}
+  };
   window.loadWindowsStudioAdmin=async ({strict=false}={})=>{
     const status=el('aividWindowsStudioState'),badge=el('aividWindowsStudioBadge');
     try{
@@ -159,6 +211,7 @@
       const saved=await api('/admin/aivid/windows-studio',{method:'POST',body:JSON.stringify(form)});
       const verified=await window.loadWindowsStudioAdmin({strict:true});
       if(JSON.stringify(saved.settings)!==JSON.stringify(verified))throw Error('Saved state could not be verified. Refresh Admin.');
+      await window.loadTabShareAdmin();
       status.className='ok';status.textContent='Saved and verified: Windows Premium Studio '+(verified.enabled?'ON':'OFF')+
         ' · '+(verified.allowedIds.length+verified.allowedEmails.length)+' trusted account(s).';
     }catch(error){status.className='err';status.textContent=error.message;}
@@ -186,6 +239,7 @@
       el('aividConnectionBadge').textContent = data.sessionExpired ? 'Session expired' : data.configured ? 'Session saved' : 'Not connected';
       paintLogin(data.login || { state: 'idle' });
       await window.loadWindowsStudioAdmin();
+      await window.loadTabShareAdmin();
       if (savedMode === 'rdp') {
         const rdp = data.rdp || {};
         const browserName = 'Microsoft Edge';

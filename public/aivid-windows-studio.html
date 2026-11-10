@@ -1,145 +1,37 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="referrer" content="no-referrer"><title>CMMTools | Windows Premium Studio</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>CMMTools · Manual Edge Sharing</title>
 <style>
-:root{color-scheme:dark;background:#0d1420;color:#ecf2ff;font-family:Inter,system-ui,sans-serif}
-*{box-sizing:border-box}body{margin:0}header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#131f32;padding:16px 23px;border-bottom:1px solid #2b405f}
-.brand{font-weight:850;font-size:21px;letter-spacing:-.7px}.brand span{color:#8bb4ff}h1{font-size:16px;margin:0;font-weight:650}.spacer{flex:1}
-button,a.action{background:#223450;border:1px solid #455a7a;border-radius:9px;color:#f4f8ff;padding:10px 14px;text-decoration:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-button.primary{background:#2865d8;border-color:#2865d8}button:disabled{opacity:.55;cursor:not-allowed}
-main{max-width:1550px;margin:0 auto;padding:16px;display:grid;gap:13px}
-.note{border:1px solid #345079;border-radius:10px;background:#152a44;padding:13px 15px;color:#c8ddf5;line-height:1.6;font-size:13px}
-strong{color:#fff}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.toolbar{border:1px solid #2e4669;background:#132238;padding:13px;border-radius:11px;display:grid;gap:10px}
-input[type=text],input[type=password]{min-height:37px;min-width:180px;flex:1;border:1px solid #466085;background:#0d192c;color:#eef5ff;border-radius:8px;padding:9px 10px;font:inherit;font-size:13px}
-.viewer{border:1px solid #39516f;border-radius:12px;position:relative;background:radial-gradient(circle at center,#263c5e,#0c1423);overflow:hidden;min-height:310px;display:flex;align-items:center;justify-content:center}
-.viewer img{display:block;width:100%;max-width:1280px;height:auto;aspect-ratio:1280/760;object-fit:contain;cursor:crosshair;user-select:none}
-.viewer .empty{padding:90px 24px;text-align:center;color:#b4c9e4;font-size:14px}
-#status{color:#c7daef;font-size:12px;min-height:20px}#status.error{color:#ff9c9c}
-.hint{font-size:12px;color:#a9bfdc}.disclaimer{font-size:12px;color:#e0b7a4}
-.hide{display:none!important}@media(max-width:700px){header{padding:13px}main{padding:10px}.viewer{min-height:220px}}
+:root{color-scheme:dark;background:#0c1422;color:#eff5ff;font:14px/1.55 Inter,system-ui,sans-serif}*{box-sizing:border-box}body{margin:0}header{padding:16px 24px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#14233a;border-bottom:1px solid #2b4261}.brand{font-size:21px;font-weight:800}.brand b{color:#87b7ff}h1{font-size:17px;margin:0}.spacer{flex:1}a,button{font:inherit;font-size:13px;padding:9px 13px;border:1px solid #46638b;border-radius:9px;color:#edf5ff;background:#203757;text-decoration:none;cursor:pointer}main{max-width:1450px;margin:0 auto;padding:18px;display:grid;gap:15px}.note{border:1px solid #43628c;border-radius:12px;background:#152c49;padding:13px 16px;color:#d0e1f4}.state{font-weight:650;padding:6px 11px;border:1px solid #3d5675;border-radius:99px;background:#243a57;font-size:12px}.viewer{min-height:300px;background:#0b1220;border:1px solid #345172;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}.viewer img{display:block;width:100%;height:auto;max-height:75vh;object-fit:contain}.empty{text-align:center;padding:90px 26px;color:#9fb5ce;font-size:15px}.warning{color:#ecc5b5;font-size:13px}.small{font-size:12px;color:#b2c4db}.hide{display:none!important}@media(max-width:640px){header{padding:12px}main{padding:10px}.viewer{min-height:220px}.empty{padding:65px 16px}}
 </style></head><body>
-<header>
- <div class="brand">CMM<span>Tools</span></div><h1>Windows Premium Studio</h1><div class="spacer"></div>
- <a href="/app" class="action">Back to Video Studio</a>
- <button id="connect" class="primary">Open private Edge</button>
- <button id="stop" disabled>Close session</button>
-</header>
+<header><div class="brand">CMM<b>Tools</b></div><h1>Manual Edge Tab Share</h1><div class="spacer"></div><a href="/app">Back to Video Studio</a><button id="refresh" type="button">Refresh</button></header>
 <main>
- <div class="note"><strong>Your existing Windows RDP and Microsoft Edge. No Linux VPS or Browserless.</strong>
- This page shows a restricted, isolated Microsoft Edge browser tab from your paired Windows agent—not the Windows desktop or your automated agent's profile. Click the preview to interact, or type into the toolbar. Google login may require manual verification or may be restricted by Google.</div>
- <div class="toolbar">
-   <div class="row">
-     <input type="text" id="typed" placeholder="Type text into the selected Edge field" autocomplete="off" aria-label="Text to type into remote Edge">
-     <button id="sendText" disabled>Type into Edge</button>
-     <input type="password" id="secret" autocomplete="off" placeholder="Password (encrypted before sending)" aria-label="Secure password entry">
-     <button id="sendSecret" disabled>Type password securely</button>
-     <button id="tab" disabled>Tab</button><button id="enter" disabled>Enter</button>
-     <button id="backspace" disabled>Backspace</button><button id="escape" disabled>Escape</button>
-     <button id="refresh" disabled>Refresh preview</button>
-   </div>
-   <div class="row">
-     <input type="file" id="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav,audio/mp4" class="hide">
-     <button id="upload" disabled>Upload reference to AIVID</button>
-     <button id="save" disabled>Save finished video</button>
-     <span class="hint" id="fileNote">First click AIVID's own file picker, then choose Upload reference here (max 30 MiB per file).</span>
-   </div>
- </div>
- <div id="status" role="status" aria-live="polite">Connect the existing Edge agent and click Open private Edge.</div>
- <div class="viewer" id="viewer"><div id="empty" class="empty">Your private Microsoft Edge browser appears here once connected.</div><img id="screen" alt="Interactive Microsoft Edge AIVID browser preview" tabindex="0" class="hide" draggable="false"></div>
- <p class="hint">Click the screenshot to interact. Scroll the mouse wheel over it to scroll the webpage. The preview refreshes after each action. The Windows desktop, file explorer, terminal and agent credentials are not shared.</p>
- <p class="disclaimer"><strong>Billing:</strong> Interactive AIVID Generate clicks bill the provider account signed into this separate Edge profile. They do not charge or reserve CMMTools wallet credits. This path has not been verified with a paid AIVID render.</p>
+<div class="note"><strong>No Playwright. No remote browser automation.</strong> The owner opens AIVID manually in normal Microsoft Edge on Windows RDP, then shares the selected AIVID tab with the CMMTools extension. This viewer never clicks, types, launches Edge, or injects scripts. It displays periodic screenshots, not full-frame-rate video.</div>
+<p><span class="state" id="state">Checking sharing status…</span> <span id="updated" class="small"></span></p>
+<div class="viewer"><div id="empty" class="empty">No shared AIVID tab yet. Open AIVID normally in Edge, pair the CMMTools extension through Admin, and start sharing.</div><img class="hide" id="screen" alt="Read-only screenshot of the manually opened AIVID tab" draggable="false"></div>
+<p class="small">Sharing pauses when the owner switches away from AIVID, closes the selected tab, stops sharing, or when pairing expires. Open Admin → Provider → AIVID to control access.</p>
+<p class="warning"><strong>Privacy:</strong> Screenshots may reveal AIVID account information and prompts. Sign-in, CAPTCHA, Generate, reference uploads, and downloads are performed manually in Edge. The CMMTools viewer is read-only.</p>
 </main>
 <script nonce="__CMM_NONCE__">
+'use strict';
+let busy=false,imageURL='';
 const $=id=>document.getElementById(id);
-let active=false,busy=false,frameTimer=null,pendingUpload=false,publicKey='';
-const controls=['sendText','sendSecret','tab','enter','backspace','escape','refresh','upload','save'];
-function message(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
-function buttons(){for(const id of controls)$(id).disabled=!active||busy||(id==='save'&&!$('save').dataset.ready);
- $('connect').disabled=busy||active;$('stop').disabled=busy||!active;}
-function showFrame(value){
- if(value.state!=='frame')return;
- if(value.jpeg){$('screen').src='data:image/jpeg;base64,'+value.jpeg;$('screen').classList.remove('hide');$('empty').classList.add('hide');}
- pendingUpload=Boolean(value.uploadPending);
- publicKey=value.secretKey||'';
- $('fileNote').textContent=pendingUpload?'AIVID reference picker is ready. Click Upload reference to choose your local file.':'Click AIVID’s own reference-upload control first, then choose Upload reference here.';
- $('save').dataset.ready=value.downloadReady?'1':'';
- message(value.notice||(value.url?'Viewing '+value.url:'Remote Edge ready.'));
- buttons();
-}
-async function request(action,extra={},binary=null){
- if(busy)return;
- busy=true;buttons();message('Connecting to your Windows Edge agent…');
+function off(status){$('state').textContent=status;$('screen').classList.add('hide');$('empty').classList.remove('hide');if(imageURL)URL.revokeObjectURL(imageURL);imageURL='';$('screen').removeAttribute('src');}
+async function refresh(){
+ if(busy||document.visibilityState!=='visible')return;busy=true;
  try{
-   const isUpload=action==='upload';
-   const path=isUpload?'/api/windows-studio/upload?name='+encodeURIComponent(binary.name):'/api/windows-studio/action';
-   const response=await fetch(path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
-     headers:{'content-type':isUpload?'application/octet-stream':'application/json'},
-     body:isUpload?binary:JSON.stringify({action,...extra})});
-   const type=response.headers.get('content-type')||'';
-   if(type.startsWith('video/mp4')&&response.ok){
-     const blob=await response.blob();const url=URL.createObjectURL(blob);
-     const link=document.createElement('a');link.href=url;link.download='aivid-video.mp4';document.body.appendChild(link);link.click();link.remove();
-     setTimeout(()=>URL.revokeObjectURL(url),60000);
-     $('save').dataset.ready='';message('Video saved to your downloads folder.');return;
-   }
-   const data=await response.json();
-   if(!response.ok||!data.ok)throw new Error(data.error||'The Windows Edge agent did not complete the action.');
-   if(action==='open')active=true;
-   if(action==='close'){
-     active=false;$('screen').classList.add('hide');$('empty').classList.remove('hide');$('screen').removeAttribute('src');
-     $('save').dataset.ready='';message('Your private Edge session is closed.');
-   }else showFrame(data);
- }catch(error){message(error.message||'The remote browser is unavailable.',true);}
- finally{busy=false;buttons();}
+  const res=await fetch('/api/windows-studio/status',{credentials:'same-origin',cache:'no-store',redirect:'error'});
+  const d=await res.json();if(!res.ok||!d.ok)throw Error(d.error||'Viewer is unavailable.');
+  if(!d.connected){off(d.paired?'Extension paired · waiting for AIVID tab':'No active AIVID share');$('updated').textContent='Keep AIVID selected in normal Edge.';return;}
+  const r=await fetch('/api/windows-studio/frame',{credentials:'same-origin',cache:'no-store',redirect:'error'});
+  if(r.status===204){off('Waiting for the next screenshot');return;}
+  if(!r.ok||!(r.headers.get('content-type')||'').startsWith('image/jpeg'))throw Error('Screenshot unavailable.');
+  const blob=await r.blob();if(blob.size>360000)throw Error('Screenshot exceeds limit.');
+  const next=URL.createObjectURL(blob);$('screen').src=next;$('screen').classList.remove('hide');$('empty').classList.add('hide');
+  if(imageURL)URL.revokeObjectURL(imageURL);imageURL=next;
+  $('state').textContent='Read-only AIVID tab · Live';$('updated').textContent='Updated '+new Date(d.lastFrameAt).toLocaleTimeString();
+ }catch(e){off(e.message||'Sharing is unavailable.')}finally{busy=false;}
 }
-$('connect').addEventListener('click',()=>request('open'));
-$('stop').addEventListener('click',()=>request('close'));
-$('refresh').addEventListener('click',()=>request('frame'));
-$('sendText').addEventListener('click',()=>{const text=$('typed').value;if(text)request('type',{text});$('typed').value='';});
-$('typed').addEventListener('keydown',e=>{if(e.key==='Enter'&&active){e.preventDefault();$('sendText').click();}});
-$('sendSecret').addEventListener('click',async()=>{
- const text=$('secret').value;if(!text)return;
- $('secret').value='';
- try{
-   if(!publicKey)throw new Error('Open or refresh your private Edge session before typing a password.');
-   const pem=atob(publicKey).replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s+/g,'');
-   const spki=Uint8Array.from(atob(pem),c=>c.charCodeAt(0));
-   const key=await crypto.subtle.importKey('spki',spki,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
-   const bytes=new TextEncoder().encode(text);
-   const encrypted=await crypto.subtle.encrypt({name:'RSA-OAEP'},key,bytes);
-   bytes.fill(0);
-   const ciphertext=btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-   await request('secret',{ciphertext});
- }catch(error){message(error.message||'Secure password entry is unavailable.',true);}
-});
-$('secret').addEventListener('keydown',e=>{if(e.key==='Enter'&&active){e.preventDefault();$('sendSecret').click();}});
-for(const [id,key] of [['tab','Tab'],['enter','Enter'],['backspace','Backspace'],['escape','Escape']])
- $(id).addEventListener('click',()=>request('key',{key}));
-$('screen').addEventListener('click',e=>{
- if(!active||busy)return;
- const r=$('screen').getBoundingClientRect();
- const x=Math.max(0,Math.min(1280,Math.round((e.clientX-r.left)/r.width*1280)));
- const y=Math.max(0,Math.min(760,Math.round((e.clientY-r.top)/r.height*760)));
- request('click',{x,y});
-});
-$('screen').addEventListener('wheel',e=>{
- if(!active||busy)return;e.preventDefault();
- request('scroll',{delta:Math.max(-1200,Math.min(1200,Math.round(e.deltaY)))});
-},{passive:false});
-$('screen').addEventListener('keydown',e=>{
- if(!active||busy||e.ctrlKey||e.altKey||e.metaKey)return;
- if(['Enter','Tab','Escape','Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
-   e.preventDefault();request('key',{key:e.key});
- }else if(e.key.length===1){e.preventDefault();request('type',{text:e.key});}
-});
-$('upload').addEventListener('click',()=>{$('file').click();});
-$('file').addEventListener('change',()=>{
- const file=$('file').files?.[0];if(!file)return;
- if(file.size>30*1024*1024){message('Files must be 30 MiB or smaller.',true);$('file').value='';return;}
- if(!pendingUpload){message('Click the AIVID reference-upload field inside Edge first.',true);$('file').value='';return;}
- request('upload',{},file);$('file').value='';
-});
-$('save').addEventListener('click',()=>request('download'));
-buttons();
-frameTimer=setInterval(()=>{if(active&&!busy&&document.visibilityState==='visible')request('frame')},6000);
+$('refresh').addEventListener('click',refresh);document.addEventListener('visibilitychange',refresh);
+const timer=setInterval(refresh,3000);window.addEventListener('pagehide',()=>{clearInterval(timer);if(imageURL)URL.revokeObjectURL(imageURL)});
+refresh();
 </script></body></html>

@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CMMTools · Tab Share</title>
+<style>
+:root{color-scheme:dark;background:#0c1422;color:#f0f6ff;font:14px/1.5 system-ui,sans-serif}*{box-sizing:border-box}body{padding:20px;margin:0}.brand{font-size:21px;font-weight:800}.brand span{color:#8bb7ff}h1{font-size:18px;margin:12px 0}p{color:#c2d3ea}strong{color:#fff}.panel{background:#162841;border:1px solid #355173;border-radius:12px;padding:15px;margin:14px 0}.input{width:100%;background:#0d1728;border:1px solid #50678a;color:#fff;border-radius:8px;padding:11px;font:inherit;letter-spacing:1.5px}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button,a{background:#2550a3;border:1px solid #4271be;border-radius:9px;color:#fff;padding:10px 13px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}button:disabled{opacity:.45;cursor:not-allowed}#stop{background:#55314a;border-color:#85506d}#status{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#bad9ff}#status.error{color:#ffb7b7}.muted{font-size:12px;color:#adc1dd}
+</style></head><body>
+<div class="brand">CMM<span>Tools</span></div><h1>Share this AIVID tab</h1>
+<div class="panel"><strong>Read-only. No Playwright or automated controls.</strong>
+<p>This extension captures only the ordinary Microsoft Edge AIVID tab you selected. It never clicks, types, manipulates the AIVID page, or shares the Windows desktop.</p></div>
+<div class="panel">
+<label for="code"><strong>One-time code from CMMTools Admin</strong></label>
+<input id="code" class="input" placeholder="32-character pairing code" maxlength="32" autocomplete="off" spellcheck="false">
+<div class="row"><button id="pair">Pair this extension</button><button id="start" disabled>Start sharing</button><button id="stop" disabled>Stop & revoke</button></div>
+<p class="muted">Generate the code in Admin → Provider → AIVID → Windows Premium Studio → Pair Extension.</p>
+</div>
+<div class="panel"><p id="status" role="status">Open AIVID normally first. Click the CMMTools extension while its tab is selected.</p></div>
+<p class="muted">Sharing automatically pauses when you switch to another tab, close AIVID, or the 2-hour pairing expires. The controller window must remain open. Screenshots update about every 2.5 seconds, not full-motion video.</p>
+<script src="controller.js"></script>
+</body></html>

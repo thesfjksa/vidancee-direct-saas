@@ -186,20 +186,38 @@
             <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="aividVerifyButton" onclick="finishAividAdmin('finish')">Verify sign-in</button><button class="secondary" id="aividCancelButton" onclick="finishAividAdmin('cancel')">Close login window</button></div>
           </div>
           <div id="aividWindowsStudioAdminPanel" style="margin:16px 0;padding:16px;border:1px solid var(--line,#dbe2ea);border-radius:12px;background:var(--card,#fff)">
-            <div class="source-head"><h3 style="margin:0">Windows Premium Studio · Interactive Edge</h3><span class="source-state" id="aividWindowsStudioBadge">Checking…</span></div>
-            <p class="muted">Uses the existing paired Windows RDP agent. Customers see only a restricted, separate Microsoft Edge browser—not your Windows desktop. No Linux VPS, Browserless or Hostinger environment variables required.</p>
-            <label style="display:flex;align-items:center;gap:10px"><input id="aividWindowsStudioEnabled" type="checkbox" style="width:auto" onchange="markWindowsStudioDirty()"> <strong>Enable interactive Windows Premium Studio</strong></label>
+            <div class="source-head"><h3 style="margin:0">Windows Premium Studio · Manual Edge Tab Share</h3><span class="source-state" id="aividWindowsStudioBadge">Checking…</span></div>
+            <p class="muted">Open AIVID normally in Microsoft Edge on your Windows RDP. Share that tab through the CMMTools extension; no Playwright, scripts injected into AIVID, separate automated browser or Windows desktop sharing. The CMMTools viewer is read-only.</p>
+            <label style="display:flex;align-items:center;gap:10px"><input id="aividWindowsStudioEnabled" type="checkbox" style="width:auto" onchange="markWindowsStudioDirty()"> <strong>Enable view-only AIVID tab sharing</strong></label>
             <div class="field"><label for="aividWindowsStudioEmails">Approved CMMTools login emails</label><input id="aividWindowsStudioEmails" type="text" autocomplete="off" spellcheck="false" placeholder="your-account@example.com" oninput="markWindowsStudioDirty()"></div>
             <div class="field"><label for="aividWindowsStudioIds">Approved CMMTools user IDs (optional)</label><input id="aividWindowsStudioIds" type="text" inputmode="numeric" autocomplete="off" placeholder="42" oninput="markWindowsStudioDirty()"></div>
             <p class="muted">Separate multiple emails or IDs with commas. Maximum three trusted accounts in total. Accounts must already exist and be active. Keep the viewer restricted to yourself for testing.</p>
             <label style="display:flex;align-items:flex-start;gap:10px;line-height:1.5;margin:12px 0">
               <input id="aividWindowsStudioBillingAck" type="checkbox" style="width:auto;margin-top:4px" onchange="markWindowsStudioDirty()">
-              <span>I understand that clicking <strong>Generate</strong> in this interactive browser charges the signed-in <strong>AIVID provider account directly</strong>. CMMTools wallet credits, customer spend limits, and automatic job receipts do not apply.</span>
+              <span>I understand that manual <strong>Generate</strong> clicks inside my normal Edge AIVID tab charge the <strong>AIVID provider account directly</strong>, outside CMMTools wallets and automatic job receipts. The CMMTools viewer cannot trigger Generate.</span>
             </label>
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <button id="aividWindowsStudioSave" class="btn" type="button" onclick="saveWindowsStudioAdmin()">Save Windows Studio settings</button>
               <button class="secondary" type="button" onclick="loadWindowsStudioAdmin()">Refresh saved access</button>
-              <a href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="btn">Open Windows Studio</a>
+              <a href="/aivid-live-studio" target="_blank" rel="noopener noreferrer" class="btn">Open read-only viewer</a>
+            </div>
+            <div style="border-top:1px solid var(--line,#dbe2ea);margin-top:15px;padding-top:14px">
+              <h4 style="margin:0 0 7px">Pair ordinary Edge extension</h4>
+              <p class="muted">On your Windows RDP, manually open AIVID in your usual Edge browser. Install the extension, then click its icon with the AIVID tab selected. Pair it here. The separate AIVID-Agent.exe is <strong>not required</strong> for view-only sharing.</p>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button type="button" class="secondary" id="aividTabShareDownload" onclick="downloadTabShareExtension()">Download Edge extension ZIP</button>
+                <button type="button" class="btn" id="aividTabSharePair" onclick="pairTabShareExtension()">Generate one-time pairing code</button>
+                <button type="button" class="secondary" id="aividTabShareRefresh" onclick="loadTabShareAdmin()">Refresh sharing status</button>
+                <button type="button" class="danger" id="aividTabShareStop" onclick="stopTabShareAdmin()">Stop all sharing</button>
+              </div>
+              <div id="aividTabSharePairRow" hidden style="margin-top:10px">
+                <label for="aividTabShareCode">One-time pairing code (valid 5 minutes)</label>
+                <div class="row" style="gap:8px"><input id="aividTabShareCode" type="text" readonly autocomplete="off" style="flex:1;min-width:0;font-family:monospace" onclick="this.select()"><button type="button" class="secondary" onclick="copyTabSharePairCode()">Copy code</button></div>
+              </div>
+              <p id="aividTabShareState" class="muted" role="status">No tab is shared until you explicitly pair the extension and click Start sharing in Edge.</p>
+              <details><summary>Install in Microsoft Edge — no CLI</summary>
+                <p class="muted">Download ZIP, extract it, open <code>edge://extensions</code>, enable Developer mode, choose Load unpacked, and select the extracted folder containing <code>manifest.json</code>. Open AIVID manually, click the extension icon, enter the pairing code, and press Start sharing. Leave the controller window open. Stop Sharing revokes the session.</p>
+              </details>
             </div>
             <p id="aividWindowsStudioState" class="muted" role="status">Loading saved Windows Studio access…</p>
           </div>
@@ -1725,6 +1743,6 @@ async function loadProviderUsage(){
 async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringify(await api('/admin/config'),null,2)}catch(e){$('configOut').textContent='ERROR: '+e.message}}
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
-</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=7"></script><script src="/longai-admin.js?v=3"></script></body></html>
+</script><script src="/provider-admin.js?v=4"></script><script src="/aivid-admin.js?v=8"></script><script src="/longai-admin.js?v=3"></script></body></html>
 
 
