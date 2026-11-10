@@ -101,6 +101,10 @@ function Get-WebViewport([IntPtr]$h){
   if(-not [CMMWindowsBrowser]::IsEdge($h)){throw 'AIVID browser window is no longer active.'}
   if([CMMWindowsBrowser]::GetForegroundWindow() -ne $h){throw 'Bring the AIVID Edge window to the foreground to enable sharing.'}
   if(([CMMWindowsBrowser]::Title($h) -notmatch '(?i)aivid')){throw 'Browser is no longer on a named AIVID page.'}
+  $outer=[CMMWindowsBrowser+RECT]::new()
+  if(-not [CMMWindowsBrowser]::GetWindowRect($h,[ref]$outer)){
+    throw 'Cannot verify the Edge window bounds.'
+  }
   $best=$null;$maxArea=0
   try{
     $root=[System.Windows.Automation.AutomationElement]::FromHandle($h)
@@ -110,7 +114,9 @@ function Get-WebViewport([IntPtr]$h){
     $docs=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
     foreach($doc in $docs){
       $r=$doc.Current.BoundingRectangle
-      if($r.Width -lt 320 -or $r.Height -lt 200 -or $r.Width -gt 5000 -or $r.Height -gt 3000) {continue}
+      if($r.Width -lt 320 -or $r.Height -lt 200 -or $r.Width -gt 5000 -or $r.Height -gt 3000 -or
+        $r.Left -lt $outer.Left-8 -or $r.Top -lt $outer.Top-8 -or
+        $r.Right -gt $outer.Right+8 -or $r.Bottom -gt $outer.Bottom+8) {continue}
       $area=$r.Width*$r.Height
       if($area -gt $maxArea){$best=$r;$maxArea=$area}
     }
@@ -119,7 +125,10 @@ function Get-WebViewport([IntPtr]$h){
     # Window chrome is NEVER a fallback: only a separately identified tab
     # renderer area can be captured if Windows UI Automation cannot find Document.
     $r=[CMMWindowsBrowser]::GetDocumentFallback($h)
-    if($r.Width -lt 320 -or $r.Height -lt 200){throw 'Edge did not expose the webpage-only viewport. Remote sharing is safely paused.'}
+    if($r.Width -lt 320 -or $r.Height -lt 200 -or $r.Left -lt $outer.Left-8 -or
+      $r.Top -lt $outer.Top-8 -or $r.Right -gt $outer.Right+8 -or $r.Bottom -gt $outer.Bottom+8){
+      throw 'Edge did not expose a safe webpage-only viewport. Remote sharing is paused.'
+    }
     return @{Left=$r.Left;Top=$r.Top;Width=$r.Width;Height=$r.Height}
   }
   return @{Left=[Math]::Ceiling($best.Left);Top=[Math]::Ceiling($best.Top);
@@ -230,6 +239,12 @@ function Main {
         try{
           $rect=Get-WebViewport $window
           $jpg=Take-Jpeg $rect
+          # A different window must never be published if the operator switches
+          # away between the viewport check and Windows screen capture.
+          if([CMMWindowsBrowser]::GetForegroundWindow() -ne $window -or
+            [CMMWindowsBrowser]::Title($window) -notmatch '(?i)aivid'){
+            throw 'AIVID lost focus during capture; frame discarded.'
+          }
           $reply=Send-HostRequest 'frame' 'Post' $jpg.Bytes @{'X-CMM-Width'=[string]$jpg.Width;'X-CMM-Height'=[string]$jpg.Height}
           if(-not $reply.ok){throw 'CMMTools rejected the webpage frame.'}
           $lastWarning=''
