@@ -47,7 +47,7 @@ class RdpStore {
     await ensureRdpTables(this.db);
     await this.db.execute('DELETE FROM aivid_rdp_commands WHERE expires_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)');
     await this.db.execute('INSERT INTO aivid_rdp_commands (id,device_id,generation_id,kind,state,request_json,expires_at) VALUES (?,?,?,?,?,?,?)',
-      [command.id, command.deviceId, command.generationId, command.kind, 'queued', JSON.stringify(command.payload), new Date(command.expiresAt)]);
+      [command.id, command.deviceId, command.generationId, command.kind, command.initialState === 'staging' ? 'staging' : 'queued', JSON.stringify(command.payload), new Date(command.expiresAt)]);
   }
   async get(id) {
     const [[row]] = await this.db.execute('SELECT * FROM aivid_rdp_commands WHERE id=?', [id]);
@@ -59,10 +59,10 @@ class RdpStore {
     return result.affectedRows === 1;
   }
   async cancel(id) { await this.db.execute("UPDATE aivid_rdp_commands SET state='cancelled' WHERE id=? AND state<>'done'", [id]); }
-  async claim(deviceId, readOnly) {
+  async claim(deviceId, readOnly, liveOnly = false) {
     await ensureRdpTables(this.db);
     const [rows] = await this.db.execute("SELECT id FROM aivid_rdp_commands WHERE device_id=? AND state='queued' AND expires_at>UTC_TIMESTAMP(3)" +
-      (readOnly ? " AND kind='preflight'" : '') + ' ORDER BY created_at,id LIMIT 1', [deviceId]);
+      (liveOnly ? " AND kind='live'" : readOnly ? " AND kind IN ('preflight','live')" : '') + ' ORDER BY created_at,id LIMIT 1', [deviceId]);
     if (!rows.length || !await this.move(rows[0].id, 'queued', 'running')) return null;
     return this.get(rows[0].id);
   }
@@ -71,6 +71,12 @@ class RdpStore {
     await this.db.execute('INSERT IGNORE INTO aivid_rdp_chunks (command_id,position_index,media_data) VALUES (?,?,?)', [id, index, data]);
     const [[row]] = await this.db.execute('SELECT media_data FROM aivid_rdp_chunks WHERE command_id=? AND position_index=?', [id, index]);
     if (!row || !Buffer.from(row.media_data).equals(data)) throw failure('Conflicting output chunk.', 409);
+  }
+  async input(id, index) {
+    if(!Number.isSafeInteger(index)||index<0||index>=32)throw failure('Invalid reference chunk.',400);
+    const [[row]]=await this.db.execute('SELECT media_data FROM aivid_rdp_chunks WHERE command_id=? AND position_index=?',[id,index]);
+    if(!row)throw failure('Reference chunk not found.',404);
+    return Buffer.from(row.media_data);
   }
   async output(id, metadata) {
     const [rows] = await this.db.execute('SELECT position_index,media_data FROM aivid_rdp_chunks WHERE command_id=? ORDER BY position_index', [id]);
@@ -105,13 +111,17 @@ class AividRdpClient {
   async run(kind, payload, { beforeClick, references = [], generationId = null, timeoutMs = 180000 } = {}) {
     if (!this.device?.deviceId || !this.device?.tokenHash) throw failure('Pair the Windows RDP agent in Admin first.', 503);
     const device=publicDevice(this.device,this.now());
-    if(device.online&&device.status==='needs_verification')
+    if(kind!=='live'&&device.online&&device.status==='needs_verification')
       throw Object.assign(failure(diagnosticMessage('session_verification'),503),{aividCode:'session_verification'});
     const command = { id: crypto.randomUUID(), deviceId: this.device.deviceId, generationId, kind,
       expiresAt: this.now() + timeoutMs, payload: { ...payload, references: references.map((r, index) =>
         ({ index, kind: r.kind, mimeType: r.mimeType, size: r.data.length, sha256: hash(r.data) })) } };
     await this.store.insert(command);
+    return this.wait(command.id,kind,{beforeClick,timeoutMs});
+  }
+  async wait(id,kind,{beforeClick,timeoutMs=75000}={}){
     let reserved = false;
+    const command={id,expiresAt:this.now()+timeoutMs};
     let commandFinished = false;
     try {
       while (this.now() < command.expiresAt) {
@@ -128,11 +138,13 @@ class AividRdpClient {
         if (current.state === 'done') {
           commandFinished = true;
           if (kind === 'submit' && !reserved && current.response.state!=='rejected' && !current.response.error) throw failure('RDP submission had no server reservation.', 409);
+          if (current.response.error && kind==='live')throw failure(current.response.message||'The Windows Edge browser could not finish that action.',503);
           if (current.response.error) throw Object.assign(failure(current.response.errorCode
             ? 'RDP check [' + current.response.errorCode + ']: ' + diagnosticMessage(current.response.errorCode)
             : 'The RDP browser needs attention. Check its agent window and AIVID sign-in.', 503),{aividCode:current.response.errorCode});
           const result = current.response;
-          if (kind === 'collect' && result.state === 'completed') result.output = await this.store.output(command.id, result);
+          if ((kind === 'collect' && result.state === 'completed') || (kind === 'live' && result.state === 'download'))
+            result.output = await this.store.output(command.id, result);
           return result;
         }
         await this.delay(750);
@@ -238,8 +250,8 @@ class AividRdpService {
     const matched = browser === selected;
     const reported = !matched && status === 'ready' ? 'starting' : status;
     await this.write(HEARTBEAT_KEY, JSON.stringify({ deviceId: device.deviceId, status: reported, browser, seenAt: new Date(this.now()).toISOString() }));
-    if (!matched || ['busy', 'starting', 'needs_verification'].includes(status)) return { browser: selected, command: null };
-    const command = await this.store.claim(device.deviceId, status !== 'ready');
+    if (!matched || ['busy', 'starting'].includes(status)) return { browser: selected, command: null };
+    const command = await this.store.claim(device.deviceId, status !== 'ready', status === 'needs_verification');
     return { browser: selected, command: command ? { id: command.id, kind: command.kind, payload: command.payload, expiresAt: command.expiresAt } : null };
   }
   async command(device, id) {
@@ -264,6 +276,8 @@ class AividRdpService {
     if (command.state === 'done') return { saved: true };
     let result;
     if (input.error === true) result = { error: true,
+      ...(command.kind==='live'&&typeof input.message==='string'&&input.message.length<=180&&
+        /^[\x20-\x7e]*$/.test(input.message)?{message:input.message}:{}) ,
       ...(Object.hasOwn(DIAGNOSTICS, input.errorCode) ? { errorCode: input.errorCode } : {}) };
     else if(command.kind==='reference_check'){
       const expected=validateJob(command.payload.value);
@@ -302,7 +316,21 @@ class AividRdpService {
         if(input.errorCode==='source_rejected'&&Number.isInteger(input.httpStatus)&&input.httpStatus>=400&&input.httpStatus<500)
           result.httpStatus=input.httpStatus;
       }
-    } else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) {
+    } else if(command.kind==='live' && input.state==='frame' && typeof input.jpeg==='string' && input.jpeg.length<=650000 &&
+      /^[A-Za-z0-9+/]*={0,2}$/.test(input.jpeg) && typeof input.url==='string' && input.url.length<300 &&
+      typeof input.notice==='string' && input.notice.length<300 && typeof input.fileName==='string' && input.fileName.length<150 &&
+      typeof input.uploadPending==='boolean' && typeof input.downloadReady==='boolean'&&
+      typeof input.secretKey==='string'&&input.secretKey.length<=1500 && /^[A-Za-z0-9+/]*={0,2}$/.test(input.secretKey)){
+      result={state:'frame',jpeg:input.jpeg,url:input.url,notice:input.notice,fileName:input.fileName,
+        uploadPending:input.uploadPending,downloadReady:input.downloadReady,secretKey:input.secretKey};
+    }
+    else if(command.kind==='live' && command.payload.action==='download' && input.state==='download' &&
+      Number.isSafeInteger(input.size)&&input.size>=12&&input.size<=MAX_OUTPUT &&
+      Number.isSafeInteger(input.chunks)&&input.chunks===Math.ceil(input.size/CHUNK) && /^[a-f0-9]{64}$/.test(input.sha256||'')){
+      result={state:'download',size:input.size,chunks:input.chunks,sha256:input.sha256};
+      await this.store.output(id,result);
+    }
+    else if (command.kind === 'collect' && ['pending', 'failed'].includes(input.state)) {
       result = { state: input.state };
       if (input.state === 'failed' && input.errorCode === 'source_sensitive_content') result.errorCode = input.errorCode;
     }

@@ -33,7 +33,7 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
       }else json(res,200,manifest);
       return true;
     }
-    const match = path.match(/^\/api\/aivid-rdp\/commands\/([0-9a-f-]{36})(?:\/(reserve|result|references|chunks)(?:\/(\d+))?)?$/i);
+    const match = path.match(/^\/api\/aivid-rdp\/commands\/([0-9a-f-]{36})(?:\/(reserve|result|references|chunks|input)(?:\/(\d+))?)?$/i);
     if (!match) throw failure('RDP route not found.', 404);
     const [, id, action, position] = match;
     if (!action && req.method === 'GET') {
@@ -49,9 +49,17 @@ async function handle(req, res, path, { readJson, requireDatabase, instance = nu
       const file = await api.reference(device, id, Number(position));
       res.writeHead(200, { 'content-type': file.mimeType, 'content-length': file.data.length, 'cache-control': 'no-store' }); res.end(file.data); return true;
     }
+    if (action === 'input' && req.method === 'GET' && position !== undefined) {
+      const command=await api.command(device,id);
+      if(command.kind!=='live'||command.payload?.action!=='upload'||command.state!=='running')throw failure('Reference transfer is not authorized.',403);
+      const index=Number(position),meta=command.payload.file;
+      if(!meta||!Number.isSafeInteger(meta.size)||meta.size<1||meta.size>30*1024*1024||!Number.isInteger(index)||index<0||index>=Math.ceil(meta.size/CHUNK))throw failure('Invalid reference chunk.',400);
+      const data=await api.store.input(id,index);
+      res.writeHead(200,{'content-type':'application/octet-stream','cache-control':'no-store','content-length':data.length});res.end(data);return true;
+    }
     if (action === 'chunks' && req.method === 'POST' && position !== undefined) {
       const command = await api.command(device, id), index = Number(position);
-      if (command.kind !== 'collect' || command.state !== 'running' || !Number.isSafeInteger(index) || index < 0 || index >= 100) throw failure('Invalid MP4 transfer.', 409);
+      if (!(command.kind === 'collect' || (command.kind === 'live' && command.payload?.action === 'download')) || command.state !== 'running' || !Number.isSafeInteger(index) || index < 0 || index >= 100) throw failure('Invalid MP4 transfer.', 409);
       const chunks = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > CHUNK) throw failure('Output chunk is too large.', 413); chunks.push(chunk); }
       if (!size) throw failure('Output chunk is empty.');
