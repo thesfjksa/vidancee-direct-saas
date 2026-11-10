@@ -272,6 +272,7 @@ function allowedUrl(value,navigation=false){
   let url;try{url=new URL(value);}catch{return false;}
   if(url.protocol!=='https:'||url.username||url.password)return false;
   const host=url.hostname.toLowerCase();
+  if(require('node:net').isIP(host))return false;
   if(host==='localhost'||host.endsWith('.localhost')||host==='metadata.google.internal'||host.endsWith('.internal')||
      /^(?:127|0|10|192\.168)\./.test(host)||/^172\.(?:1[6-9]|2\d|3[01])\./.test(host)||host==='169.254.169.254')
     return false;
@@ -309,12 +310,14 @@ class WindowsLive {
     this.state=state;
     await context.route('**/*',async route=>{
       const request=route.request();
-      let nav=false;
-      try{nav=request.isNavigationRequest()&&request.frame()===request.frame().page().mainFrame();}catch{}
+      const nav=request.isNavigationRequest()||request.resourceType()==='document';
       if(!allowedUrl(request.url(),nav))return route.abort().catch(()=>{});
       return route.continue().catch(()=>{});
     });
+    const hooked=new WeakSet();
     const attach=page=>{
+      if(hooked.has(page))return;
+      hooked.add(page);
       page.on('filechooser',chooser=>{state.chooser=chooser;state.notice='Choose a reference file from CMMTools Upload.';});
       page.on('download',download=>{state.download=download;state.notice='Video download detected. Use Save video in CMMTools.';});
       page.on('close',()=>{if(state.page===page)state.page=context.pages().find(p=>!p.isClosed())||null;});
