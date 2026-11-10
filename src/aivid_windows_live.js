@@ -94,7 +94,7 @@ async function readBinary(req){
   if(length!==null&&(!Number.isSafeInteger(length)||length<1||length>MAX_TOTAL_UPLOAD))throw failure('Invalid reference size.',413);
   let count=0;const data=[];
   for await(const part of req){count+=part.length;if(count>MAX_TOTAL_UPLOAD)throw failure('Reference is too large.',413);data.push(part);}
-  if(count!==length)throw failure('Reference upload was incomplete.',400);
+  if(count<1||(length!==null&&count!==length))throw failure('Reference upload was incomplete.',400);
   return Buffer.concat(data,count);
 }
 async function run(userId,input,bytes=null,{now=Date.now,store=new RdpStore(),getDevice=readDevice,delay}={}){
