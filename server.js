@@ -185,6 +185,7 @@ const { Api888Client } = require('./src/provider/api888.js');
 const { recoverApi888Video } = require('./src/api888_recovery.js');
 const { api888MediaModels, isApi888Model, quoteApi888 } = require('./src/api888_models.js');
 const { loadApi888Health, isApi888Available, isApi888PublicAvailable } = require('./src/api888_health.js');
+const { getApi888Performance } = require('./src/api888_performance.js');
 const { auditApi888Import } = require('./src/api888_audit.js');
 const { isArgoModel, argoMediaModels } = require('./src/argolink_models.js');
 const { comparePrices } = require('./src/compare_prices.js');
@@ -601,6 +602,13 @@ async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
   };
 }
 
+async function api888StudioCatalog(){
+  const catalog=await publicProviderCatalog('api888',{});
+  const health=await loadApi888Health().catch(()=>null);
+  const live=model=>isApi888PublicAvailable(health,model.id);
+  return {video:catalog.video.filter(live),image:catalog.image.filter(live)};
+}
+
 async function sourceMediaCatalog(access,adminSettings=null){
   const providerSettings=adminSettings||await getAdminProviderSettings();
   let video=[],image=[],falReferenceModels=[];
@@ -639,12 +647,9 @@ async function sourceMediaCatalog(access,adminSettings=null){
     image=addMissingImageModels(image,catalog.image);
   }
   if(access.api888 && providerSettings.api888.active){
-    const catalog=await safeCatalog('api888',()=>publicProviderCatalog('api888',{}));
-    // Hide models 888API does not currently mark "available" (当前可用).
-    const health=await loadApi888Health().catch(()=>null);
-    const live=model=>isApi888PublicAvailable(health,model.id);
-    video.push(...catalog.video.filter(live));
-    image.push(...catalog.image.filter(live));
+    const catalog=await safeCatalog('api888',api888StudioCatalog);
+    video.push(...catalog.video);
+    image.push(...catalog.image);
   }
   // Higgsfield's Wan 3.0: 480p native; 720p/1080p rendered lower and upscaled by fal.
   if(access.higgsfield && providerSettings.higgsfield.active){
@@ -1500,6 +1505,18 @@ const server=http.createServer(async (req,res)=>{
 
     if (req.method==='GET' && routePath==='/api/dope-performance') {
       return sendJson(res,200,await getDopePerformance());
+    }
+
+    if (req.method==='GET' && routePath==='/api/api888-performance') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const access=await getUserProviderAccess(user.id);
+      if(!access.api888)throw httpError(403,'Performance data is unavailable for this account.');
+      const settings=await getProviderSettings();
+      if(!settings.api888Enabled||!settings.api888ApiKey)throw httpError(403,'Performance data is unavailable for this account.');
+      const [snapshot,catalog]=await Promise.all([getApi888Performance(settings.api888ApiKey),api888StudioCatalog()]);
+      const visible=new Set([...catalog.video,...catalog.image].filter(model=>!isRetiredModel(model)).map(model=>model.id));
+      return sendJson(res,200,{...snapshot,models:Object.fromEntries(Object.entries(snapshot.models).filter(([id])=>visible.has(id)))});
     }
 
     if (req.method==='GET' && routePath==='/api/config') {
