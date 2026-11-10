@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CMMTools-RDP-Gateway-Setup</AssemblyName>
+    <ApplicationIcon></ApplicationIcon>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <EmbeddedResource Include="deploy.sh" LogicalName="CMMTools.Gateway.Deploy" />
+    <EmbeddedResource Include="../../ops/aivid-rdp-gateway/docker-compose.yml" LogicalName="CMMTools.Gateway.Compose" />
+  </ItemGroup>
+</Project>
