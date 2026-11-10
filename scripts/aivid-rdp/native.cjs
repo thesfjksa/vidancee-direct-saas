@@ -358,7 +358,7 @@ class WindowsLive {
       if(!s.chooser||!file)throw new Error('Click an AIVID reference upload field first.');
       if(file.length>30*1024*1024||file.length<1)throw new Error('Reference size is outside the limit.');
       const chooser=s.chooser;s.chooser=null;
-      await chooser.setInputFiles({name:safeName(payload.name),mimeType:payload.mime,data:file});
+      await chooser.setInputFiles({name:safeName(payload.file?.name||payload.name),mimeType:payload.file?.mime||payload.mime,data:file});
       s.notice='Reference supplied to AIVID. Confirm the file appears in its editor.';
     }
     else if(action==='download'){
