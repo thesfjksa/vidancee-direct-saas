@@ -111,6 +111,32 @@ WORKER_ENABLED=false
 
 The main application must **not** run the generation worker.
 
+The web entry point defaults **off** when `WORKER_ENABLED` is missing or empty;
+the legacy embedded-worker path requires an explicit true value. The
+`.env.example` sample describes the **web app** only. The standalone
+`worker.js` Hostinger app must still use `WORKER_ENABLED=true`.
+
+### Investigating Hostinger Max Processes
+
+Hostinger Max Processes / NPROC counts OS processes **and threads**, not HTTP
+requests. Reducing status polling alone will not directly lower this metric.
+
+1. Check `cmmtools.site` Runtime logs. Expected:
+   `[worker-child] disabled by WORKER_ENABLED`. If instead it says
+   `[worker-child] starting`, correct the web app environment and restart.
+2. Check `worker.mehroz.online` uses entry `worker.js` and
+   `WORKER_ENABLED=true`. Do not turn off generation processing.
+3. Check for frequent app restart cycles, overlapping old deployments, extra
+   Hostinger Node apps, and separate apex vs `www` instances.
+4. Compare process limits and Faults/503 errors before and after changes.
+   Hostinger's **Stop running processes** action interrupts websites and active
+   generation work. Use it only during a safe recovery window, then restart
+   and verify the two services.
+
+This guard prevents accidental embedded workers in new web process starts.
+It does not identify or terminate already-running excess processes.
+
+
 The main app exposes:
 
 ```text
