@@ -39,6 +39,7 @@ const fs = require('node:fs');
 const { hideVendors, hideVendorsInBody } = require('./src/vendor_names.js');
 const path = require('node:path');
 const { fork } = require('node:child_process');
+const { webWorkerEnabled } = require('./src/web_worker_policy.js');
 const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
@@ -3214,7 +3215,7 @@ let workerRestartTimer=null;
 let shuttingDown=false;
 
 function startWorkerChild(){
-  if (!/^(1|true|yes|on)$/i.test(String(process.env.WORKER_ENABLED||'true'))) {
+  if (!webWorkerEnabled()) {
     console.log('[worker-child] disabled by WORKER_ENABLED');
     return;
   }
