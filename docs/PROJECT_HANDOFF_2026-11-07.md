@@ -1,3 +1,12 @@
+## 11 November 2026 — Hostinger process-limit mitigation for CMMTools
+
+- **Owner screenshot:** hPanel Max Processes averages 351 / 400, repeatedly near the process limit. Owner believes CMMTools drives the load; other sites are nearly idle. This is a shared OS process/thread counter, not request count. The screenshot alone cannot identify the offending PIDs or prove the root cause.
+- **Safeguard:** `server.js` now launches an embedded generation child only when `WORKER_ENABLED` is explicitly true/yes/on/1, not when missing or empty. `src/web_worker_policy.js` implements the guard and `test/web_worker_policy.test.js` exercises default-off and explicit opt-in.
+- **Unchanged:** The standalone `worker.js` app, queue polling intervals, customer status polling, provider requests, generation billing, and in-flight job handling. Do not disable the worker just to reduce the process graph.
+- **Config/docs:** `.env.example` now defaults `WORKER_ENABLED=false` for the web app; the standalone Hostinger worker still requires true. `docs/HPANEL_DEPLOYMENT.md` documents logs, deployments, separate domains, and operational cautions.
+- **Verification boundary:** Both new unit tests passed locally on Node 22. Full repository test suite, Hostinger runtime environment, running deployment revisions, process inventory, and the screenshot's actual root cause are **not verified**.
+- **Deployment follow-up:** Merge via reviewed/tested PR; redeploy web app in hPanel when active jobs are safe, verify `[worker-child] disabled by WORKER_ENABLED` on web, `/health` queue polling on worker, no 503/resource Faults, and a completed user generation. GitHub merging alone will not stop orphaned processes or deploy Hostinger apps.
+
 ## 10 November 2026 — 888API model performance
 
 - Video and Image Studio display the 888API 24-hour success rate and average latency when reported. Both providers share the existing flat sort order. The 888API snapshot refreshes every ten minutes and preserves its last known values if the upstream request fails.
