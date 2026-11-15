@@ -2444,6 +2444,11 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,total:models.length,enabled:refreshed.filter(m=>already.has(m.providerModelId)&&m.enabled).length,
           notice:'Historical CNY prices, not a live quote. Verify your key and prices before enabling a SKU.'});
       }
+      if(req.method==='POST'&&routePath==='/admin/api888/network'){
+        requireDatabase();
+        const {runNetworkCheck}=require('./src/network_check.js');
+        return sendJson(res,200,{ok:true,service:'web',...await runNetworkCheck({rounds:1,timeoutMs:5000})});
+      }
       if(req.method==='POST'&&routePath==='/admin/api888/check'){
         requireDatabase();const s=await getProviderSettings();
         const catalog=await new Api888Client({apiKey:s.api888ApiKey}).models();
