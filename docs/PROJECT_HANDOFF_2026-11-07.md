@@ -1,3 +1,10 @@
+## 16 November 2026 — Live network isolation result
+
+- Confirmed the read fallback and protected server diagnostic are deployed. The authenticated account audit now reports ECONNRESET after the default fetch socket closes.
+- At 2026-11-15 19:19:30 UTC, the web process reported public egress IP 147.93.78.136. DNS for 888api.xin returned 43.161.247.178. Google and Cloudflare DNS-over-HTTPS independently returned the same A record.
+- From that same process, Google returned HTTP 204 in 18 ms, Cloudflare HTTP 200 in 26 ms, vgenv HTTP 404 in 239 ms, and fal HTTP 404 in 666 ms. The unauthenticated 888API model-list connection failed with UND_ERR_SOCKET in 128 ms, before an HTTP response.
+- The issue remains unresolved. Successful key checks from another environment and successful unrelated HTTPS checks narrow the failure to the hosting-to-888API connection path. A firewall/IP rule or TLS-path fault is possible, but the component sending the reset is unconfirmed. Hostinger or 888API connection/firewall logs are required to identify it. No unsupported alternate endpoint, proxy, or disabled TLS verification was configured.
+
 ## 16 November 2026 — Production 888API reset after fresh-socket recovery
 
 - The web app now reports ECONNRESET on the live account audit after the fresh HTTPS fallback was deployed. This confirms the read connection is still being closed; the exact remote or hosting component responsible is unconfirmed.
