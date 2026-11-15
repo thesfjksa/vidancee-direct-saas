@@ -1,3 +1,10 @@
+## 16 November 2026 — 888API closed-socket read fallback
+
+- The deployed diagnostic change reports UND_ERR_SOCKET during the production account catalog audit. The supplied token works in direct read-only provider checks.
+- Read checks now switch from fetch to a fresh IPv4 node:https connection after that socket error. The connection keeps TLS certificate validation, uses the fixed 888API origin, and does not follow redirects. Catalog, price, health, and performance reads share this recovery.
+- Verification passed 83 targeted provider, queue, recovery, access, and transport cases, including the closed fetch socket followed by a fresh HTTPS read.
+- This addresses a possible fetch connection failure. Successful production operation remains unverified until the web app is deployed and its account model check and import succeed.
+
 ## 15 November 2026 — 888API read connection recovery and diagnostics
 
 - Verified the owner-supplied key with read-only provider requests, returning 62 catalog entries and 168 model-status rows. The key was saved in production Admin. CMMTools catalog, sync, and audit checks still fail in approximately 120 ms.

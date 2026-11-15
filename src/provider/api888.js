@@ -1,16 +1,44 @@
 'use strict';
 // Account-scoped catalog endpoint. Never log or expose the token.
 const ORIGIN='https://888api.xin';
+// A fresh IPv4 HTTPS socket avoids reusing the fetch connection that the peer closed.
+// Keep certificate verification and the fixed provider origin.
+function freshReadResponse(url,{headers,signal}){
+  if(new URL(url).origin!==ORIGIN)throw new Error('Invalid 888API read origin.');
+  return new Promise((resolve,reject)=>{
+    const request=require('node:https').request(url,{
+      method:'GET',headers:{...headers,'accept-encoding':'identity',connection:'close'},
+      signal,agent:false,family:4,rejectUnauthorized:true,
+    },incoming=>{
+      try{
+        const responseHeaders=new Headers();
+        for(const [name,value] of Object.entries(incoming.headers)){
+          if(Array.isArray(value))value.forEach(item=>responseHeaders.append(name,item));
+          else if(value!==undefined)responseHeaders.set(name,String(value));
+        }
+        resolve(new Response(require('node:stream').Readable.toWeb(incoming),{
+          status:incoming.statusCode,headers:responseHeaders,
+        }));
+      }catch(error){incoming.destroy();reject(error);}
+    });
+    request.once('error',reject);
+    request.end();
+  });
+}
+
 class Api888Client {
-  constructor({apiKey='',fetchImpl=fetch}={}){this.apiKey=String(apiKey||'').trim();this.fetch=fetchImpl;}
+  constructor({apiKey='',fetchImpl=fetch}={}){this.apiKey=String(apiKey||'').trim();this.fetch=fetchImpl;this.readFallback=fetchImpl===fetch?freshReadResponse:null;}
   async readResponse(path,{authenticated=false,timeoutMs=25000}={}){
     const headers={accept:'application/json'};
     if(authenticated)headers.authorization='Bearer '+this.apiKey;
+    let useFreshConnection=false;
     for(let attempt=1;attempt<=3;attempt++){
       try{
-        return await this.fetch(ORIGIN+path,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(timeoutMs)});
+        const options={method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(timeoutMs)};
+        return await (useFreshConnection?this.readFallback(ORIGIN+path,options):this.fetch(ORIGIN+path,options));
       }catch(error){
         const code=safeNetworkCode(error);
+        if(code==='UND_ERR_SOCKET'&&this.readFallback)useFreshConnection=true;
         const retryable=['EAI_AGAIN','ENOTFOUND','ECONNRESET','ECONNREFUSED','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(code);
         if(attempt<3&&retryable){await sleep(attempt*250);continue;}
         const detail=code?' ('+code+')':networkKind(error)==='timeout'?' (timeout)':'';

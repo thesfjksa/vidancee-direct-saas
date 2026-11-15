@@ -52,3 +52,38 @@ test('health and status reads use bounded retries while HTTP authentication fail
   await assert.rejects(client.models(),/rejected the configured token/);
   assert.equal(calls,1);
 });
+
+test('a closed fetch socket switches read checks to a fresh verified HTTPS socket',async t=>{
+  const https=require('node:https');
+  const {PassThrough}=require('node:stream');
+  const {EventEmitter}=require('node:events');
+  let requests=0;
+  let fetchCalls=0;
+  t.mock.method(globalThis,'fetch',async()=>{
+    fetchCalls++;
+    throw new TypeError('fetch failed',{cause:{code:'UND_ERR_SOCKET'}});
+  });
+  t.mock.method(https,'request',(url,options,callback)=>{
+    requests++;
+    assert.equal(url,'https://888api.xin/v1/models');
+    assert.equal(options.method,'GET');
+    assert.equal(options.agent,false);
+    assert.equal(options.family,4);
+    assert.equal(options.rejectUnauthorized,true);
+    assert.equal(options.headers.authorization,'Bearer test-secret');
+    assert.equal(options.headers.connection,'close');
+    const request=new EventEmitter();
+    request.end=()=>{
+      const response=new PassThrough();
+      response.statusCode=200;
+      response.headers={'content-type':'application/json'};
+      callback(response);
+      response.end(JSON.stringify({data:[{id:'clip'}]}));
+    };
+    return request;
+  });
+  const client=new Api888Client({apiKey:'test-secret'});
+  assert.deepEqual(await client.models(),{data:[{id:'clip'}]});
+  assert.equal(fetchCalls,1);
+  assert.equal(requests,1);
+});
