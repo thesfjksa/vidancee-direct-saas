@@ -3,11 +3,28 @@
 const ORIGIN='https://888api.xin';
 class Api888Client {
   constructor({apiKey='',fetchImpl=fetch}={}){this.apiKey=String(apiKey||'').trim();this.fetch=fetchImpl;}
+  async readResponse(path,{authenticated=false,timeoutMs=25000}={}){
+    const headers={accept:'application/json'};
+    if(authenticated)headers.authorization='Bearer '+this.apiKey;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        return await this.fetch(ORIGIN+path,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(timeoutMs)});
+      }catch(error){
+        const code=safeNetworkCode(error);
+        const retryable=['EAI_AGAIN','ENOTFOUND','ECONNRESET','ECONNREFUSED','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET'].includes(code);
+        if(attempt<3&&retryable){await sleep(attempt*250);continue;}
+        const detail=code?' ('+code+')':networkKind(error)==='timeout'?' (timeout)':'';
+        throw Object.assign(new Error('Could not connect to 888API'+detail+'.'),{
+          statusCode:502,code:'API888_READ_NETWORK',networkCode:code,
+          failureType:networkKind(error),requestMethod:'GET',recoveryStage:'catalog',
+          attempts:attempt,timeoutMs,
+        });
+      }
+    }
+  }
   async models(){
     if(!this.apiKey)throw Object.assign(new Error('Configure an 888API token in Admin first.'),{statusCode:400});
-    let response;
-    try{response=await this.fetch(ORIGIN+'/v1/models',{method:'GET',headers:{authorization:'Bearer '+this.apiKey,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(25000)});}
-    catch{throw Object.assign(new Error('Could not connect to 888API.'),{statusCode:502});}
+    const response=await this.readResponse('/v1/models',{authenticated:true});
     if(!response.ok){await response.body?.cancel?.().catch(()=>{});throw Object.assign(new Error(response.status===401||response.status===403?'888API rejected the configured token.':'888API model catalog is unavailable (HTTP '+response.status+').'),{statusCode:502});}
     let body;
     try{const raw=await response.text();if(raw.length>5*1024*1024)throw new Error('too large');body=JSON.parse(raw);}
@@ -24,9 +41,7 @@ class Api888Client {
     return {...catalog,pricing:await this.pricing(),pricingCheckedAt:new Date().toISOString()};
   }
   async pricing(){
-    let response;
-    try{response=await this.fetch(ORIGIN+'/api/pricing',{method:'GET',headers:{accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(25000)});}
-    catch{throw Object.assign(new Error('Could not read 888API prices. Existing models were preserved.'),{statusCode:502});}
+    const response=await this.readResponse('/api/pricing');
     if(!response.ok){await response.body?.cancel?.().catch(()=>{});throw Object.assign(new Error('888API pricing is unavailable (HTTP '+response.status+'). Existing models were preserved.'),{statusCode:502});}
     let body;
     try{body=JSON.parse((await readBounded(response,API888_JSON_LIMIT)).toString('utf8'));}
@@ -37,10 +52,7 @@ class Api888Client {
   }
   async modelStatus(){
     if(!this.apiKey)throw new Error('Configure an 888API token in Admin first.');
-    const response=await this.fetch(ORIGIN+'/v1/model-status',{
-      method:'GET',headers:{authorization:'Bearer '+this.apiKey,accept:'application/json'},
-      redirect:'error',signal:AbortSignal.timeout(20000),
-    });
+    const response=await this.readResponse('/v1/model-status',{authenticated:true,timeoutMs:20000});
     if(!response.ok){
       await response.body?.cancel?.().catch(()=>{});
       const retryAfter=response.headers.get('retry-after');
@@ -55,9 +67,7 @@ class Api888Client {
   }
   // Public endpoint behind 888API's pricing-page status labels; needs no key.
   async modelHealth(){
-    let response;
-    try{response=await this.fetch(ORIGIN+'/api/model-health',{method:'GET',headers:{accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(25000)});}
-    catch{throw Object.assign(new Error('Could not connect to 888API model health.'),{statusCode:502});}
+    const response=await this.readResponse('/api/model-health');
     if(!response.ok){await response.body?.cancel?.().catch(()=>{});throw Object.assign(new Error('888API model health is unavailable (HTTP '+response.status+').'),{statusCode:502});}
     let body;
     try{const raw=await response.text();if(raw.length>5*1024*1024)throw new Error('too large');body=JSON.parse(raw);}

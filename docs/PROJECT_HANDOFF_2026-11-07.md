@@ -1,3 +1,10 @@
+## 15 November 2026 — 888API read connection recovery and diagnostics
+
+- Verified the owner-supplied key with read-only provider requests, returning 62 catalog entries and 168 model-status rows. The key was saved in production Admin. CMMTools catalog, sync, and audit checks still fail in approximately 120 ms.
+- The previous read client discarded the underlying network error. Catalog, pricing, health, and status reads now retain a bounded network code and retry transient DNS/connection failures up to three times. TLS errors and HTTP authentication failures remain distinct. No automatic replay of a paid submission was added.
+- Verification passed for the three new recovery/diagnostic tests, performance access tests, and existing provider/queue/recovery tests. The current upstream provider test file passed 64 cases. The broader local snapshot reported 501 passes, two skips, and the same 21 failures as before.
+- The production network cause remains unconfirmed until the updated error code is available from the running app. Web and worker deployment and successful production checks are still required. Hostinger sign-in is unavailable through the cloud browser in this environment.
+
 ## 11 November 2026 — Hostinger process-limit mitigation for CMMTools
 
 - **Owner screenshot:** hPanel Max Processes averages 351 / 400, repeatedly near the process limit. Owner believes CMMTools drives the load; other sites are nearly idle. This is a shared OS process/thread counter, not request count. The screenshot alone cannot identify the offending PIDs or prove the root cause.
