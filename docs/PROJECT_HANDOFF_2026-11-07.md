@@ -1,3 +1,10 @@
+## 16 November 2026 — Production 888API reset after fresh-socket recovery
+
+- The web app now reports ECONNRESET on the live account audit after the fresh HTTPS fallback was deployed. This confirms the read connection is still being closed; the exact remote or hosting component responsible is unconfirmed.
+- Admin Provider / 888API now exposes Check server network. It runs the existing bounded read-only network diagnostic inside the web process and compares DNS and HTTPS results with other fixed provider and public targets. It returns no API keys or response bodies.
+- Local verification passed the existing network diagnostic tests, browser script parsing, and HTTP checks proving unauthorized callers are rejected and authorized checks use bounded rounds/timeouts.
+- Production deployment and use of this diagnostic are required before choosing a further transport or hosting change.
+
 ## 16 November 2026 — 888API closed-socket read fallback
 
 - The deployed diagnostic change reports UND_ERR_SOCKET during the production account catalog audit. The supplied token works in direct read-only provider checks.

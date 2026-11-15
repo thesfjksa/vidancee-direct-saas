@@ -270,7 +270,7 @@
           <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Inspect all imported 888API models</summary>
             <div id="api888ModelAudit" class="muted" style="max-height:320px;overflow-y:auto;margin-top:8px">Loading inventory…</div>
           </details>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check login email</button><button class="secondary" onclick="syncApi888Models()">Import models &amp; prices</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkApi888()">Check login email</button><button class="secondary" onclick="syncApi888Models()">Import models &amp; prices</button><button class="secondary" onclick="auditApi888Models()">Verify live import (read-only)</button><button class="secondary" onclick="checkApi888Network()">Check server network</button></div>
            <div id="api888LiveAudit" class="muted" role="status" style="margin:10px 0;white-space:pre-wrap"></div>
           <div id="api888ActionMsg" class="muted" style="margin-top:10px"></div>
         <details class="provider-notes"><summary>Setup notes &amp; pricing</summary><div class="muted" style="margin-top:12px"><strong>Duration-based billing.</strong> Seedance 2.5 dynamic models use the live yuan-per-second rate × selected duration, then the existing CMMTOOLS credit conversion. Import refreshes model availability and these rates; the worker refreshes them every 10 minutes. Fixed-price models retain per-request billing.</div>
@@ -1262,6 +1262,26 @@ async function loadApi888ModelSummary(){
     }
   }catch(e){m.textContent='888API model status unavailable: '+e.message;
     if(audit)audit.textContent='Unable to load model inventory.';}
+}
+
+async function checkApi888Network(){
+  const panel=$('api888LiveAudit');
+  if(!panel)return;
+  panel.textContent='Checking DNS and HTTPS from the CMMTools server...';
+  try{
+    const d=await api('/admin/api888/network',{method:'POST',body:'{}'});
+    const lines=['Checked from '+d.service+' at '+d.at];
+    if(d.publicIp)lines.push('Server public IP: '+d.publicIp);
+    for(const [name,result] of Object.entries(d.results||{})){
+      const addresses=result.dns?.addresses||[];
+      lines.push(name+' ('+result.host+')');
+      lines.push('  DNS: '+(result.dns?.error||addresses.join(', ')||'Unavailable'));
+      for(const attempt of result.tries||[]){
+        lines.push('  HTTPS: '+(attempt.status?'HTTP '+attempt.status:attempt.error||'Failed')+' in '+attempt.ms+' ms');
+      }
+    }
+    panel.textContent=lines.join('\n');
+  }catch(e){panel.textContent='Server network check failed: '+e.message;}
 }
 
 async function auditApi888Models(){
