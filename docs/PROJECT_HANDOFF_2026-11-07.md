@@ -7,6 +7,8 @@
 - Publishing instructions and draft listing copy are in `docs/EXTENSION_STORE_PUBLISHING.md`. Still required: owner Chrome Web Store developer registration/account access, contact details, real screenshots/artwork, policy questionnaire, submission and Google approval. Unlisted distribution can support installation by direct link. Browser confirmation is still mandatory. Remove the unpacked duplicate and reapply preferences when migrating to the store ID.
 - Deployment: pending production web deployment and Web Store publication. Merge does not complete either. Deploy privacy/install routes before submitting their URLs; set the real extension ID only after the listing is published, then verify actual Chrome and Edge installation. Hostinger cloud-browser sign-in limitation from earlier investigation remains unresolved.
 
+- GitHub checkpoint: PR #262 opened. Initial Node tests run 44057719531 and Admin browser run 44057719611 both failed with runner_id=0 and steps=[]; assertions did not execute. Six local cases passed. Store publication and Hostinger deployment remain pending; no paid registration or store submission was performed.
+
 ## 17 November 2026 — Per-provider customer model visibility
 
 - Every provider card in Admin → Provider → Connections has a separate **Show models to customers** checkbox and **Save visibility** button. All 13 provider keys are covered, including MiniMax, fal.ai, 888API, Dope, Vibi and the AIVID card. Visibility defaults to the previous behavior. Turning visibility on does not override source enablement, customer access, model readiness, or the existing retirement of AIVID models.
