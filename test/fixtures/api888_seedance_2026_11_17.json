@@ -1,0 +1,360 @@
+{
+  "success": true,
+  "group_ratio": {
+    "default": 1
+  },
+  "data": [
+    {
+      "model_name": "seedance2.5-720p-plus",
+      "model_price": 0.75,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.75))",
+      "description": "Seedance 2.5 Plus 视频模型，720P，4-15 秒；按秒计费 0.75 元/秒，请求须传 seconds。",
+      "tags": "seedance2.5,video,720p,per-second"
+    },
+    {
+      "model_name": "seedance2.5-480p-novid-sec",
+      "model_price": 0.21,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.21))",
+      "description": "Seedance 2.5 满参（无参考视频）稳定按秒，480P，4~30 秒逐秒可选，最多 30 图 + 10 音频（音频需配图），支持 6 种画幅，原生音频；0.21 元/秒，按实际生成秒数结算。",
+      "tags": "seedance2.5,video,480p,novid,per-second,stable"
+    },
+    {
+      "model_name": "seedance2.5-720p-novid-sec",
+      "model_price": 0.35,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.35))",
+      "description": "Seedance 2.5 满参（无参考视频）稳定按秒，720P，4~30 秒逐秒可选，最多 30 图 + 10 音频（音频需配图），支持 6 种画幅，原生音频；0.35 元/秒，按实际生成秒数结算。",
+      "tags": "seedance2.5,video,720p,novid,per-second,stable"
+    },
+    {
+      "model_name": "seedance2.5-720p-novid-call",
+      "model_price": 6.3,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 满参（无参考视频）稳定按次，720P，5~30 秒可选，最多 30 图 + 10 音频（合计 ≤30 秒），支持 6 种画幅，原生音频；6.3 元/条，按条计费不随时长变化。",
+      "tags": "seedance2.5,video,720p,novid,per-call,stable"
+    },
+    {
+      "model_name": "seedance2.5-fullparam-limited",
+      "model_price": 8,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 全参限量版，720P，仅 15 / 30 秒，最多 30 图 / 10 音频 / 10 视频参考（参考视频暂未开放）；支持 9:16 / 16:9 / 4:3 / 3:4 / 1:1 / 21:9；8 元/条。",
+      "tags": "seedance2.5,video,720p,fullparam"
+    },
+    {
+      "model_name": "mm-sd2.5-720p-v1",
+      "model_price": 0.35,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 满血版（不卡脸）：720P，4~30 秒逐秒可选；按秒计费 0.35 元/秒，请求须传 seconds；最多 30 图 + 10 音频（音频总长 ≤15 秒，音视频合计 ≤30 秒），不支持参考视频。",
+      "tags": "seedance2.5,video,720p,per-second,face"
+    },
+    {
+      "model_name": "tt-sd2.5-720p-v1",
+      "model_price": 7,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 视频模型，720P，4~30 秒，最多 30 图 / 10 视频 / 10 音频，不卡脸；7 元/条。",
+      "tags": "seedance2.5,video"
+    },
+    {
+      "model_name": "seedance2.0满血-720p",
+      "model_price": 3.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 满血版视频模型，720P，4~15 秒可选，最多 30 张参考图，原生人脸；3.5 元/条。",
+      "tags": "seedance2.0,video,720p,full,face"
+    },
+    {
+      "model_name": "seedance2.0-903-mini",
+      "model_price": 1.7,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 Mini 903 稳定高并发，720P，4~15 秒，最多 9 张参考图 + 3 条参考音频（需配图，合计 ≤15 秒），不支持参考视频，提示词最长 1 万字符；1.7 元/条。",
+      "tags": "seedance2.0,video,720p,903,mini"
+    },
+    {
+      "model_name": "seedance2.5-720p-pro",
+      "model_price": 0.75,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.75))",
+      "description": "Seedance 2.5 Pro 视频模型，720P，4-15 秒；按秒计费 0.75 元/秒，请求须传 seconds。",
+      "tags": "seedance2.5,video,720p,per-second"
+    },
+    {
+      "model_name": "seedance2.0-933",
+      "model_price": 5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 933 满血版，720P，支持 10/15 秒，最多 9 图 3 视频 3 音频；5 元/条。",
+      "tags": "seedance2.0,video,multimodal,720p"
+    },
+    {
+      "model_name": "seedance2.0-fast-720p",
+      "model_price": 1.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 Fast视频模型，720P，4~15 秒可选，最多 30 张参考图，原生人脸；1.5 元/条。",
+      "tags": "seedance2.0,video,720p,fast,face"
+    },
+    {
+      "model_name": "yy-seedance2.5-480p",
+      "model_price": 0.25,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.25))",
+      "description": "Seedance 2.5 视频模型，480P，5-30 秒逐秒可选，最多 30 图 / 10 音频参考，真人写实不卡脸，原生音频；0.25 元/秒。",
+      "tags": "seedance2.5,video,480p,persecond"
+    },
+    {
+      "model_name": "seedance2.0-903",
+      "model_price": 3,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 903 稳定高并发，720P，4~15 秒，最多 9 张参考图 + 3 条参考音频（需配图，合计 ≤15 秒），不支持参考视频，提示词最长 1 万字符；3.0 元/条。",
+      "tags": "seedance2.0,video,720p,903,stable"
+    },
+    {
+      "model_name": "yy-seedance2.5-720p",
+      "model_price": 0.31,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.31))",
+      "description": "Seedance 2.5 视频模型，720P，5-30 秒逐秒可选，最多 30 图 / 10 音频参考，真人写实不卡脸，原生音频；0.31 元/秒。",
+      "tags": "seedance2.5,video,720p,persecond"
+    },
+    {
+      "model_name": "seedance2.0-903-fast",
+      "model_price": 2,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 Fast 903 稳定高并发，720P，4~15 秒，最多 9 张参考图 + 3 条参考音频（需配图，合计 ≤15 秒），不支持参考视频，提示词最长 1 万字符；2.0 元/条。",
+      "tags": "seedance2.0,video,720p,903,fast"
+    },
+    {
+      "model_name": "seedance2.5-301010-full",
+      "model_price": 6.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 全参满血版（301010），720P，5~30 秒逐秒可选，最多 30 图 / 10 视频 / 10 音频参考，原生人脸不卡脸，6 种画幅，提示词最长 4.5 万字符；6.5 元/条。",
+      "tags": "seedance2.5,video,720p,fullparam,full"
+    },
+    {
+      "model_name": "seedance2.0-933-c7-fast-stable",
+      "model_price": 3.2,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 933 视频模型，720P，4~15 秒，最多 9 图 / 3 视频 / 3 音频参考；3.2 元/条。",
+      "tags": "seedance2.0,video,720p"
+    },
+    {
+      "model_name": "seedance2.0-933-economy",
+      "model_price": 5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 933 版本，720P，固定 15 秒；支持 9 张参考图、3 个参考视频和 3 个参考音频，支持真人内容；5 元/次。",
+      "tags": "seedance2.0,video,720p"
+    },
+    {
+      "model_name": "seedance2.5-flash",
+      "model_price": 4.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 Flash 视频模型，720P，4~30 秒可选，最多 10 张参考图 + 5 条参考音频，原生人脸；4.5 元/条。",
+      "tags": "seedance2.5,video,720p,flash,face"
+    },
+    {
+      "model_name": "seedance2.5-301010-face",
+      "model_price": 7.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 视频模型，720P，5~30 秒逐秒可选，最多 30 图 / 10 音频 / 10 视频参考（参考视频暂未开放）；原生人脸不卡脸，支持 16:9 / 9:16 / 1:1；7.5 元/条。",
+      "tags": "seedance2.5,video,720p,face"
+    },
+    {
+      "model_name": "seedance2.5-480p-turbo",
+      "model_price": 0.3,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.3))",
+      "description": "Seedance 2.5 满血满参 · 超级稳定特快：480P，4~30 秒逐秒可选；按秒计费 0.3 元/秒（按实际秒数结算）；最多 30 图 / 10 视频 / 10 音频参考（音频需配图），原生音频；支持 16:9 / 9:16 / 1:1 / 4:3 / 3:4 / 21:9。线路稳定、出片快，适合批量与长片。",
+      "tags": "seedance2.5,video,480p,per-second,stable,fast"
+    },
+    {
+      "model_name": "seedance2.5-480p-novid-call",
+      "model_price": 4.4,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 满参（无参考视频）稳定按次，480P，5~30 秒可选，最多 30 图 + 10 音频（合计 ≤30 秒），支持 6 种画幅，原生音频；4.4 元/条，按条计费不随时长变化。",
+      "tags": "seedance2.5,video,480p,novid,per-call,stable"
+    },
+    {
+      "model_name": "seedance2.0-stable-480p",
+      "model_price": 0.4,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.4))",
+      "description": "Seedance 2.0 稳定版视频模型，480P，4-15 秒；按秒计费 0.4 元/秒，请求须传 seconds。",
+      "tags": "seedance2.0,video,480p,per-second"
+    },
+    {
+      "model_name": "seedance2.5-flash-480p",
+      "model_price": 0.14,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.14))",
+      "description": "Seedance 2.5 Flash 满参（无参考视频）稳定按秒，480P，4~30 秒逐秒可选，最多 10 图 + 5 音频（合计 ≤30 秒），支持 6 种画幅，原生音频；0.14 元/秒，按实际生成秒数结算。",
+      "tags": "seedance2.5,video,480p,flash,per-second,stable"
+    },
+    {
+      "model_name": "seedance2.5-flash-720p",
+      "model_price": 0.2,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.20))",
+      "description": "Seedance 2.5 Flash 满参（无参考视频）稳定按秒，720P，4~30 秒逐秒可选，最多 10 图 + 5 音频（合计 ≤30 秒），支持 6 种画幅，原生音频；0.20 元/秒，按实际生成秒数结算。",
+      "tags": "seedance2.5,video,720p,flash,per-second,stable"
+    },
+    {
+      "model_name": "jimeng-video-seedance-2.0-fast-vip",
+      "model_price": 4.5,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 Fast 视频生成，固定 15 秒 720p，支持文生视频与图片参考，按条计费。",
+      "tags": "seedance2.0,video"
+    },
+    {
+      "model_name": "seedance2.0-933-c8-full",
+      "model_price": 4.3,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 933 视频模型，720P，4~15 秒，最多 9 图 / 3 视频 / 3 音频参考；4.3 元/条。",
+      "tags": "seedance2.0,video,720p"
+    },
+    {
+      "model_name": "mm-2.5flash-720p",
+      "model_price": 6,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.5 Flash 视频模型，720P，4~30 秒可选，最多 10 张参考图，原生人脸；6 元/条。",
+      "tags": "seedance2.5,video,720p,flat,face"
+    },
+    {
+      "model_name": "sd_2.0_mini_special",
+      "model_price": 0.15,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "billing_mode": "tiered_expr",
+      "billing_expr": "tier(\"base\",(u(\"seconds\") * 0.15))",
+      "description": "Seedance 2.0 Mini 官方折扣版，按时长计费，0.15 元/秒；仅支持720P，最多9图、3视频、3音频。",
+      "tags": "seedance2.0,video,mini"
+    },
+    {
+      "model_name": "seedance-2.0-内置过人脸",
+      "model_price": 1.2,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 内置过人脸；4–15 秒、720P；最多 9 图 3 视频 3 音频；1.2 元/条。",
+      "tags": "video,seedance,720p,4-15秒,过人脸,按条计费"
+    },
+    {
+      "model_name": "seedance2.0-933-c4-mini",
+      "model_price": 2,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 视频模型，720P，4~15 秒，9 图 / 3 视频 / 3 音频参考，原生真人人脸；支持 16:9 / 9:16 / 1:1；2 元/条。",
+      "tags": "seedance2.0,video,720p"
+    },
+    {
+      "model_name": "seedance2.0-933-c5-fast",
+      "model_price": 2.8,
+      "quota_type": 1,
+      "enable_groups": [
+        "default"
+      ],
+      "description": "Seedance 2.0 933 视频模型，720P，4~15 秒，最多 9 图 / 3 视频 / 3 音频参考；2.8 元/条。",
+      "tags": "seedance2.0,video,720p"
+    }
+  ]
+}

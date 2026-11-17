@@ -1,6 +1,8 @@
 'use strict';
 
 const { api888PromptLimit } = require('./prompt_limits.js');
+const CURRENT_SEEDANCE = require('./api888_seedance_catalog.json').models;
+const CURRENT_SEEDANCE_IDS = Object.keys(CURRENT_SEEDANCE);
 
 // 888API's account-scoped GET /v1/models is the source of truth for availability.
 // This snapshot contains documented media IDs, including unpriced models which
@@ -174,6 +176,11 @@ const IMAGE_CNY = {
   'gemini-3.1-flash-image-preview':0.1,'gemini-3.1-flash-image-preview-c':0.075,
   'gpt-image-2-4k':0.09,
 };
+// Explicitly reviewed November contracts; prices alone never create adapters.
+for(const [id,c] of Object.entries(CURRENT_SEEDANCE)){
+  if(!VIDEO_IDS.includes(id))VIDEO_IDS.push(id);
+  SPECS[id]=[c.sourceCny,c.billing,c.durations[0],c.durations.at(-1),c.resolutions[0],c.images,0,0];
+}
 const PUBLIC_ID = id => 'api888_' + String(id).replace(/[^a-zA-Z0-9]/g, '_');
 const isApi888Model = id => /^api888_/.test(String(id || ''));
 const ALL_IDS = new Set([...VIDEO_IDS,...IMAGE_IDS]);
@@ -220,6 +227,7 @@ const VIDEO_INPUTS={
   'sd_2.0_mini_special':{videos:3,audios:3,videoField:'video_urls',audioField:'audio_urls'},
 };
 const modelVideoRatios=id=>{
+ if(CURRENT_SEEDANCE[id])return CURRENT_SEEDANCE[id].aspectRatios;
  if(SORA_VARIANTS.includes(id))return [id.endsWith('16x9')?'16:9':'9:16'];
  if(GROK_VARIANTS.includes(id))return ['16:9','9:16'];
  if(id==='jimeng-video-seedance-2.0-fast-vip')return RATS_WIDE;
@@ -253,9 +261,9 @@ const setApi888MediaRefs=on=>{GATEWAY_FORWARDS_MEDIA_REFS=Boolean(on);};
 // Also 28 Oct 2026: every priced Seedance 2.5 SKU is offered too, each under its
 // own customer name (never the raw 888API id). Which ones customers see at a
 // given moment follows 888API's live model list and health status.
-// 31 Oct 2026: sd_2.0_mini_special retired from the 888API customer offer.
-// A new Video Studio alias uses vgenv Origin Fast; keep historical 888API
-// IDs and jobs intact for reconciliation.
+// 31 Oct 2026: sd_2.0_mini_special was retired in favor of a vgenv alias.
+// The 17 Nov complete Seedance offer below restores the distinct 888API SKU;
+// its exact provider/public IDs remain separate from the vgenv alias.
 const OFFERED={
  'seedance2.5-301010-face':'Seedance 2.5 Face',
  'seedance2.5-fullparam-limited':'Seedance 2.5 Limited',
@@ -300,6 +308,27 @@ const OFFERED={
  'wan3.0-video-prime':'Wan 3.0 Video Prime',
  'wan30-720p':'Wan 3.0 Standard',
 };
+// The owner now requests the complete reviewed Seedance offer. Unpriced or
+// unmapped historical channels remain Admin-only; health/access still apply.
+Object.assign(OFFERED, {
+ 'jimeng-video-seedance-2.0-fast-vip':'Seedance 2.0 Fast VIP',
+ 'seedance2.0-pro-480p':'Seedance 2.0 Pro 480p',
+ 'seedance2.0-933-fast':'Seedance 2.0 Standard Fast',
+ 'seedance2.0-933-mini':'Seedance 2.0 Standard Mini',
+ 'seedance2.0-480p':'Seedance 2.0 Text 480p',
+ 'seedance2.0-720p':'Seedance 2.0 Text 720p',
+ 'seedance2.0-stable-720p':'Seedance 2.0 Stable 720p',
+ 'xin-seedance-2.0-900':'Seedance 2.0 Swift Lite',
+ 'xin-seedance-2.0-933':'Seedance 2.0 Swift',
+ 'seedance2.0-ss':'Seedance 2.0 Studio',
+ 'seedance2.0-ss-fast':'Seedance 2.0 Studio Fast',
+ 'doubao-seedance-2.0-mini':'Seedance 2.0 Original Mini',
+ 'ss-2.0-933-720p':'Seedance 2.0 Studio Reference',
+ 'sd_2.0_mini_special':'Seedance 2.0 Mini Special',
+ 'seedance2.0-full-4img':'Seedance 2.0 Four Image',
+ 'seedance2.0-fast-4img':'Seedance 2.0 Four Image Fast',
+});
+for(const [id,c] of Object.entries(CURRENT_SEEDANCE))OFFERED[id]=c.label;
 let OFFER_ALL=false;
 const setApi888OfferAll=on=>{OFFER_ALL=Boolean(on);};
 
@@ -373,7 +402,7 @@ function describedModel(id,type) {
       'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
       'gemini-3.1-flash-image-preview','gemini-3.1-flash-image-preview-c'].includes(id)) ||
-    (!isImage && (SORA_VARIANTS.includes(id)||GROK_VARIANTS.includes(id))) ||
+    (!isImage && (SORA_VARIANTS.includes(id)||GROK_VARIANTS.includes(id)||CURRENT_SEEDANCE_IDS.includes(id))) ||
     (/^seedance2\.[05]-.*wool$/.test(id)) ||
     [// Published, priced models using the existing generic /v1/videos contract.
       // Live account model discovery and Admin access gates still apply.
@@ -433,12 +462,12 @@ function describedModel(id,type) {
       catalogVerified:true,adapterSupported:implemented,
       setupReason:implemented?'':vgenvMinimax?'MiniMax H3 is offered from vgenv instead.':!offered?'Not offered on CMM Tools.':known?'This 888API model needs verified request mapping.':'No verified 888API price/contract for this model; keep disabled.',
       gatewayType:type,pricing,api888:{unit:'CNY',billing:isImage?'image':spec?.[1],sourceCny:isImage?cny:spec?.[0],
-        secondsField:spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration',
+        secondsField:CURRENT_SEEDANCE[id]?.secondsField||(spec?.[1]==='second'&&!['doubao-seedance-2-0-fast','jimeng-video-seedance-2.0-fast-vip','sd_2.0_mini_special'].includes(id)?'seconds':'duration'),
         imageField:['seedance-2.5-c1','doubao-seedance-2-0-fast','sd_2.0_mini_special'].includes(id)?'image_urls':
           (id==='jimeng-video-seedance-2.0-fast-vip'||/^seedance2\.0-(ss|full-4img|fast-4img)/.test(id)?'referenceImages':'images'),
         videoField:inputs.videos?(inputs.videoField||'videos'):null,
         audioField:inputs.audios?(inputs.audioField||'audios'):null},
-      durations:isImage?[]:id==='seedance2.5-fullparam-limited'?[15,30]:SORA_VARIANTS.includes(id)?[min]:
+      durations:isImage?[]:CURRENT_SEEDANCE[id]?.durations|| (id==='seedance2.5-fullparam-limited'?[15,30]:SORA_VARIANTS.includes(id)?[min]:
         GROK_VARIANTS.includes(id)?(id==='grok-imagine-video-1.5-preview'?[5,6,10,15]:
           id==='grok-imagine-video-1.5-fast'?[10]:[6,10]):
         id==='seedance2.5-900'?[5,10,15,30]:
@@ -447,7 +476,7 @@ function describedModel(id,type) {
         id==='pidoi-omni-flash-720p'?[5,10]:
         /^seedance2\.0-ss(?:-fast)?$/.test(id)?[6,8,10,12,15]:
         /^(ss-2\.5-720p-v1|s2-2\.5-(480p-v2|720p-v[34])|seedance2\.5-930-1080p)$/.test(id)?range(5,30):
-        id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max),
+        id==='pidoi-veo31-fast'?[4,6,8]:id==='doubao-seedance-2.0-mini'?[5,10,15]:range(min,max)),
       resolutions:isImage?[]:(id==='pidoi-veo31-fast'?['720p','1080p']:(/^seedance2\.0-ss(?:-fast)?$/.test(id)||id==='seedance2.0-933-mini')?['480p','720p']:[res]),aspectRatios:isImage?imageRatios(id):modelVideoRatios(id),
       defaultAspectRatio:isImage?'1:1':SORA_VARIANTS.includes(id)&&id.endsWith('9x16')?'9:16':'16:9',
       defaultDuration:min,defaultResolution:res,
@@ -473,9 +502,10 @@ function seedance25LiveRate(pricing,id){
   const rate=Number(match?.[1]);
   return Number.isFinite(rate)&&rate>0&&rate<=10000&&typeof row.model_price==='number'&&Math.abs(rate-row.model_price)<1e-9?rate:null;
 }
-function applySeedance25LivePrice(model,live){
-  const fixed=RECENT_SEEDANCE25_IDS.includes(model.providerModelId);
-  if((!fixed&&!SEEDANCE25_DYNAMIC_IDS.includes(model.providerModelId))||!Object.hasOwn(live||{},'pricing'))return model;
+function applySeedanceLivePrice(model,live){
+  const current=CURRENT_SEEDANCE[model.providerModelId];
+  const fixed=current?current.billing==='job':RECENT_SEEDANCE25_IDS.includes(model.providerModelId);
+  if((!current&&!fixed&&!SEEDANCE25_DYNAMIC_IDS.includes(model.providerModelId))||!Object.hasOwn(live||{},'pricing'))return model;
   let rate=null;
   if(fixed){
     const pricing=live.pricing;
@@ -484,13 +514,23 @@ function applySeedance25LivePrice(model,live){
     if(pricing?.success===true&&pricing.group_ratio?.default===1&&rows.length===1&&row.quota_type===1&&
       !row.billing_mode&&!row.billing_expr&&Array.isArray(row.enable_groups)&&row.enable_groups.includes('default')&&
       typeof row.model_price==='number'&&Number.isFinite(row.model_price)&&row.model_price>0&&row.model_price<=10000)rate=row.model_price;
+  }else if(model.providerModelId==='mm-sd2.5-720p-v1'){
+    // This reviewed legacy SKU publishes per-second billing in its description,
+    // without a billing expression. Never interpret its 0.35 as a flat job fee.
+    const pricing=live.pricing;
+    const rows=Array.isArray(pricing?.data)?pricing.data.filter(r=>r?.model_name===model.providerModelId):[];
+    const row=rows[0];
+    const stated=Number(String(row?.description||'').match(/按秒计费\s*(\d+(?:\.\d+)?)\s*元\/秒/)?.[1]);
+    if(pricing?.success===true&&pricing.group_ratio?.default===1&&rows.length===1&&row.quota_type===1&&
+      !row.billing_mode&&!row.billing_expr&&Array.isArray(row.enable_groups)&&row.enable_groups.includes('default')&&
+      Number.isFinite(stated)&&stated>0&&stated<=10000&&stated===row.model_price)rate=stated;
   }else rate=seedance25LiveRate(live.pricing,model.providerModelId);
   model.options.api888={...model.options.api888,sourceCny:rate,
     priceSource:'888api-public-default',priceCheckedAt:live.pricingCheckedAt||null};
   model.options.pricing.video_duration_pricing=rate===null?[]:[{resolution:model.options.defaultResolution,cost_per_second:fixed?rate/model.options.defaultDuration:rate}];
   if(rate===null){
     model.options.adapterSupported=false;
-    model.options.setupReason='A verified live Seedance 2.5 price is unavailable. Import models and prices again.';
+    model.options.setupReason='A verified live Seedance price is unavailable. Import models and prices again.';
   }
   return model;
 }
@@ -509,7 +549,7 @@ function api888MediaModels(live=null) {
         return {id,type};
       });
   if(!entries.length)throw new Error('888API returned no recognized media models; existing catalog retained.');
-  return entries.map(v=>applySeedance25LivePrice(describedModel(v.id,v.type),live));
+  return entries.map(v=>applySeedanceLivePrice(describedModel(v.id,v.type),live));
 }
 // 888API-only policy: 1 CNY of provider cost == 1 CMM customer credit.
 // Fixed-price SKUs are charged once per job; per-second SKUs scale with the
@@ -537,5 +577,6 @@ function quoteApi888(model,input={}) {
     pricingMode:billing==='second'?'per_second':'per_request'};
 }
 
-module.exports={RECENT_SEEDANCE25_IDS,SEEDANCE25_DYNAMIC_IDS,seedance25LiveRate,VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
+module.exports={CURRENT_SEEDANCE_IDS,RECENT_SEEDANCE25_IDS,SEEDANCE25_DYNAMIC_IDS,seedance25LiveRate,VIDEO_IDS,IMAGE_IDS,ALL_IDS,SPECS,IMAGE_CNY,SORA_VARIANTS,GROK_VARIANTS,isApi888Model,api888MediaModels,quoteApi888,api888ImageSize,api888Label,setApi888MediaRefs,setApi888OfferAll,OFFERED_API888_MODELS:Object.keys(OFFERED)};
+
 
