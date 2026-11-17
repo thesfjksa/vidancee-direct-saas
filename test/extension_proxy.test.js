@@ -131,7 +131,7 @@ test('saving settings while Studio is live is rejected before persisting or chan
 test('manifest uses optional proxy permissions and bounded AIVID site access', () => {
   const p=path.join(__dirname,'../scripts/video-studio-launcher/extension');
   const manifest=JSON.parse(fs.readFileSync(path.join(p,'manifest.json'),'utf8'));
-  assert.equal(manifest.version,'1.6.1');assert.deepEqual(manifest.permissions,['storage']);
+  assert.equal(manifest.version,'1.7.0');assert.deepEqual(manifest.permissions,['storage']);
   assert.deepEqual(manifest.optional_permissions,core.PERMISSIONS);assert.deepEqual(manifest.host_permissions,core.URLS);
   assert.ok(manifest.content_scripts[0].js.includes('connection-badge.js'));
   assert.ok(!JSON.stringify(manifest).includes('<all_urls>'));
@@ -155,7 +155,7 @@ function backgroundFixture(failing = false) {
     async config() {return {secret:'must stay inside options'};}
     registerAuth() {}
   }
-  const context={chrome,CMMProxyManager:Manager,CMMProxyCore:core,importScripts(){},URL,Promise};
+  const context={chrome,CMMProxyManager:Manager,CMMProxyCore:core,CMMManagedProxy:class {async refresh(){} removed(){}},importScripts(){},URL,Promise};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../scripts/video-studio-launcher/extension/background.js'),'utf8'),context);
   return {calls,messages,external,session,removed,send(message,sender) {return new Promise(resolve=>{const handled=messages.listeners[0](message,sender,resolve);if(!handled)resolve({unhandled:true});});}};
 }

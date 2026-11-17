@@ -23,28 +23,13 @@
   <h1>CMMTools Video Studio</h1>
   <p>Launch a standalone app-style window. Customers use their own account credentials directly on the original service.</p>
   <div class="panel" id="connection-panel">
-    <h2>Automatic proxy connection</h2>
-    <p>Bring your own HTTP, HTTPS or unauthenticated SOCKS5 proxy servers. When enabled, the launcher tests them before opening Studio and keeps the fastest working route for that session. No servers or subscription are included.</p>
-    <label class="switch"><input type="checkbox" id="proxyEnabled">Connect automatically before Studio opens</label>
-    <label class="switch"><input type="checkbox" id="proxyIncludeDirect">Also test and allow a direct connection if it is fastest</label>
-    <p class="note">Measures response time to the public AIVID homepage, not video rendering speed or download bandwidth. Failed routes are excluded. There is no automatic direct fallback in proxy-only mode.</p>
-    <div class="proxy-server">
-      <h3>Import from Webshare</h3>
-      <p>Use your Webshare Proxy Server / direct connection plan. Imports up to five valid endpoints from the first 100 matching proxies, replacing the unsaved server list below.</p>
-      <p><a href="https://dashboard.webshare.io/" target="_blank" rel="noopener noreferrer">Open Webshare dashboard</a> → API Keys. Use a key allowed to read your proxy list.</p>
-      <label>Webshare API key (used once, not saved)<input id="webshareApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512"></label>
-      <label>Country code (optional, e.g. US or DE)<input id="webshareCountry" type="text" autocomplete="off" maxlength="2" placeholder="Any country"></label>
-      <p><button id="webshareImport" type="button">Import Webshare proxies</button></p>
-      <p class="note">Your API key is sent only to proxy.webshare.io over HTTPS, then discarded. Proxy credentials appear as masked fields below and are saved locally only when you press Save connection settings. Import does not enable routing or purchase a plan.</p>
-    </div>
-    <div id="proxyServers"></div>
-    <p><button class="secondary" id="proxyAdd" type="button">Add proxy server</button></p>
-    <p class="note">Chrome applies proxy settings to the regular browser profile. All AIVID tabs may use this route, including tabs opened outside Studio; other domains use DIRECT while it is active. External sign-in, CDN and media domains are not covered. This is not a device-wide VPN and does not change Incognito settings.</p>
-    <label class="switch"><input type="checkbox" id="proxyDirectConfirmed">This profile uses direct internet with no system proxy. I understand the profile-wide routing above.</label>
-    <p class="note">Use a separate browser profile if you already use a proxy. Credentials are saved locally in this browser profile, are not synced to your Google account or uploaded to CMMTools, and are supplied only to the matching configured proxy. Local storage is not an encrypted password vault. The proxy operator can see connection metadata.</p>
-    <p class="row"><button id="proxySave" type="button">Save connection settings</button><button class="secondary" id="proxyForget" type="button">Forget proxy servers</button><button class="secondary" id="proxyDisconnect" type="button">Disconnect</button></p>
-    <p id="proxyStatus" role="status" aria-live="polite">Loading connection settings…</p>
-    <p class="note">Close Studio and other AIVID tabs before testing a new route. Closing Studio restores the browser’s previous proxy configuration. Disconnect changes the current route immediately.</p>
+    <h2>CMMTools managed Webshare connection</h2>
+    <p>CMMTools Admin configures Webshare once. You do not enter an API key or proxy server details. Studio refreshes the managed settings through your signed-in CMMTools account before each new session, then selects the fastest working configured proxy.</p>
+    <label class="switch"><input id="managedEnabled" type="checkbox">Use the managed connection when Studio opens</label>
+    <p class="note">Chrome applies routing to AIVID domains across this regular browser profile, including other AIVID tabs. Other domains use DIRECT while active, potentially bypassing a system proxy. External sign-in, CDN and media domains are not covered. This is not a device-wide VPN. Use a separate profile if you rely on another proxy.</p>
+    <label class="switch"><input id="managedConsent" type="checkbox">This profile uses direct internet without a system proxy. I understand the profile routing above.</label>
+    <p><button id="managedSave" type="button">Save connection preference</button></p><p id="managedStatus" role="status"></p>
+    <p class="note">Close Studio before changing this preference. Closing Studio restores browser routing. Proxy credentials are saved locally in trusted extension storage and can be inspected on your device; the Admin Webshare API key stays on the server. No direct fallback is used when the managed route is unavailable.</p>
   </div>
   <div class="panel">
     <h2>Visibility settings</h2>
@@ -68,5 +53,5 @@
   </div>
   <p class="note"><strong>Browser limitation:</strong> No extension can guarantee that users will never learn the original site's domain. Sign-in, security UI, direct links, browser tools, and legal or checkout screens may reveal it. This package does not modify those security-sensitive screens.</p>
   <script src="options.js"></script>
-  <script src="proxy-options.js"></script>
+  <script src="managed-options.js"></script>
 </main></body></html>

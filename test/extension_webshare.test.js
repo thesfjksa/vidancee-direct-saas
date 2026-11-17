@@ -1,91 +1,64 @@
 'use strict';
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const api = require('../scripts/video-studio-launcher/extension/webshare.js');
-const permission = allowed => ({permissions:{async contains(value) {assert.deepEqual(value,{origins:['https://proxy.webshare.io/*']});return allowed;}}});
-const row = (index, extra={}) => ({valid:true,proxy_address:'192.0.2.'+index,port:8080,username:'sample-user',password:'sample-password',country_code:'US',...extra});
-const response = (data,status=200) => new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const api=require('../src/webshare_proxy.js');
+const {createExtensionWebshare,connectPage}=require('../src/extension_webshare.js');
+const Managed=require('../scripts/video-studio-launcher/extension/managed-proxy.js');
+const core=require('../scripts/video-studio-launcher/extension/proxy-core.js');
+const row=i=>({valid:true,proxy_address:'192.0.2.'+i,port:8080,username:'proxy-user',password:'proxy-pass',country_code:'US'});
+const permission=allowed=>({permissions:{contains:async()=>allowed}});
+const response=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
+function service(){const data={},writes=[];let failed=false;return {data,writes,fail(){failed=true;},value:createExtensionWebshare({get:async(k,f)=>data[k]??f,set:async(k,v,o)=>{writes.push({k,v,o});data[k]=v;},readProxies:async(_api,input)=>{if(failed)throw Error('raw upstream secret '+input.apiKey);return {servers:api.proxiesFromResponse({results:[row(1),row(2)]})};}})};}
 
-test('imports five distinct valid Webshare direct endpoints without importing invalid or backbone rows',()=>{
- const data={results:[row(1,{valid:false}),row(2,{proxy_address:null}),row(3,{proxy_address:'bad;DIRECT'}),row(4),row(4),...Array.from({length:8},(_,i)=>row(i+5))]};
- const servers=api.proxiesFromResponse(data);
- assert.equal(servers.length,5);assert.equal(servers[0].host,'192.0.2.4');assert.equal(servers[0].scheme,'http');
- assert.equal(servers[0].username,'sample-user');assert.equal(servers[0].password,'sample-password');
- assert.match(servers[0].label,/Webshare US/);assert.equal(new Set(servers.map(s=>s.id)).size,5);
+test('Webshare importer uses fixed HTTPS GET/header auth and returns five valid distinct direct endpoints',async()=>{
+ let called=0;const result=await api.importProxies(permission(true),{apiKey:'admin-key',country:'us'},async(url,opt)=>{
+ called++;const u=new URL(url);assert.equal(u.origin,'https://proxy.webshare.io');assert.equal(u.pathname,'/api/v2/proxy/list/');assert.equal(u.searchParams.get('mode'),'direct');assert.equal(u.searchParams.get('country_code__in'),'US');assert.ok(!url.includes('admin-key'));assert.equal(opt.method,'GET');assert.equal(opt.headers.Authorization,'Token admin-key');assert.equal(opt.redirect,'error');assert.equal(opt.credentials,'omit');
+ return response({next:'https://evil.test/',results:[{...row(9),valid:false},row(1),row(1),...Array.from({length:9},(_,i)=>row(i+2))]});});
+ assert.equal(called,1);assert.equal(result.servers.length,5);assert.ok(!JSON.stringify(result).includes('admin-key'));
 });
-
-test('uses only the fixed HTTPS read endpoint, header auth and an optional country filter',async()=>{
- let called=0;
- const result=await api.importProxies(permission(true),{apiKey:'demo-api-token',country:'de'},async(url,options)=>{
-  called++;const u=new URL(url);assert.equal(u.origin,'https://proxy.webshare.io');assert.equal(u.pathname,'/api/v2/proxy/list/');
-  assert.equal(u.searchParams.get('mode'),'direct');assert.equal(u.searchParams.get('page_size'),'100');assert.equal(u.searchParams.get('country_code__in'),'DE');
-  assert.ok(!url.includes('demo-api-token'));assert.equal(options.method,'GET');assert.equal(options.headers.Authorization,'Token demo-api-token');assert.equal(options.credentials,'omit');assert.equal(options.cache,'no-store');assert.equal(options.redirect,'error');
-  return response({next:'https://malicious.example/',results:[row(1)]});
- });
- assert.equal(called,1);assert.equal(result.servers.length,1);assert.ok(!JSON.stringify(result).includes('demo-api-token'));
+test('Webshare errors and timeouts never echo raw response secrets or mutate account',async()=>{
+ for(const status of [401,403,429,500])await assert.rejects(api.importProxies(permission(true),{apiKey:'admin-key'},async()=>response({secret:'admin-key'},status)),e=>!e.message.includes('admin-key'));
+ await assert.rejects(api.importProxies(permission(true),{apiKey:'admin-key'},(_u,{signal})=>new Promise((_yes,no)=>signal.addEventListener('abort',()=>no(Error('secret admin-key')))),5),/deadline/);
+ await assert.rejects(api.importProxies(permission(true),{apiKey:'admin-key'},async()=>new Response('x'.repeat(140000))),/size limit/);
+ await assert.rejects(api.importProxies(permission(true),{apiKey:'bad\nkey'},async()=>{throw Error('must not request');}));
 });
-
-test('requires optional origin permission and valid key/filter before making requests',async()=>{
- let calls=0;const fetcher=async()=>{calls++;return response({results:[row(1)]});};
- await assert.rejects(api.importProxies(permission(false),{apiKey:'demo'},fetcher),/Allow access/);
- for(const input of [{apiKey:''},{apiKey:'bad\r\nkey'},{apiKey:'x',country:'../../us'},{apiKey:'x'.repeat(513)}]) await assert.rejects(api.importProxies(permission(true),input,fetcher));
- assert.equal(calls,0);
+test('Admin saves API key and proxies in one encrypted setting; status and customer config never contain the API key',async()=>{
+ const s=service();const result=await s.value.save({enabled:true,apiKey:'owner-webshare-key',country:'us'});
+ assert.equal(s.writes.length,1);assert.deepEqual(s.writes[0].o,{secret:true});assert.equal(result.configured,true);assert.equal(result.serverCount,2);assert.ok(!JSON.stringify(result).includes('owner-webshare-key'));
+ const config=await s.value.customer({id:1,status:'active'});assert.equal(config.servers.length,2);assert.equal(config.includeDirect,false);assert.ok(!JSON.stringify(config).includes('owner-webshare-key'));
+ await s.value.save({enabled:true,country:'US'});assert.equal(s.writes.length,2,'saved key reused for explicit admin sync');
 });
-
-test('auth/rate/server errors are actionable without exposing response bodies or keys',async()=>{
- for(const [status,pattern] of [[401,/rejected/],[403,/rejected/],[429,/rate limit/],[500,/temporarily unavailable/]]) {
-  await assert.rejects(api.importProxies(permission(true),{apiKey:'secret-token'},async()=>response({error:'private upstream response secret-token'},status)),e=>pattern.test(e.message)&&!e.message.includes('secret-token')&&!e.message.includes('private upstream'));
- }
- await assert.rejects(api.importProxies(permission(true),{apiKey:'secret-token'},async()=>{throw Error('transport secret-token');}),e=>!e.message.includes('secret-token'));
+test('failed Admin sync leaves the previous setting intact and returns a bounded error',async()=>{
+ const s=service();await s.value.save({enabled:true,apiKey:'old-owner-key'});const before=JSON.stringify(s.data);s.fail();
+ await assert.rejects(s.value.save({enabled:true,apiKey:'new-owner-key'}),e=>e.statusCode===502&&!e.message.includes('new-owner-key'));
+ assert.equal(JSON.stringify(s.data),before);assert.equal(s.writes.length,1);
 });
-
-test('request timeout and oversized/malformed responses do not return imported credentials',async()=>{
- await assert.rejects(api.importProxies(permission(true),{apiKey:'demo'},(_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('abort')))),10),/deadline/);
- await assert.rejects(api.importProxies(permission(true),{apiKey:'demo'},async()=>new Response('x'.repeat(131073))),/size limit/);
- await assert.rejects(api.importProxies(permission(true),{apiKey:'demo'},async()=>new Response('not json')),/invalid proxy list/);
- await assert.rejects(api.importProxies(permission(true),{apiKey:'demo'},async()=>response({results:[]})),/No usable direct proxies/);
+test('only active signed-in customers receive managed config; disabling blocks new connections',async()=>{
+ const s=service();await s.value.save({enabled:true,apiKey:'owner-key'});
+ for(const user of [null,{status:'suspended'}])await assert.rejects(s.value.customer(user),e=>e.statusCode===401);
+ await s.value.disable();await assert.rejects(s.value.customer({status:'active'}),e=>e.statusCode===503);
+ assert.equal((await s.value.status()).configured,true,'disable preserves encrypted account setup');
 });
-
-test('API key is not persisted by importer; UI clears key and only options can invoke import',()=>{
- const root=path.join(__dirname,'../scripts/video-studio-launcher/extension');
- const code=fs.readFileSync(path.join(root,'webshare.js'),'utf8');assert.doesNotMatch(code,/storage\.|console\./);
- const ui=fs.readFileSync(path.join(root,'proxy-options.js'),'utf8');assert.match(ui,/proxyId\('webshareApiKey'\)\.value = ''/);
- const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));assert.equal(manifest.version,'1.6.1');assert.deepEqual(manifest.optional_host_permissions,[api.ORIGIN]);
- const background=fs.readFileSync(path.join(root,'background.js'),'utf8');
- assert.match(background,/if \(sender\.url === OPTIONS_PAGE\) \{\s*if \(message\?\.type === 'CMMTOOLS_WEBSHARE_IMPORT'\)/);
+function bridge(){const flags={managedEnabled:true,managedConsent:true},saved=[],removed=[];let created;
+ const manager={permitted:async()=>true,save:async config=>saved.push(core.normalize(config))};
+ const value=new Managed({storage:{local:{get:async()=>flags}},runtime:{id:'a'.repeat(32)},windows:{create:async o=>{created=o;return {id:55};},remove:async id=>removed.push(id)}},manager,1000);
+ return {value,flags,saved,removed,get created(){return created;}};
+}
+test('managed handoff binds exact CMMTools origin, path, connection window and fresh nonce',async()=>{
+ const b=bridge(),pending=b.value.refresh(9);await new Promise(setImmediate);const u=new URL(b.created.url),nonce=u.searchParams.get('nonce');
+ const config=core.normalize({enabled:true,includeDirect:false,directNetworkConfirmed:true,servers:[{host:'proxy.test',scheme:'http',port:80,username:'u',password:'p'}]});
+ const message={nonce,config},sender={url:'https://cmmtools.site/extension/connect',tab:{windowId:55}};
+ for(const invalid of [{...sender,url:'https://evil.test/extension/connect'},{...sender,url:'https://cmmtools.site/other'},{...sender,tab:{windowId:56}}])assert.equal(await b.value.accept(message,invalid),false);
+ assert.equal(await b.value.accept({...message,nonce:'invalid'},sender),false);assert.equal(b.saved.length,0);
+ assert.equal(await b.value.accept(message,sender),true);await pending;assert.equal(b.saved.length,1);assert.deepEqual(b.removed,[55]);
 });
-
-test('options imports once, clears API key, replaces only unsaved rows and preserves rows on failure',async()=>{
- const vm=require('node:vm');
- const root=path.join(__dirname,'../scripts/video-studio-launcher/extension');
- const html=fs.readFileSync(path.join(root,'options.html'),'utf8');
- const ids=[...html.matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length,'each control has a unique ID');
- const script=fs.readFileSync(path.join(root,'proxy-options.js'),'utf8');
- async function run(allow,fail=false) {
-  class Element {
-   constructor(){this.value='';this.checked=false;this.disabled=false;this.children=[];this.listeners={};}
-   appendChild(child){this.children.push(child);child.parent=this;}
-   replaceChildren(){this.children=[];}
-   addEventListener(type,handler){(this.listeners[type] ||= []).push(handler);}
-   remove(){this.parent.children=this.parent.children.filter(c=>c!==this);}
-   click(){for(const fn of this.listeners.click||[])fn();}
-  }
-  const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));let imports=0,saves=0,permissionCalls=0;
-  const chrome={runtime:{sendMessage(message,cb){
-   if(message.type==='CMMTOOLS_PROXY_CONFIG') return cb({ok:true,result:{enabled:false,includeDirect:false,directNetworkConfirmed:false,servers:api.proxiesFromResponse({results:[row(88)]})}});
-   if(message.type==='CMMTOOLS_PROXY_STATUS')return cb({ok:true,result:{phase:'default',label:'Browser default'}});
-   if(message.type==='CMMTOOLS_PROXY_SAVE'){saves++;return cb({ok:true,result:{saved:true}});}
-   if(message.type==='CMMTOOLS_WEBSHARE_IMPORT'){imports++;assert.equal(message.apiKey,'demo-key');assert.equal(elements.webshareApiKey.value,'');return cb(fail?{ok:false,error:'Webshare unavailable'}:{ok:true,result:{servers:api.proxiesFromResponse({results:[row(1)]})}});}
-  }},permissions:{async request(request){permissionCalls++;assert.deepEqual(JSON.parse(JSON.stringify(request)),{origins:['https://proxy.webshare.io/*']});return allow;}}};
-  const context={document:{getElementById:id=>elements[id],createElement:()=>new Element()},chrome,window:{addEventListener(){}}};
-  vm.createContext(context);vm.runInContext(script,context);await new Promise(setImmediate);
-  assert.equal(elements.proxyServers.children.length,1);
-  elements.webshareApiKey.value='demo-key';elements.webshareImport.click();await new Promise(setImmediate);
-  assert.equal(elements.webshareImport.listeners.click.length,1);assert.equal(permissionCalls,1);assert.equal(elements.webshareApiKey.value,'');assert.equal(saves,0);
-  const field=elements.proxyServers.children[0].children[2].children[0];
-  assert.equal(field.value,allow&&!fail?'192.0.2.1':'192.0.2.88');assert.equal(imports,allow?1:0);
- }
- await run(true);await run(false);await run(true,true);
+test('closing Studio cancels managed refresh; disabled preference never opens a connection window',async()=>{
+ const b=bridge(),pending=b.value.refresh(9);await new Promise(setImmediate);b.value.removed(9);await assert.rejects(pending,/cancelled/);assert.deepEqual(b.removed,[55]);
+ const c=bridge();c.flags.managedEnabled=false;await c.value.refresh(1);assert.equal(c.created,undefined);
+});
+test('customer Options has no Webshare key/server inputs and package needs no Webshare host permission',()=>{
+ const root=path.join(__dirname,'../scripts/video-studio-launcher/extension');const html=fs.readFileSync(path.join(root,'options.html'),'utf8');assert.doesNotMatch(html,/id="webshareApiKey"|id="proxyServers"/);assert.match(html,/id="managedConsent"/);
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));assert.equal(manifest.version,'1.7.0');assert.equal(manifest.optional_host_permissions,undefined);
+ assert.ok(!connectPage().includes('owner-webshare-key'));
+ const server=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');assert.ok(server.indexOf("routePath==='/admin/extension/webshare'")>server.indexOf('if (!adminAuthorized(req))'));
+ assert.match(server,/const user=await requireUser\(req\);\s*const config=await extensionWebshare.customer\(user\)/);
 });

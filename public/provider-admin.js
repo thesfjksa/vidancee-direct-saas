@@ -147,3 +147,36 @@
   };
 })();
 
+
+
+window.loadExtensionWebshare=async()=>{try{
+ const d=await api('/admin/extension/webshare');const s=d.settings;
+ document.getElementById('extensionWebshareEnabled').checked=s.enabled;
+ document.getElementById('extensionWebshareCountry').value=s.country;
+ document.getElementById('extensionWebshareStatus').textContent=(s.configured?'Key configured':'Key not configured')+' · '+s.serverCount+' proxies · '+(s.enabled?'Enabled':'Disabled');
+}catch(e){document.getElementById('extensionWebshareStatus').textContent=e.message;}};
+window.saveExtensionWebshare=async()=>{
+ const key=document.getElementById('extensionWebshareKey');const value=key.value;key.value='';
+ const message=document.getElementById('extensionWebshareStatus');message.textContent='Syncing Webshare…';
+ try{await api('/admin/extension/webshare',{method:'POST',body:JSON.stringify({apiKey:value,country:document.getElementById('extensionWebshareCountry').value,enabled:document.getElementById('extensionWebshareEnabled').checked})});await window.loadExtensionWebshare();}catch(e){message.textContent=e.message;}
+};
+window.disableExtensionWebshare=async()=>{try{await api('/admin/extension/webshare',{method:'POST',body:JSON.stringify({action:'disable'})});await window.loadExtensionWebshare();}catch(e){document.getElementById('extensionWebshareStatus').textContent=e.message;}};
+
+window.loadManagedWebshare = async () => {
+ const status=document.getElementById('managedWebshareStatus');
+ try{const d=await api('/admin/extension/webshare');const s=d.settings;
+  document.getElementById('managedWebshareEnabled').checked=s.enabled;document.getElementById('managedWebshareCountry').value=s.country;
+  status.textContent=(s.configured?'Key configured':'Key not configured')+' · '+s.serverCount+' proxies · '+(s.enabled?'Enabled':'Disabled');
+ }catch(e){status.textContent=e.message;}
+};
+window.saveManagedWebshare = async () => {
+ const button=document.getElementById('managedWebshareSave'),key=document.getElementById('managedWebshareKey'),status=document.getElementById('managedWebshareStatus');if(button.disabled)return;
+ const apiKey=key.value.trim();key.value='';button.disabled=true;status.textContent='Syncing Webshare…';
+ try{await api('/admin/extension/webshare',{method:'POST',body:JSON.stringify({apiKey,country:document.getElementById('managedWebshareCountry').value,enabled:document.getElementById('managedWebshareEnabled').checked})});await window.loadManagedWebshare();}
+ catch(e){status.textContent=e.message;}finally{button.disabled=false;}
+};
+window.disableManagedWebshare = async () => {
+ const status=document.getElementById('managedWebshareStatus');
+ try{await api('/admin/extension/webshare',{method:'POST',body:JSON.stringify({action:'disable'})});await window.loadManagedWebshare();}
+ catch(e){status.textContent=e.message;}
+};

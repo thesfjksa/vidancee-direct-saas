@@ -1,6 +1,6 @@
 'use strict';
 (function(root) {
-  const core = typeof module !== 'undefined' ? require('./proxy-core.js') : root.CMMProxyCore;
+  const core = typeof module !== 'undefined' ? require('../scripts/video-studio-launcher/extension/proxy-core.js') : root.CMMProxyCore;
   const ORIGIN = 'https://proxy.webshare.io/*';
   const ENDPOINT = 'https://proxy.webshare.io/api/v2/proxy/list/';
   class WebshareError extends Error {}
