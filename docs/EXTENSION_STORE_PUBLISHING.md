@@ -1,5 +1,10 @@
 # CMMTools launcher: Chrome Web Store distribution
 
+## v1.6.0 optional proxy update
+
+Use `CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip` for the new version. Proxy routing is off by default; no endpoints or subscription are bundled. Follow `EXTENSION_PROXY_SETUP.md` for setup, scope, credential handling and the new optional permission justifications. The v1.5.1 instructions below describe the earlier package without this feature; update your listing/single-purpose/privacy disclosures for v1.6 before submitting it. A listing already awaiting review must not be advertised as including the new behavior until the update is approved.
+
+
 ## Prepared in this change
 
 - The Extension navigation link opens `/extension`. A valid `CHROME_WEB_STORE_EXTENSION_ID` enables its Chrome Web Store link. Blank/invalid settings display an explicit unavailable notice and manual ZIP fallback. Configure the ID only after the listing is published.

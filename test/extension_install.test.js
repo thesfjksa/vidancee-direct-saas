@@ -38,10 +38,12 @@ test('GET and HEAD agree and unsupported methods do not serve content', () => {
   }
   assert.equal(request('/api/models').handled, false);
 });
-test('privacy explains site reads and Chrome sync without claiming VPN support', () => {
+test('privacy explains site reads and Chrome sync and optional proxy credential handling', () => {
   const body = request('/extension/privacy').body.toString();
   assert.match(body, /page text, navigation labels, links and layout/);
   assert.match(body, /storage.sync/);
   assert.match(body, /may sync through your browser account/);
-  assert.match(body, /does not provide a VPN or proxy/);
+  assert.match(body, /not a device-wide VPN/);
+  assert.match(body, /restricted to trusted extension contexts/);
+  assert.match(body, /proxy operator receives proxy credentials/);
 });

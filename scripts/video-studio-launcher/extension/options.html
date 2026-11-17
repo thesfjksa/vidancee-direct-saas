@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CMMTools Video Studio · Launcher settings</title>
+  <style>
+    body{margin:0;background:#0d1220;color:#edf2fa;font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+    main{max-width:720px;margin:45px auto;padding:0 24px 50px}
+    h1{font-size:26px;margin-bottom:8px}h2{font-size:18px;margin-top:10px}
+    p,li{color:#bfcbdb;line-height:1.6}
+    code{font-family:Consolas,monospace;overflow-wrap:anywhere;color:#b1daff}
+    .panel{background:#161e30;padding:22px;border:1px solid #36445f;border-radius:14px;margin:18px 0}
+    .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    button{padding:11px 17px;border:0;border-radius:9px;background:#55b0ff;color:#101827;font-weight:700;cursor:pointer}
+    button.secondary{background:#2b3955;color:#e4eaff}
+    label.switch{display:flex;align-items:center;gap:10px;margin:14px 0;cursor:pointer}
+    input[type=checkbox]{width:19px;height:19px;accent-color:#55b0ff}
+    textarea{box-sizing:border-box;width:100%;min-height:160px;padding:12px;border:1px solid #485673;border-radius:8px;background:#0d1220;color:#e5ecff;font:13px/1.6 Consolas,monospace;resize:vertical}
+    #status{min-height:21px;color:#a7eec4;margin:12px 0 0}
+    .proxy-server{border:1px solid #485673;border-radius:10px;padding:14px;margin:12px 0}.proxy-server label{display:block;margin:7px 0}.proxy-server input,.proxy-server select{box-sizing:border-box;width:100%;padding:9px;background:#0d1220;color:#edf2fa;border:1px solid #485673;border-radius:6px}#proxyStatus{white-space:pre-wrap;overflow-wrap:anywhere}button:disabled{opacity:.5;cursor:wait}
+    .note{font-size:13px;color:#a7bbd1}
+  </style>
+</head><body><main>
+  <h1>CMMTools Video Studio</h1>
+  <p>Launch a standalone app-style window. Customers use their own account credentials directly on the original service.</p>
+  <div class="panel" id="connection-panel">
+    <h2>Automatic proxy connection</h2>
+    <p>Bring your own HTTP, HTTPS or unauthenticated SOCKS5 proxy servers. When enabled, the launcher tests them before opening Studio and keeps the fastest working route for that session. No servers or subscription are included.</p>
+    <label class="switch"><input type="checkbox" id="proxyEnabled">Connect automatically before Studio opens</label>
+    <label class="switch"><input type="checkbox" id="proxyIncludeDirect">Also test and allow a direct connection if it is fastest</label>
+    <p class="note">Measures response time to the public AIVID homepage, not video rendering speed or download bandwidth. Failed routes are excluded. There is no automatic direct fallback in proxy-only mode.</p>
+    <div id="proxyServers"></div>
+    <p><button class="secondary" id="proxyAdd" type="button">Add proxy server</button></p>
+    <p class="note">Chrome applies proxy settings to the regular browser profile. All AIVID tabs may use this route, including tabs opened outside Studio; other domains use DIRECT while it is active. External sign-in, CDN and media domains are not covered. This is not a device-wide VPN and does not change Incognito settings.</p>
+    <label class="switch"><input type="checkbox" id="proxyDirectConfirmed">This profile uses direct internet with no system proxy. I understand the profile-wide routing above.</label>
+    <p class="note">Use a separate browser profile if you already use a proxy. Credentials are saved locally in this browser profile, are not synced to your Google account or uploaded to CMMTools, and are supplied only to the matching configured proxy. Local storage is not an encrypted password vault. The proxy operator can see connection metadata.</p>
+    <p class="row"><button id="proxySave" type="button">Save connection settings</button><button class="secondary" id="proxyForget" type="button">Forget proxy servers</button><button class="secondary" id="proxyDisconnect" type="button">Disconnect</button></p>
+    <p id="proxyStatus" role="status" aria-live="polite">Loading connection settings…</p>
+    <p class="note">Close Studio and other AIVID tabs before testing a new route. Closing Studio restores the browser’s previous proxy configuration. Disconnect changes the current route immediately.</p>
+  </div>
+  <div class="panel">
+    <h2>Visibility settings</h2>
+    <label class="switch"><input type="checkbox" id="hideBilling" checked>Hide Billing / subscriptions / pricing menu links</label>
+    <label class="switch"><input type="checkbox" id="hideReferral" checked>Hide Referral / invite / affiliate menu links</label>
+    <label class="switch"><input type="checkbox" id="hideBranding" checked>Hide provider header/sidebar logo and name; rename the popup window title</label>
+    <label class="switch"><input type="checkbox" id="hideFooter" checked>Hide footer, including footer links and logo</label>
+    <label class="switch"><input type="checkbox" id="lockCreditButton" checked>Disable the header credit-balance purchase button (balance remains visible)</label>
+    <p class="note">This customizes visible navigation only; it does not revoke access to the original site's pages or APIs.</p>
+    <h2>Custom CSS (optional)</h2>
+    <p>Paste additional CSS selectors to hide elements unique to your site's current layout. CSS is applied only to the video studio website.</p>
+    <textarea id="customCSS" spellcheck="false" placeholder="/* Example: */\n/* .my-extra-tab { display: none !important; } */"></textarea>
+    <p class="row"><button id="save" type="button">Save settings</button><button class="secondary" id="launch" type="button">Open Video Studio</button></p>
+    <p id="status" role="status" aria-live="polite"></p>
+  </div>
+  <div class="panel">
+    <h2>Connect CMMTools</h2>
+    <p>Extension ID: <code id="extensionId"></code></p>
+    <button class="secondary" id="copyId" type="button">Copy extension ID</button>
+    <p>CMMTools website launching is enabled for cmmtools.site. Your installed extension ID is shown above.</p>
+  </div>
+  <p class="note"><strong>Browser limitation:</strong> No extension can guarantee that users will never learn the original site's domain. Sign-in, security UI, direct links, browser tools, and legal or checkout screens may reveal it. This package does not modify those security-sensitive screens.</p>
+  <script src="options.js"></script>
+  <script src="proxy-options.js"></script>
+</main></body></html>

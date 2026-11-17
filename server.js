@@ -1321,6 +1321,14 @@ const server=http.createServer(async (req,res)=>{
       return res.end(req.method==='HEAD'?undefined:data);
     }
     if (handleExtensionDistribution(req,res,routePath)) return;
+    // Current publisher/manual package. Root manifest supports both workflows.
+    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip') {
+      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip'));
+      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,
+        'content-disposition':'attachment; filename="CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip"',
+        'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
+      return res.end(req.method==='HEAD'?undefined:file);
+    }
     // Public, versioned Chrome/Edge launcher ZIP. Local display customization only.
     if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip') {
       const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Launcher_v1.5.zip'));

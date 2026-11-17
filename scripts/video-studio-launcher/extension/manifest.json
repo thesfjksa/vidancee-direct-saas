@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "name": "CMMTools Video Studio Launcher",
+  "version": "1.6.0",
+  "minimum_chrome_version": "108",
+  "description": "Launch AIVID with display preferences and optional automatic selection of your fastest configured proxy.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "Open CMMTools Video Studio",
+    "default_popup": "launcher.html",
+    "default_icon": {
+      "16": "brand/icon-16.png",
+      "32": "brand/icon-32.png",
+      "48": "brand/icon-48.png",
+      "128": "brand/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://aivid.dev/*",
+        "https://*.aivid.dev/*"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "css": [
+        "studio.css"
+      ],
+      "js": [
+        "studio.js",
+        "connection-badge.js"
+      ]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://cmmtools.site/*",
+      "https://www.cmmtools.site/*"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "brand/icon-48.png",
+        "brand/icon-128.png"
+      ],
+      "matches": [
+        "https://aivid.dev/*",
+        "https://*.aivid.dev/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "brand/icon-16.png",
+    "32": "brand/icon-32.png",
+    "48": "brand/icon-48.png",
+    "128": "brand/icon-128.png"
+  },
+  "homepage_url": "https://cmmtools.site/extension",
+  "optional_permissions": [
+    "proxy",
+    "webRequest",
+    "webRequestAuthProvider"
+  ],
+  "host_permissions": [
+    "https://aivid.dev/*",
+    "https://*.aivid.dev/*"
+  ]
+}
