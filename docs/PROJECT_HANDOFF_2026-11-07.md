@@ -1,3 +1,11 @@
+## 17 November 2026 — Owner cancelled extension changes; restore original v1.5 download
+
+- Owner explicitly requested cancellation of the Web Store/install-page and Webshare/VPN extension changes, returning to the extension originally downloadable in CMMTools.
+- Reverted the extension-only changes from PRs #262–#265 using the pre-change a9457181b9b30e3f12b5f0af9404fa75a863df57 tree. Restored the original direct ZIP navigation, server route, Admin/provider script, environment example and original download tests byte-for-byte. Removed introduced Webshare routes/Admin controls, connection bridge, proxy source, packaging helper, store/proxy docs/tests and new release ZIPs. Existing AIVID handoff/tab-share extensions remain as before.
+- Original public/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip is unchanged (Git blob 591a1ec6bb7cec4752f163c9bd2799d1d62bcceb). Verified CRC, manifest version 1.5.0 and no proxy permission. Three original download/navigation/endpoint tests and server syntax passed locally. This does not alter provider visibility PR #261, vgenv polling PR #259, jobs, credits, provider keys or generation settings.
+- Historical handoff entries below are retained for audit but their extension rollout instructions are superseded by this cancellation. No production DB setting or Chrome Web Store item was deleted/modified. Existing newer installed extensions are not downgraded by a server rollback: remove the VPN-enabled copy in chrome://extensions first so Chrome releases its proxy setting, then extract/load the original v1.5 extension folder.
+- Merge and live web verification remain separate. Confirm production navigation directly downloads the original ZIP and no managed-Webshare controls are present after deployment. No working live VPN connection was established during the cancelled work; the owner never supplied a Webshare key in this session.
+
 ## 17 November 2026 — Fix Chrome proxy permission declaration (v1.7.1)
 
 - Owner's actual Chrome screenshot reported: Permission 'proxy' cannot be listed as optional; this permission will be omitted. The prior manifest declaration was incorrect. Chrome's current permissions documentation explicitly lists proxy as non-optional.
