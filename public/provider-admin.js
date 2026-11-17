@@ -12,6 +12,31 @@
     vgenv: 'vgenv', fal: 'fal', vibi: 'vibi',
   };
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
+  window.loadProviderModelVisibility = visibility => {
+    Object.keys(sources).forEach(key => {
+      const input = el('modelsVisible-' + key), save = el('saveModelsVisible-' + key);
+      if (!input || !save) return;
+      input.disabled = typeof visibility?.[key] !== 'boolean';
+      input.checked = visibility?.[key] !== false;
+      save.disabled = true;
+    });
+  };
+  window.saveProviderModelVisibility = async key => {
+    if (!Object.hasOwn(sources, key)) return;
+    const input = el('modelsVisible-' + key), save = el('saveModelsVisible-' + key), message = el('modelsVisibleMsg-' + key);
+    if (!input || input.disabled || save.disabled) return;
+    const visible = input.checked;
+    input.disabled = true; save.disabled = true;
+    message.className = 'muted'; message.textContent = 'Saving…';
+    try {
+      const result = await api('/admin/provider-settings', { method: 'POST', body: JSON.stringify({ providerModelVisibility: { [key]: visible } }) });
+      if (result.settings?.providerModelVisibility?.[key] !== visible) throw new Error('Model visibility could not be confirmed. Please refresh and try again.');
+      message.className = 'ok'; message.textContent = visible ? 'Models shown to customers.' : 'Models hidden from customers. Existing jobs continue.';
+    } catch (error) {
+      save.disabled = false;
+      message.className = 'err'; message.textContent = error.message;
+    } finally { input.disabled = false; }
+  };
   function selectTabs(prefix, current, keys) {
     keys.forEach(key => {
       const button = el(prefix + 'tab-' + key), panel = el(prefix + (prefix === 'provider-' ? 'view-' : '') + key);
@@ -121,3 +146,4 @@
     state.size = Number(size); state.page = 0; renderPage(kind);
   };
 })();
+
