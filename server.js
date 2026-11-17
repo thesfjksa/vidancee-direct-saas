@@ -40,9 +40,6 @@ const { hideVendors, hideVendorsInBody } = require('./src/vendor_names.js');
 const path = require('node:path');
 const { fork } = require('node:child_process');
 const { webWorkerEnabled } = require('./src/web_worker_policy.js');
-const { handleExtensionDistribution } = require('./src/extension_distribution.js');
-const { createExtensionWebshare, connectPage: extensionConnectPage } = require('./src/extension_webshare.js');
-const extensionWebshare = createExtensionWebshare({get:(...args)=>getSettingValue(...args),set:(...args)=>setSettingValue(...args)});
 const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
@@ -1322,36 +1319,6 @@ const server=http.createServer(async (req,res)=>{
       res.writeHead(200,{'content-type':contentType,'content-length':data.length,'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'});
       return res.end(req.method==='HEAD'?undefined:data);
     }
-    if (routePath==='/extension/connect' && req.method==='GET') return sendHtml(res,200,extensionConnectPage());
-    if (routePath==='/extension/connect.js' && req.method==='GET') {
-      const data=fs.readFileSync(path.join(__dirname,'public','extension-connect.js'));
-      res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});return res.end(data);
-    }
-    if (routePath==='/api/extension/proxy-config' && req.method==='GET') {
-      requireDatabase();const user=await requireUser(req);
-      const config=await extensionWebshare.customer(user);
-      res.setHeader('Cache-Control','no-store');res.setHeader('Cross-Origin-Resource-Policy','same-origin');
-      return sendJson(res,200,{ok:true,config});
-    }
-    if (handleExtensionDistribution(req,res,routePath)) return;
-    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip') {
-      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip'));
-      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,'content-disposition':'attachment; filename="CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip"','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
-      return res.end(req.method==='HEAD'?undefined:file);
-    }
-    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.7.1.zip') {
-      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.7.1.zip'));
-      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,'content-disposition':'attachment; filename="CMMTools_Video_Studio_Chrome_Store_v1.7.1.zip"','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
-      return res.end(req.method==='HEAD'?undefined:file);
-    }
-    // Current publisher/manual package. Root manifest supports both workflows.
-    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip') {
-      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip'));
-      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,
-        'content-disposition':'attachment; filename="CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip"',
-        'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
-      return res.end(req.method==='HEAD'?undefined:file);
-    }
     // Public, versioned Chrome/Edge launcher ZIP. Local display customization only.
     if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip') {
       const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Launcher_v1.5.zip'));
@@ -2234,17 +2201,6 @@ const server=http.createServer(async (req,res)=>{
     if (routePath.startsWith('/admin/')) {
       if (!adminToken) return sendJson(res,503,{ok:false,error:'ADMIN_TOKEN is not configured in hPanel.'});
       if (!adminAuthorized(req)) return sendJson(res,401,{ok:false,error:'Unauthorized'});
-      if (routePath==='/admin/extension/webshare') {
-        requireDatabase();res.setHeader('Cache-Control','no-store');
-        if (req.method==='GET') return sendJson(res,200,{ok:true,settings:await extensionWebshare.status()});
-        if (req.method==='POST') {
-          const body=await readJson(req);
-          const settings=body.action==='disable'?await extensionWebshare.disable():await extensionWebshare.save(body);
-          return sendJson(res,200,{ok:true,settings});
-        }
-        return sendJson(res,405,{ok:false,error:'Use GET or POST.'});
-      }
-
 
 
       if(routePath==='/admin/fal/images/sync'){
