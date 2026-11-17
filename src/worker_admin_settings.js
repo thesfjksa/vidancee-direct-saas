@@ -272,7 +272,7 @@ class GenerationWorker {
       "SELECT * FROM generations WHERE media_type='video' AND provider='vgenv' AND status IN ('submitted','processing') AND provider_job_id IS NOT NULL ORDER BY created_at ASC LIMIT 100"
     );
 
-    for (const row of rows) {
+    const syncRow = async row => {
       try {
         const video = await this.vgenv.getVideo(row.provider_job_id, { v3: h3VgenvModel(row.model) !== 'base' });
         if (video.status === 'succeeded') {
@@ -299,8 +299,15 @@ class GenerationWorker {
         }
       } catch (error) {
         console.error('vgenv status sync failed for', row.id, error.message);
+        logActivity({ level: 'warn', category: 'provider', event: 'job.status_check_failed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'Could not read vgenv status; the existing job will be checked again.', details: { providerJobId: row.provider_job_id, code: error.name === 'TimeoutError' ? 'STATUS_TIMEOUT' : 'STATUS_READ_FAILED' } });
       }
-    }
+    };
+    // Bound read concurrency without increasing paid submission slots. A slow
+    // job no longer prevents the other active jobs from being checked.
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, rows.length) }, async () => {
+      while (next < rows.length) await syncRow(rows[next++]);
+    }));
   }
 
   // A restart while a video was being sent leaves it in 'submitting' with no
@@ -803,5 +810,6 @@ class GenerationWorker {
 }
 
 module.exports = { GenerationWorker };
+
 
 
