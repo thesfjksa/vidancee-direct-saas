@@ -1,4 +1,4 @@
-"""Build the store-upload ZIP from the committed launcher release. Python 3 stdlib only."""
+"""Build the store ZIP from tracked launcher source plus the original bundled artwork."""
 import argparse
 import json
 from pathlib import Path
@@ -6,23 +6,21 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'public/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip'
-DEFAULT_OUTPUT = ROOT / 'public/downloads/CMMTools_Video_Studio_Chrome_Store_v1.5.1.zip'
+EXTENSION = ROOT / 'scripts/video-studio-launcher/extension'
+VERSION = json.loads((EXTENSION / 'manifest.json').read_text())['version']
+DEFAULT_OUTPUT = ROOT / f'public/downloads/CMMTools_Video_Studio_Chrome_Store_v{VERSION}.zip'
 
 
 def build(output):
+    # Keep the original logo bytes without duplicating binary artwork in source.
     with zipfile.ZipFile(SOURCE) as source:
         files = {name.removeprefix('extension/'): source.read(name)
                  for name in source.namelist()
-                 if name.startswith('extension/') and not name.endswith('/')}
-    manifest = json.loads(files['manifest.json'])
-    manifest['version'] = '1.5.1'
-    manifest['description'] = 'Open AIVID in a separate studio window with configurable CMMTools display preferences. Uses your own AIVID account.'
-    manifest['homepage_url'] = 'https://cmmtools.site/extension'
-    manifest['externally_connectable'] = {'matches': ['https://cmmtools.site/*', 'https://www.cmmtools.site/*']}
-    files['manifest.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
-    files['options.html'] = files['options.html'].replace(
-        b'Change <code>https://cmmtools.example/*</code> to your real CMMTools domain in <code>manifest.json</code>, then reload the extension. Use the ID in the supplied integration snippet.',
-        b'CMMTools website launching is enabled for cmmtools.site. Your installed extension ID is shown above.')
+                 if name.startswith('extension/brand/') and not name.endswith('/')}
+    for file in EXTENSION.rglob('*'):
+        if file.is_file() and file.suffix in ('.html', '.css', '.js', '.json'):
+            files[file.relative_to(EXTENSION).as_posix()] = file.read_bytes()
+    assert 'manifest.json' in files and 'background.js' in files
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
         for name, data in sorted(files.items()):
