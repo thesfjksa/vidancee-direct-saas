@@ -1,34 +1,37 @@
-# Optional Studio proxy connection (v1.6.0)
+# Admin-managed Webshare connection — extension v1.7.0
 
-The launcher can test up to five owner-supplied HTTP/HTTPS or unauthenticated SOCKS5 proxies before opening AIVID. It does not include proxy servers, a paid service subscription, device-wide VPN encryption or a guarantee of anonymity. No free public proxies are bundled. No provider render time is changed by this feature.
+## Admin setup
 
-## Configure
+1. Deploy the web app containing this change. Open Admin → Provider → Connections → Extension · managed Webshare connection.
+2. Enter a Webshare API key allowed to read the direct proxy list, optionally choose a country, enable the feature, and click Save & sync Webshare. Use a Webshare Proxy Server plan with direct endpoints; rotating residential/backbone plans are not imported.
+3. The server reads Webshare's official list endpoint (GET only), selects up to five distinct valid endpoints from the first 100 matching rows, then stores the API key, endpoints and credentials as one encrypted app_settings record. A failed import preserves the prior setting. Admin status shows only configured/enabled/count/country, never credentials or the key. Empty key reuses the encrypted saved key for explicit Admin sync.
+4. Customers do not configure Webshare or receive its API key. Proxy credentials sent to customer devices remain inspectable there. A separate gateway would be required to keep those credentials off devices.
+5. Disable managed connection blocks new config requests without terminating accepted/in-progress provider work or revoking already distributed proxy credentials. Rotate/revoke credentials in Webshare if required. This integration makes no purchase, billing, proxy replacement, rotation or IP allowlist mutation.
 
-1. Install/update the v1.6.0 package. For a store listing, upload the new ZIP to the existing item and update its privacy/permission disclosures before review. Do not claim the v1.5.1 listing already includes this feature.
-2. Right-click the CMMTools extension → Options → Connection. Add your service's hostname/IP, port, protocol and, for HTTP/HTTPS, username/password. The extension has no provider API import; enter the supplied connection endpoints. SOCKS5 username/password is unsupported; use the service's IP authorization if available. IPv6 proxy host literals are not supported in this version.
-3. Enable automatic connection. Confirm the browser profile uses direct internet without an existing system proxy and acknowledge the scope described below. Save and accept Chrome's optional proxy/request-auth permissions. Direct connection is excluded by default; explicitly enable “Include direct connection” only if direct internet may be selected as a winner.
-4. Close all AIVID tabs and any previous Studio window, then click Open Video Studio. Testing switches the profile's route sequentially, so it must not run while another AIVID session is using that route.
-5. Each candidate gets two bounded, unauthenticated GET checks to the public AIVID root with cache disabled, no cookies and no redirects. Each check waits at most eight seconds for successful response headers. The lowest average header latency wins and is rechecked before navigation. This measures responsiveness, not bandwidth, provider queue time or render speed. A login redirect, denied response or network timeout does not count as a passing route.
-6. A small in-Studio indicator shows the selected route and last measured latency; click it for Options. The route remains stable for the session; there is no automatic IP change while working. When all proxies fail, the local loading page displays an error and AIVID navigation is blocked. Existing browser routing is restored. You may fix the endpoints or explicitly disable proxy mode to use browser defaults.
-7. Closing Studio or clicking Disconnect clears only this extension's regular-profile proxy setting, restoring the underlying browser configuration. Disconnect affects AIVID tabs immediately. Close Studio before saving changes or using Forget proxy servers, which removes locally saved endpoints/credentials.
+## Customer setup
 
-## Scope and limitations
+Install v1.7.0. In Extension Options, select Use the managed connection, acknowledge the browser-profile routing notice, and Save connection preference. Chrome requests optional proxy/auth permissions. No Webshare key or server-entry fields are shown.
 
-- Chrome's proxy API cannot isolate a route to a popup window. A local mandatory PAC rule routes `aivid.dev` and its subdomains across the regular browser profile. Other AIVID tabs in that profile also use it. The PAC sends all other domains DIRECT; it can therefore bypass a system proxy while active. It refuses an existing fixed/PAC proxy or an active competing extension/policy. Use a separate, direct-internet browser profile if you normally rely on another proxy. An explicit direct-network acknowledgment is required.
-- External sign-in, CDN and media domains are not included. This is not comprehensive window-wide tunneling, a device VPN, or an anonymity/privacy guarantee. Existing open browser sockets, browser DNS/network behavior, OS VPN routing and provider-side blocking are outside this feature's guarantees. It does not bypass security challenges or disable TLS validation.
-- Proxy configuration uses `regular_only`; it does not inherit into Incognito. Studio is explicitly opened in a regular window. The existing user-managed Incognito setting for display customization is otherwise unchanged.
-- Optional `proxy`, `webRequest` and `webRequestAuthProvider` are requested only when the user enables the feature and saves. Host access is limited to HTTPS AIVID domains, not `<all_urls>`. Proxy passwords live in `chrome.storage.local` restricted to TRUSTED_CONTEXTS, not sync, content scripts or CMMTools servers. This is local storage, not an encrypted credential vault. Users must trust the proxy operator, who sees network connection metadata; HTTP proxy authentication may be exposed on an unencrypted proxy hop. Prefer a TLS-capable HTTPS proxy where supported.
-- Auth credentials are supplied only for an `isProxy` challenge from the exact active hostname+port on an AIVID request. A repeated auth challenge is cancelled to avoid retry loops. Normal website authentication never receives these credentials. The service worker registers MV3 async auth listeners and recovers persisted active state; stale in-progress tests are cleared on startup. Disabling/uninstalling the extension clears Chrome-managed extension proxy settings.
-- Unit/VM tests simulate Chrome APIs. Live Chrome PAC/auth/permission prompts, a real proxy account, AIVID response behavior, IP changes and full authenticated sessions must still be tested with owner-supplied endpoints. No proxy was purchased or used, and no paid generation was submitted during development.
+Close other AIVID tabs and open Studio. Before each new session, a small CMMTools connection page uses the customer's normal signed-in website session to fetch the configured endpoints. If not signed in, sign in through the displayed link, return and Retry. The handoff is bound to the extension ID, cryptographic nonce and exact connection window; it expires after two minutes. Only active signed-in CMMTools accounts receive config. There is no persistent extension bearer token or direct extension access to Webshare's API.
 
-## Chrome Web Store disclosure text
+The extension tests the imported proxies sequentially, using two bounded unauthenticated public AIVID response-header checks per endpoint. Each check has an eight-second deadline, no cookies or redirects. The lowest average response-header latency wins, is rechecked before navigation and stays stable for the session. This measures responsiveness, not bandwidth, render time or provider queue speed. No automatic direct fallback is allowed for the managed connection. Closing Studio restores underlying browser routing. Reusing an open Studio does not switch IPs or refresh the session's route.
 
-Update the single purpose to: **Launch the AIVID Studio workspace with user-selected display preferences and an optional configured proxy connection.**
+## Routing and credential limits
 
-- **proxy:** Applies a locally generated routing rule for AIVID domains in the regular browser profile, tests configured routes and keeps the selected route until Studio closes or the user disconnects.
-- **webRequest:** Handles authentication challenges for the selected user-configured proxy on HTTPS AIVID requests. It does not collect browsing history or page contents.
-- **webRequestAuthProvider:** Supplies user-entered proxy credentials asynchronously only to the exact selected proxy host/port and cancels repeated failed challenges. Website authentication is not handled.
-- **storage:** Existing display preferences use sync/session storage. This version also stores proxy endpoints and credentials locally, restricted to trusted extension contexts, plus non-secret connection timing/session state. Explain proxy-operator transmission accurately in the privacy questionnaire.
-- **Host access:** HTTPS AIVID domains are required for the existing local display customization, bounded connection GET probes and proxy-auth events. No executable code is fetched remotely; the PAC is generated locally from strictly validated endpoints.
+Chrome cannot isolate proxy configuration to a popup. A local mandatory PAC rule routes aivid.dev/subdomains across the regular browser profile, including other AIVID tabs. Other domains use DIRECT, which can bypass a system proxy. External authentication/CDN/media domains are not included. Use a separate direct-internet profile if another proxy is needed. Existing fixed/PAC proxies, competing extension/policy control and open AIVID tabs block new testing. regular_only avoids Incognito inheritance. This is browser proxy routing, not a device-wide VPN or anonymity guarantee. No TLS validation or security challenge is bypassed.
 
-Official API references: https://developer.chrome.com/docs/extensions/reference/api/proxy and https://developer.chrome.com/docs/extensions/reference/api/webRequest
+Proxy credentials are saved in storage.local restricted to trusted extension contexts. They are not synced or exposed to content scripts; they are supplied only to the exact selected proxy host/port on an AIVID proxy-auth challenge, once per request. Local extension storage is not an encrypted password vault. The proxy operator sees authentication/connection metadata, and HTTP proxy authentication may use an unencrypted hop. The Webshare API key stays encrypted on the CMMTools server and is never included in the customer handoff.
+
+## Publishing and verification
+
+Upload CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip to the existing store item and update the listing/privacy/permission disclosures. Single purpose: Launch the AIVID workspace with display preferences and an optional Admin-managed Webshare connection.
+
+- proxy: Apply AIVID domain rules for the regular profile and keep the selected connection until Studio closes.
+- webRequest/webRequestAuthProvider: Answer proxy-auth challenges only from the exact selected proxy on AIVID requests, not normal website sign-in.
+- storage: Sync display preferences, maintain local managed preference/consent and proxy credentials, and track the live session.
+- AIVID host access: Existing display scripts, bounded public connection checks and matching proxy-auth events.
+- No Webshare host permission is required by the extension. API access happens only on the server during explicit Admin sync.
+
+Deploy /extension/privacy and the signed-in /extension/connect and /api/extension/proxy-config flow before customer testing. Automated verification uses Node/VM fixtures. Actual Admin Webshare sync, Chrome permissions, connection-page sign-in, proxy authentication, egress IP/latency and authenticated AIVID behavior remain to be tested using an owner-provided account. No account key, proxy subscription, paid generation or production setting was used during implementation.
+
+Official references: https://apidocs.webshare.io/proxy-list/list and https://developer.chrome.com/docs/extensions/reference/api/proxy
