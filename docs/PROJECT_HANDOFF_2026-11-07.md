@@ -1,3 +1,12 @@
+## 17 November 2026 — Authenticated live vgenv delay investigation
+
+- Signed into CMMTools Admin with the owner-supplied token. Do not record that token in source or handoffs. MiniMax/vgenv is enabled, its key is configured, and max inflight remains four. No provider setting was changed.
+- At approximately 12:03–12:06 PKT, Admin status filters returned no queued, submitting or submitted jobs. The only two processing records were Vibi audio, not vgenv. Recent MiniMax Origin and Beast video records were completed with stored outputs.
+- Exact historical Origin job `e6e3c5c8-1e1e-4ddd-aa16-02d53a5240c3`: created 16 November 20:23:48 PKT, submitted 20:23:55, completed 20:32:34, stored 20:32:35. Exact Origin job `855c96d5-8b5e-4096-8d91-3f044758c374`: created 16 November 02:11:10 PKT, submitted 02:11:14, completed 03:05:10, stored 03:05:11. The long wait is after provider acceptance and before completion detection, not local initial pickup or final media storage in those two cases. These records alone cannot distinguish provider rendering/queue time from delayed polling.
+- Recent Beast submission-to-storage samples on 17 November: 04:50:48→04:57:44, 04:36:35→04:46:08, 04:19:30→04:28:18 PKT. Older Activity also records provider submission errors saying `User onboarding state is missing`; no ongoing vgenv job requires retry, refund or cancellation.
+- PR #259 is merged as `f0a0550fb0e91f464c16e6c42a0e5999404c928d`, and the timeout/concurrency changes were verified on main. Live standalone worker health subsequently showed a different PID, uptime approximately 300 seconds and recent main polling (~421 ms at 07:04:09 UTC), but revision=6 does not identify the source commit. A process restart after merge is not proof of deployment.
+- hPanel access is blocked by Hostinger's known cloud-browser sign-in restriction. No sign-in retry, redeployment, paid generation, credit adjustment or production configuration change was performed. Deployed source revision and post-fix performance remain unverified. Existing completed jobs must not be regenerated to diagnose this incident.
+
 ## 17 November 2026 — Bound vgenv status reads and prevent serial polling delays
 
 - Code inspection found vgenv status GETs had no explicit deadline and the worker checked active jobs sequentially. A stalled response could hold the main generation cycle and delay completion detection and queued submissions. This is a confirmed code weakness; the owner's specific slow jobs have not been matched to provider history.
