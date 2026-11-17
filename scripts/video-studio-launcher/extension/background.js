@@ -1,5 +1,5 @@
 'use strict';
-importScripts('proxy-core.js', 'proxy-manager.js');
+importScripts('proxy-core.js', 'proxy-manager.js', 'webshare.js');
 const STUDIO_URL = 'https://aivid.dev/';
 const START_PAGE = chrome.runtime.getURL('loading.html');
 const OPTIONS_PAGE = chrome.runtime.getURL('options.html');
@@ -50,6 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'CMMTOOLS_OPEN_SETTINGS' && allowedStatus) task = chrome.runtime.openOptionsPage();
   // Proxy settings/credentials are accessible only to the packaged options page.
   if (sender.url === OPTIONS_PAGE) {
+    if (message?.type === 'CMMTOOLS_WEBSHARE_IMPORT') task = ready.then(() => CMMWebshare.importProxies(chrome, {apiKey:message.apiKey, country:message.country}));
     if (message?.type === 'CMMTOOLS_PROXY_CONFIG') task = ready.then(() => manager.config());
     if (message?.type === 'CMMTOOLS_PROXY_SAVE') task = ready.then(() => manager.save(message.config)).then(() => ({saved: true}));
     if (message?.type === 'CMMTOOLS_PROXY_DISCONNECT') task = ready.then(() => manager.disconnect());

@@ -131,7 +131,7 @@ test('saving settings while Studio is live is rejected before persisting or chan
 test('manifest uses optional proxy permissions and bounded AIVID site access', () => {
   const p=path.join(__dirname,'../scripts/video-studio-launcher/extension');
   const manifest=JSON.parse(fs.readFileSync(path.join(p,'manifest.json'),'utf8'));
-  assert.equal(manifest.version,'1.6.0');assert.deepEqual(manifest.permissions,['storage']);
+  assert.equal(manifest.version,'1.6.1');assert.deepEqual(manifest.permissions,['storage']);
   assert.deepEqual(manifest.optional_permissions,core.PERMISSIONS);assert.deepEqual(manifest.host_permissions,core.URLS);
   assert.ok(manifest.content_scripts[0].js.includes('connection-badge.js'));
   assert.ok(!JSON.stringify(manifest).includes('<all_urls>'));

@@ -28,6 +28,15 @@
     <label class="switch"><input type="checkbox" id="proxyEnabled">Connect automatically before Studio opens</label>
     <label class="switch"><input type="checkbox" id="proxyIncludeDirect">Also test and allow a direct connection if it is fastest</label>
     <p class="note">Measures response time to the public AIVID homepage, not video rendering speed or download bandwidth. Failed routes are excluded. There is no automatic direct fallback in proxy-only mode.</p>
+    <div class="proxy-server">
+      <h3>Import from Webshare</h3>
+      <p>Use your Webshare Proxy Server / direct connection plan. Imports up to five valid endpoints from the first 100 matching proxies, replacing the unsaved server list below.</p>
+      <p><a href="https://dashboard.webshare.io/" target="_blank" rel="noopener noreferrer">Open Webshare dashboard</a> → API Keys. Use a key allowed to read your proxy list.</p>
+      <label>Webshare API key (used once, not saved)<input id="webshareApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512"></label>
+      <label>Country code (optional, e.g. US or DE)<input id="webshareCountry" type="text" autocomplete="off" maxlength="2" placeholder="Any country"></label>
+      <p><button id="webshareImport" type="button">Import Webshare proxies</button></p>
+      <p class="note">Your API key is sent only to proxy.webshare.io over HTTPS, then discarded. Proxy credentials appear as masked fields below and are saved locally only when you press Save connection settings. Import does not enable routing or purchase a plan.</p>
+    </div>
     <div id="proxyServers"></div>
     <p><button class="secondary" id="proxyAdd" type="button">Add proxy server</button></p>
     <p class="note">Chrome applies proxy settings to the regular browser profile. All AIVID tabs may use this route, including tabs opened outside Studio; other domains use DIRECT while it is active. External sign-in, CDN and media domains are not covered. This is not a device-wide VPN and does not change Incognito settings.</p>

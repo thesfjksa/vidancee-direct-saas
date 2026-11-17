@@ -1,5 +1,9 @@
 # CMMTools launcher: Chrome Web Store distribution
 
+## v1.6.1 Webshare import update
+
+Use `CMMTools_Video_Studio_Chrome_Store_v1.6.1.zip` for the Webshare-enabled package. The importer reads direct endpoints with a user-entered API key and requests optional access to `https://proxy.webshare.io/*`. It does not store the key, purchase a plan or enable routing automatically. Update privacy and host-permission disclosures before submitting the new version. Setup and justification text are in `EXTENSION_PROXY_SETUP.md`.
+
 ## v1.6.0 optional proxy update
 
 Use `CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip` for the new version. Proxy routing is off by default; no endpoints or subscription are bundled. Follow `EXTENSION_PROXY_SETUP.md` for setup, scope, credential handling and the new optional permission justifications. The v1.5.1 instructions below describe the earlier package without this feature; update your listing/single-purpose/privacy disclosures for v1.6 before submitting it. A listing already awaiting review must not be advertised as including the new behavior until the update is approved.

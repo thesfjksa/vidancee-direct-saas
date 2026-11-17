@@ -1321,6 +1321,13 @@ const server=http.createServer(async (req,res)=>{
       return res.end(req.method==='HEAD'?undefined:data);
     }
     if (handleExtensionDistribution(req,res,routePath)) return;
+    if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.6.1.zip') {
+      const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.6.1.zip'));
+      res.writeHead(200,{'content-type':'application/zip','content-length':file.length,
+        'content-disposition':'attachment; filename="CMMTools_Video_Studio_Chrome_Store_v1.6.1.zip"',
+        'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});
+      return res.end(req.method==='HEAD'?undefined:file);
+    }
     // Current publisher/manual package. Root manifest supports both workflows.
     if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip') {
       const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip'));

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CMMTools Video Studio Launcher",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "minimum_chrome_version": "108",
   "description": "Launch AIVID with display preferences and optional automatic selection of your fastest configured proxy.",
   "permissions": [
@@ -71,5 +71,8 @@
   "host_permissions": [
     "https://aivid.dev/*",
     "https://*.aivid.dev/*"
+  ],
+  "optional_host_permissions": [
+    "https://proxy.webshare.io/*"
   ]
 }

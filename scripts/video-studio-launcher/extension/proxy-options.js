@@ -39,9 +39,9 @@ function showProxyConfig(config) {
 async function proxyAction(action) {
   if (proxyBusy) return;
   proxyBusy = true;
-  for (const id of ['proxySave','proxyAdd','proxyForget','proxyDisconnect']) proxyId(id).disabled = true;
+  for (const id of ['proxySave','proxyAdd','proxyForget','proxyDisconnect','webshareImport','webshareApiKey','webshareCountry']) proxyId(id).disabled = true;
   try { await action(); } catch (error) { proxyNotice(error.message); }
-  finally {proxyBusy = false; for (const id of ['proxySave','proxyAdd','proxyForget','proxyDisconnect']) proxyId(id).disabled = false;}
+  finally {proxyBusy = false; for (const id of ['proxySave','proxyAdd','proxyForget','proxyDisconnect','webshareImport','webshareApiKey','webshareCountry']) proxyId(id).disabled = false;}
 }
 proxyId('proxyAdd').addEventListener('click', () => proxyRow());
 proxyId('proxySave').addEventListener('click', () => {
@@ -69,3 +69,21 @@ proxyRequest('CMMTOOLS_PROXY_CONFIG').then(async config => {
   const state = await proxyRequest('CMMTOOLS_PROXY_STATUS');
   proxyNotice(state.label + (state.ms ? ' · ' + state.ms + ' ms at last test' : '') + '\n' + (state.samples || []).map(s => s.label + ': ' + (s.ms === null ? 'failed' : s.ms + ' ms')).join('\n'));
 }).catch(error => proxyNotice(error.message));
+
+proxyId('webshareImport').addEventListener('click', () => {
+  if (proxyBusy) return;
+  const apiKey = proxyId('webshareApiKey').value.trim();
+  const country = proxyId('webshareCountry').value.trim();
+  proxyId('webshareApiKey').value = '';
+  if (!apiKey) {proxyNotice('Enter your Webshare API key first.'); return;}
+  const grant = chrome.permissions.request({origins:['https://proxy.webshare.io/*']});
+  void proxyAction(async () => {
+    if (!await grant) throw Error('Webshare API access was not granted. Your saved servers are unchanged.');
+    proxyNotice('Importing Webshare proxies…');
+    const imported = await proxyRequest('CMMTOOLS_WEBSHARE_IMPORT', {apiKey, country});
+    proxyRows = []; proxyId('proxyServers').replaceChildren();
+    imported.servers.forEach(proxyRow);
+    proxyNotice('Imported ' + imported.servers.length + ' Webshare proxies. Review them, enable automatic connection if wanted, then Save connection settings. Your API key was not saved.');
+  });
+});
+window.addEventListener('pagehide', () => {proxyId('webshareApiKey').value = '';});
