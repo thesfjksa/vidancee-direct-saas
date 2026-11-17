@@ -8,6 +8,8 @@
 - Verification: 31 targeted Node/VM tests passed, covering proxy regression behavior, fixed read-only import/error/body/deadline handling, atomic encrypted setting writes, safe admin status, active-account checks, disabled access, exact nonce/origin/window handoff, cancellation and customer Options without key/server inputs. Root ZIP manifest, required scripts, CRC, all bundled JS syntax, Admin inline script parsing and deterministic rebuild passed locally. No real Chrome/Edge handoff, production Admin sync, proxy auth/egress/latency or signed-in AIVID acceptance was verified.
 - Production deployment and Web Store upload/Google review remain pending. Configure the real Webshare key only in Admin after deploying web routes, install/upload v1.7.0, then verify a customer connection without entering proxy details. GitHub merge is not deployment or a working live Webshare connection. CI status is checked before merge; preceding repository runs failed without test steps.
 
+- CI checkpoint for PR #264: Node run 44076312785 and Admin browser run 44076312815 failed with runner_id=0 and steps=[]. Neither executed assertions. Local targeted cases passed; production and real-browser acceptance remain pending.
+
 ## 17 November 2026 — Optional fastest configured proxy (extension v1.6.0)
 
 - Added tracked launcher source and public/downloads/CMMTools_Video_Studio_Chrome_Store_v1.6.0.zip. Options supports up to five owner-supplied HTTP/HTTPS or unauthenticated SOCKS5 endpoints. No servers, subscription or proxy credentials are bundled, purchased or used. Original v1.5/v1.5.1 ZIPs remain unchanged.
