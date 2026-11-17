@@ -54,21 +54,20 @@ test('models 888API listed as currently available on 28 Oct 2026 are offered',()
  }
 });
 
-test('retired 888API Mini is unready, even with a saved stale MySQL adapter',()=>{
+test('Mini Special is supported again under the complete Seedance offer',()=>{
  const id='sd_2.0_mini_special';
- assert.equal(OFFERED_API888_MODELS.includes(id),false);
+ assert.equal(OFFERED_API888_MODELS.includes(id),true);
  const live=api888MediaModels({data:[{id,type:'video'}]})[0];
- assert.equal(live.options.adapterSupported,false);
- assert.match(live.options.setupReason,/Not offered on CMM Tools/);
+ assert.equal(live.options.adapterSupported,true);
+ assert.equal(live.options.setupReason,'');
  const {serializeProviderModel}=require('../src/provider_models.js');
  const saved=serializeProviderModel({
    id:99,provider:'api888',provider_model_id:id,public_model_id:'api888_sd_2_0_mini_special',
    label:'Seedance 2.0 Mini',media_type:'video',enabled:1,available:1,
    options_json:JSON.stringify({adapterSupported:true,api888:{sourceCny:0.15},durations:[4,5],resolutions:['720p']})
  });
- assert.equal(saved.ready,false);
- assert.equal(saved.adapterSupported,false);
- assert.match(saved.setupReason,/Not offered/);
+ assert.equal(saved.ready,true);
+ assert.equal(saved.adapterSupported,true);
 });
 
 test('open Seedance 2.5 Full HD jobs are cancelled and refunded once',async()=>{
@@ -87,3 +86,4 @@ test('open Seedance 2.5 Full HD jobs are cancelled and refunded once',async()=>{
   assert.equal(await cancelFullHdJobsOnce(db,async()=>assert.fail('runs once')),0);
  }finally{settings.getSettingValue=orig.get;settings.setSettingValue=orig.set;}
 });
+

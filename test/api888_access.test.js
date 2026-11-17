@@ -38,7 +38,8 @@ test('customer access defaults allow 888API and respect an Admin switch-off',()=
  const source=fs.readFileSync(require.resolve('../server.js'),'utf8');
  const defaults=source.slice(source.indexOf('const CUSTOMER_PROVIDER_KEYS='),source.indexOf('// Voice Studio used'));
  const getter=source.slice(source.indexOf('async function getUserProviderAccess('),source.indexOf('async function setUserProviderAccess('));
- const context={dbConfigured:()=>true,getPool:()=>({execute:async()=>[[]]})};vm.createContext(context);
+ const context={require:require('node:module').createRequire(require.resolve('../server.js')),
+  dbConfigured:()=>true,getPool:()=>({execute:async()=>[[]]})};vm.createContext(context);
  vm.runInContext(defaults+getter,context);
  return context.getUserProviderAccess(42).then(async access=>{
   assert.equal(access.api888,true);assert.equal(access.higgsfield,true);
@@ -74,3 +75,4 @@ test('the offered 888API models are switched on once, and a later Admin switch-o
  assert.deepEqual(state.rows,{'seedance2.0-933':0,'wan30-720p':1});
  assert.equal(await enableDefaultApi888ModelsOnce(db),false);
 });
+

@@ -1,0 +1,954 @@
+{
+  "checkedAt": "2026-11-17",
+  "sources": [
+    "https://888api.xin/docs",
+    "https://888api.xin/api/pricing"
+  ],
+  "models": {
+    "seedance2.5-480p-novid-sec": {
+      "label": "Seedance 2.5 Audio 480p Per Second",
+      "sourceCny": 0.21,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "480p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-720p-novid-sec": {
+      "label": "Seedance 2.5 Audio 720p Per Second",
+      "sourceCny": 0.35,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-720p-novid-call": {
+      "label": "Seedance 2.5 Audio 720p Fixed",
+      "sourceCny": 6.3,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "mm-sd2.5-720p-v1": {
+      "label": "Seedance 2.5 Motion",
+      "sourceCny": 0.35,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "1:1",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0满血-720p": {
+      "label": "Seedance 2.0 Full 720p",
+      "sourceCny": 3.5,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-903-mini": {
+      "label": "Seedance 2.0 Reference Mini",
+      "sourceCny": 1.7,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 10000
+    },
+    "seedance2.0-fast-720p": {
+      "label": "Seedance 2.0 Fast 720p",
+      "sourceCny": 1.5,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "yy-seedance2.5-480p": {
+      "label": "Seedance 2.5 Native 480p",
+      "sourceCny": 0.25,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "480p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "1:1",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-903": {
+      "label": "Seedance 2.0 Reference",
+      "sourceCny": 3,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 10000
+    },
+    "yy-seedance2.5-720p": {
+      "label": "Seedance 2.5 Native 720p",
+      "sourceCny": 0.31,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "1:1",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-903-fast": {
+      "label": "Seedance 2.0 Reference Fast",
+      "sourceCny": 2,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 10000
+    },
+    "seedance2.5-301010-full": {
+      "label": "Seedance 2.5 Full Reference",
+      "sourceCny": 6.5,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 45000
+    },
+    "seedance2.0-933-c7-fast-stable": {
+      "label": "Seedance 2.0 Fast Stable",
+      "sourceCny": 3.2,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-flash": {
+      "label": "Seedance 2.5 Flash Fixed",
+      "sourceCny": 4.5,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 10,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-480p-turbo": {
+      "label": "Seedance 2.5 Turbo 480p",
+      "sourceCny": 0.3,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "480p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-480p-novid-call": {
+      "label": "Seedance 2.5 Audio 480p Fixed",
+      "sourceCny": 4.4,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "480p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 30,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-flash-480p": {
+      "label": "Seedance 2.5 Flash 480p",
+      "sourceCny": 0.14,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "480p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 10,
+      "promptMaxChars": 20000
+    },
+    "seedance2.5-flash-720p": {
+      "label": "Seedance 2.5 Flash 720p",
+      "sourceCny": 0.2,
+      "billing": "second",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 10,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-933-c8-full": {
+      "label": "Seedance 2.0 C8 Full",
+      "sourceCny": 4.3,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 20000
+    },
+    "mm-2.5flash-720p": {
+      "label": "Seedance 2.5 Motion Flash",
+      "sourceCny": 6,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 10,
+      "promptMaxChars": 20000
+    },
+    "seedance-2.0-内置过人脸": {
+      "label": "Seedance 2.0 Native Face",
+      "sourceCny": 1.2,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "1:1"
+      ],
+      "images": 9,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-933-c4-mini": {
+      "label": "Seedance 2.0 C4 Mini",
+      "sourceCny": 2,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "images": 9,
+      "promptMaxChars": 20000
+    },
+    "seedance2.0-933-c5-fast": {
+      "label": "Seedance 2.0 C5 Fast",
+      "sourceCny": 2.8,
+      "billing": "job",
+      "secondsField": "seconds",
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "resolutions": [
+        "720p"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "images": 9,
+      "promptMaxChars": 20000
+    }
+  }
+}

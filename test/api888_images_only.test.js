@@ -34,7 +34,7 @@ test('888API MiniMax models are not offered: MiniMax H3 comes from vgenv',()=>{
   assert.match(model('minimax-h3-480p-t').setupReason,/vgenv/);
 });
 
-test('only the owner-chosen 888API models are offered, under their new names', () => {
+test('the expanded Seedance offer keeps existing names and includes Mini Special', () => {
   const m = require('../src/api888_models.js');
   m.setApi888OfferAll(false);
   try {
@@ -43,8 +43,10 @@ test('only the owner-chosen 888API models are offered, under their new names', (
     const offered = Object.fromEntries(models.filter(x => x.options.adapterSupported).map(x => [x.providerModelId, x.label]));
     assert.deepEqual(offered, { 'seedance-2.5-g5-v2': 'Seedance 2.5 Realism', 'seedance2.5-301010-wool': 'Seedance 2.5 Standard',
       'seedance2.0-933': 'Seedance 2.0 Standard', 'wan3.0-video-prime': 'Wan 3.0 Video Prime', 'wan30-720p': 'Wan 3.0 Standard',
+      'sd_2.0_mini_special':'Seedance 2.0 Mini Special',
       });
     assert.equal(models.find(x => x.providerModelId === 'gpt-image-2').options.setupReason, 'Not offered on CMM Tools.');
-    assert.equal(models.find(x => x.providerModelId === 'sd_2.0_mini_special').options.adapterSupported, false);
+    assert.equal(models.find(x => x.providerModelId === 'sd_2.0_mini_special').options.adapterSupported, true);
   } finally { m.setApi888OfferAll(true); }
 });
+
