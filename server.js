@@ -40,6 +40,7 @@ const { hideVendors, hideVendorsInBody } = require('./src/vendor_names.js');
 const path = require('node:path');
 const { fork } = require('node:child_process');
 const { webWorkerEnabled } = require('./src/web_worker_policy.js');
+const { handleExtensionDistribution } = require('./src/extension_distribution.js');
 const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
@@ -1319,6 +1320,7 @@ const server=http.createServer(async (req,res)=>{
       res.writeHead(200,{'content-type':contentType,'content-length':data.length,'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'});
       return res.end(req.method==='HEAD'?undefined:data);
     }
+    if (handleExtensionDistribution(req,res,routePath)) return;
     // Public, versioned Chrome/Edge launcher ZIP. Local display customization only.
     if ((req.method==='GET'||req.method==='HEAD') && routePath==='/downloads/CMMTools_Video_Studio_Launcher_v1.5.zip') {
       const file=fs.readFileSync(path.join(__dirname,'public','downloads','CMMTools_Video_Studio_Launcher_v1.5.zip'));

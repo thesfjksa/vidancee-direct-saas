@@ -23,15 +23,14 @@ test('Video Studio extension ZIP is committed with essential Chrome/Edge files',
   }
 });
 
-test('top navigation offers extension download immediately after Library', () => {
+test('top navigation offers extension installation immediately after Library', () => {
   const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
   const library = html.indexOf('data-section="library"');
   const download = html.indexOf('class="extension-download"');
   const actions = html.indexOf('class="nav-actions"');
   assert.ok(library >= 0 && download > library && download < actions, 'download appears after Library before account controls');
-  assert.match(html, /href="\/downloads\/CMMTools_Video_Studio_Launcher_v1\.5\.zip"/);
-  assert.match(html, /download="CMMTools_Video_Studio_Launcher_v1\.5\.zip"/);
-  assert.match(html, /aria-label="Download CMMTools Video Studio extension"/);
+  assert.match(html, /class="extension-download" href="\/extension"/);
+  assert.match(html, /aria-label="Install CMMTools Video Studio extension"/);
   // Match Library instead of visually advertising a separate promotional pill.
   assert.match(html, /class="extension-download"[^>]+>[\s\S]*?<span>Extension<\/span><\/a>/);
   assert.doesNotMatch(html, /<span>Download Extension<\/span>/);
@@ -49,3 +48,4 @@ test('download endpoint supports GET and HEAD with ZIP attachment headers', () =
   assert.match(code, /'content-disposition':'attachment; filename="CMMTools_Video_Studio_Launcher_v1\.5\.zip"'/);
   assert.match(code, /req\.method==='HEAD'\?undefined:file/);
 });
+
