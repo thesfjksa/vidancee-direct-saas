@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { readModelVisibility, validateVisibilityPatch } = require('./provider_visibility.js');
 const { getPool } = require('./db.js');
 const { defaultSmartImageConfig, normalizeSmartImageConfig, SMART_IMAGE_MODELS, DEFAULT_SMART_CUSTOMER_CREDITS_PER_USD, SMART_IMAGE_PRICING_REVISION } = require('./smartaipi_images.js');
 const { smartAipiBaseUrl } = require('./provider/smartaipi.js');
@@ -197,6 +198,7 @@ async function getProviderSettings(db = getPool()) {
     return Number(row.is_secret) ? decrypt(row.setting_value) : String(row.setting_value || '');
   };
   return {
+    providerModelVisibility: readModelVisibility(read),
     vercelApiKey: String(read('vercel_api_key') || '').trim(),
     vercelEnabled: asBool(read('vercel_enabled')),
     vercelMaxInflight: Math.max(1, Math.min(10, Number(read('vercel_max_inflight') || 2))),
@@ -256,6 +258,7 @@ async function getProviderSettings(db = getPool()) {
 async function getAdminProviderSettings() {
   const s = await getProviderSettings();
   return {
+    providerModelVisibility: s.providerModelVisibility,
     vercel: {
       baseUrl: 'https://ai-gateway.vercel.sh/v1',
       apiKeyConfigured: Boolean(s.vercelApiKey), configured: Boolean(s.vercelApiKey),
@@ -341,6 +344,7 @@ async function getAdminProviderSettings() {
 }
 
 async function updateProviderSettings(input = {}) {
+  const visibilityUpdates = 'providerModelVisibility' in input ? validateVisibilityPatch(input.providerModelVisibility) : [];
   // Validate every new source field before writing any settings.
   const vercelUpdates=[];
   if ('vercelEnabled' in input) {
@@ -544,6 +548,7 @@ async function updateProviderSettings(input = {}) {
   if (input.clearVidanceePassword===true) await del('vidancee_password');
   else if (String(input.vidanceePassword||'')) await put('vidancee_password',input.vidanceePassword,true);
 
+  for (const [key, value] of visibilityUpdates) await put(key, value);
   if ('allowProviderCharges' in input) await put('allow_provider_charges', input.allowProviderCharges ? 'true' : 'false');
   return getAdminProviderSettings();
 }
@@ -595,4 +600,5 @@ module.exports = {
   saveGoogleDriveOAuthCredentials,
   deleteSettingValue,
 };
+
 

@@ -446,6 +446,7 @@ function adminAuthorized(req) {
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
 const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const { visibleProviderAccess } = require('./src/provider_visibility.js');
 // Customer video and image sources are available by default. Admin per-user
 // overrides can still turn an individual source off; global provider and
 // per-model enable/availability checks remain separate and authoritative.
@@ -545,6 +546,11 @@ async function setUserProviderAccess(userId,providers){
   return getUserProviderAccess(userId);
 }
 
+async function getVisibleUserProviderAccess(userId, settings = null) {
+  const current = settings || await getProviderSettings();
+  return visibleProviderAccess(await getUserProviderAccess(userId), current.providerModelVisibility);
+}
+
 // Video, image and upscaler models a customer can use, as Video Studio, Image
 // Studio and the Upscaler show them (the Claude connector lists the same).
 // A source that is out of credits is left out, so ArgoLink's copy of the same
@@ -595,7 +601,8 @@ function applyModelNames(studio,models,names){
 }
 
 async function customerMediaCatalog(access,adminSettings=null,{names=null}={}){
-  const catalog=await sourceMediaCatalog(access,adminSettings);
+  const settings=adminSettings||await getAdminProviderSettings();
+  const catalog=await sourceMediaCatalog(visibleProviderAccess(access,settings.providerModelVisibility),settings);
   const custom=names||await modelDisplayNames().catch(()=>({}));
   return {...catalog,
     video:applyModelNames('video',catalog.video,custom).filter(model=>!isRetiredModel(model)),
@@ -776,9 +783,9 @@ async function customerQuote(userId,body){
 
 async function quoteModelForUser(userId,body){
   if(isRetiredModel(String(body.model||'')))throw httpError(404,'This model is no longer available.');
-  const access=await getUserProviderAccess(userId);
-  const mediaType=body.mediaType==='image'?'image':'video';
   const providerSettings=await getAdminProviderSettings();
+  const access=await getVisibleUserProviderAccess(userId,providerSettings);
+  const mediaType=body.mediaType==='image'?'image':'video';
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
@@ -931,7 +938,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
 
   const requestedModel=String(body.model||'');
   if(isRetiredModel(requestedModel))throw httpError(404,'This model is no longer available.');
-  const customerAccess=await getUserProviderAccess(user.id);
+  const customerAccess=await getVisibleUserProviderAccess(user.id,providerSettings);
   let generation=null;
   // Cut reference videos that are longer than the model accepts.
   const referenceNotices=Array.isArray(body.videos)&&body.videos.length&&!body.cartoonStyle
@@ -1059,7 +1066,7 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
   await attachReusedImageReferences(getPool(),user.id,body);
   let requestedModel=String(body.model||'');
   if(isRetiredModel(requestedModel))throw httpError(404,'This model is no longer available.');
-  const customerAccess=await getUserProviderAccess(user.id);
+  const customerAccess=await getVisibleUserProviderAccess(user.id,providerSettings);
   let generation=null;
 
   // AI Gateway and SmartAIPI come first; while one is out of credits its
@@ -1151,7 +1158,7 @@ async function submitImageGeneration(user,body,req=null,apiRequest=null){
 async function submitUpscale(user,{resolution,source},req=null){
   const settings=await getProviderSettings();
   if (!settings.allowProviderCharges) throw httpError(503,'Generation submissions are currently paused.');
-  const access=await getUserProviderAccess(user.id);
+  const access=await getVisibleUserProviderAccess(user.id);
   if (!access.fal || !settings.falEnabled || !settings.falApiKey) throw httpError(503,'The video upscaler is currently unavailable.');
   const row=await createUpscaleJob(user.id,{resolution,source},settings);
   wakeForNewWork(req);
@@ -1231,7 +1238,7 @@ const connector=createConnector({
   getPool, sendJson, sendHtml, readJson, publicOrigin, requireDatabase, requireUser, adminAuthorized,
   userFromRequest:authModule.userFromRequest, sessionTokenHash:authModule.sessionTokenHash,
   logActivity, getSettingValue, setSettingValue, proxyMedia, serveVideoOutput,
-  catalog:async userId=>scalePrices(await customerMediaCatalog(await getUserProviderAccess(userId)),await userPriceRate(userId)),
+  catalog:async userId=>scalePrices(await customerMediaCatalog(await getVisibleUserProviderAccess(userId)),await userPriceRate(userId)),
   quote:customerQuote,
   submitVideo:(user,body)=>submitVideoGeneration(user,body),
   submitImage:(user,body)=>submitImageGeneration(user,body),
@@ -1242,7 +1249,7 @@ const connector=createConnector({
 // Public customer API uses the same account permissions, prices and queue as the studio.
 const customerApi=require('./src/customer_api.js').createCustomerApi({
   getPool,requireDatabase,requireUser,readJson,readGenerationRequest,sendJson,publicOrigin,
-  catalog:async userId=>scalePrices(await customerMediaCatalog(await getUserProviderAccess(userId)),await userPriceRate(userId)),
+  catalog:async userId=>scalePrices(await customerMediaCatalog(await getVisibleUserProviderAccess(userId)),await userPriceRate(userId)),
   quote:customerQuote,submitVideo:submitVideoGeneration,submitImage:submitImageGeneration,
   getVideo:getUserGeneration,getImage:getUserImageGeneration,listVideos:listUserGenerations,listImages:listUserImageGenerations,
   serveMedia:async(row,req,res)=>{
@@ -1511,7 +1518,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/api888-performance') {
       requireDatabase();
       const user=await requireUser(req);
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       if(!access.api888)throw httpError(403,'Performance data is unavailable for this account.');
       const settings=await getProviderSettings();
       if(!settings.api888Enabled||!settings.api888ApiKey)throw httpError(403,'Performance data is unavailable for this account.');
@@ -1537,6 +1544,7 @@ const server=http.createServer(async (req,res)=>{
           const currentUser=await userFromRequest(req);
           if(currentUser)customerProviderAccess=await getUserProviderAccess(currentUser.id);
           const providerSettings=await getAdminProviderSettings();
+          customerProviderAccess=visibleProviderAccess(customerProviderAccess,providerSettings.providerModelVisibility);
           const h3Active=Boolean(customerProviderAccess.vgenv && providerSettings.vgenv.active);
           const names=await modelDisplayNames().catch(()=>({}));
           cartoonPricing=applyModelNames('cartoon',[
@@ -1719,7 +1727,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/api/voice-options') {
       requireDatabase();
       const user=await requireUser(req);
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       const settings=await getProviderSettings();
       if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
       const provider=String(url.searchParams.get('provider')||'elevenlabs')==='minimax'?'minimax':'elevenlabs';
@@ -1742,7 +1750,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='POST' && routePath==='/api/voice-cost') {
       requireDatabase();
       const user=await requireUser(req);
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       const settings=await getProviderSettings();
       if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
       const body=await readJson(req);
@@ -1763,7 +1771,7 @@ const server=http.createServer(async (req,res)=>{
       const user=await requireUser(req);
       const settings=await getProviderSettings();
       if(!settings.allowProviderCharges)return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
       const body=await readJson(req);
       const text=String(body.text||'').trim();
@@ -1817,7 +1825,7 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const user=await requireUser(req);
       const settings=await getProviderSettings();
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice cloning is currently unavailable.'});
       const body=await readVoiceCloneRequest(req);
       const name=String(body.voice_name||'').trim();
@@ -1947,7 +1955,7 @@ const server=http.createServer(async (req,res)=>{
       requireDatabase();
       const user=await requireUser(req);
       const settings=await getProviderSettings();
-      const access=await getUserProviderAccess(user.id);
+      const access=await getVisibleUserProviderAccess(user.id);
       if (!access.fal || !settings.falEnabled || !settings.falApiKey) return sendJson(res,503,{ok:false,error:'The video upscaler is currently unavailable.'});
       const quote=await quoteForCustomer(user.id,await readJson(req),settings);
       return sendJson(res,200,{ok:true,cost:applyPriceRate(quote.cost,await userPriceRate(user.id))});
@@ -2793,6 +2801,7 @@ const server=http.createServer(async (req,res)=>{
         const body=await readJson(req);
         const previous=await getProviderSettings();
         const settings=await updateProviderSettings(body);
+        if ('providerModelVisibility' in body) { priceExamplesCache=null; priceComparisonCache=null; }
         // Import the account-specific catalog when the 888API key is saved or
         // its source is first enabled. Without this import the bundled
         // documented models stay unavailable by design and Studio looks empty.
@@ -3321,6 +3330,7 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+
 
 
 
