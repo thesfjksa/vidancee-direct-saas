@@ -5,7 +5,7 @@ managedSave.addEventListener('click',()=>{
  if(managedSave.disabled)return;
  if(managedEnabled.checked&&!managedConsent.checked){managedStatus.textContent='Confirm the profile routing notice first.';return;}
  const enabled=managedEnabled.checked,consent=managedConsent.checked;
- const grant=enabled?chrome.permissions.request({permissions:['proxy','webRequest','webRequestAuthProvider']}):Promise.resolve(true);
+ const grant=enabled?chrome.permissions.request({permissions:['webRequest','webRequestAuthProvider']}):Promise.resolve(true);
  managedSave.disabled=true;
  void (async()=>{
   try{

@@ -57,7 +57,7 @@ test('closing Studio cancels managed refresh; disabled preference never opens a 
 });
 test('customer Options has no Webshare key/server inputs and package needs no Webshare host permission',()=>{
  const root=path.join(__dirname,'../scripts/video-studio-launcher/extension');const html=fs.readFileSync(path.join(root,'options.html'),'utf8');assert.doesNotMatch(html,/id="webshareApiKey"|id="proxyServers"/);assert.match(html,/id="managedConsent"/);
- const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));assert.equal(manifest.version,'1.7.0');assert.equal(manifest.optional_host_permissions,undefined);
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));assert.equal(manifest.version,'1.7.1');assert.equal(manifest.optional_host_permissions,undefined);
  assert.ok(!connectPage().includes('owner-webshare-key'));
  const server=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');assert.ok(server.indexOf("routePath==='/admin/extension/webshare'")>server.indexOf('if (!adminAuthorized(req))'));
  assert.match(server,/const user=await requireUser\(req\);\s*const config=await extensionWebshare.customer\(user\)/);

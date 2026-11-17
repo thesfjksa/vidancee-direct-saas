@@ -1,3 +1,11 @@
+## 17 November 2026 — Fix Chrome proxy permission declaration (v1.7.1)
+
+- Owner's actual Chrome screenshot reported: Permission 'proxy' cannot be listed as optional; this permission will be omitted. The prior manifest declaration was incorrect. Chrome's current permissions documentation explicitly lists proxy as non-optional.
+- Moved proxy into required permissions alongside storage, keeping webRequest/webRequestAuthProvider optional. The Options user-gesture request now asks only for those auth permissions. Existing permission-presence checks still require all three before managed routing; no route is activated without the saved managed preference and routing acknowledgment.
+- Published a new v1.7.1 ZIP, updated the web manual-download target/endpoint, and corrected privacy/setup/publishing text. Existing v1.7.0 artifact remains unchanged. Chrome may prompt users to accept the new required proxy permission on update.
+- Verification: all 32 focused extension permission/proxy/Webshare/install/download cases passed. New regression test rejects non-optional permissions in optional_permissions and simulates saving Options with a runtime grant that excludes proxy. Packaged manifest, ZIP CRC, bundled JS syntax and deterministic rebuild passed. Actual Windows Chrome loading and live Webshare routing still require owner verification; this is not a claim of real-browser acceptance.
+- Upload/install v1.7.1, overwrite files in the original unpacked folder to preserve its ID, then Reload in chrome://extensions and clear the old error log. Production web deployment and Web Store update/review remain pending; merge does not verify deployment.
+
 ## 17 November 2026 — Admin-managed Webshare for customer extensions (v1.7.0)
 
 - Owner scope: configure Webshare once in CMMTools Admin; customers must not enter Webshare keys/server details. Admin → Provider → Connections has an Extension managed Webshare panel, enable/disable, optional country, password input, Save & sync and safe configured/count status. Admin routes remain under the existing x-admin-token gate.

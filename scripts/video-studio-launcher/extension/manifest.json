@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "CMMTools Video Studio Launcher",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "minimum_chrome_version": "108",
   "description": "Launch AIVID with display preferences and an optional Webshare proxy connection managed by CMMTools Admin.",
   "permissions": [
-    "storage"
+    "storage",
+    "proxy"
   ],
   "action": {
     "default_title": "Open CMMTools Video Studio",
@@ -64,7 +65,6 @@
   },
   "homepage_url": "https://cmmtools.site/extension",
   "optional_permissions": [
-    "proxy",
     "webRequest",
     "webRequestAuthProvider"
   ],

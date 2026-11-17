@@ -1,4 +1,4 @@
-# Admin-managed Webshare connection — extension v1.7.0
+# Admin-managed Webshare connection — extension v1.7.1
 
 ## Admin setup
 
@@ -10,7 +10,7 @@
 
 ## Customer setup
 
-Install v1.7.0. In Extension Options, select Use the managed connection, acknowledge the browser-profile routing notice, and Save connection preference. Chrome requests optional proxy/auth permissions. No Webshare key or server-entry fields are shown.
+Install v1.7.1. In Extension Options, select Use the managed connection, acknowledge the browser-profile routing notice, and Save connection preference. Chrome requires the proxy permission at install time; enabling the feature requests optional webRequest and webRequestAuthProvider permissions. No Webshare key or server-entry fields are shown.
 
 Close other AIVID tabs and open Studio. Before each new session, a small CMMTools connection page uses the customer's normal signed-in website session to fetch the configured endpoints. If not signed in, sign in through the displayed link, return and Retry. The handoff is bound to the extension ID, cryptographic nonce and exact connection window; it expires after two minutes. Only active signed-in CMMTools accounts receive config. There is no persistent extension bearer token or direct extension access to Webshare's API.
 
@@ -24,7 +24,7 @@ Proxy credentials are saved in storage.local restricted to trusted extension con
 
 ## Publishing and verification
 
-Upload CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip to the existing store item and update the listing/privacy/permission disclosures. Single purpose: Launch the AIVID workspace with display preferences and an optional Admin-managed Webshare connection.
+Upload CMMTools_Video_Studio_Chrome_Store_v1.7.1.zip to the existing store item and update the listing/privacy/permission disclosures. Single purpose: Launch the AIVID workspace with display preferences and an optional Admin-managed Webshare connection.
 
 - proxy: Apply AIVID domain rules for the regular profile and keep the selected connection until Studio closes.
 - webRequest/webRequestAuthProvider: Answer proxy-auth challenges only from the exact selected proxy on AIVID requests, not normal website sign-in.
@@ -35,3 +35,5 @@ Upload CMMTools_Video_Studio_Chrome_Store_v1.7.0.zip to the existing store item 
 Deploy /extension/privacy and the signed-in /extension/connect and /api/extension/proxy-config flow before customer testing. Automated verification uses Node/VM fixtures. Actual Admin Webshare sync, Chrome permissions, connection-page sign-in, proxy authentication, egress IP/latency and authenticated AIVID behavior remain to be tested using an owner-provided account. No account key, proxy subscription, paid generation or production setting was used during implementation.
 
 Official references: https://apidocs.webshare.io/proxy-list/list and https://developer.chrome.com/docs/extensions/reference/api/proxy
+
+Chrome compatibility: proxy cannot be declared optional. Version 1.7.1 requests it at installation/update; the managed connection remains off until the customer enables it and acknowledges routing scope. Only webRequest/webRequestAuthProvider are requested at runtime. Existing users may need to accept Chrome’s new permission prompt.
