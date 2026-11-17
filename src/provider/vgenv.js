@@ -173,14 +173,18 @@ class VgenvClient {
   }
 
   // Cinematic and Origin videos were made on /v3 and are read there first.
-  async getVideo(videoId, { v3 = false } = {}) {
+  async getVideo(videoId, { v3 = false, timeoutMs = 20000 } = {}) {
     const path = '/videos/' + encodeURIComponent(videoId);
+    // One deadline covers headers, response body and all version fallbacks.
+    // A stuck read must not hold the generation worker indefinitely. This is
+    // deliberately read-only: paid submissions keep their existing behavior.
+    const options = { signal: AbortSignal.timeout(timeoutMs) };
     let payload = null;
     if (v3) {
-      try { payload = await this.request('/v3' + path); }
+      try { payload = await this.request('/v3' + path, options); }
       catch (error) { if (Number(error.statusCode) !== 404) throw error; }
     }
-    if (!payload) payload = await this.videoRequest(path);
+    if (!payload) payload = await this.videoRequest(path, options);
     return {
       id: String(payload.id || videoId),
       status: String(payload.status || 'queued').toLowerCase(),
@@ -198,3 +202,4 @@ class VgenvClient {
 }
 
 module.exports = { VgenvClient, ASSET_TYPES };
+
