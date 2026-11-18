@@ -94,12 +94,14 @@ async function findReplay(db, userId, context) {
 // This serializes website/API charging and concurrent retries across all keys.
 async function beginRequest(conn, userId, context) {
   if (!context) return null;
+  if(context.storyId)return require('./story_store.js').beginStep(conn,userId,context);
   const [[key]] = await conn.execute('SELECT id FROM customer_api_keys WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR UPDATE', [context.keyId, userId]);
   if (!key) fail(401, 'API key is expired or revoked.');
   return findReplay(conn, userId, context);
 }
 async function completeRequest(conn, userId, context, generationId) {
   if (!context) return;
+  if(context.storyId)return require('./story_store.js').completeStep(conn,userId,context,generationId);
   await conn.execute('INSERT INTO customer_api_requests (user_id,request_key_hash,request_hash,api_key_id,generation_id) VALUES (?,?,?,?,?)',
     [userId, context.requestKeyHash, context.requestHash, context.keyId, generationId]);
 }
@@ -114,3 +116,4 @@ async function usage(db, userId) {
     net_credits: Number((Number(row.reserved_credits) - Number(row.refunded_credits)).toFixed(4)) }));
 }
 module.exports = { SCHEMA, RATE_LIMIT, hash, canonical, requestContext, createKey, listKeys, revokeKey, authenticate, findReplay, beginRequest, completeRequest, usage };
+
