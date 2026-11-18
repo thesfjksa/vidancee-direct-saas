@@ -311,6 +311,7 @@ const OFFERED={
 // The owner now requests the complete reviewed Seedance offer. Unpriced or
 // unmapped historical channels remain Admin-only; health/access still apply.
 Object.assign(OFFERED, {
+ 'gpt-image-2-1k':'GPT Image 2 1K',
  'jimeng-video-seedance-2.0-fast-vip':'Seedance 2.0 Fast VIP',
  'seedance2.0-pro-480p':'Seedance 2.0 Pro 480p',
  'seedance2.0-933-fast':'Seedance 2.0 Standard Fast',

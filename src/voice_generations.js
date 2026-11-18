@@ -60,6 +60,8 @@ async function createVoiceGenerationForUser(userId,input,options={}){
     if(!user||user.status!=='active'){
       const error=new Error('User account is unavailable.');error.statusCode=403;throw error;
     }
+    const replay=await require('./customer_api_store.js').beginRequest(conn,userId,options.apiRequest);
+    if(replay){await conn.commit();return serializeVoiceGeneration(replay);}
     cost=applyPriceRate(cost,priceRate(user));
     if(Number(user.credits)<cost){
       const error=new Error('Not enough credits.');error.statusCode=402;throw error;
@@ -92,6 +94,7 @@ async function createVoiceGenerationForUser(userId,input,options={}){
        VALUES (?, ?, ?, 'generation_debit', ?)`,
       [userId,id,-cost,'Reserved for voice generation']
     );
+    await require('./customer_api_store.js').completeRequest(conn,userId,options.apiRequest,id);
     await conn.commit();
   }catch(error){
     await conn.rollback();throw error;
@@ -163,3 +166,4 @@ module.exports={
   getUserVoiceGeneration,
   deleteUserVoiceGeneration,
 };
+

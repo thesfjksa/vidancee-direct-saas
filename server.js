@@ -123,7 +123,7 @@ function wakeWhileJobsRun() {
   setInterval(async()=>{
     try {
       const [[row]]=await getPool().query("SELECT 1 AS active FROM generations WHERE status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 1");
-      if(row||await hasActiveRenderTest(getPool()))wakeWorker();
+      if(row||await hasActiveRenderTest(getPool())||await storyStudio.hasActive())wakeWorker();
     } catch {}
   },60000).unref();
 }
@@ -1273,6 +1273,22 @@ const customerApi=require('./src/customer_api.js').createCustomerApi({
     return proxyMedia(req,res,row,'video');
   },
 });
+const storyStudio=require('./src/story_studio.js').createStoryStudio({
+ db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,
+ imageModel:id=>getProviderModelByPublicId('api888',id,'image'),
+ image:(user,body,context)=>submitImageGeneration(user,body,null,context),
+ video:(user,body,context)=>submitVideoGeneration(user,body,null,context),
+ voice:async(user,text,c,context)=>{
+  const sourceEstimate=Math.max(1,text.length);
+  const generation=await createVoiceGenerationForUser(user.id,{text,model:'English story narrator'},{
+   provider:'vibi',model:'English story narrator',costOverride:sourceToCustomerCredits(sourceEstimate),
+   providerCost:sourceEstimate,providerCostUnit:'credits',apiRequest:context,
+   providerParams:{voiceId:c.voiceId,modelId:c.voiceModel,provider:'elevenlabs',languageCode:'en',voiceSettings:{speed:1.05,stability:0.6,similarity_boost:0.75}}
+  });wakeForNewWork(null);return generation;
+ },
+ workerEnabled:webWorkerEnabled,wake:()=>wakeForNewWork(null),requireUser,publicOrigin,readJson,json:sendJson,
+});
+
 const developerPage=fs.readFileSync(path.join(__dirname,'public','developers.html'),'utf8');
 const developerDocsPage=fs.readFileSync(path.join(__dirname,'public','developer-docs.html'),'utf8');
 
@@ -1330,6 +1346,8 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/developers') return sendHtml(res,200,developerPage);
     if (req.method==='GET' && routePath==='/developers/docs') return sendHtml(res,200,developerDocsPage);
+    if (req.method==='GET' && routePath==='/story') {await requireUser(req);return sendHtml(res,200,fs.readFileSync(path.join(__dirname,'public','story.html'),'utf8'));}
+    if (await storyStudio.handle(req,res,url,routePath)) return;
     if (await customerApi.handle(req,res,url,routePath)) return;
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
@@ -3221,6 +3239,7 @@ server.on('clientError',(error,socket)=>{
 // A server that could not open its port serves nothing; exit so the host
 // starts a fresh process instead of keeping this one alive.
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;if(!server.listening)setTimeout(()=>process.exit(1),250).unref();});
+server.on('close',()=>storyStudio.stop());
 server.on('close',()=>require('./src/aivid_admin.js').stopAividAdmin().catch(()=>{}));
 
 
@@ -3317,6 +3336,7 @@ function bootstrap() {
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
       await ensureVidanceeCatalog().catch(error=>console.error('Vidancee catalog initialization failed:',error.message));
+      await storyStudio.start().catch(error=>console.error('Story Studio initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});
@@ -3330,6 +3350,7 @@ function bootstrap() {
 
 bootstrap();
 module.exports=server;
+
 
 
 
