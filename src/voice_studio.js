@@ -62,10 +62,9 @@ function voiceLanguageSearchMatch(v,code,name){
    yue:['Cantonese'],fil:['Filipino','Tagalog']};
  const terms=[name,...(aliases[code]||[])].filter(x=>x&&x.length>=3);
  const corpus=[v.name,v.description].filter(x=>typeof x==='string').join(' ').toLowerCase();
- return terms.some(term=>{
-   const word=term.toLowerCase().replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\function createVoiceStudio(d){');
-   return new RegExp('(^|[^a-z])'+word+'(?=$|[^a-z])','i').test(corpus);
- });
+ // Only whole language names count; "Urdu" must not match an unrelated substring.
+ const normalized=' '+corpus.replace(/[^a-z]+/g,' ')+' ';
+ return terms.some(term=>normalized.includes(' '+term.toLowerCase()+' '));
 }
 function voiceKeywordMatch(v,query){
  const keyword=String(query||'').trim().toLowerCase();if(!keyword)return true;
@@ -97,7 +96,8 @@ function createVoiceStudio(d){
          if(!Array.isArray(data)&&!Array.isArray(data?.voices)&&!Array.isArray(data?.shared_voices)&&
             !Array.isArray(data?.data?.voices)&&!Array.isArray(data?.results)&&!Array.isArray(data?.items))
            throw C.fail(502,'The Vibi gateway did not return a shared-voice catalog.');
-         const candidate=voiceListData(data).map(v=>voiceCatalogEntry(v,language)).filter(v=>v.id);
+         raw=voiceListData(data);
+         const candidate=raw.map(v=>voiceCatalogEntry(v,language)).filter(v=>v.id);
          let matches=candidate.filter(v=>!language||voiceLanguageSearchMatch(v,language,langName));
          matches=matches.filter(v=>voiceKeywordMatch(v,search));
          // A user keyword might not appear in the first page of language results.
@@ -105,11 +105,13 @@ function createVoiceStudio(d){
          // language evidence instead of returning arbitrary provider voices.
          if(language&&search&&!matches.length&&search.toLowerCase()!==langName.toLowerCase()){
            const queried=await client.getSharedVoices({language,search,page:0,pageSize:100,timeoutMs:5000});
-           const additional=voiceListData(queried).map(v=>voiceCatalogEntry(v,language))
+           const addedRaw=voiceListData(queried);
+           raw=[...new Map([...raw,...addedRaw].map(v=>[String(v.voice_id||v.id||''),v])).values()];
+           const additional=addedRaw.map(v=>voiceCatalogEntry(v,language))
              .filter(v=>v.id&&voiceLanguageSearchMatch(v,language,langName)&&voiceKeywordMatch(v,search));
            matches=[...new Map([...matches,...additional].map(v=>[v.id,v])).values()];
          }
-         raw=voiceListData(data);source='shared';
+         source='shared';
          // The return mapping will use these verified entries; no second
          // unverified language check should reintroduce generic voices.
          verifiedShared=matches;
@@ -143,8 +145,6 @@ function createVoiceStudio(d){
    if(pickerCache.size>150)pickerCache.clear();
    if(source!=='unavailable')pickerCache.set(key,{value:result,until:Date.now()+40000});
    for(const entry of voices){
-     // A second keyword-specific query may return an entry outside the first
-     // page. Its public preview URL is not cached unless returned in raw.
      const original=raw.find(v=>String(v.voice_id||v.id||'')===entry.id);
      const preview=[original?.preview_url,original?.previewUrl,original?.preview_audio_url,
        original?.preview_audio,original?.sample_url,original?.sample_audio_url,
