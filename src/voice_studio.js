@@ -9,8 +9,11 @@ function voiceCatalogEntry(raw){
  const labels=v.labels&&typeof v.labels==='object'&&!Array.isArray(v.labels)?v.labels:{};
  const meta=v.metadata&&typeof v.metadata==='object'&&!Array.isArray(v.metadata)?v.metadata:{};
  const str=(...items)=>{for(const item of items)if(typeof item==='string'&&item.trim())return item.trim().slice(0,500);return null;};
- const languageEntries=Array.isArray(v.languages)?v.languages:Array.isArray(meta.languages)?meta.languages:[];
- const languages=languageEntries.map(l=>typeof l==='string'?l:str(l?.code,l?.language_id,l?.name)).filter(Boolean).slice(0,100);
+ const languageEntries=[...[
+    v.languages,v.verified_languages,v.language_codes,v.language_ids,
+    meta.languages,labels.languages
+  ].filter(Array.isArray).flat()];
+ const languages=[...new Set(languageEntries.map(l=>typeof l==='string'?l:str(l?.code,l?.language_id,l?.language_code,l?.name)).filter(Boolean))].slice(0,100);
  const count=Number(v.usage_count??v.use_count??v.play_count??v.stats?.usage_count);
 
  const id=str(v.voice_id,v.id);
@@ -27,9 +30,19 @@ function voiceCatalogEntry(raw){
   gender:str(v.gender,labels.gender,meta.gender),
   age:str(v.age,labels.age,meta.age),
   category:str(v.category,labels.category,meta.category),
-  language:str(v.language,labels.language,meta.language),
+  language:str(v.language,v.language_code,v.language_name,labels.language,labels.locale,meta.language),
   languages,
   usageCount:Number.isFinite(count)&&count>=0?count:null};
+}
+
+// Native-language discovery is distinct from multilingual speech synthesis.
+// Do not present generic default voices as native speakers of every selected language.
+function voiceNativeLanguageMatch(voice,code,name){
+ if(!code)return true;
+ const tokens=[voice.language,...(voice.languages||[])].filter(x=>typeof x==='string').map(x=>x.toLowerCase().trim());
+ const wanted=[code.toLowerCase(),name.toLowerCase()];
+ return tokens.some(tag=>wanted.some(value=>value&&
+  (tag===value||tag.startsWith(value+'-')||tag.startsWith(value+'_'))));
 }
 
 function createVoiceStudio(d){
@@ -163,11 +176,36 @@ function createVoiceStudio(d){
   if(!['/api/voice-options','/api/voice-cost','/api/voice-generations','/api/voice-clones'].includes(route))return false;
   const service=await services(user,req.method==='POST'&&route!=='/api/voice-cost');
   if(req.method==='GET'&&route==='/api/voice-options'){
-   const [c,voices,cloneLanguages]=await Promise.all([catalog(service.client,service.settings),service.client.getDefaultVoices({pageSize:100,search:String(url.searchParams.get('search')||'').slice(0,100)}),service.client.getLanguages('minimax')]);
+   const [c,cloneLanguages]=await Promise.all([catalog(service.client,service.settings),service.client.getLanguages('minimax')]);
+   const search=String(url.searchParams.get('search')||'').trim().slice(0,100);
+   const language=String(url.searchParams.get('language')||'').trim().slice(0,20);
+   const native=c.speechLanguages.find(l=>l.code===language);
+   if(language&&!native)throw C.fail(400,'Choose a language supported by Eleven v4.');
+   let voices;
+   try{
+     voices=await service.client.getDefaultVoices({pageSize:100,search,language});
+   }catch(e){
+     // Older Vibi catalog endpoints may reject a language query. In that case,
+     // search their ordinary default catalog and still verify language labels.
+     if(!language||![400,404,422].includes(e.statusCode))throw e;
+     voices=await service.client.getDefaultVoices({pageSize:100,search});
+   }
+   let entries=Array.isArray(voices?.voices)?voices.voices.map(voiceCatalogEntry).filter(v=>v.id):[];
+   if(language){
+     entries=entries.filter(v=>voiceNativeLanguageMatch(v,language,native.name));
+     if(!entries.length&&!search){
+       // Some Vibi catalogs support only text search, not a language index.
+       // Discover additional voice entries by the actual language name.
+       const searched=await service.client.getDefaultVoices({pageSize:100,search:native.name});
+       const found=(Array.isArray(searched?.voices)?searched.voices:[]).map(voiceCatalogEntry)
+         .filter(v=>v.id&&voiceNativeLanguageMatch(v,language,native.name));
+       entries=[...new Map([...entries,...found].map(v=>[v.id,v])).values()];
+     }
+   }
    const cloneBase=Number(service.settings.vibiCloneSourceCost??0);
    d.json(res,200,{ok:true,...c,models:c.model?[{model_id:c.model.modelId,name:'Eleven v4'}]:[],cloneLanguages,
     cloneCost:vibiToCustomerCredits(cloneBase,voiceCreditsPerPkr(user)),billing:{policy:'at-cost',vibiCreditsPerPkr:VIBI_CREDITS_PER_PKR,cmmCreditsPerPkr:voiceCreditsPerPkr(user),markup:0},dubbingLanguages:c.languages.filter(l=>DUB_LANGUAGES.has(l.code)),
-    voices:(voices.voices||[]).map(voiceCatalogEntry).filter(v=>v.id),
+    voices:entries,voiceCatalogLanguage:language,voiceCatalogLimited:true,
     tools:{speech:!!c.model,dialogue:!!c.model,voiceChanger:true,dubbing:true,cloning:true}});return true;
   }
   if(req.method==='POST'&&route==='/api/voice-clones'){d.json(res,201,{ok:true,clone:await clone(user,req,service)});return true;}
