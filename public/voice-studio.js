@@ -72,7 +72,18 @@ function addVoiceSpeaker(name=''){
  row.querySelector('[data-remove-speaker]').onclick=()=>{row.remove();voiceInvalidate();};row.querySelector('[data-pick-speaker]').onclick=()=>openVoicePicker(row.querySelector('[data-speaker-voice]'));row.oninput=voiceInvalidate;row.onchange=voiceInvalidate;
  $('voiceDialogueSpeakers').appendChild(row);voiceInvalidate();
 }
-function previewStudioVoice(){const v=(voiceOptions.voices||[]).find(v=>v.id===$('voiceSelect').value),audio=$('voicePreview');if(!v?.previewUrl){voiceMessage('No preview is available for this voice.');return;}try{const url=new URL(v.previewUrl);if(url.protocol!=='https:')return;audio.src=url.href;audio.classList.remove('hide');audio.play().catch(()=>{});}catch{}}
+function previewStudioVoice(){
+ const v=(voiceOptions.voices||[]).find(v=>v.id===$('voiceSelect').value),audio=$('voicePreview');
+ if(!v?.previewUrl){voiceMessage('This voice has no provider preview sample.');return;}
+ try{
+  const url=new URL(v.previewUrl,window.location.origin);
+  if(url.origin!==window.location.origin||!url.pathname.startsWith('/api/voice-preview/'))
+   throw Error('Invalid voice preview source.');
+  audio.pause();audio.src=url.href;audio.classList.remove('hide');audio.load();
+  audio.onerror=()=>voiceMessage('The provider sample could not be loaded. Try another voice.',true);
+  audio.play().catch(()=>voiceMessage('Could not play sample. Check browser audio permissions.',true));
+ }catch(e){voiceMessage('Preview unavailable for this voice.',true);}
+}
 function voiceInput(){
  const body={operation:voiceTool,text:$('voiceText').value.trim(),voiceId:$('voiceSelect').value,languageCode:$('voiceLanguage').value,
   speed:Number($('voiceSpeed').value),stability:Number($('voiceStability').value),similarityBoost:Number($('voiceSimilarity').value),style:Number($('voiceStyle').value),useSpeakerBoost:$('voiceSpeakerBoost').checked,removeNoise:$('voiceNoise').checked,
