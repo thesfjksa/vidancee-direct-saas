@@ -91,6 +91,51 @@ class VibiClient {
     return this.request('/v1/default-voices?'+q.toString());
   }
 
+
+  // Preview clips are public/provider-hosted resources, not paid TTS requests.
+  // The browser must fetch them from CMMTools' origin (the app CSP restricts media-src).
+  async downloadVoicePreview(address){
+    const base=new URL(this.baseUrl);
+    const trusted=(url)=>{
+      if(url.protocol!=='https:'||url.username||url.password||url.port&&url.port!=='443')return false;
+      const host=url.hostname.toLowerCase();
+      return host==='storage.googleapis.com'||host==='elevenlabs.io'||host.endsWith('.elevenlabs.io')||
+        host==='vibi.pro'||host.endsWith('.vibi.pro')||host===base.hostname;
+    };
+    let current;
+    try{current=new URL(address,base);}catch{throw Object.assign(Error('Voice sample URL is invalid.'),{statusCode:404});}
+    for(let redirect=0;redirect<4;redirect++){
+      if(!trusted(current))throw Object.assign(Error('Voice sample source is not supported.'),{statusCode:404});
+      const headers=current.origin===base.origin?this.headers():{};
+      const response=await fetch(current,{method:'GET',headers,redirect:'manual',signal:AbortSignal.timeout(15000)});
+      if([301,302,303,307,308].includes(response.status)){
+        const location=response.headers.get('location');
+        if(!location)throw Object.assign(Error('Voice sample redirect is missing.'),{statusCode:502});
+        current=new URL(location,current);continue;
+      }
+      if(!response.ok)throw Object.assign(Error('Voice sample is not available from the provider.'),{statusCode:404});
+      const maxBytes=8*1024*1024;
+      const size=Number(response.headers.get('content-length'));
+      if(Number.isFinite(size)&&size>maxBytes)throw Object.assign(Error('Voice sample exceeds the preview limit.'),{statusCode:413});
+      const rawType=String(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+      const mediaTypes=new Set(['audio/mpeg','audio/mp3','audio/mp4','audio/x-m4a','audio/wav','audio/x-wav','audio/ogg','audio/webm','application/octet-stream','binary/octet-stream']);
+      if(!mediaTypes.has(rawType))throw Object.assign(Error('Provider preview did not return audio.'),{statusCode:502});
+      const chunks=[];let bytes=0;
+      for await(const piece of response.body){
+        const buf=Buffer.from(piece);bytes+=buf.length;
+        if(bytes>maxBytes)throw Object.assign(Error('Voice sample exceeds the preview limit.'),{statusCode:413});
+        chunks.push(buf);
+      }
+      if(!bytes)throw Object.assign(Error('Provider preview is empty.'),{statusCode:404});
+      const ext=current.pathname.toLowerCase();
+      const contentType=rawType==='application/octet-stream'||rawType==='binary/octet-stream'
+        ?(ext.endsWith('.wav')?'audio/wav':ext.endsWith('.ogg')?'audio/ogg':ext.endsWith('.m4a')?'audio/mp4':'audio/mpeg')
+        :rawType;
+      return {data:Buffer.concat(chunks,bytes),contentType};
+    }
+    throw Object.assign(Error('Too many voice sample redirects.'),{statusCode:502});
+  }
+
   async getMiniMaxSystemVoices({page=1,pageSize=30,search='',language='',gender='',accent='',age='',useCases=''}={}){
     const q=new URLSearchParams({page:String(page),page_size:String(pageSize)});
     if(search)q.set('search',search);
