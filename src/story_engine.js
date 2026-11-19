@@ -2,10 +2,11 @@
 const {validatePlan}=require('./story_plan');
 async function advance(story,deps){
  const state=story.state;
+ const tier=require('./story_tiers').durationTier(story.options?.duration||120);
  if(!state.plan){
   if(state.planningStarted)throw new Error('Story writing was interrupted. Review before explicitly retrying; the writing provider may have charged.');
   state.planningStarted=true;await deps.save(state);
-  state.plan=validatePlan(await deps.plan(story.prompt));state.planningStarted=false;await deps.save(state);return;
+  state.plan=validatePlan(await deps.plan(story.prompt,tier.duration),tier.duration);state.planningStarted=false;await deps.save(state);return;
  }
  const plan=state.plan;
  async function step(key,submit){
@@ -23,13 +24,13 @@ async function advance(story,deps){
   if(!row)return;characters.push(row);
  }
  const clips=[];
- for(let i=0;i<8;i++){
+ for(let i=0;i<tier.scenes;i++){
   const scene=plan.scenes[i];
   const audio=await step('narration'+i,ctx=>deps.voice(scene.narration,ctx));if(!audio)return;
   const video=await step('scene'+i,ctx=>deps.video(scene,characters,plan.characters,ctx));if(!video)return;
   clips.push({video,audio});
  }
  state.stage='assembling';await deps.save(state);
- state.output=await deps.assemble(clips);state.stage='completed';await deps.save(state,true);
+ state.output=await deps.assemble(clips,tier.duration);state.stage='completed';await deps.save(state,true);
 }
 module.exports={advance};

@@ -26,8 +26,9 @@ async function download(db,row,file){
  const timer=setTimeout(()=>body.destroy(new Error('Story download timed out.')),120000);
  try{await pipeline(body,limit,createWriteStream(file));}finally{clearTimeout(timer);}
 }
-async function publish(db,id,file){
- const size=(await fs.stat(file)).size;if(size<=0||size>128*1024*1024)throw new Error('Final story exceeds the supported file size.');
+async function publish(db,id,file,duration=120){
+ const tier=require('./story_tiers').durationTier(duration);
+ const size=(await fs.stat(file)).size;if(size<=0||size>(tier.duration/120)*128*1024*1024)throw new Error('Final story exceeds the supported file size.');
  const cloud=await require('./object_storage').configuredStorage();
  if(cloud){
   const crypto=require('node:crypto'),{createReadStream}=require('node:fs');

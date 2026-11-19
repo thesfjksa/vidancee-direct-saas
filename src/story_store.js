@@ -16,17 +16,20 @@ async function beginStep(conn,userId,c){
  return generation;
 }
 async function get(db,userId,id){const [[r]]=await db.execute('SELECT * FROM stories WHERE id=? AND user_id=?',[id,userId]);if(!r)throw fail(404,'Story not found.');return r;}
-async function create(db,userId,body){
+async function create(db,userId,body,quote){
  const prompt=String(body.prompt||'').trim(),key=String(body.requestKey||'');
- const maxCredits=Number(body.maxCredits),aspectRatio=String(body.aspectRatio||'16:9');
- if(!prompt||prompt.length>5000||!/^[\w-]{8,80}$/.test(key)||!Number.isFinite(maxCredits)||maxCredits<=0||maxCredits>1000000||!['16:9','9:16'].includes(aspectRatio))throw fail(400,'Provide a prompt, valid request key, positive credit limit and video format.');
- const options={maxCredits,aspectRatio,language:'en',duration:120,resolution:'768p'};
+ const tier=require('./story_tiers').storyTier(body.tier),aspectRatio=String(body.aspectRatio||'16:9');
+ if(!quote||quote.id!==tier.id||quote.duration!==tier.duration||!Number.isFinite(quote.credits)||quote.credits<=0)throw fail(503,'Story pricing is unavailable.');
+ if(Object.hasOwn(body,'maxCredits'))throw fail(400,'Choose a story duration tier; a credit limit is not required.');
+ if(!prompt||prompt.length>5000||!/^[\w-]{8,80}$/.test(key)||!['16:9','9:16'].includes(aspectRatio))throw fail(400,'Provide a prompt, valid request key, duration tier and video format.');
+ const options={tier:tier.id,estimatedCredits:quote.credits,priceBreakdown:quote.breakdown,videoModel:quote.videoModel,imageModel:quote.imageModel,aspectRatio,language:'en',duration:tier.duration,resolution:'768p'};
  const conn=await db.getConnection();try{
  await conn.beginTransaction();
- const [[user]]=await conn.execute('SELECT id,status FROM users WHERE id=? FOR UPDATE',[userId]);
+ const [[user]]=await conn.execute('SELECT id,status,credits FROM users WHERE id=? FOR UPDATE',[userId]);
  if(user?.status!=='active')throw fail(403,'Account unavailable.');
  const [[old]]=await conn.execute('SELECT * FROM stories WHERE user_id=? AND request_key=?',[userId,key]);
- if(old){if(old.prompt!==prompt||old.options_json!==JSON.stringify(options))throw fail(409,'This request key belongs to a different story.');await conn.commit();return old;}
+ if(old){const prior=JSON.parse(old.options_json);if(old.prompt!==prompt||prior.duration!==options.duration||prior.aspectRatio!==options.aspectRatio)throw fail(409,'This request key belongs to a different story.');await conn.commit();return old;}
+ if(!Number.isFinite(Number(user.credits))||Number(user.credits)<quote.credits)throw fail(402,'Not enough credits for the selected story tier estimate.');
  const [[count]]=await conn.execute("SELECT COUNT(*) AS total FROM stories WHERE user_id=? AND status IN ('queued','running')",[userId]);
  if(count.total>=1)throw fail(429,'One story can run at a time.');
  const id=crypto.randomUUID();await conn.execute('INSERT INTO stories(id,user_id,request_key,prompt,options_json,state_json) VALUES(?,?,?,?,?,?)',[id,userId,key,prompt,JSON.stringify(options),'{}']);await conn.commit();return get(db,userId,id);
@@ -34,11 +37,6 @@ async function create(db,userId,body){
 }
 
 async function completeStep(conn,userId,c,generationId){
- const [[story]]=await conn.execute('SELECT options_json FROM stories WHERE id=? AND user_id=? FOR UPDATE',[c.storyId,userId]);
- if(!story)throw fail(404,'Story unavailable.');
- const [[total]]=await conn.execute('SELECT COALESCE(SUM(IF(g.refunded_at IS NULL,g.credits_cost,0)),0) AS spent FROM story_steps s JOIN generations g ON g.id=s.generation_id WHERE s.story_id=?',[c.storyId]);
- const [[generation]]=await conn.execute('SELECT credits_cost FROM generations WHERE id=? AND user_id=?',[generationId,userId]);
- if(Number(total.spent)+Number(generation.credits_cost)>Number(JSON.parse(story.options_json).maxCredits))throw fail(402,'Story credit limit reached. Increase the limit to continue.');
  await conn.execute('INSERT INTO story_steps(story_id,step_key,generation_id) VALUES(?,?,?)',[c.storyId,c.stepKey,generationId]);
 }
 module.exports={SCHEMA,beginStep,completeStep,get,create,fail};
