@@ -1,3 +1,12 @@
+## 19 November 2026 — Voice language/filter and audio-preview hotfix
+
+- Customer screenshots showed an empty voice grid after selecting Amharic and "Preview unavailable" when playing a sample, despite the provider returning 21 default voices. Root cause #1: the new picker incorrectly compared the synthesis language to the voice's native-language label, excluding multilingual voices. The picker now uses model-validated speech languages without excluding voices by native language, and picking a language updates the actual Text-to-Speech or dialogue-speaker language selector and invalidates credit estimates. Original-language labels and accent metadata remain descriptive, not guarantees of native synthesis. The Sort dropdown now resets to Provider order rather than a blank value.
+- Root cause #2: page CSP only permits local audio and selected cloud origins; external ElevenLabs preview URLs were blocked. Added an authenticated GET /api/voice-preview/:voiceId endpoint, resolving the selected ID in the connected Vibi default voice catalog and streaming a short provider sample under the CMMTools origin. Vibi sample downloader permits HTTPS on known Vibi/ElevenLabs/Google Storage hosts, validates redirects, type and an 8 MiB cap, and does not send the Vibi key to external storage. Preserves alternative preview field names and untruncated signed URLs. The frontend audio players now use the same-origin URL, with clearer errors for missing or failed samples.
+- Added tests for multilingual language behavior, selected generation language linkage, proxy mapping, authentication, lack of wallet debits, sample MIME/size and SSRF rejection. Increased asset cache-busting version. No paid preview generation is triggered, no changes to provider billing, model ID, job submission or credits.
+- Deployment must be tested with authenticated Vibi metadata and a real playable sample. The provider may omit a preview for some voices; those remain unavailable rather than being synthesized or substituted with fake samples.
+
+---
+
 ## 19 November 2026 — Voice selection popup
 
 - Replaced the customer TTS dropdown with an accessible, mobile-responsive modal styled after the supplied voice-library reference: Favourites, All Voices, Voice Library and Default Voices tabs, searchable card grid, secure preview player, and a Use action. Also added the picker to dialogue speaker rows. The selected voice ID flows unchanged to speech, voice changer, dubbing or dialogue. The rest of the fixed Eleven v4 model and no-markup Vibi billing remain unchanged.
