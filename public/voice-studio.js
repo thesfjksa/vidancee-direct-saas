@@ -45,18 +45,21 @@ async function loadVoiceOptions(){
  if(!config?.voice?.enabled)return;const seq=++voiceOptionsSeq;
  try{
   const d=await api('/api/voice-options?search='+encodeURIComponent($('voiceSearch').value.trim()));if(seq!==voiceOptionsSeq)return;
-  voiceOptions=d;const old=$('voiceSelect').value;
-  $('voiceSelect').innerHTML=voiceSelectOptions();if(d.voices.some(v=>v.id===old))$('voiceSelect').value=old;
+  // Preserve choices across remote searches: filtered results must not reset the chosen voice.
+  const incoming=Array.isArray(d.voices)?d.voices:[],previous=voiceOptions.voices||[],old=$('voiceSelect').value;
+  voiceOptions={...d,voices:[...new Map([...previous,...incoming].map(v=>[v.id,v])).values()]};
+  $('voiceSelect').innerHTML=voiceSelectOptions();if(voiceOptions.voices.some(v=>v.id===old))$('voiceSelect').value=old;
   $('voiceText').maxLength=d.model?.maxTextChars||5000;
   fillVoiceLanguages($('voiceLanguage'),d.speechLanguages||[]);
   fillVoiceLanguages($('voiceDubSource'),d.dubbingLanguages||[]);fillVoiceLanguages($('voiceDubTarget'),d.dubbingLanguages||[],'ur');
   fillVoiceLanguages($('cloneLanguage'),d.cloneLanguages||[],'English');fillVoiceLanguages($('cloneSpeechLanguage'),d.cloneLanguages||[],'English');
   $('clonePrice').textContent=Number.isFinite(d.cloneCost)?Number(d.cloneCost).toLocaleString(undefined,{maximumFractionDigits:4})+' credits':'Pricing unavailable';
   for(const row of document.querySelectorAll('.voice-speaker-row')){
-   const select=row.querySelector('[data-speaker-voice]'),value=select.value;select.innerHTML=voiceSelectOptions();if(d.voices.some(v=>v.id===value))select.value=value;
+   const select=row.querySelector('[data-speaker-voice]'),value=select.value;select.innerHTML=voiceSelectOptions();if(voiceOptions.voices.some(v=>v.id===value))select.value=value;
    fillVoiceLanguages(row.querySelector('[data-speaker-language]'),d.speechLanguages||[]);
   }
   if(!$('voiceDialogueSpeakers').children.length){addVoiceSpeaker('Alice');addVoiceSpeaker('Bob');}
+  if(typeof updateVoicePickerCatalog==='function')updateVoicePickerCatalog(incoming);
   applyVoiceCapabilities();voiceInvalidate();if(d.modelError&&['speech','dialogue'].includes(voiceTool))voiceMessage(d.modelError,true);
  }catch(e){voiceMessage(e.message,true);$('generateVoiceBtn').disabled=true;}
 }
@@ -64,9 +67,9 @@ function voiceSelectOptions(){return (voiceOptions.voices||[]).map(v=>'<option v
 function addVoiceSpeaker(name=''){
  if($('voiceDialogueSpeakers').children.length>=8)return;
  const row=document.createElement('div');row.className='voice-speaker-row';
- row.innerHTML='<div class="control-grid"><input data-speaker-name aria-label="Speaker name" maxlength="40" placeholder="Speaker name" value="'+escapeHtml(name)+'"><select data-speaker-voice aria-label="Speaker voice">'+voiceSelectOptions()+'</select><select data-speaker-language aria-label="Speaker language"></select><button type="button" class="btn secondary" data-remove-speaker>Remove</button></div>';
+ row.innerHTML='<div class="control-grid"><input data-speaker-name aria-label="Speaker name" maxlength="40" placeholder="Speaker name" value="'+escapeHtml(name)+'"><div><select data-speaker-voice aria-label="Speaker voice">'+voiceSelectOptions()+'</select><button type="button" class="btn secondary vp-speaker-picker" data-pick-speaker>Browse voices</button></div><select data-speaker-language aria-label="Speaker language"></select><button type="button" class="btn secondary" data-remove-speaker>Remove</button></div>';
  fillVoiceLanguages(row.querySelector('[data-speaker-language]'),voiceOptions.speechLanguages||[]);
- row.querySelector('[data-remove-speaker]').onclick=()=>{row.remove();voiceInvalidate();};row.oninput=voiceInvalidate;row.onchange=voiceInvalidate;
+ row.querySelector('[data-remove-speaker]').onclick=()=>{row.remove();voiceInvalidate();};row.querySelector('[data-pick-speaker]').onclick=()=>openVoicePicker(row.querySelector('[data-speaker-voice]'));row.oninput=voiceInvalidate;row.onchange=voiceInvalidate;
  $('voiceDialogueSpeakers').appendChild(row);voiceInvalidate();
 }
 function previewStudioVoice(){const v=(voiceOptions.voices||[]).find(v=>v.id===$('voiceSelect').value),audio=$('voicePreview');if(!v?.previewUrl){voiceMessage('No preview is available for this voice.');return;}try{const url=new URL(v.previewUrl);if(url.protocol!=='https:')return;audio.src=url.href;audio.classList.remove('hide');audio.play().catch(()=>{});}catch{}}
