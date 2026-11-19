@@ -56,8 +56,9 @@ function openVoicePicker(target){
  voicePickerTab='all';voicePickerShowCompatible=false;$('vpSearch').value='';$('voiceSearch').value='';
  for(const node of dialog.querySelectorAll('[data-vp-filter]'))node.value=node.id==='vpSort'?'provider':'';
  voicePickerSetFilters();
- const languageTarget=voicePickerTarget?.closest('.voice-speaker-row')?.querySelector('[data-speaker-language]')||$('voiceLanguage');
- if(languageTarget&&[...$('vpLanguage').options].some(o=>o.value===languageTarget.value))$('vpLanguage').value=languageTarget.value;
+ // Start browsing the full catalogue. The user explicitly applies a native-language
+ // filter when they select a language in the popup.
+ $('vpLanguage').value='';
  voicePickerLatest=[];
  for(const tab of dialog.querySelectorAll('[data-vp-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.vpTab==='all'));
  if(!dialog.open)dialog.showModal();
