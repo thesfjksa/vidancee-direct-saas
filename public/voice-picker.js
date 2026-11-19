@@ -50,7 +50,7 @@ async function voicePickerFetch(){
  const language=$('vpLanguage').value;
  const params=new URLSearchParams({search:$('vpSearch').value.trim()});
  if(language)params.set('language',language);
- if(voicePickerShowCompatible)params.set('mode','defaults');
+ if(voicePickerShowCompatible||voicePickerTab==='default')params.set('mode','defaults');
  renderVoicePicker();
  try{
   const d=await api('/api/voice-library?'+params.toString());
@@ -92,7 +92,7 @@ function closeVoicePicker(){
 function voicePickerChangeTab(tab){
  voicePickerTab=tab;
  voicePickerSelectNode().querySelectorAll('[data-vp-tab]').forEach(node=>node.setAttribute('aria-selected',String(node.dataset.vpTab===tab)));
- renderVoicePicker();
+ if(tab==='favourites')renderVoicePicker();else voicePickerFetch();
 }
 function voicePickerSetSearch(){
  clearTimeout(voicePickerTimer);
@@ -140,8 +140,8 @@ function voicePickerFiltered(){
  const pool=voicePickerTab==='favourites'?all:voicePickerLatest;
  let matches=pool.filter(v=>{
   if(voicePickerTab==='favourites'&&!favorites.has(v.id))return false;
-  if(voicePickerTab==='library'&&voicePickerSource!=='shared'&&!(v.category&&/shared|professional|community|library/i.test(v.category)))return false;
-  if(voicePickerTab==='default'&&v.category&&/shared|community|library/i.test(v.category))return false;
+  if(voicePickerTab==='library'&&voicePickerSource!=='shared')return false;
+  if(voicePickerTab==='default'&&voicePickerSource!=='default')return false;
   return voicePickerMatches(v);
  });
  const sort=$('vpSort').value;
