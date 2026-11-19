@@ -46,7 +46,65 @@ function voiceNativeLanguageMatch(voice,code,name){
 }
 
 function createVoiceStudio(d){
- const readUpload=d.readUpload||U.readUpload,probe=d.probe||U.probe;let cache=null;
+ const readUpload=d.readUpload||U.readUpload,probe=d.probe||U.probe;
+ let cache=null;
+ const pickerCache=new Map(),previewCache=new Map();
+ function voiceListData(data){
+   const list=Array.isArray(data)?data:(data?.voices||data?.shared_voices||data?.data?.voices||data?.results||data?.items||[]);
+   return Array.isArray(list)?list:[];
+ }
+ async function loadPicker(user,client,{language='',search='',mode='library',page=0}={}){
+   const key=[user.id,language,search,mode,page].join('|'),prior=pickerCache.get(key);
+   if(prior&&prior.until>Date.now())return prior.value;
+   let raw=[],source='default',reason='',hasMore=false;
+   if(mode!=='defaults'){
+     if(typeof client.getSharedVoices==='function'){
+       try{
+         const data=await client.getSharedVoices({language,search,page,pageSize:40,timeoutMs:5000});
+         if(!Array.isArray(data)&&!Array.isArray(data?.voices)&&!Array.isArray(data?.shared_voices)&&
+            !Array.isArray(data?.data?.voices)&&!Array.isArray(data?.results)&&!Array.isArray(data?.items))
+           throw C.fail(502,'The Vibi gateway did not return a shared-voice catalog.');
+         raw=voiceListData(data);source='shared';
+         hasMore=Boolean(data?.has_more??data?.hasMore);
+       }catch(e){
+         if(e.statusCode===401)throw e;
+         reason='Vibi did not provide a usable shared-voice listing; showing available default voices.';
+       }
+     }else reason='This Vibi gateway has no shared-voice catalogue method.';
+   }
+   if(source!=='shared'||mode==='defaults'){
+     const term=search||((language&&mode!=='defaults')?({
+       ur:'Urdu',hi:'Hindi',ar:'Arabic',bn:'Bengali',fa:'Persian',pa:'Punjabi'
+     }[language]||language):'');
+     try{
+       const data=await client.getDefaultVoices({pageSize:100,search:term,timeoutMs:5500});
+       raw=voiceListData(data);source='default';
+     }catch(e){
+       if(e.statusCode===401)throw e;
+       source='unavailable';raw=[];
+       reason=(reason?reason+' ':'')+'The Vibi voice catalog did not respond in time. Retry the search.';
+     }
+   }
+   const langName=({ur:'Urdu',hi:'Hindi',ar:'Arabic',bn:'Bengali',fa:'Persian',pa:'Punjabi'})[language]||language;
+   let voices=raw.map(v=>voiceCatalogEntry(v,language)).filter(v=>v.id);
+   if(language&&mode!=='defaults'&&source==='default')voices=voices.filter(v=>voiceNativeLanguageMatch(v,language,langName));
+   // Shared-voice endpoint is already language-filtered by the provider.
+   const result={voices,source,reason,hasMore,page};
+   if(pickerCache.size>150)pickerCache.clear();
+   if(source!=='unavailable')pickerCache.set(key,{value:result,until:Date.now()+40000});
+   for(const entry of voices){
+     const original=raw.find(v=>String(v.voice_id||v.id||'')===entry.id);
+     const preview=[original?.preview_url,original?.previewUrl,original?.preview_audio_url,
+       original?.preview_audio,original?.sample_url,original?.sample_audio_url,
+       original?.audio_preview_url,original?.preview?.url,original?.preview?.audio_url,
+       original?.samples?.[0]?.preview_url,original?.samples?.[0]?.audio_url].find(x=>typeof x==='string'&&x.length>0);
+     if(preview&&preview.length<=4096){
+       if(previewCache.size>1000)previewCache.clear();
+       previewCache.set(user.id+':'+entry.id,{url:preview,until:Date.now()+300000});
+     }
+   }
+   return result;
+ }
  async function services(user,paid=false){
   const [settings,access]=await Promise.all([d.settings(),d.access(user.id)]);
   if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)throw C.fail(503,'Voice Studio is currently unavailable.');
@@ -148,10 +206,37 @@ function createVoiceStudio(d){
   const del=route.match(/^\/api\/voice-generations\/([0-9a-f-]{36})(?:\/delete)?$/i);
   if(del&&['DELETE','POST'].includes(req.method)){await d.remove(user.id,del[1]);d.json(res,200,{ok:true,deleted:true,id:del[1]});return true;}
 
+  if(req.method==='GET'&&route==='/api/voice-library'){
+    const service=await services(user),language=String(url.searchParams.get('language')||'').trim().slice(0,20);
+    if(language&&!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(language))throw C.fail(400,'Invalid language code.');
+    const search=String(url.searchParams.get('search')||'').trim().slice(0,100);
+    const mode=url.searchParams.get('mode')==='defaults'?'defaults':'library';
+    const page=Math.max(0,Math.min(50,Number(url.searchParams.get('page')||0)||0));
+    const found=await loadPicker(user,service.client,{language,search,mode,page});
+    d.json(res,200,{ok:true,...found,language,mode});
+    return true;
+  }
   const previewRoute=route.match(/^\/api\/voice-preview\/([a-zA-Z0-9_-]{1,128})$/);
   if(req.method==='GET'&&previewRoute){
     const service=await services(user);
     const id=previewRoute[1];
+    let cached=previewCache.get(user.id+':'+id);
+    if((!cached||cached.until<=Date.now())&&url?.searchParams?.get('language')){
+      const lang=String(url.searchParams.get('language')||'').slice(0,20);
+      if(/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(lang)){
+        // A bookmarked voice may be previewed after the cache expires.
+        // Re-resolve by ID in the same language-scoped provider catalog.
+        await loadPicker(user,service.client,{language:lang,search:id});
+        cached=previewCache.get(user.id+':'+id);
+      }
+    }
+    if(cached&&cached.until>Date.now()){
+      const sample=await service.client.downloadVoicePreview(cached.url);
+      if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
+      res.writeHead(200,{'content-type':sample.contentType,'content-length':sample.data.length,
+        'cache-control':'private, max-age=300','x-content-type-options':'nosniff','accept-ranges':'none'});
+      res.end(sample.data);return true;
+    }
     const language=String(url?.searchParams?.get('language')||'').trim().slice(0,20);
     const remote=await service.client.getDefaultVoices({pageSize:100,language});
     let voices=Array.isArray(remote.voices)?remote.voices:[];

@@ -190,8 +190,76 @@ test('Vibi default voices forwards language in GET catalog query only when provi
  c.request=async path=>{paths.push(path);return {voices:[]}};
  await c.getDefaultVoices({pageSize:60,language:'ur',search:'narrator'});
  await c.getDefaultVoices({pageSize:30});
- assert.equal(paths[0],'/v1/default-voices?page_size=60&search=narrator&language=ur');
+ assert.equal(paths[0],'/v1/default-voices?page_size=60&search=narrator');
  assert.equal(paths[1],'/v1/default-voices?page_size=30');
+});
+
+
+test('language-specific library route shows shared Urdu voices without loading models or MiniMax catalog',async()=>{
+ const f=fixture(),calls=[];
+ f.client.getModels=async()=>{throw Error('model catalog should not be called for picking')};
+ f.client.getLanguages=async()=>{throw Error('language catalog should not be called for picking')};
+ f.client.getSharedVoices=async options=>{
+   calls.push(options);return {voices:[
+     {voice_id:'amjid',name:'Amjid - Urdu Documentary Narrator',language:'ur',gender:'male',preview_url:'https://storage.googleapis.com/elevenlabs/amjid.mp3'},
+     {voice_id:'saira',name:'Saira - Urdu Storyteller',language:'ur',preview_url:'https://storage.googleapis.com/elevenlabs/saira.mp3'}
+   ],has_more:true};
+ };
+ const route='/api/voice-library',url=new URL('https://cmmtools.site/api/voice-library?language=ur');
+ await f.studio.handle(req({},'GET'),{},url,route);
+ const body=f.sent.at(-1).body;
+ assert.equal(body.source,'shared');assert.equal(body.language,'ur');assert.equal(body.hasMore,true);
+ assert.deepEqual(body.voices.map(v=>v.id),['amjid','saira']);
+ assert.equal(body.voices[0].previewUrl,'/api/voice-preview/amjid?language=ur');
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].timeoutMs,5000);
+ f.client.downloadVoicePreview=async u=>({data:Buffer.from('ID3audio'),contentType:'audio/mpeg'});
+ const response={writeHead(status,headers){this.status=status;this.headers=headers},end(data){this.data=data}};
+ await f.studio.handle(req({},'GET'),response,new URL('https://cmmtools.site/api/voice-preview/amjid?language=ur'),'/api/voice-preview/amjid');
+ assert.equal(response.data.toString(),'ID3audio');
+ assert.equal(f.created.length,0,'previews never submit a paid generation');
+});
+
+test('unsupported or timed out shared voice endpoints fall back without repeated 30s language queries',async()=>{
+ const f=fixture(),defaults=[];
+ f.client.getSharedVoices=async()=>{const e=new Error('The operation was aborted');e.name='TimeoutError';throw e};
+ f.client.getDefaultVoices=async args=>{defaults.push(args);return {voices:[{voice_id:'general-english',name:'Bella',language:'en'}]}};
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur'),'/api/voice-library');
+ const body=f.sent.at(-1).body;
+ assert.equal(body.source,'default');assert.equal(body.voices.length,0);
+ assert.match(body.reason,/shared-voice listing/);
+ assert.equal(defaults.length,1);
+ assert.equal(defaults[0].search,'Urdu');assert.equal(defaults[0].timeoutMs,5500);
+ await assert.rejects(f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=bad!!'),'/api/voice-library'),{statusCode:400});
+});
+
+
+test('simultaneous shared and default upstream timeouts return a retryable response, not signal timeout',async()=>{
+ const f=fixture(),timeout=()=>{const error=new Error('The operation was aborted due to timeout');error.name='TimeoutError';throw error};
+ f.client.getSharedVoices=async()=>timeout();
+ f.client.getDefaultVoices=async()=>timeout();
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur'),'/api/voice-library');
+ const out=f.sent.at(-1).body;
+ assert.equal(out.ok,true);assert.equal(out.source,'unavailable');
+ assert.deepEqual(out.voices,[]);
+ assert.match(out.reason,/did not respond in time/);
+ assert.equal(f.created.length,0);
+ const picker=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ assert.match(picker,/Retry voice search/);
+ assert.match(picker,/voicePickerFetch\(\)/);
+});
+test('Vibi shared-voice GET uses documented pagination and bounded read timeout',async()=>{
+ const c=new VibiClient({apiKey:'test'}),calls=[];
+ c.request=async(path,options)=>{calls.push({path,options});return {voices:[]}};
+ await c.getSharedVoices({language:'ur',search:'Amjid',pageSize:40,page:1,timeoutMs:4500});
+ assert.equal(calls.length,1);
+ assert.match(calls[0].path,/^\/v1\/shared-voices\?/);
+ assert.match(calls[0].path,/language=ur/);
+ assert.match(calls[0].path,/search=Amjid/);
+ assert.equal(calls[0].options.timeoutMs,4500);
+ const js=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ assert.match(js,/\/api\/voice-library\?/);
+ assert.doesNotMatch(js,/return loadVoiceOptions\(\)/);
 });
 
 test('voice catalog exposes same-origin preview and preserves alternate upstream preview fields',async()=>{

@@ -11,7 +11,7 @@ class VibiClient {
     return {'xi-api-key':this.apiKey,...extra};
   }
 
-  async request(path,{method='GET',json=null,form=null}={}){
+  async request(path,{method='GET',json=null,form=null,timeoutMs=null}={}){
     const init={method,headers:this.headers()};
     if(json!==null){
       init.headers['content-type']='application/json';
@@ -19,7 +19,7 @@ class VibiClient {
     }else if(form){
       init.body=form;
     }
-    init.signal=AbortSignal.timeout(method==='GET'?30000:120000);
+    init.signal=AbortSignal.timeout(Number.isFinite(timeoutMs)?Math.max(1500,Math.min(120000,timeoutMs)):(method==='GET'?30000:120000));
     const response=await fetch(this.baseUrl+path,init);
     const text=await response.text();
     let data=null;
@@ -85,13 +85,22 @@ class VibiClient {
     return this.normalizeTask(await this.request(prefix+encodeURIComponent(id)));
   }
 
-  async getDefaultVoices({pageSize=30,search='',language=''}={}){
-    const q=new URLSearchParams({page_size:String(pageSize)});
-    if(search)q.set('search',String(search));
-    // The provider may or may not implement language filtering. CMMTools must
-    // still validate the language metadata in its own response before displaying it.
-    if(language)q.set('language',String(language));
-    return this.request('/v1/default-voices?'+q.toString());
+  async getDefaultVoices({pageSize=30,search='',language='',timeoutMs=6000}={}){
+    const q=new URLSearchParams({page_size:String(Math.min(100,Math.max(1,Number(pageSize)||30)))});
+    if(search)q.set('search',String(search).slice(0,100));
+    // Do not send undocumented language parameter to the small default catalog:
+    // it was previously causing a full 30s timeout followed by another lookup.
+    return this.request('/v1/default-voices?'+q.toString(),{timeoutMs});
+  }
+
+  async getSharedVoices({language='',search='',pageSize=30,page=0,sort='trending',timeoutMs=5000}={}){
+    // ElevenLabs standard read-only shared-voice listing, requested via Vibi's
+    // configured gateway. Some gateway deployments don't expose this route.
+    const q=new URLSearchParams({page_size:String(Math.min(100,Math.max(1,Number(pageSize)||30))),page:String(Math.max(0,Number(page)||0))});
+    if(language)q.set('language',String(language).slice(0,20));
+    if(search)q.set('search',String(search).slice(0,100));
+    if(['trending','created_date','usage_character_count_1y','cloned_by_count'].includes(sort))q.set('sort',sort);
+    return this.request('/v1/shared-voices?'+q.toString(),{timeoutMs});
   }
 
 
