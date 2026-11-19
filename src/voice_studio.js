@@ -12,8 +12,15 @@ function voiceCatalogEntry(raw){
  const languageEntries=Array.isArray(v.languages)?v.languages:Array.isArray(meta.languages)?meta.languages:[];
  const languages=languageEntries.map(l=>typeof l==='string'?l:str(l?.code,l?.language_id,l?.name)).filter(Boolean).slice(0,100);
  const count=Number(v.usage_count??v.use_count??v.play_count??v.stats?.usage_count);
+
  const id=str(v.voice_id,v.id);
- return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:str(v.preview_url,v.previewUrl),
+ // Vibi can supply alternate preview shapes. Preserve signed URLs without truncating.
+ const previewCandidates=[v.preview_url,v.previewUrl,v.preview_audio_url,v.preview_audio,
+  v.sample_url,v.sample_audio_url,v.audio_preview_url,v.preview?.url,v.preview?.audio_url,
+  v.samples?.[0]?.preview_url,v.samples?.[0]?.audio_url];
+ const preview=previewCandidates.find(value=>typeof value==='string'&&value.trim());
+ const previewUrl=preview&&preview.length<=4096?preview.trim():null;
+ return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:previewUrl?'/api/voice-preview/'+encodeURIComponent(id):null,
   description:str(v.description,v.voice_description,meta.description),
   accent:str(v.accent,labels.accent,meta.accent),
   quality:str(v.quality,labels.quality,meta.quality),
@@ -127,6 +134,32 @@ function createVoiceStudio(d){
   if(req.method==='GET'&&media){const row=await d.get(user.id,media[1]);if(!row)throw C.fail(404,'Voice generation not found.');await d.media(req,res,row);return true;}
   const del=route.match(/^\/api\/voice-generations\/([0-9a-f-]{36})(?:\/delete)?$/i);
   if(del&&['DELETE','POST'].includes(req.method)){await d.remove(user.id,del[1]);d.json(res,200,{ok:true,deleted:true,id:del[1]});return true;}
+
+  const previewRoute=route.match(/^\/api\/voice-preview\/([a-zA-Z0-9_-]{1,128})$/);
+  if(req.method==='GET'&&previewRoute){
+    const service=await services(user);
+    const id=previewRoute[1];
+    const remote=await service.client.getDefaultVoices({pageSize:100});
+    let voices=Array.isArray(remote.voices)?remote.voices:[];
+    let voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
+    if(!voice){
+      const filtered=await service.client.getDefaultVoices({pageSize:100,search:id});
+      voices=Array.isArray(filtered.voices)?filtered.voices:[];
+      voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
+    }
+    if(!voice)throw C.fail(404,'Voice sample not found.');
+    const previewCandidates=[voice.preview_url,voice.previewUrl,voice.preview_audio_url,voice.preview_audio,
+      voice.sample_url,voice.sample_audio_url,voice.audio_preview_url,voice.preview?.url,voice.preview?.audio_url,
+      voice.samples?.[0]?.preview_url,voice.samples?.[0]?.audio_url];
+    const location=previewCandidates.find(v=>typeof v==='string'&&v.trim());
+    if(!location)throw C.fail(404,'This voice has no preview audio.');
+    const sample=await service.client.downloadVoicePreview(location);
+    if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
+    res.writeHead(200,{'content-type':sample.contentType,'content-length':sample.data.length,
+      'cache-control':'private, max-age=300','x-content-type-options':'nosniff','accept-ranges':'none'});
+    res.end(sample.data);
+    return true;
+  }
   if(!['/api/voice-options','/api/voice-cost','/api/voice-generations','/api/voice-clones'].includes(route))return false;
   const service=await services(user,req.method==='POST'&&route!=='/api/voice-cost');
   if(req.method==='GET'&&route==='/api/voice-options'){
