@@ -1,0 +1,45 @@
+# Voice Studio
+
+Rebuilt 19 November 2026. Official reference reviewed through the rendered public documentation at <https://vibi.pro/docs> (direct HTTP downloads returned 403 in this environment).
+
+## Customer tools
+
+| Tool | Integration | Model and controls |
+| --- | --- | --- |
+| Text to speech | `POST /v1/text-to-speech/{voice_id}` | Fixed **Eleven v4**, resolved from the authenticated `/v1/models` catalog; live language selector, speed, stability, similarity, style and speaker boost where supported |
+| Dialogue | `POST /v1/dialogue` | Fixed Eleven v4 per speaker, 2–8 named speakers with independent voice/language, script in `Name: text` format, 0–3 second pauses |
+| Voice changer | `POST /v1/voice-changer` | Required `eleven_multilingual_sts_v2`, stability, similarity, style, speaker boost, background noise removal; source recording determines speed |
+| Dubbing | `/v1/aidubbing/upload/init`, `/chunk`, `/complete` | ElevenLabs provider; Vibi pins its own dubbing model. Explicit source/target languages and target voice. No fabricated v4 model override |
+| Voice cloning | `POST /v1/minimax/voices/clone`, poll `/v1/minimax/voices` | Vibi currently documents MiniMax cloning. Private per-user clones can generate with the exact account-listed `speech-2.8-hd` model |
+
+Eleven v4 is identified only by an explicit model ID (`eleven_v4`/equivalent spelling) or an exact catalog name `Eleven v4`. Its returned provider ID is preserved. There is no default-to-v3, model rename or synthetic v4 ID. Missing/ambiguous v4 produces a visible setup message and disables speech/dialogue while other tools remain available. The public docs currently show v3, not v4; owner supplied the v4 UI screenshot. Actual account availability and any alias can only be established by the live authenticated model catalog. Stability is constrained to 0/0.5/1 when a catalog explicitly identifies the backend as v3; unsupported similarity/style/boost controls are hidden and omitted. UI/provider selection cannot override the server-selected model.
+
+`GET /v1/languages` supplies languages; speech intersects them with the selected model's language metadata where supplied. Clone synthesis uses MiniMax language names and only completed clones looked up by both local clone ID and current user ID. Clones are never inserted into the ElevenLabs voice list or shared between customer accounts.
+
+## Billing and durability
+
+- Owner supplied **69.637 Vibi source credits per PKR** and required zero voice profit. Both current sold plans purchase 12 CMM credits per PKR (60,000/5,000 or 120,000/10,000). Charge `source credits / 69.637 × 12`: **0.172322185 CMM credits per source credit**, or **172.3221 CMM credits per 1,000 source credits** after rounding down to four wallet decimals. Do not use the model cost basis of 24 CMM credits/PKR: it retains the embedded plan margin. Known legacy plans use their own credits/purchase-price ratio; accounts without a priced plan use the standard 12. No voice 2.5 multiplier, 5% increase, boosted/customer price-rate multiplier or rounding surcharge applies. Image/video pricing is unchanged.
+- Speech/dialogue source units use the live model's character cost multiplier; dialogue counts spoken text. Cloned speech uses the exact MiniMax model's `credit_ratio`. Voice changer preview: approximately 1,000 Vibi units per minute from server-probed duration. Dubbing preview: 50 Vibi units per second, conservatively rounded up to a whole second. All then use the same zero-markup monetary conversion; actual provider usage is settled after completion.
+- Cloning replaces the old arbitrary customer fee with `vibi_clone_source_cost` (`VIBI_CLONE_SOURCE_COST`) in **actual Vibi source credits**. Admin displays this unit explicitly. The legacy customer fee/environment value is ignored for new clones, and a cached Admin cannot save a nonzero markup. Default 0 waives the CMM cloning fee (CMM absorbs any upstream cost); it does not assert upstream cloning is free. Enter a nonzero amount only when its actual provider cost is known. Clone wallet amounts use four decimal places.
+- Before submission, upload tools offer a server-validated credit preview. Submissions carry the displayed price; a change rejects before charging. Final reported provider usage reconciles at the saved at-cost credit basis. Existing pending pre-policy voice jobs settle under the new no-markup policy using the customer's plan basis. Already completed history is not rewritten. Adjustments are transactional/idempotent. Missing final provider cost is not zero; insufficient credits for an upward adjustment hold completion instead of making the wallet negative.
+- Debit, queue record, 1 MiB source chunks and request-key receipt commit in one user-locked transaction. Same-key retries with identical text/settings/file content reuse the original generation. Changed content rejects the reused key. Clone queue/debit/request receipt also commit together.
+- Never automatically replay a paid POST. A definite rejected submission is refunded. Timeout, missing task ID, interrupted submission or ambiguous network failure is held as `submit_error` for operator reconciliation, with the original reservation retained. Do not create a replacement until provider history is checked. Unrefunded uncertain tasks cannot be deleted by customers. Provider-confirmed failed cloning also refunds once.
+- Dubbing upload init/chunks do not start a generation; only completion does. Errors before completion are safe to refund. Completion is never automatically retried. Accepted source chunks are removed after saving the provider task ID. Uncertain source chunks remain available for review; generation deletion cascades them.
+- Story Studio narration also uses this zero-markup conversion, without account multipliers. Standard-rate conservative story totals now become **3,344.74 / 4,961.98 / 8,196.47 credits** for 2/3/5 minutes, including the existing 500-character-per-scene allowance. Actual spoken text can cost less. Story/queued provider model and voice settings are retained.
+
+## Uploads and deployment
+
+- Voice changer: audio, maximum **50 MiB / 5 minutes**.
+- Dubbing: audio/video, maximum **100 MiB / 2.5 hours** in CMMTools (a deliberate app limit below Vibi's documented 2 GB).
+- Cloning: audio, maximum **20 MiB / 10 seconds–5 minutes**, retaining the current application's byte limit below Vibi's 80 MB.
+- Public request routes remain authenticated, owner scoped, provider visibility/access gated and respect `allowProviderCharges`. Mutations require same-origin requests plus `x-cmm-voice: 1`.
+- Deploy the same main revision on customer web and worker. `initDb` adds `voice_studio_requests` and `voice_input_chunks`, and adjusts clone credit precision to `DECIMAL(12,4)`; existing queued jobs remain. Configure the existing Vibi key/base URL and enabled source. Do not expose the key to clients.
+- The customer web host needs **ffprobe** (or `FFPROBE_PATH`) for source-file validation before upload quoting/charging. It runs against local temporary files with only file/pipe protocols, with a 30-second bound and cleanup. No customer media URL is accepted as an input. Proxy/host upload and request time limits must admit the stated file sizes.
+- Keep customer `WORKER_ENABLED=false`, worker host `WORKER_ENABLED=true`. The existing generation worker handles all voice tasks and polls the correct history: `/v1/history/{id}` for speech/dialogue, `/v1/voice-changer/history/{id}`, `/v1/aidubbing/history/{id}`.
+- History plays/downloads MP3/audio and MP4/video dubbing outputs appropriately, with owner-authenticated media proxying and player continuity during status updates.
+
+## Verification
+
+225 targeted tests passed, covering contracts, model/language/parameter restrictions, tool routing, chunked uploads, one-shot paid submission, task-ID mapping, polling paths, same-origin/access/paused-charge gates, private clone lookup, multipart parsing with real ffprobe, final-usage adjustments, and transactional rollback/replay. At-cost tests cover the exact owner rate, embedded plan-margin removal, legacy plan ratios, boosted account-rate immunity, four-decimal round-down and Story narration parity. Existing story/provider/customer API/billing/original extension checks also passed. Syntax and inline script parsing passed. CI outcome is recorded in the PR/handoff.
+
+No paid voice render, production schema migration, live-account model read, new key, production configuration write or live authenticated acceptance test was performed. Merge alone does not verify deployment, v4 availability, source health, or server ffprobe installation.

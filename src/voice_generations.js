@@ -4,9 +4,10 @@ const { hideVendors } = require('./vendor_names.js');
 const crypto=require('node:crypto');
 const {getPool}=require('./db.js');
 const {getPlanProfile}=require('./plans.js');
-const {roundCredits,applyPriceRate,priceRate}=require('./billing.js');
+const {roundCredits,applyPriceRate,priceRate,voiceCreditsPerPkr,vibiToCustomerCredits,VIBI_CREDITS_PER_PKR}=require('./billing.js');
 
 function serializeVoiceGeneration(row){
+  let params={};try{params=JSON.parse(row.provider_meta||'{}');}catch{}
   return {
     id:row.id,
     media_type:'audio',
@@ -23,6 +24,7 @@ function serializeVoiceGeneration(row){
     refunded_at:row.refunded_at,
     has_audio:Boolean(row.output_url),
     audio_url:row.output_url?'/api/voice-generations/'+row.id+'/media':null,
+    output_kind:params.outputKind==='video'?'video':'audio',
   };
 }
 
@@ -42,7 +44,7 @@ async function createVoiceGenerationForUser(userId,input,options={}){
 
   const provider=String(options.provider||'aitoolsflow').slice(0,40);
   const model=String(options.model||input.model||'voice_multilingual').slice(0,80);
-  const providerParams=JSON.stringify(options.providerParams||{});
+  const params={...(options.providerParams||{})};
   const providerCost=Number(options.providerCost);
   const providerCostValue=Number.isFinite(providerCost)&&providerCost>=0?providerCost:null;
   const providerCostUnit=providerCostValue==null?null:String(options.providerCostUnit||'credits').slice(0,20);
@@ -60,9 +62,20 @@ async function createVoiceGenerationForUser(userId,input,options={}){
     if(!user||user.status!=='active'){
       const error=new Error('User account is unavailable.');error.statusCode=403;throw error;
     }
+    if(options.studioRequest){
+      const replay=await require('./voice_studio_store').findReplay(conn,userId,options.studioRequest);
+      if(replay){await conn.commit();return serializeVoiceGeneration(replay);}
+    }
     const replay=await require('./customer_api_store.js').beginRequest(conn,userId,options.apiRequest);
     if(replay){await conn.commit();return serializeVoiceGeneration(replay);}
-    cost=applyPriceRate(cost,priceRate(user));
+    if(provider==='vibi'){
+      if(providerCostValue===null)throw Object.assign(new Error('Voice source pricing is unavailable.'),{statusCode:503});
+      const basis=voiceCreditsPerPkr(user);
+      cost=vibiToCustomerCredits(providerCostValue,basis);
+      params.billingPolicy='vibi-at-cost-v1';params.sourceCreditsPerPkr=VIBI_CREDITS_PER_PKR;params.customerCreditsPerPkr=basis;
+    }else cost=applyPriceRate(cost,priceRate(user));
+    if(options.expectedCost!==undefined&&(!Number.isFinite(Number(options.expectedCost))||Math.abs(Number(options.expectedCost)-cost)>.01))throw Object.assign(new Error('The voice price has changed. Check credits again.'),{statusCode:409});
+    params.billingRate=provider==='vibi'?1:priceRate(user);
     if(Number(user.credits)<cost){
       const error=new Error('Not enough credits.');error.statusCode=402;throw error;
     }
@@ -84,9 +97,12 @@ async function createVoiceGenerationForUser(userId,input,options={}){
     await conn.execute(
       `INSERT INTO generations
        (id,user_id,provider,media_type,queue_priority,mode,model,duration,resolution,aspect_ratio,prompt,status,credits_cost,provider_cost,provider_cost_unit,provider_meta)
-       VALUES (?,?,?,'audio',?,'text-to-speech',?,0,NULL,'audio',?,'queued',?,?,?,?)`,
-      [id,userId,provider,planProfile.queuePriority,model,text,cost,providerCostValue,providerCostUnit,providerParams]
+       VALUES (?,?,?,'audio',?,?,?,0,NULL,'audio',?,'queued',?,?,?,?)`,
+      [id,userId,provider,planProfile.queuePriority,options.mode||'text-to-speech',model,text,cost,providerCostValue,providerCostUnit,JSON.stringify(params)]
     );
+    if(options.inputFile){
+      for(let offset=0,index=0;offset<options.inputFile.data.length;offset+=1024*1024,index++)await conn.execute('INSERT INTO voice_input_chunks (generation_id,position_index,input_data) VALUES (?,?,?)',[id,index,options.inputFile.data.subarray(offset,offset+1024*1024)]);
+    }
 
     await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cost,userId]);
     await conn.execute(
@@ -95,6 +111,7 @@ async function createVoiceGenerationForUser(userId,input,options={}){
       [userId,id,-cost,'Reserved for voice generation']
     );
     await require('./customer_api_store.js').completeRequest(conn,userId,options.apiRequest,id);
+    if(options.studioRequest)await require('./voice_studio_store').saveRequest(conn,userId,options.studioRequest,{generationId:id});
     await conn.commit();
   }catch(error){
     await conn.rollback();throw error;
@@ -131,7 +148,7 @@ async function deleteUserVoiceGeneration(userId,generationId){
   try{
     await conn.beginTransaction();
     const [rows]=await conn.execute(
-      "SELECT id,status FROM generations WHERE id=? AND user_id=? AND media_type='audio' FOR UPDATE",
+      "SELECT id,status,refunded_at FROM generations WHERE id=? AND user_id=? AND media_type='audio' FOR UPDATE",
       [generationId,userId]
     );
     const row=rows[0];
@@ -142,6 +159,7 @@ async function deleteUserVoiceGeneration(userId,generationId){
       const error=new Error('This voice generation is still in progress and cannot be deleted yet.');
       error.statusCode=409;throw error;
     }
+    if(row.status==='submit_error'&&!row.refunded_at){const error=new Error('This unconfirmed voice submission needs support review before it can be deleted.');error.statusCode=409;throw error;}
     await conn.execute(
       'UPDATE credit_transactions SET generation_id=NULL WHERE generation_id=? AND user_id=?',
       [generationId,userId]

@@ -249,49 +249,58 @@
 
     <section id="voices" class="section">
       <div class="page">
-        <div class="page-head">
-          <div><h1>Voice Studio</h1><p>Generate speech, browse voices, or create your own cloned voice.</p></div>
-          <button class="btn secondary" onclick="refreshVoiceStudio()">Refresh</button>
+        <div class="page-head"><div><h1>Voice Studio</h1><p>Speech, conversations and translated audio in one workspace.</p></div><button class="btn secondary" onclick="refreshVoiceStudio()">Refresh</button></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px" aria-label="Voice tools">
+          <button class="btn primary" data-voice-tool="speech" aria-pressed="true" onclick="setVoiceTool('speech')">Text to speech</button>
+          <button class="btn secondary" data-voice-tool="dialogue" aria-pressed="false" onclick="setVoiceTool('dialogue')">Dialogue</button>
+          <button class="btn secondary" data-voice-tool="voice-changer" aria-pressed="false" onclick="setVoiceTool('voice-changer')">Voice changer</button>
+          <button class="btn secondary" data-voice-tool="dubbing" aria-pressed="false" onclick="setVoiceTool('dubbing')">Dubbing</button>
+          <button class="btn secondary" data-voice-tool="cloning" aria-pressed="false" onclick="setVoiceTool('cloning')">Voice cloning</button>
         </div>
-        <div class="two-col">
+        <div id="voiceCompose" class="two-col">
           <div class="card">
-            <div class="panel-title">Generate speech</div>
-            <div class="panel-sub">Choose an engine, model and voice, then generate audio from text.</div>
-            <div class="field"><label for="voiceProvider">Engine</label><select id="voiceProvider" onchange="loadVoiceOptions()"><option value="elevenlabs">Studio voices</option><option value="minimax">Clone-ready voices</option></select></div>
-            <div class="field"><label for="voiceModel">Model</label><select id="voiceModel"></select></div>
-            <div class="field"><label for="voiceSelect">Voice</label><select id="voiceSelect"></select></div>
-            <div class="field"><label for="voiceLanguage">Language</label><input id="voiceLanguage" value="en" placeholder="en"></div>
-            <div class="field"><label for="voiceText">Text</label><textarea id="voiceText" style="min-height:190px" maxlength="10000" placeholder="Type or paste your speech text..." oninput="scheduleVoiceCost()"></textarea></div>
-            <div class="control-grid">
-              <div><label class="meta" for="voiceSpeed">Speed</label><input id="voiceSpeed" type="number" min="0.5" max="2" step="0.05" value="1"></div>
-              <div id="voicePitchWrap" class="hide"><label class="meta" for="voicePitch">Pitch</label><input id="voicePitch" type="number" min="-12" max="12" step="1" value="0"></div>
+            <div class="panel-title" id="voiceModelName">Eleven v4</div>
+            <div class="panel-sub">Select a voice and language, then shape the delivery.</div>
+            <div id="voicePrimaryVoice">
+              <div class="field"><label for="voiceSearch">Search voices</label><div class="control-grid"><input id="voiceSearch" placeholder="Name or style"><button class="btn secondary" onclick="loadVoiceOptions()">Search</button></div></div>
+              <div class="field"><label for="voiceSelect">Voice</label><select id="voiceSelect" onchange="voiceInvalidate()"></select></div>
+              <button class="btn secondary" onclick="previewStudioVoice()">Preview voice</button><audio id="voicePreview" class="hide" controls preload="none" style="width:100%;margin-top:10px"></audio>
             </div>
-            <div class="cost-row" style="margin:14px 0 10px"><span>Estimated cost</span><strong><span id="voiceCost">—</span> credits</strong></div>
-            <button id="generateVoiceBtn" class="btn primary" style="width:100%" onclick="createVoiceGeneration()">Generate speech</button>
-            <div id="voiceMsg" class="msg muted"></div>
+            <div id="voiceLanguageWrap" class="field"><label for="voiceLanguage">Language</label><select id="voiceLanguage" onchange="scheduleVoiceCost()"></select></div>
+            <div id="voiceSpeakerRows" class="hide"><p>Write each turn as <strong>Speaker: text</strong>. Use the speaker names below.</p><div id="voiceDialogueSpeakers" style="display:grid;gap:12px"></div><button class="btn secondary" onclick="addVoiceSpeaker()">Add speaker</button></div>
+            <div id="voiceTextWrap" class="field"><label for="voiceText">Script</label><textarea id="voiceText" style="min-height:220px" maxlength="5000" placeholder="Type or paste your speech text…" oninput="scheduleVoiceCost()"></textarea></div>
+            <div id="voiceUploadWrap" class="field hide"><label for="voiceFile">Source file</label><input id="voiceFile" type="file" accept="audio/*" onchange="voiceInvalidate()"><div id="voiceUploadHelp" class="muted" style="margin-top:8px"></div></div>
+            <div id="voiceDubLanguages" class="control-grid hide"><div><label for="voiceDubSource">Source language</label><select id="voiceDubSource" onchange="voiceInvalidate()"></select></div><div><label for="voiceDubTarget">Target language</label><select id="voiceDubTarget" onchange="voiceInvalidate()"></select></div><p class="muted">Vibi selects the dubbing model. Video sources return a dubbed video; audio sources return audio.</p></div>
+            <div id="voicePauseWrap" class="field hide"><label for="voicePause">Pause between turns (seconds)</label><input id="voicePause" type="number" min="0" max="3" step=".1" value=".5" onchange="voiceInvalidate()"></div>
+            <div class="cost-row" style="margin:18px 0 10px"><span>Estimated credits</span><strong id="voiceCost">—</strong></div>
+            <p class="muted">Voice is charged at provider cost with no markup, account boost or 5% increase. Final usage is reconciled after processing.</p>
+            <button class="btn secondary" onclick="updateVoiceCost()">Check credits</button><button id="generateVoiceBtn" class="btn primary" onclick="createVoiceGeneration()" disabled>Generate speech</button><div id="voiceMsg" class="msg muted" aria-live="polite"></div>
           </div>
-
-          <div class="card">
-            <div class="panel-title">Clone a voice</div>
-            <div class="panel-sub">Upload an audio sample up to 20 MB. Your clone will appear only in your own voice list.</div>
-            <div class="field"><label for="cloneVoiceName">Voice name</label><input id="cloneVoiceName" placeholder="My voice"></div>
+          <div id="voiceSettingsPanel" class="card">
+            <div class="panel-title">Voice settings</div><p id="voiceSettingsNote" class="muted">Only controls supported by Eleven v4 are shown.</p>
+            <div id="voiceSpeedWrap" class="field"><label for="voiceSpeed">Speed: <output id="voiceSpeedValue">1.00</output></label><input id="voiceSpeed" type="range" style="width:100%" min=".7" max="1.2" step=".01" value="1" oninput="voiceControlLabels();voiceInvalidate()"><div class="cost-row muted"><span>Slower</span><span>Faster</span></div></div>
+            <div class="field"><label for="voiceStability">Stability: <output id="voiceStabilityValue">50%</output></label><input id="voiceStability" type="range" style="width:100%" min="0" max="1" step=".01" value=".5" oninput="voiceControlLabels();voiceInvalidate()"><div class="cost-row muted"><span>More variable</span><span>More stable</span></div></div>
+            <div id="voiceSimilarityWrap" class="field"><label for="voiceSimilarity">Similarity: <output id="voiceSimilarityValue">75%</output></label><input id="voiceSimilarity" type="range" style="width:100%" min="0" max="1" step=".01" value=".75" oninput="voiceControlLabels();voiceInvalidate()"><div class="cost-row muted"><span>Low</span><span>High</span></div></div>
+            <div id="voiceStyleWrap" class="field"><label for="voiceStyle">Style: <output id="voiceStyleValue">0%</output></label><input id="voiceStyle" type="range" style="width:100%" min="0" max="1" step=".01" value="0" oninput="voiceControlLabels();voiceInvalidate()"></div>
+            <div id="voiceSpeakerBoostWrap" class="field"><label><input id="voiceSpeakerBoost" type="checkbox" checked onchange="voiceInvalidate()"> Speaker boost</label></div>
+            <div id="voiceNoiseWrap" class="field hide"><label><input id="voiceNoise" type="checkbox" onchange="voiceInvalidate()"> Remove background noise</label></div>
+          </div>
+        </div>
+        <div id="voiceClonePanel" class="two-col hide">
+          <div class="card"><div class="panel-title">Clone a voice</div><p class="muted">Upload clean audio lasting 10 seconds to 5 minutes, up to 20 MB. Clones stay private to your account and use MiniMax voice synthesis.</p>
+            <div class="field"><label for="cloneVoiceName">Voice name</label><input id="cloneVoiceName" maxlength="80" placeholder="My voice"></div>
             <div class="field"><label for="cloneVoiceFile">Audio sample</label><input id="cloneVoiceFile" type="file" accept="audio/*"></div>
-            <div class="control-grid">
-              <div><label class="meta" for="cloneLanguage">Language</label><input id="cloneLanguage" value="English"></div>
-              <div><label class="meta" for="cloneGender">Gender</label><select id="cloneGender"><option>Male</option><option>Female</option></select></div>
-            </div>
-            <div class="field"><label for="clonePreview">Preview text</label><input id="clonePreview" maxlength="200" value="Hello, this is my cloned voice."></div>
-            <button id="cloneVoiceBtn" class="btn secondary" style="width:100%;margin-top:10px" onclick="createVoiceClone()">Create cloned voice</button>
-            <div id="cloneVoiceMsg" class="msg muted"></div>
-            <div id="voiceCloneList" style="display:grid;gap:8px;margin-top:12px"></div>
+            <div class="control-grid"><div><label for="cloneLanguage">Sample language</label><select id="cloneLanguage"></select></div><div><label for="cloneGender">Gender</label><select id="cloneGender"><option>Male</option><option>Female</option></select></div></div>
+            <div class="field"><label for="clonePreview">Preview text</label><input id="clonePreview" maxlength="200" value="Hello, this is my cloned voice."></div><div class="cost-row"><span>Cloning cost</span><strong id="clonePrice">Checking…</strong></div>
+            <button id="cloneVoiceBtn" class="btn primary" onclick="createVoiceClone()">Create cloned voice</button><div id="cloneVoiceMsg" class="msg muted" aria-live="polite"></div><div id="voiceCloneList" style="display:grid;gap:8px;margin-top:12px"></div>
+          </div>
+          <div class="card"><div class="panel-title">Generate with your clone</div><p class="muted">MiniMax Speech 2.8 HD · uses only your own completed clones.</p>
+            <div class="field"><label for="cloneSpeechVoice">Your cloned voice</label><select id="cloneSpeechVoice"></select></div><div class="field"><label for="cloneSpeechLanguage">Language</label><select id="cloneSpeechLanguage"></select></div>
+            <div class="field"><label for="cloneSpeechText">Text</label><textarea id="cloneSpeechText" maxlength="10000" style="min-height:180px"></textarea></div><div class="field"><label for="cloneSpeechSpeed">Speed</label><input id="cloneSpeechSpeed" type="number" min=".5" max="2" step=".05" value="1"></div>
+            <button id="cloneSpeechBtn" class="btn primary" onclick="createCloneSpeech()" disabled>Generate with clone</button><div id="cloneSpeechMsg" class="msg muted" aria-live="polite"></div>
           </div>
         </div>
-
-        <div class="card" style="margin-top:14px">
-          <div class="panel-title">Voice history</div>
-          <div class="panel-sub">Completed audio can be played or downloaded here.</div>
-          <div id="voiceHistory" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px"></div>
-        </div>
+        <div class="card" style="margin-top:18px"><div class="panel-title">Voice history</div><div class="panel-sub">Play and download speech, dialogue, converted voices and dubbed media.</div><div id="voiceHistory" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px"></div></div>
       </div>
     </section>
 
@@ -607,6 +616,7 @@
   </div>
 </dialog>
 
+<script src="/voice-studio.js?v=20261119"></script>
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
@@ -3842,120 +3852,16 @@ function renderVoiceConfig(){
   if(enabled)loadVoiceOptions();
 }
 
-async function loadVoiceOptions(){
-  if(!config?.voice?.enabled)return;
-  const provider=$('voiceProvider')?.value||'elevenlabs';
-  $('voicePitchWrap')?.classList.toggle('hide',provider!=='minimax');
-  if($('voiceLanguage'))$('voiceLanguage').value=provider==='minimax'?'English':'en';
-  try{
-    const d=await api('/api/voice-options?provider='+encodeURIComponent(provider));
-    voiceOptions=d;
-    const models=d.models||[],voices=d.voices||[];
-    $('voiceModel').innerHTML=models.map(m=>'<option value="'+escapeHtml(m.model_id||m.id||'')+'">'+escapeHtml(m.name||m.model_id||'Model')+'</option>').join('');
-    $('voiceSelect').innerHTML=voices.map(v=>'<option value="'+escapeHtml(v.id)+'" data-name="'+escapeHtml(v.name)+'">'+escapeHtml(v.name)+(v.cloned?' · My clone':'')+'</option>').join('');
-    ensureCustomSelect('voiceModel');
-    syncCustomSelect('voiceModel');
-  }catch(e){
-    $('voiceMsg').className='msg err';$('voiceMsg').textContent=e.message;
-  }
-}
-
-function scheduleVoiceCost(){
-  clearTimeout(voiceCostTimer);
-  const text=String($('voiceText')?.value||'').trim();
-  if(!text){$('voiceCost').textContent='—';return}
-  voiceCostTimer=setTimeout(updateVoiceCost,450);
-}
-
-async function updateVoiceCost(){
-  const text=String($('voiceText')?.value||'').trim();
-  if(!text){$('voiceCost').textContent='—';return}
-  const seq=++voiceCostRequestSeq;$('voiceCost').textContent='…';
-  try{
-    const d=await api('/api/voice-cost',{method:'POST',body:JSON.stringify({text})});
-    if(seq===voiceCostRequestSeq)$('voiceCost').textContent=Number(d.cost);
-  }catch(e){if(seq===voiceCostRequestSeq)$('voiceCost').textContent='at submit'}
-}
-
-async function createVoiceGeneration(){
-  const b=$('generateVoiceBtn'),m=$('voiceMsg');
-  const text=String($('voiceText').value||'').trim();
-  const selected=$('voiceSelect').options[$('voiceSelect').selectedIndex];
-  if(!text||!$('voiceSelect').value||!$('voiceModel').value){m.className='msg err';m.textContent='Choose a model and voice, then enter text.';return}
-  b.disabled=true;m.className='msg muted';m.textContent='Submitting voice generation...';
-  try{
-    const provider=$('voiceProvider').value;
-    const body={
-      text,
-      provider,
-      modelId:$('voiceModel').value,
-      voiceId:$('voiceSelect').value,
-      voiceName:selected?.dataset?.name||selected?.textContent||'Voice',
-      languageCode:$('voiceLanguage').value.trim()||(provider==='minimax'?'English':'en'),
-      speed:Number($('voiceSpeed').value||1),
-      pitch:Number($('voicePitch').value||0),
-      volume:1,
-      stability:.5,
-      similarityBoost:.75,
-      style:0,
-      useSpeakerBoost:true
-    };
-    const d=await api('/api/voice-generations',{method:'POST',body:JSON.stringify(body)});
-    me=d.user;syncUser();$('voiceText').value='';$('voiceCost').textContent='—';
-    m.className='msg ok';m.textContent='Voice generation queued.';
-    await Promise.all([loadVoiceGenerations(),loadDashboard(),loadCredits()]);
-  }catch(e){m.className='msg err';m.textContent=e.message}
-  finally{b.disabled=false}
-}
-
-async function loadVoiceGenerations(){
-  if(!config?.voice?.enabled||voiceGenerationLoadPending)return;
-  voiceGenerationLoadPending=true;
-  try{const d=await api('/api/voice-generations');voiceGenerations=d.generations||[];renderVoiceHistory()}
-  catch(e){if(e.status===401)location.reload()}
-  finally{voiceGenerationLoadPending=false}
-}
-
-async function loadVoiceClones(){
-  if(!config?.voice?.enabled)return;
-  try{
-    const d=await api('/api/voice-clones');voiceClones=d.clones||[];
-    const box=$('voiceCloneList');if(!box)return;
-    box.innerHTML=voiceClones.length?voiceClones.map(c=>
-      '<div class="provider-access-item" style="padding:10px"><div><strong>'+escapeHtml(c.voice_name)+'</strong><div class="muted">'+escapeHtml(c.language_tag||'')+' · '+escapeHtml(c.gender||'')+'</div></div><span class="badge '+escapeHtml(c.status)+'">'+escapeHtml(c.status)+'</span></div>'
-    ).join(''):'<div class="muted">No cloned voices yet.</div>';
-  }catch(e){}
-}
-
-async function createVoiceClone(){
-  const b=$('cloneVoiceBtn'),m=$('cloneVoiceMsg'),file=$('cloneVoiceFile').files[0],name=$('cloneVoiceName').value.trim();
-  if(!file||!name){m.className='msg err';m.textContent='Choose an audio sample and enter a voice name.';return}
-  if(file.size>20*1024*1024){m.className='msg err';m.textContent='Voice sample must be 20 MB or smaller.';return}
-  b.disabled=true;m.className='msg muted';m.textContent='Uploading clone request...';
-  try{
-    const form=new FormData();
-    form.append('file',file,file.name);form.append('voice_name',name);form.append('language_tag',$('cloneLanguage').value||'English');form.append('gender',$('cloneGender').value||'Male');form.append('preview_text',$('clonePreview').value||'Hello');
-    await api('/api/voice-clones',{method:'POST',body:form});
-    $('cloneVoiceName').value='';$('cloneVoiceFile').value='';
-    m.className='msg ok';m.textContent='Voice clone queued.';
-    await loadVoiceClones();
-  }catch(e){m.className='msg err';m.textContent=e.message}
-  finally{b.disabled=false}
-}
-
-async function refreshVoiceStudio(){
-  await Promise.all([loadVoiceOptions(),loadVoiceGenerations(),loadVoiceClones()]);
-}
-
 function voiceGenerationFingerprint(g){
-  return JSON.stringify([g.id,g.status,g.model,g.prompt,g.credits_cost,g.error_message,g.has_audio,g.audio_url]);
+  return JSON.stringify([g.id,g.status,g.model,g.prompt,g.credits_cost,g.error_message,g.has_audio,g.audio_url,g.output_kind,g.refunded_at]);
 }
 
 function buildVoiceGenerationNode(g){
     const active=['queued','submitting','submitted','processing'].includes(g.status);
-    const audio=g.has_audio?'<audio controls preload="metadata" style="width:100%;margin-top:10px" src="'+escapeHtml(g.audio_url)+'"></audio>':'';
+    const tag=g.output_kind==='video'?'video':'audio';
+    const audio=g.has_audio?'<'+tag+' controls preload="metadata" style="width:100%;margin-top:10px" src="'+escapeHtml(g.audio_url)+'"></'+tag+'>':'';
     const download=g.has_audio?'<button type="button" class="job-action download" onclick="downloadVoiceGeneration(\''+escapeHtml(g.id)+'\')">Download</button>':'';
-    const del=['completed','failed','submit_error'].includes(g.status)?'<button type="button" class="job-action delete" onclick="deleteVoiceGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>':'';
+    const del=(['completed','failed'].includes(g.status)||(g.status==='submit_error'&&g.refunded_at))?'<button type="button" class="job-action delete" onclick="deleteVoiceGeneration(\''+escapeHtml(g.id)+'\')">Delete</button>':'';
     const tpl=document.createElement('template');
     tpl.innerHTML='<article class="card" style="margin-top:0"><div class="voice-details"><div class="job-top"><span class="badge '+escapeHtml(g.status)+'">'+escapeHtml(g.status)+'</span><span class="kicker">'+Number(g.credits_cost)+' cr</span></div><div class="job-title" style="margin-top:8px">'+escapeHtml(g.model||'Voice')+'</div><p class="job-prompt">'+escapeHtml((g.prompt||'').slice(0,220))+'</p>'+(active?'<div class="muted">Generating audio…</div>':'')+(g.error_message?'<div class="job-error">'+escapeHtml(g.error_message)+'</div>':'')+'</div>'+audio+'<div class="job-actions">'+download+del+'</div></article>';
     const node=tpl.content.firstElementChild;
@@ -3985,7 +3891,7 @@ function renderVoiceHistory(){
       const fresh=buildVoiceGenerationNode(g);
       node.querySelector('.voice-details').replaceWith(fresh.querySelector('.voice-details'));
       node.querySelector('.job-actions').replaceWith(fresh.querySelector('.job-actions'));
-      const audio=node.querySelector('audio'),nextAudio=fresh.querySelector('audio');
+      const audio=node.querySelector('audio,video'),nextAudio=fresh.querySelector('audio,video');
       // Never detach or reload a player while its source is unchanged, even if metadata changes.
       if(!nextAudio){audio?.remove();}
       else if(!audio){node.insertBefore(nextAudio,node.querySelector('.job-actions'));}
@@ -4003,12 +3909,12 @@ function renderVoiceHistory(){
 
 function downloadVoiceGeneration(id){
   const g=voiceGenerations.find(item=>String(item.id)===String(id));if(!g?.audio_url)return;
-  const a=document.createElement('a');a.href=g.audio_url;a.download='cmm-tools-voice-'+String(id).slice(0,8)+'.mp3';a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  const a=document.createElement('a');a.href=g.audio_url;a.download='cmm-tools-voice-'+String(id).slice(0,8)+(g.output_kind==='video'?'.mp4':'.mp3');a.style.display='none';document.body.appendChild(a);a.click();a.remove();
 }
 
 async function deleteVoiceGeneration(id){
   if(!await cmmConfirm({title:'Delete audio?',message:'This audio will be removed from your library. This cannot be undone.',confirmLabel:'Delete',danger:true}))return;
-  try{await api('/api/voice-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
+  try{await voiceApi('/api/voice-generations/'+encodeURIComponent(id)+'/delete',{method:'POST'});voiceGenerations=voiceGenerations.filter(item=>String(item.id)!==String(id));renderVoiceHistory();await loadDashboard()}
   catch(e){cmmAlert(e.message)}
 }
 

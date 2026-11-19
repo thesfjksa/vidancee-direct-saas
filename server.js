@@ -138,7 +138,7 @@ const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, verifyFalCatalogKey, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier, roundCredits, sourceToCustomerCredits, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
+const { creditMultiplier, roundCredits, vibiToCustomerCredits, voiceCreditsPerPkr, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
 const {
   publicPlans,
   getPlanStatus,
@@ -412,30 +412,6 @@ function readGenerationRequest(req) {
       fields.audios=audios;
       resolve(fields);
     });
-    req.pipe(bb);
-  });
-}
-function readVoiceCloneRequest(req){
-  return new Promise((resolve,reject)=>{
-    const fields={};let sample=null,settled=false;
-    const fail=(message,statusCode=400)=>{if(settled)return;settled=true;const e=new Error(message);e.statusCode=statusCode;reject(e)};
-    let bb;
-    try{bb=Busboy({headers:req.headers,limits:{files:1,fileSize:20*1024*1024,fields:10,parts:15}})}
-    catch(error){error.statusCode=400;return reject(error)}
-    bb.on('field',(name,value)=>{fields[name]=value});
-    bb.on('file',(name,file,info)=>{
-      if(name!=='file'){file.resume();return}
-      const mime=String(info.mimeType||'').toLowerCase();
-      if(!['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/mp4','audio/m4a','audio/ogg','audio/webm'].includes(mime)){
-        file.resume();return fail('Voice sample must be a supported audio file.')
-      }
-      const chunks=[];let bytes=0;
-      file.on('data',chunk=>{bytes+=chunk.length;if(!settled)chunks.push(chunk)});
-      file.on('limit',()=>fail('Voice sample must be 20 MB or smaller.',413));
-      file.on('end',()=>{if(!settled&&bytes>0)sample={filename:String(info.filename||'voice-sample').slice(0,255),mimeType:mime,data:Buffer.concat(chunks)}})
-    });
-    bb.on('error',error=>{if(!settled){settled=true;reject(error)}});
-    bb.on('close',()=>{if(settled)return;settled=true;if(!sample){const e=new Error('Voice sample is required.');e.statusCode=400;return reject(e)}resolve({...fields,sample})});
     req.pipe(bb);
   });
 }
@@ -1276,7 +1252,7 @@ const customerApi=require('./src/customer_api.js').createCustomerApi({
 const storyStudio=require('./src/story_studio.js').createStoryStudio({
  db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,
  tierQuotes:(user,imageModel)=>require('./src/story_tiers').previewTierQuotes({imageModel,
-  getImageModel:id=>getProviderModelByPublicId('api888',id,'image'),getRate:()=>userPriceRate(user.id),
+  getImageModel:id=>getProviderModelByPublicId('api888',id,'image'),getRate:()=>userPriceRate(user.id),getVoiceBasis:async()=>voiceCreditsPerPkr(user),
  }),
  imageModel:id=>getProviderModelByPublicId('api888',id,'image'),
  image:(user,body,context)=>submitImageGeneration(user,body,null,context),
@@ -1284,12 +1260,20 @@ const storyStudio=require('./src/story_studio.js').createStoryStudio({
  voice:async(user,text,c,context)=>{
   const sourceEstimate=Math.max(1,text.length);
   const generation=await createVoiceGenerationForUser(user.id,{text,model:'English story narrator'},{
-   provider:'vibi',model:'English story narrator',costOverride:sourceToCustomerCredits(sourceEstimate),
+   provider:'vibi',model:'English story narrator',costOverride:vibiToCustomerCredits(sourceEstimate,voiceCreditsPerPkr(user)),
    providerCost:sourceEstimate,providerCostUnit:'credits',apiRequest:context,
    providerParams:{voiceId:c.voiceId,modelId:c.voiceModel,provider:'elevenlabs',languageCode:'en',voiceSettings:{speed:1.05,stability:0.6,similarity_boost:0.75}}
   });wakeForNewWork(null);return generation;
  },
  workerEnabled:webWorkerEnabled,wake:()=>wakeForNewWork(null),requireUser,publicOrigin,readJson,json:sendJson,
+});
+
+const voiceStudio=require('./src/voice_studio').createVoiceStudio({
+ db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,client:vibiClient,
+ requireDatabase,requireUser,origin:publicOrigin,readJson,json:sendJson,rate:userPriceRate,
+ create:createVoiceGenerationForUser,list:listUserVoiceGenerations,get:getUserVoiceGeneration,
+ remove:deleteUserVoiceGeneration,media:(req,res,row)=>proxyMedia(req,res,row,'video'),
+ userPayload,wake:wakeGenerationWorker,
 });
 
 const developerPage=fs.readFileSync(path.join(__dirname,'public','developers.html'),'utf8');
@@ -1313,6 +1297,7 @@ const server=http.createServer(async (req,res)=>{
       '/developers.css':['developers.css','text/css; charset=utf-8'],
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/dope-performance.js':['dope-performance.js','text/javascript; charset=utf-8'],
+      '/voice-studio.js':['voice-studio.js','text/javascript; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
       '/provider-admin.js':['provider-admin.js','text/javascript; charset=utf-8'],
@@ -1351,6 +1336,7 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/developers/docs') return sendHtml(res,200,developerDocsPage);
     if (req.method==='GET' && routePath==='/story') {await requireUser(req);return sendHtml(res,200,fs.readFileSync(path.join(__dirname,'public','story.html'),'utf8'));}
     if (await storyStudio.handle(req,res,url,routePath)) return;
+    if (await voiceStudio.handle(req,res,url,routePath)) return;
     if (await customerApi.handle(req,res,url,routePath)) return;
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
     if (req.method==='GET' && routePath==='/pricing') return sendHtml(res,200,pricingPage);
@@ -1743,132 +1729,6 @@ const server=http.createServer(async (req,res)=>{
       await db.execute('DELETE FROM sessions WHERE user_id=?',[user.id]);
       await createSession(res,user.id);
       return sendJson(res,200,{ok:true});
-    }
-
-    if (req.method==='GET' && routePath==='/api/voice-options') {
-      requireDatabase();
-      const user=await requireUser(req);
-      const access=await getVisibleUserProviderAccess(user.id);
-      const settings=await getProviderSettings();
-      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
-      const provider=String(url.searchParams.get('provider')||'elevenlabs')==='minimax'?'minimax':'elevenlabs';
-      const client=vibiClient(settings);
-      const models=await client.getModels(provider);
-      let voices=[];
-      if(provider==='minimax'){
-        const remote=await client.getMiniMaxSystemVoices({page:1,pageSize:100});
-        voices=(remote.voice_list||[]).map(v=>({id:String(v.voice_id||v.uniq_id||''),name:String(v.voice_name||'Voice'),previewUrl:v.sample_audio||null,cloned:false}));
-        const db=getPool();
-        const [clones]=await db.execute("SELECT id,provider_clone_id,voice_name,sample_audio_url,status FROM user_voice_clones WHERE user_id=? AND provider='vibi' AND status='done' ORDER BY created_at DESC",[user.id]);
-        voices.unshift(...clones.filter(v=>v.provider_clone_id).map(v=>({id:String(v.provider_clone_id),name:String(v.voice_name),previewUrl:v.sample_audio_url||null,cloned:true,localId:Number(v.id)})));
-      }else{
-        const remote=await client.getDefaultVoices({pageSize:100});
-        voices=(remote.voices||[]).map(v=>({id:String(v.voice_id||''),name:String(v.name||'Voice'),previewUrl:v.preview_url||null,cloned:false}));
-      }
-      return sendJson(res,200,{ok:true,provider,models,voices});
-    }
-
-    if (req.method==='POST' && routePath==='/api/voice-cost') {
-      requireDatabase();
-      const user=await requireUser(req);
-      const access=await getVisibleUserProviderAccess(user.id);
-      const settings=await getProviderSettings();
-      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
-      const body=await readJson(req);
-      const text=String(body.text||'').trim();
-      if(!text)return sendJson(res,400,{ok:false,error:'Text is required.'});
-      const sourceEstimate=Math.max(1,text.length);
-      return sendJson(res,200,{ok:true,cost:Number(applyPriceRate(sourceToCustomerCredits(sourceEstimate),await userPriceRate(user.id))),estimated:true});
-    }
-
-    if (req.method==='GET' && routePath==='/api/voice-generations') {
-      requireDatabase();
-      const user=await requireUser(req);
-      return sendJson(res,200,{ok:true,generations:await listUserVoiceGenerations(user.id,60)});
-    }
-
-    if (req.method==='POST' && routePath==='/api/voice-generations') {
-      requireDatabase();
-      const user=await requireUser(req);
-      const settings=await getProviderSettings();
-      if(!settings.allowProviderCharges)return sendJson(res,503,{ok:false,error:'Generation submissions are currently paused.'});
-      const access=await getVisibleUserProviderAccess(user.id);
-      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice generation is currently unavailable.'});
-      const body=await readJson(req);
-      const text=String(body.text||'').trim();
-      const provider=String(body.provider||'elevenlabs')==='minimax'?'minimax':'elevenlabs';
-      const voiceId=String(body.voiceId||'').trim();
-      const modelId=String(body.modelId||'').trim();
-      const languageCode=String(body.languageCode||(provider==='minimax'?'English':'en')).trim();
-      if(!text||!voiceId||!modelId)return sendJson(res,400,{ok:false,error:'Text, voice and model are required.'});
-      if(text.length>10000)return sendJson(res,400,{ok:false,error:'Text is too long for this voice request.'});
-      const voiceSettings=provider==='minimax'
-        ?{speed:Number(body.speed||1),pitch:Number(body.pitch||0),vol:Number(body.volume||1)}
-        :{stability:Number(body.stability??0.5),similarity_boost:Number(body.similarityBoost??0.75),style:Number(body.style||0),use_speaker_boost:body.useSpeakerBoost!==false,speed:Number(body.speed||1)};
-      const sourceEstimate=Math.max(1,text.length);
-      const generation=await createVoiceGenerationForUser(user.id,{text,model:String(body.voiceName||'Voice')},{
-        provider:'vibi',
-        model:String(body.voiceName||'Voice'),
-        costOverride:sourceToCustomerCredits(sourceEstimate),
-        providerCost:sourceEstimate,
-        providerCostUnit:'credits',
-        providerParams:{voiceId,modelId,provider,languageCode,voiceSettings}
-      });
-      wakeGenerationWorker(req);
-      const db=getPool();
-      const [users]=await db.execute('SELECT * FROM users WHERE id=?',[user.id]);
-      return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
-    }
-
-    const voiceGenMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})$/i);
-    const voiceDeleteMatch=req.method==='DELETE'?voiceGenMatch:req.method==='POST'?routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/delete$/i):null;
-    if (voiceDeleteMatch) {
-      requireDatabase();const user=await requireUser(req);
-      await deleteUserVoiceGeneration(user.id,voiceDeleteMatch[1]);
-      return sendJson(res,200,{ok:true,deleted:true,id:voiceDeleteMatch[1]});
-    }
-
-    const voiceMediaMatch=routePath.match(/^\/api\/voice-generations\/([0-9a-f-]{36})\/media$/i);
-    if (req.method==='GET' && voiceMediaMatch) {
-      requireDatabase();const user=await requireUser(req);
-      const row=await getUserVoiceGeneration(user.id,voiceMediaMatch[1]);
-      if(!row)return sendJson(res,404,{ok:false,error:'Voice generation not found.'});
-      return proxyMedia(req,res,row,'video');
-    }
-
-    if (req.method==='GET' && routePath==='/api/voice-clones') {
-      requireDatabase();const user=await requireUser(req);const db=getPool();
-      const [rows]=await db.execute("SELECT id,voice_name,language_tag,gender,status,sample_audio_url,cover_url,error_message,created_at FROM user_voice_clones WHERE user_id=? AND provider='vibi' ORDER BY created_at DESC",[user.id]);
-      return sendJson(res,200,{ok:true,clones:rows.map(r=>({...r,id:Number(r.id)}))});
-    }
-
-    if (req.method==='POST' && routePath==='/api/voice-clones') {
-      requireDatabase();
-      const user=await requireUser(req);
-      const settings=await getProviderSettings();
-      const access=await getVisibleUserProviderAccess(user.id);
-      if(!access.vibi||!settings.vibiEnabled||!settings.vibiApiKey)return sendJson(res,503,{ok:false,error:'Voice cloning is currently unavailable.'});
-      const body=await readVoiceCloneRequest(req);
-      const name=String(body.voice_name||'').trim();
-      if(!name)return sendJson(res,400,{ok:false,error:'Voice name is required.'});
-      let cloneCost=Number(settings.vibiCloneCustomerCost||0);
-      const db=getPool();
-      const conn=await db.getConnection();
-      try{
-        await conn.beginTransaction();
-        const [users]=await conn.execute('SELECT credits,price_rate FROM users WHERE id=? FOR UPDATE',[user.id]);
-        if(users[0])cloneCost=applyPriceRate(cloneCost,priceRate(users[0]));
-        if(!users[0]||Number(users[0].credits)<cloneCost){const e=new Error('Not enough credits.');e.statusCode=402;throw e}
-        if(cloneCost>0)await conn.execute('UPDATE users SET credits=credits-? WHERE id=?',[cloneCost,user.id]);
-        const [result]=await conn.execute(
-          "INSERT INTO user_voice_clones (user_id,provider,voice_name,language_tag,gender,preview_text,status,credits_cost,sample_filename,sample_mime_type,sample_data) VALUES (?,'vibi',?,?,?,?, 'queued',?,?,?,?)",
-          [user.id,name,String(body.language_tag||'English'),String(body.gender||'Male'),String(body.preview_text||'Hello').slice(0,200),cloneCost,body.sample.filename,body.sample.mimeType,body.sample.data]
-        );
-        if(cloneCost>0)await conn.execute("INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,NULL,?,'voice_clone_debit',?)",[user.id,-cloneCost,'Reserved for voice cloning']);
-        await conn.commit();
-        wakeGenerationWorker(req);
-        return sendJson(res,201,{ok:true,clone:{id:Number(result.insertId),voice_name:name,status:'queued'}});
-      }catch(error){await conn.rollback();throw error}finally{conn.release()}
     }
 
     if (req.method==='GET' && routePath==='/api/image-generations') {

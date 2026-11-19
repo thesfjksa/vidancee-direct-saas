@@ -4,14 +4,14 @@ const {previewTierQuotes}=require('../src/story_tiers');
 const {createStoryStudio}=require('../src/story_studio');
 test('unconfigured or unimported services still have numeric previews matching normal generation prices',async()=>{
  const {getCost}=require('../src/pricing'),{api888MediaModels,quoteApi888}=require('../src/api888_models');
- const {applyPriceRate,sourceToCustomerCredits,priceRate}=require('../src/billing');
+ const {applyPriceRate,vibiToCustomerCredits,priceRate}=require('../src/billing');
  const descriptor=api888MediaModels().find(m=>m.publicModelId==='api888_gpt_image_2_6');
  for(const accountRate of [1,1.5]){
   const rate=priceRate({price_rate:accountRate});
   const tiers=await previewTierQuotes({getRate:async()=>rate,getImageModel:async()=>null});
   const video=applyPriceRate(getCost('minimax_h3_cinematic',15,'768p'),rate);
   const image=applyPriceRate(quoteApi888({...descriptor.options,mediaType:'image',providerModelId:descriptor.providerModelId},{aspectRatio:'1:1'}).cost,rate);
-  const voice=applyPriceRate(sourceToCustomerCredits(500),rate);
+  const voice=vibiToCustomerCredits(500);
   assert.deepEqual(tiers.map(t=>t.credits),[8,12,20].map(n=>Math.round((n*(video+voice)+3*image)*100)/100));
   assert.ok(tiers.every(t=>t.priceBasis==='reviewed-catalog-rate'));
  }

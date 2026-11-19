@@ -423,8 +423,8 @@
           </div><label class="muted"><input id="clearVibiApiKey" type="checkbox" style="width:auto">  Clear saved key</label>
           <div id="vibiSecretStatus" class="muted" style="margin-top:8px"></div>
           <div class="field"><label class="muted" for="vibiInflight">Max inflight voice jobs</label><input id="vibiInflight" type="number" min="1" max="20" value="4">
-          </div><div class="field"><label class="muted" for="vibiCloneCost">Customer cost for creating a cloned voice</label><input id="vibiCloneCost" type="number" min="0" step="0.01" value="0">
-          </div><button class="secondary" onclick="checkVibi()">Test connection</button>
+          </div><div class="field"><label class="muted" for="vibiCloneCost">Actual Vibi clone cost (Vibi source credits)</label><input id="vibiCloneCost" type="number" min="0" step="0.01" value="0">
+          </div><p class="muted">Voice uses 69.637 Vibi credits per PKR with no markup, 5% increase or boosted pricing. Enter only the actual provider clone cost. Set 0 to waive the clone fee.</p><button class="secondary" onclick="checkVibi()">Test connection</button>
           <div id="vibiActionMsg" class="muted" style="margin-top:8px"></div>
         </div>
         </div><footer id="providerSaveFooter" class="provider-save-footer"><span class="muted">Changes stay in this page until you save.</span><button class="btn" type="button" onclick="saveProviderSettings()">Save provider settings</button></footer></div></div>
@@ -1396,7 +1396,7 @@ async function loadProviderSettings(){try{
   $('smartPricesSummary').textContent='Model prices · '+smartModels.filter(m=>m.enabled).length+' of '+smartModels.length+' models on';
   $('smartModelPrices').innerHTML=smartModels.map(model=>'<div class="smart-price-row" data-smart-model="'+esc(model.id)+'"><label><input class="smart-model-enabled" type="checkbox" style="width:auto"'+(model.enabled?' checked':'')+'> '+esc(model.label)+'</label><div>'+['low','medium','high'].map(q=>'<input aria-label="'+esc(model.label)+' '+q+' USD" data-smart-quality="'+q+'" class="smart-quality-price'+(q==='medium'?' smart-model-price':'')+'" type="number" min="0" max="1000" step="any" value="'+usd(model.qualitySourceUsd?.[q]??(q==='medium'?model.sourceUsd:0))+'">').join('')+'</div></div>').join('');
   $('vgenvBaseUrl').value=s.vgenv?.baseUrl||'https://api.vgenv.com';$('vgenvApiKey').value='';$('clearVgenvApiKey').checked=false;$('vgenvSecretStatus').textContent=s.vgenv?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vgenvInflight').value=s.vgenv?.maxInflight||4;
-  $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneCustomerCost||0;
+  $('vibiBaseUrl').value=s.vibi?.baseUrl||'https://api.vibi.pro';$('vibiApiKey').value='';$('clearVibiApiKey').checked=false;$('vibiSecretStatus').textContent=s.vibi?.apiKeyConfigured?'Saved login: configured':'Saved login: not configured';$('vibiInflight').value=s.vibi?.maxInflight||4;$('vibiCloneCost').value=s.vibi?.cloneSourceCost||0;
   $('providerCharges').value=s.allowProviderCharges?'true':'false';
   loadFalModels();
   showFalSync();
@@ -1418,7 +1418,7 @@ async function saveProviderSettings(){
     sluiceEnabled:$('sluiceEnabled').checked,sluiceApiKey:$('sluiceApiKey').value.trim(),clearSluiceApiKey:$('clearSluiceApiKey').checked,sluiceMaxInflight:Number($('sluiceInflight').value),
     vidanceeEnabled:$('vidanceeEnabled').checked,vidanceeEmail:$('vidanceeEmail').value.trim(),clearVidanceeEmail:$('clearVidanceeApiKey').checked,vidanceePassword:$('vidanceePassword').value,clearVidanceePassword:$('clearVidanceePassword').checked,vidanceeMaxInflight:Number($('vidanceeInflight').value),
     falEnabled:$('falEnabled').checked,clearFalApiKey:$('clearFalApiKey').checked,falMaxInflight:Number($('falInflight').value),falCustomerCreditsPerUsd:Number($('falCreditsPerUsd').value),
-    vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneCustomerCost:Number($('vibiCloneCost').value||0),
+    vibiBaseUrl:$('vibiBaseUrl').value.trim(),vibiApiKey:$('vibiApiKey').value.trim(),clearVibiApiKey:$('clearVibiApiKey').checked,vibiMaxInflight:Number($('vibiInflight').value),vibiCloneSourceCost:Number($('vibiCloneCost').value||0),
     allowProviderCharges:$('providerCharges').value==='true'
   };
   try{const d=await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';
@@ -1785,6 +1785,7 @@ async function loadProviderConfig(){try{$('configOut').textContent=JSON.stringif
 function fmt(v){return v?new Date(v).toLocaleString():'—'}function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 if(token){$('tokenInput').value=token;adminLogin()}
 </script><script src="/provider-admin.js?v=5"></script><script src="/aivid-admin.js?v=9"></script><script src="/longai-admin.js?v=3"></script></body></html>
+
 
 
 
