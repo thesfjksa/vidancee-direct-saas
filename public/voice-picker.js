@@ -107,7 +107,7 @@ function voicePickerReset(){
  voicePickerFetch();
 }
 function voicePickerMatchesLanguage(v,code){
- if(!code||voicePickerShowCompatible)return true;
+ if(!code||voicePickerShowCompatible||voicePickerSource==='shared')return true;
  const name=(voiceOptions.speechLanguages||[]).find(l=>l.code===code)?.name?.toLowerCase()||'';
  const values=[v.language,...(v.languages||[])].filter(x=>typeof x==='string').map(x=>x.trim().toLowerCase());
  return values.some(tag=>[code.toLowerCase(),name].some(term=>term&&(tag===term||tag.startsWith(term+'-')||tag.startsWith(term+'_'))));
