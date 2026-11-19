@@ -4,7 +4,7 @@ const {vibiToCustomerCredits,voiceCreditsPerPkr,VIBI_CREDITS_PER_PKR}=require('.
 const DUB_LANGUAGES=new Set('af ar hy as az be bn bs bg ca ceb ny zh hr cs da nl en et fil fi fr gl ka de el gu ha he hi hu is id ga it ja jv kn kk ky ko lv ln lt lb mk ms ml mr ne no ps fa pl pt pa ro ru sr sd sk sl so es sw sv ta te th tr uk ur vi cy nn yue'.split(' '));
 const MODES=new Set(['speech','dialogue','voice-changer','dubbing','clone-speech']);
 
-function voiceCatalogEntry(raw){
+function voiceCatalogEntry(raw,language=''){
  const v=raw&&typeof raw==='object'?raw:{};
  const labels=v.labels&&typeof v.labels==='object'&&!Array.isArray(v.labels)?v.labels:{};
  const meta=v.metadata&&typeof v.metadata==='object'&&!Array.isArray(v.metadata)?v.metadata:{};
@@ -23,7 +23,7 @@ function voiceCatalogEntry(raw){
   v.samples?.[0]?.preview_url,v.samples?.[0]?.audio_url];
  const preview=previewCandidates.find(value=>typeof value==='string'&&value.trim());
  const previewUrl=preview&&preview.length<=4096?preview.trim():null;
- return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:previewUrl?'/api/voice-preview/'+encodeURIComponent(id):null,
+ return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:previewUrl?'/api/voice-preview/'+encodeURIComponent(id)+(language?'?language='+encodeURIComponent(language):''):null,
   description:str(v.description,v.voice_description,meta.description),
   accent:str(v.accent,labels.accent,meta.accent),
   quality:str(v.quality,labels.quality,meta.quality),
@@ -152,11 +152,12 @@ function createVoiceStudio(d){
   if(req.method==='GET'&&previewRoute){
     const service=await services(user);
     const id=previewRoute[1];
-    const remote=await service.client.getDefaultVoices({pageSize:100});
+    const language=String(url?.searchParams?.get('language')||'').trim().slice(0,20);
+    const remote=await service.client.getDefaultVoices({pageSize:100,language});
     let voices=Array.isArray(remote.voices)?remote.voices:[];
     let voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
     if(!voice){
-      const filtered=await service.client.getDefaultVoices({pageSize:100,search:id});
+      const filtered=await service.client.getDefaultVoices({pageSize:100,search:id,language});
       voices=Array.isArray(filtered.voices)?filtered.voices:[];
       voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
     }
@@ -190,16 +191,20 @@ function createVoiceStudio(d){
      if(!language||![400,404,422].includes(e.statusCode))throw e;
      voices=await service.client.getDefaultVoices({pageSize:100,search});
    }
-   let entries=Array.isArray(voices?.voices)?voices.voices.map(voiceCatalogEntry).filter(v=>v.id):[];
+   let entries=Array.isArray(voices?.voices)?voices.voices.map(v=>voiceCatalogEntry(v,language)).filter(v=>v.id):[];
    if(language){
      entries=entries.filter(v=>voiceNativeLanguageMatch(v,language,native.name));
      if(!entries.length&&!search){
        // Some Vibi catalogs support only text search, not a language index.
        // Discover additional voice entries by the actual language name.
-       const searched=await service.client.getDefaultVoices({pageSize:100,search:native.name});
-       const found=(Array.isArray(searched?.voices)?searched.voices:[]).map(voiceCatalogEntry)
-         .filter(v=>v.id&&voiceNativeLanguageMatch(v,language,native.name));
-       entries=[...new Map([...entries,...found].map(v=>[v.id,v])).values()];
+       try{
+         const searched=await service.client.getDefaultVoices({pageSize:100,search:native.name});
+         const found=(Array.isArray(searched?.voices)?searched.voices:[]).map(v=>voiceCatalogEntry(v,language))
+           .filter(v=>v.id&&voiceNativeLanguageMatch(v,language,native.name));
+         entries=[...new Map([...entries,...found].map(v=>[v.id,v])).values()];
+       }catch(e){
+         if(![400,404,422].includes(e.statusCode))throw e;
+       }
      }
    }
    const cloneBase=Number(service.settings.vibiCloneSourceCost??0);
