@@ -233,6 +233,21 @@ test('unsupported or timed out shared voice endpoints fall back without repeated
  await assert.rejects(f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=bad!!'),'/api/voice-library'),{statusCode:400});
 });
 
+
+test('simultaneous shared and default upstream timeouts return a retryable response, not signal timeout',async()=>{
+ const f=fixture(),timeout=()=>{const error=new Error('The operation was aborted due to timeout');error.name='TimeoutError';throw error};
+ f.client.getSharedVoices=async()=>timeout();
+ f.client.getDefaultVoices=async()=>timeout();
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur'),'/api/voice-library');
+ const out=f.sent.at(-1).body;
+ assert.equal(out.ok,true);assert.equal(out.source,'unavailable');
+ assert.deepEqual(out.voices,[]);
+ assert.match(out.reason,/did not respond in time/);
+ assert.equal(f.created.length,0);
+ const picker=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ assert.match(picker,/Retry voice search/);
+ assert.match(picker,/voicePickerFetch\(\)/);
+});
 test('Vibi shared-voice GET uses documented pagination and bounded read timeout',async()=>{
  const c=new VibiClient({apiKey:'test'}),calls=[];
  c.request=async(path,options)=>{calls.push({path,options});return {voices:[]}};
