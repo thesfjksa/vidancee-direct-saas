@@ -213,11 +213,57 @@ test('language-specific library route shows shared Urdu voices without loading m
  assert.equal(body.voices[0].previewUrl,'/api/voice-preview/amjid?language=ur');
  assert.equal(calls.length,1);
  assert.equal(calls[0].timeoutMs,5000);
+ assert.equal(calls[0].search,'Urdu','selected language must become effective provider search');
  f.client.downloadVoicePreview=async u=>({data:Buffer.from('ID3audio'),contentType:'audio/mpeg'});
  const response={writeHead(status,headers){this.status=status;this.headers=headers},end(data){this.data=data}};
  await f.studio.handle(req({},'GET'),response,new URL('https://cmmtools.site/api/voice-preview/amjid?language=ur'),'/api/voice-preview/amjid');
  assert.equal(response.data.toString(),'ID3audio');
  assert.equal(f.created.length,0,'previews never submit a paid generation');
+});
+
+
+test('native-language dropdown applies effective voice search even when Vibi ignores its language parameter',async()=>{
+ const f=fixture(),calls=[];
+ f.client.getSharedVoices=async opts=>{
+   calls.push(opts);
+   if(opts.search==='Urdu')return {voices:[
+     {voice_id:'jon',name:'Jon - Children Storyteller',description:'Warm American male storyteller',language:'en',labels:{accent:'american'}},
+     {voice_id:'reva',name:'Reva - Warm Urdu Narration',description:'Natural Urdu narration from Pakistan',labels:{gender:'female',accent:'pakistani'},preview_url:'https://storage.googleapis.com/public/reva.mp3'},
+     {voice_id:'amjid',name:'Amjid - Documentary Narrator',description:'Deep professional Urdu voice',language:'ur'},
+     {voice_id:'monika',name:'Monika Sogam - Premium Hindi Commercial',description:'Expressive Hindi voice',language:'hi'}
+   ],has_more:false};
+   if(opts.search==='Hindi')return {voices:[
+     {voice_id:'hindi',name:'Anika - Natural Hindi Narrator',language:'hi'},
+     {voice_id:'amjid',name:'Amjid - Documentary Narrator',language:'ur'}
+   ]};
+   return {voices:[{voice_id:'jon',name:'Jon - Children Storyteller',language:'en'}]};
+ };
+ for(const [code,expected] of [['ur',['reva','amjid']],['hi',['hindi']]]){
+   await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language='+code),'/api/voice-library');
+   assert.deepEqual(f.sent.at(-1).body.voices.map(v=>v.id),expected);
+ }
+ assert.deepEqual(calls.map(x=>x.search),['Urdu','Hindi'],'dropdown must invoke text search, not language param alone');
+ assert.equal(calls[0].language,'ur');
+ assert.equal(calls[0].pageSize,100);
+ assert.equal(f.created.length,0);
+});
+
+test('keyword and selected native language remain independent voice-library filters',async()=>{
+ const f=fixture(),calls=[];
+ f.client.getSharedVoices=async opts=>{
+   calls.push(opts.search);
+   if(opts.search==='Urdu')return {voices:[
+     {voice_id:'amjid',name:'Amjid - Documentary',description:'Urdu professional narrator'},
+     {voice_id:'reva',name:'Reva - Urdu Narration',description:'Warm Urdu storytelling'},
+     {voice_id:'jon',name:'Jon',description:'American narration',language:'en'}
+   ]};
+   return {voices:[]};
+ };
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur&search=Amjid'),'/api/voice-library');
+ assert.deepEqual(f.sent.at(-1).body.voices.map(v=>v.id),['amjid']);
+ assert.deepEqual(calls,['Urdu']);
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur&search=Urdu'),'/api/voice-library');
+ assert.deepEqual(f.sent.at(-1).body.voices.map(v=>v.id),['amjid','reva']);
 });
 
 test('unsupported or timed out shared voice endpoints fall back without repeated 30s language queries',async()=>{
