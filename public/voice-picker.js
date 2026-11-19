@@ -168,7 +168,8 @@ function renderVoicePicker(){
   const desc=voicePickerTab==='library'?'The connected Vibi catalog has no separate verified shared-voice collection.':langCode
    ?'No '+language+'-labelled voices are currently exposed by the connected Vibi default-voice catalog. Multilingual default voices can still synthesize '+language+'.'
    :'No voices match these filters. Try resetting them or searching another name.';
-  root.innerHTML='<div class="vp-empty">'+escapeHtml(desc)+(langCode&&voicePickerTab==='all'?'<p><button type="button" class="vp-reset" data-voice-action="compatible">Browse multilingual default voices</button></p>':'')+'</div>';return;
+  root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerSource==='unavailable'?(voicePickerNotice||'The voice library did not respond. Please retry.'):desc)+
+    (voicePickerSource==='unavailable'?'<p><button type="button" class="vp-reset" data-voice-action="retry">Retry voice search</button></p>':langCode&&voicePickerTab==='all'?'<p><button type="button" class="vp-reset" data-voice-action="compatible">Browse multilingual default voices</button></p>':'')+'</div>';return;
  }
  root.innerHTML=matches.map(v=>{
   const active=current===v.id,liked=favorites.has(v.id);
@@ -210,7 +211,8 @@ document.addEventListener('click',event=>{
  const action=event.target.closest('[data-voice-action]');
  if(!action||!voicePickerSelectNode()?.contains(action))return;
  const id=action.dataset.voiceId;
- if(action.dataset.voiceAction==='compatible'){voicePickerShowCompatible=true;voicePickerFetch();}
+ if(action.dataset.voiceAction==='retry')voicePickerFetch();
+ else if(action.dataset.voiceAction==='compatible'){voicePickerShowCompatible=true;voicePickerFetch();}
  else if(action.dataset.voiceAction==='use')useVoicePickerVoice(id);
  else if(action.dataset.voiceAction==='play')previewVoicePickerVoice(id);
  else if(action.dataset.voiceAction==='favorite'){
