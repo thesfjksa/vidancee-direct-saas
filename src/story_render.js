@@ -12,7 +12,9 @@ function clipArgs(video,audio,output,ratio){
  const [w,h]=ratio==='9:16'?[768,1366]:[1366,768];
  return ['-nostdin','-y','-protocol_whitelist','file,pipe','-i',video,'-protocol_whitelist','file,pipe','-i',audio,'-map','0:v:0','-map','1:a:0','-vf',`scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,tpad=stop_mode=clone:stop_duration=15,trim=duration=15,setpts=PTS-STARTPTS`,'-af','apad,atrim=duration=15,asetpts=PTS-STARTPTS','-t','15','-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-threads','2','-c:a','aac','-ar','48000','-ac','2','-movflags','+faststart',output];
 }
-async function assemble({scenes,ratio,download,publish}){
+async function assemble({scenes,ratio,download,publish,duration=120}){
+ const tier=require('./story_tiers').durationTier(duration);
+ if(scenes.length!==tier.scenes)throw new Error('Story clip count does not match its duration tier.');
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'cmm-story-'));
  try{
   const files=[];
@@ -26,9 +28,9 @@ async function assemble({scenes,ratio,download,publish}){
   await fs.writeFile(path.join(dir,'list.txt'),files.map(f=>"file '"+f+"'").join('\n'));
   const final=path.join(dir,'final.mp4');
   await run(process.env.FFMPEG_PATH||'ffmpeg',['-nostdin','-y','-f','concat','-safe','0','-i',path.join(dir,'list.txt'),'-c','copy','-movflags','+faststart',final]);
-  const duration=Number(await run(process.env.FFPROBE_PATH||'ffprobe',['-v','error','-protocol_whitelist','file,pipe','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',final]));
-  if(!Number.isFinite(duration)||Math.abs(duration-120)>0.15)throw new Error('Final story duration verification failed.');
-  return await publish(final);
+  const measured=Number(await run(process.env.FFPROBE_PATH||'ffprobe',['-v','error','-protocol_whitelist','file,pipe','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',final]));
+  if(!Number.isFinite(measured)||Math.abs(measured-tier.duration)>0.15)throw new Error('Final story duration verification failed.');
+  return await publish(final,tier.duration);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 }
 module.exports={run,clipArgs,assemble};

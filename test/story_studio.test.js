@@ -24,7 +24,7 @@ test('interrupted story writer and failed generation never auto-submit replaceme
  await assert.rejects(advance({id:'x',state},{save:async()=>{},find:async()=>({status:'submit_error'}),image:async()=>created++}),/failed/);
  assert.equal(created,0);assert.equal(state.failedStep,'character0');
 });
-test('transactional story hooks replay committed children, enforce ownership and cap actual charged credits',async()=>{
+test('transactional story hooks replay committed children and enforce ownership without a spending cap',async()=>{
  const generation={id:'existing',credits_cost:3};let inserted=0;
  const conn={execute:async(sql,args)=>{
   if(sql.includes('SELECT * FROM stories'))return [[{status:'running'}]];
@@ -36,8 +36,7 @@ test('transactional story hooks replay committed children, enforce ownership and
   if(sql.startsWith('INSERT')){inserted++;return [{}];}throw Error(sql);
  }};
  assert.equal((await store.beginStep(conn,7,{storyId:'x',stepKey:'scene0'})).id,'existing');
- await assert.rejects(store.completeStep(conn,7,{storyId:'x',stepKey:'scene0'},'new'),/credit limit/);assert.equal(inserted,0);
- generation.credits_cost=2;await store.completeStep(conn,7,{storyId:'x',stepKey:'scene0'},'new');assert.equal(inserted,1);
+ await store.completeStep(conn,7,{storyId:'x',stepKey:'scene0'},'new');assert.equal(inserted,1);
  await assert.rejects(store.beginStep({execute:async()=>[[]]},99,{storyId:'other'}),/not running/);
 });
 test('story routes authenticate first, reject cross-origin mutations and scope reads to the customer',async()=>{
@@ -53,7 +52,7 @@ test('story routes authenticate first, reject cross-origin mutations and scope r
 test('renderer uses English narration only, fixed scene duration and normalized video geometry',()=>{
  const args=clipArgs('clip.mp4','voice.mp3','final.mp4','9:16');assert.ok(args.includes('1:a:0'));assert.ok(args.includes('0:v:0'));assert.equal(args[args.indexOf('-t')+1],'15');assert.match(args[args.indexOf('-vf')+1],/scale=768:1366/);assert.equal(args.at(-1),'final.mp4');
 });
-test('voice story replay does not debit again and a late budget failure rolls back its transaction',async()=>{
+test('voice story replay does not debit again and a late story receipt failure rolls back its transaction',async()=>{
  const db=require('../src/db'),customer=require('../src/customer_api_store');
  const original=db.getPool,begin=customer.beginRequest,complete=customer.completeRequest;
  let commits=0,rollbacks=0,debits=0;
@@ -69,8 +68,8 @@ test('voice story replay does not debit again and a late budget failure rolls ba
   customer.beginRequest=async()=>({id:'saved',status:'completed',credits_cost:3});
   const replay=await createVoiceGenerationForUser(7,{text:'An English story.'},{costOverride:3,apiRequest:{storyId:'story'}});
   assert.equal(replay.id,'saved');assert.equal(debits,0);assert.equal(commits,1);
-  customer.beginRequest=async()=>null;customer.completeRequest=async()=>{throw Error('Story credit limit reached.');};
-  await assert.rejects(createVoiceGenerationForUser(7,{text:'An English story.'},{costOverride:3,apiRequest:{storyId:'story'}}),/credit limit/);
+  customer.beginRequest=async()=>null;customer.completeRequest=async()=>{throw Error('Story receipt failed.');};
+  await assert.rejects(createVoiceGenerationForUser(7,{text:'An English story.'},{costOverride:3,apiRequest:{storyId:'story'}}),/receipt failed/);
   assert.equal(rollbacks,1);assert.equal(commits,1);
  }finally{db.getPool=original;customer.beginRequest=begin;customer.completeRequest=complete;}
 });
