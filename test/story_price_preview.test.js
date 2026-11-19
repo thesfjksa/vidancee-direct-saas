@@ -5,7 +5,7 @@ const {createStoryStudio}=require('../src/story_studio');
 test('unconfigured or unimported services still have numeric previews matching normal generation prices',async()=>{
  const {getCost}=require('../src/pricing'),{api888MediaModels,quoteApi888}=require('../src/api888_models');
  const {applyPriceRate,sourceToCustomerCredits,priceRate}=require('../src/billing');
- const descriptor=api888MediaModels().find(m=>m.publicModelId==='api888_gpt_image_2_1k');
+ const descriptor=api888MediaModels().find(m=>m.publicModelId==='api888_gpt_image_2_6');
  for(const accountRate of [1,1.5]){
   const rate=priceRate({price_rate:accountRate});
   const tiers=await previewTierQuotes({getRate:async()=>rate,getImageModel:async()=>null});
@@ -19,7 +19,7 @@ test('unconfigured or unimported services still have numeric previews matching n
 test('preview prefers the saved exact GPT rate and never substitutes an unknown image SKU',async()=>{
  const getRate=async()=>1.05;
  const normal=await previewTierQuotes({getRate});
- const saved=await previewTierQuotes({getRate,getImageModel:async()=>({provider:'api888',providerModelId:'gpt-image-2-1k',api888:{billing:'image',sourceCny:0.1}})});
+ const saved=await previewTierQuotes({getRate,getImageModel:async()=>({provider:'api888',providerModelId:'gpt-image-2.6',api888:{billing:'image',sourceCny:0.1}})});
  assert.ok(saved[0].credits>normal[0].credits);assert.ok(saved.every(t=>t.priceBasis==='saved-model-rate'));
  const mismatch=await previewTierQuotes({getRate,getImageModel:async()=>({provider:'api888',providerModelId:'gpt-image-other',api888:{billing:'image',sourceCny:9}})});
  assert.equal(mismatch[0].credits,normal[0].credits);

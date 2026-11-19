@@ -6,13 +6,13 @@ Story Studio is available at `/story` after customer sign-in. One prompt creates
 
 1. Deploy the same revision to the customer web app and the standalone worker host's **web parent process** (`server.js`). This story scheduler runs in that parent alongside the existing generation child. A deployment that runs only `worker.js` does not run the story scheduler. Keep customer `WORKER_ENABLED=false`; keep worker host `WORKER_ENABLED=true`. Both must share MySQL and the same provider settings.
 2. Configure working AI Gateway, 888API, vgenv and Vibi connections in existing Admin provider settings. They must be enabled and visible to the customer, and provider charges must be permitted. The production 888API connection reset remains a separate issue; it must be resolved before character generation can succeed.
-3. Import and enable 888API `gpt-image-2-1k`. This change adds that already mapped image adapter to the offered catalog. The default public ID is `api888_gpt_image_2_1k`; a previously unsupported saved row needs a fresh live import. An alternate reviewed, ready 888API **GPT image** adapter can be selected via `STORY_IMAGE_MODEL`.
+3. Import and enable 888API `gpt-image-2.6`. This change adds its reviewed text-to-image mapping to the offered catalog. The default public ID is `api888_gpt_image_2_6`; an already enabled/account-available imported row receives the reviewed mapping at read time; an absent or unavailable row still needs a fresh authenticated live import. New stories are pinned to this exact SKU. Legacy `STORY_IMAGE_MODEL` environment values are ignored; existing stories retain their saved model, and older stories without a saved image ID retain their original GPT Image 2 1K model. The model uses the verified 1K presets and CNY 0.036/image catalog rate. This integration uses text-to-image character creation; the provider's separate up-to-14-image editing capability is not exposed by this adapter.
 4. Set these environment values **on both web and worker**:
 
    ```dotenv
    STORY_STUDIO_ENABLED=true
    STORY_TEXT_MODEL=your-configured-ai-gateway-text-model-id
-   STORY_IMAGE_MODEL=api888_gpt_image_2_1k
+   # Character images are pinned to gpt-image-2.6; no image-model env setting is needed.
    STORY_ENGLISH_VOICE_ID=your-available-vibi-elevenlabs-english-voice-id
    STORY_VOICE_MODEL=eleven_multilingual_v2
    ```

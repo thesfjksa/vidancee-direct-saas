@@ -461,7 +461,7 @@ Api888Client.prototype.generateImage=async function(model,params,refs=[]){
   const size=require('../api888_models.js').api888ImageSize(model.providerModelId,ratio);
   if(!size)throw new Error('Unsupported aspect ratio for this 888API image model.');
   const result=await this.json('/v1/images/generations',{model:model.providerModelId,
-    prompt:String(params.prompt||''),n:1,size},180000,API888_IMAGE_JSON_LIMIT);
+    prompt:String(params.prompt||''),n:1,size,...(model.providerModelId==='gpt-image-2.6'?{response_format:'url'}:{})},180000,API888_IMAGE_JSON_LIMIT);
   const item=result.data?.[0];
   let data;
   if(item?.b64_json){if(item.b64_json.length>Math.ceil(IMAGE_LIMIT*4/3)+8)throw new Error('The generated image exceeds the supported 20 MiB limit.');data=Buffer.from(item.b64_json,'base64');}

@@ -1,7 +1,7 @@
 'use strict';
 const TIERS=Object.freeze([120,180,300].map(seconds=>Object.freeze({id:(seconds/60)+'min',label:(seconds/60)+' minutes',duration:seconds,scenes:seconds/15})));
 const VIDEO_MODEL='minimax_h3_cinematic';
-const DEFAULT_IMAGE_MODEL='api888_gpt_image_2_1k';
+const DEFAULT_IMAGE_MODEL='api888_gpt_image_2_6';
 function storyTier(id){const tier=TIERS.find(t=>t.id===id);if(!tier)throw Object.assign(new Error('Choose a 2-minute, 3-minute or 5-minute story tier.'),{statusCode:400});return tier;}
 function durationTier(duration=120){const tier=TIERS.find(t=>t.duration===duration);if(!tier)throw Object.assign(new Error('Unsupported story duration.'),{statusCode:400});return tier;}
 async function tierQuotes({quoteVideo,quoteImage,quoteNarration,imageModel=DEFAULT_IMAGE_MODEL}){

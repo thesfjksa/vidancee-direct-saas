@@ -11,7 +11,7 @@ test('only 2, 3 and 5 minute tiers exist and their prices follow account quotes'
  const make=rate=>tierQuotes({quoteVideo:async()=>10*rate,quoteImage:async()=>2*rate,quoteNarration:async n=>{assert.equal(n,500);return 5*rate;}});
  assert.deepEqual((await make(1)).map(t=>t.credits),[126,186,306]);
  assert.deepEqual((await make(2)).map(t=>t.credits),[252,372,612]);
- for(const t of await make(1)){assert.equal(t.videoModel,'minimax_h3_cinematic');assert.equal(t.imageModel,'api888_gpt_image_2_1k');assert.equal(t.isEstimate,true);}
+ for(const t of await make(1)){assert.equal(t.videoModel,'minimax_h3_cinematic');assert.equal(t.imageModel,'api888_gpt_image_2_6');assert.equal(t.isEstimate,true);}
  await assert.rejects(tierQuotes({quoteVideo:async()=>0,quoteImage:async()=>1,quoteNarration:async()=>1}),/pricing/);
 });
 test('each duration plans exactly its number of scenes and the planner requests the selected length',async()=>{
@@ -32,7 +32,7 @@ test('orchestrator completes 8, 12 and 20 scenes with ordered narration and corr
  }
 });
 test('create accepts a server-quoted tier without budget input, ignores client model/price overrides and replays across rate changes',async()=>{
- const quote={id:'3min',duration:180,credits:500,videoModel:'minimax_h3_cinematic',imageModel:'api888_gpt_image_2_1k',breakdown:{video:400,images:20,narration:80}};
+ const quote={id:'3min',duration:180,credits:500,videoModel:'minimax_h3_cinematic',imageModel:'api888_gpt_image_2_6',breakdown:{video:400,images:20,narration:80}};
  let saved,commits=0;
  const conn={beginTransaction:async()=>{},commit:async()=>commits++,rollback:async()=>{},release:()=>{},execute:async(sql,args)=>{
   if(sql.startsWith('SELECT id,status'))return [[{id:9,status:'active',credits:10000}]];
@@ -60,7 +60,7 @@ test('readiness accepts only an 888API GPT character model and exposes all accou
  const keys=['STORY_STUDIO_ENABLED','STORY_TEXT_MODEL','STORY_ENGLISH_VOICE_ID'],old=keys.map(k=>process.env[k]);
  process.env.STORY_STUDIO_ENABLED='true';process.env.STORY_TEXT_MODEL='owner/model';process.env.STORY_ENGLISH_VOICE_ID='english';
  const settings={allowProviderCharges:true,vercelEnabled:true,vercelApiKey:'configured',api888Enabled:true,api888ApiKey:'configured',vgenvEnabled:true,vgenvApiKey:'configured',vibiEnabled:true,vibiApiKey:'configured'};
- let id='gpt-image-2-1k',response;
+ let id='gpt-image-2.6',response;
  const d={requireUser:async()=>({id:9}),settings:async()=>settings,access:async()=>({vercel:true,api888:true,vgenv:true,vibi:true}),imageModel:async()=>({provider:'api888',providerModelId:id,enabled:true,available:true,ready:true}),tierQuotes:async(user,imageModel)=>{assert.equal(user.id,9);assert.match(imageModel,/api888_gpt/);return tierQuotes({imageModel,quoteVideo:async()=>10,quoteImage:async()=>2,quoteNarration:async()=>5});},json:(res,status,body)=>{response=body;}};
  try{
   const studio=createStoryStudio(d);await studio.handle({method:'GET',headers:{}},{},null,'/api/stories/config');
