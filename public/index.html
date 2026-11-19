@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
 <link rel="stylesheet" href="/studio.css?v=cmm-17">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
+<link rel="stylesheet" href="/voice-picker.css?v=20261119">
 <script src="/dope-performance.js?v=4"></script>
 </head>
 <body>
@@ -262,9 +263,10 @@
             <div class="panel-title" id="voiceModelName">Eleven v4</div>
             <div class="panel-sub">Select a voice and language, then shape the delivery.</div>
             <div id="voicePrimaryVoice">
-              <div class="field"><label for="voiceSearch">Search voices</label><div class="control-grid"><input id="voiceSearch" placeholder="Name or style"><button class="btn secondary" onclick="loadVoiceOptions()">Search</button></div></div>
-              <div class="field"><label for="voiceSelect">Voice</label><select id="voiceSelect" onchange="voiceInvalidate()"></select></div>
-              <button class="btn secondary" onclick="previewStudioVoice()">Preview voice</button><audio id="voicePreview" class="hide" controls preload="none" style="width:100%;margin-top:10px"></audio>
+              <input id="voiceSearch" type="hidden" value="">
+              <select id="voiceSelect" class="hide" aria-label="Selected voice" onchange="voiceInvalidate();updateVoiceSelectedLabel()"></select>
+              <div class="field"><label for="voicePickerOpen">Voice</label><div class="voice-choice"><button id="voicePickerOpen" type="button" class="btn secondary voice-choice-trigger" onclick="openVoicePicker()" aria-haspopup="dialog" aria-controls="voicePickerDialog"><span id="voiceSelectedLabel">Choose a voice</span><span aria-hidden="true">⌄</span></button><button type="button" class="btn secondary" onclick="previewStudioVoice()">▶ Preview</button></div></div>
+              <audio id="voicePreview" class="hide" controls preload="none" style="width:100%;margin-top:10px"></audio>
             </div>
             <div id="voiceLanguageWrap" class="field"><label for="voiceLanguage">Language</label><select id="voiceLanguage" onchange="scheduleVoiceCost()"></select></div>
             <div id="voiceSpeakerRows" class="hide"><p>Write each turn as <strong>Speaker: text</strong>. Use the speaker names below.</p><div id="voiceDialogueSpeakers" style="display:grid;gap:12px"></div><button class="btn secondary" onclick="addVoiceSpeaker()">Add speaker</button></div>
@@ -616,7 +618,33 @@
   </div>
 </dialog>
 
-<script src="/voice-studio.js?v=20261119"></script>
+
+<dialog id="voicePickerDialog" class="voice-picker-dialog" aria-labelledby="vpHeading">
+  <div class="vp-shell">
+    <div class="vp-top"><div class="vp-tabs" role="tablist" aria-label="Voice collections" id="vpHeading">
+      <button type="button" class="vp-tab" data-vp-tab="favourites" role="tab" aria-selected="false">♡ Favourites</button>
+      <button type="button" class="vp-tab" data-vp-tab="all" role="tab" aria-selected="true">▦ All Voices</button>
+      <button type="button" class="vp-tab" data-vp-tab="library" role="tab" aria-selected="false">⌕ Voice Library</button>
+      <button type="button" class="vp-tab" data-vp-tab="default" role="tab" aria-selected="false">♩ Default Voices</button>
+    </div><button type="button" class="vp-close" id="vpClose" aria-label="Close voice picker">×</button></div>
+    <div class="vp-filters">
+      <label for="vpLanguage">Language<select id="vpLanguage" data-vp-filter><option value="">Any language</option></select></label>
+      <label for="vpAccent">Accent<select id="vpAccent" data-vp-filter><option value="">Any</option></select></label>
+      <label for="vpQuality">Quality<select id="vpQuality" data-vp-filter><option value="">Any</option></select></label>
+      <label for="vpGender">Gender<select id="vpGender" data-vp-filter><option value="">Any</option></select></label>
+      <label for="vpAge">Age<select id="vpAge" data-vp-filter><option value="">Any</option></select></label>
+      <label for="vpCategory">Category<select id="vpCategory" data-vp-filter><option value="">Any</option></select></label>
+      <label for="vpSort">Sort<select id="vpSort" data-vp-filter><option value="provider">Provider order</option><option value="name">Name A–Z</option><option value="usage">Most used (if available)</option></select></label>
+    </div>
+    <div class="vp-searchbar"><input id="vpSearch" type="search" autocomplete="off" placeholder="Search by keyword or voice ID…" aria-label="Search voices"><button type="button" class="vp-reset" id="vpReset">Reset</button></div>
+    <div class="vp-status" id="vpStatus" aria-live="polite"></div>
+    <div class="vp-grid" id="vpCards"></div>
+    <div class="vp-footer"><strong id="vpNowPlaying">Choose a voice to preview</strong><audio id="vpAudio" controls preload="none" aria-label="Voice preview audio"></audio></div>
+  </div>
+</dialog>
+
+<script src="/voice-studio.js?v=20261119-picker"></script>
+<script src="/voice-picker.js?v=20261119"></script>
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;

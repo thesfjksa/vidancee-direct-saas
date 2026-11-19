@@ -1,3 +1,12 @@
+## 19 November 2026 — Voice selection popup
+
+- Replaced the customer TTS dropdown with an accessible, mobile-responsive modal styled after the supplied voice-library reference: Favourites, All Voices, Voice Library and Default Voices tabs, searchable card grid, secure preview player, and a Use action. Also added the picker to dialogue speaker rows. The selected voice ID flows unchanged to speech, voice changer, dubbing or dialogue. The rest of the fixed Eleven v4 model and no-markup Vibi billing remain unchanged.
+- Filters: language, accent, quality, gender, age, category and sort. Fields are populated from actual metadata returned by the connected Vibi /v1/default-voices response; unavailable facets are disabled or omitted. Voice-name and ID search is passed to the existing server route; voice results are merged to preserve the active selection across searches. Favourites are saved locally in the customer's current browser, including cached voice metadata across reloads. No account-wide favourites sync is implied.
+- Current Vibi client exposes /v1/default-voices (100 per request). It does not currently expose a separately verified community/shared-voice listing endpoint. The Voice Library tab therefore displays matching library-category records only if the authenticated provider supplies them, otherwise an explicit empty state; the UI must not invent shared voices, accent labels, trending ranking, samples, language coverage, or usage statistics.
+- Tests added for provider metadata mapping and the modal's tabs, controls, assets and script parsing. Browser runtime tests and live Vibi-account voice metadata still require production verification after deployment. This update changes no pricing, provider charging, queue policies or generation model.
+
+---
+
 ## 19 November 2026 — Rebuild Voice Studio with Vibi tools and zero-markup billing
 
 - Owner requested a fixed Eleven v4 speech model, language selector and voice sliders matching their screenshot, plus Vibi cloning, dubbing, voice changer and dialogue. Reviewed the public rendered reference at https://vibi.pro/docs including exact request bodies, polling paths, upload flow, limits and costs. Direct documentation/llms HTTP downloads returned 403; the rendered reference was accessible without sign-in. No credentials were requested or exposed.
