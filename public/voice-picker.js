@@ -3,7 +3,14 @@
 let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null;
 const voicePickerFavoriteKey='cmm_voice_favorites_v1';
 function voicePickerFavorites(){try{return new Set(JSON.parse(localStorage.getItem(voicePickerFavoriteKey)||'[]').filter(x=>typeof x==='string'));}catch{return new Set();}}
-function voicePickerSaveFavorites(ids){try{localStorage.setItem(voicePickerFavoriteKey,JSON.stringify([...ids]));}catch{}}
+function voicePickerStoredFavorites(){try{const rows=JSON.parse(localStorage.getItem('cmm_voice_favorite_records_v1')||'[]');return Array.isArray(rows)?rows.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string').slice(0,200):[];}catch{return [];}}
+function voicePickerSaveFavorites(ids){
+ try{
+  localStorage.setItem(voicePickerFavoriteKey,JSON.stringify([...ids]));
+  const known=[...(voiceOptions.voices||[]),...voicePickerStoredFavorites()];
+  localStorage.setItem('cmm_voice_favorite_records_v1',JSON.stringify([...new Map(known.filter(x=>ids.has(x.id)).map(v=>[v.id,v])).values()].slice(0,200)));
+ }catch{}
+}
 function voicePickerSelectNode(){return $('voicePickerDialog');}
 function voicePickerText(s){return String(s??'').trim();}
 function voicePickerField(voice,field){return voicePickerText(voice[field]);}
@@ -73,7 +80,7 @@ function voicePickerMatchesLanguage(v,code){
  if(!code)return true;
  const tags=(v.languages||[]).map(x=>voicePickerText(x).toLowerCase());
  const lang=voicePickerText(v.language).toLowerCase();
- if(!tags.length&&!lang)return true; // Provider omits language metadata on some voices.
+ if(!tags.length&&!lang)return false; // Unknown language cannot be claimed as a match.
  const name=(voiceOptions.speechLanguages||[]).find(x=>x.code===code)?.name||'';
  return [code.toLowerCase(),name.toLowerCase()].some(x=>x&&(tags.includes(x)||lang===x));
 }
@@ -84,13 +91,13 @@ function voicePickerMatches(v){
  if(!voicePickerMatchesLanguage(v,$('vpLanguage').value))return false;
  for(const field of ['accent','quality','gender','age','category']){
   const filter=$('vp'+field[0].toUpperCase()+field.slice(1)).value.toLowerCase();
-  if(filter&&voicePickerField(v,field)&&voicePickerField(v,field).toLowerCase()!==filter)return false;
+  if(filter&&voicePickerField(v,field).toLowerCase()!==filter)return false;
  }
  return true;
 }
 function voicePickerFiltered(){
- const favorites=voicePickerFavorites(),query=$('vpSearch').value.trim(),all=voiceOptions.voices||[];
- const pool=query?all.filter(v=>voicePickerLatest.some(x=>x.id===v.id)):all;
+ const favorites=voicePickerFavorites(),query=$('vpSearch').value.trim(),all=[...new Map([...(voiceOptions.voices||[]),...voicePickerStoredFavorites()].map(v=>[v.id,v])).values()];
+ const pool=query&&voicePickerTab!=='favourites'?all.filter(v=>voicePickerLatest.some(x=>x.id===v.id)):all;
  let matches=pool.filter(v=>{
   if(voicePickerTab==='favourites'&&!favorites.has(v.id))return false;
   if(voicePickerTab==='library'&&!(v.category&&/shared|professional|community|library/i.test(v.category)))return false;
@@ -122,7 +129,7 @@ function renderVoicePicker(){
  }).join('');
 }
 function previewVoicePickerVoice(id){
- const v=(voiceOptions.voices||[]).find(x=>x.id===id),audio=$('vpAudio');
+ const v=[...(voiceOptions.voices||[]),...voicePickerStoredFavorites()].find(x=>x.id===id),audio=$('vpAudio');
  if(!v?.previewUrl){$('vpNowPlaying').textContent='Preview not available';return;}
  try{
   const url=new URL(v.previewUrl);
@@ -132,8 +139,9 @@ function previewVoicePickerVoice(id){
  }catch{$('vpNowPlaying').textContent='Preview unavailable';}
 }
 function useVoicePickerVoice(id){
- const v=(voiceOptions.voices||[]).find(x=>x.id===id),target=voicePickerTarget||$('voiceSelect');
+ const v=[...(voiceOptions.voices||[]),...voicePickerStoredFavorites()].find(x=>x.id===id),target=voicePickerTarget||$('voiceSelect');
  if(!v||!target)return;
+ if(!voiceOptions.voices.some(x=>x.id===v.id))voiceOptions.voices.push(v);
  if(![...target.options].some(o=>o.value===id)){
   const option=document.createElement('option');option.value=id;option.textContent=v.name;target.appendChild(option);
  }
