@@ -145,6 +145,8 @@ test('voice selector filters native language labels without losing multilingual 
 
 test('language-aware catalog requests fetch distinct provider voices and reject unlabelled defaults',async()=>{
  const f=fixture(),calls=[];
+ f.client.getModels=async()=>[{...models[0],languages:[...models[0].languages,{language_id:'hi'}]}];
+ f.client.getLanguages=async p=>p==='minimax'?[{code:'English',name:'English'}]:[...langs,{code:'hi',name:'Hindi'}];
  f.client.getDefaultVoices=async args=>{
   calls.push(args);
   if(args.language==='ur')return {voices:[
