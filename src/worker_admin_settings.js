@@ -602,9 +602,9 @@ class GenerationWorker {
     );
     for (const row of rows) {
       try {
-        const job = await this.vibi.getHistoryDetail(row.provider_job_id);
+        const job = await require('./voice_worker').poll(this.vibi,row);
         if (job.status === 'completed' && job.outputUrl) {
-          await this.reconcileVibiCredits(db,row,job.creditsDeducted);
+          await require('./voice_studio_store').settle(db,row,job.creditsDeducted);
           await db.execute(
             "UPDATE generations SET status='completed', provider_cost=?, provider_cost_unit='credits', output_url=?, completed_at=UTC_TIMESTAMP(), error_message=NULL, updated_at=UTC_TIMESTAMP() WHERE id=?",
             [job.creditsDeducted,job.outputUrl,row.id]
@@ -626,6 +626,7 @@ class GenerationWorker {
 
   async submitVibiQueued(db) {
     if (!this.vibiEnabled || !this.vibi) return;
+    await db.execute("UPDATE generations SET status='submit_error',error_message='Voice submission was interrupted. Contact support before retrying.',updated_at=UTC_TIMESTAMP() WHERE provider='vibi' AND media_type='audio' AND status='submitting' AND provider_job_id IS NULL AND updated_at<UTC_TIMESTAMP()-INTERVAL 10 MINUTE");
     const [[active]] = await db.query(
       "SELECT COUNT(*) AS total FROM generations WHERE media_type='audio' AND provider='vibi' AND status IN ('submitting','submitted','processing')"
     );
@@ -643,25 +644,22 @@ class GenerationWorker {
       );
       if(!claim.affectedRows)continue;
       try{
-        const params=JSON.parse(job.provider_meta||'{}');
-        const result=await this.vibi.textToSpeech({
-          voiceId:params.voiceId,
-          text:job.prompt,
-          modelId:params.modelId,
-          provider:params.provider,
-          languageCode:params.languageCode,
-          voiceSettings:params.voiceSettings||{},
-          exportTranscript:false,
-        });
-        if(!result.id)throw new Error('Vibi did not return a task ID.');
+        const providerId=await require('./voice_worker').submit(this.vibi,db,job);
         await db.execute(
           "UPDATE generations SET status='submitted',provider_job_id=?,submitted_at=UTC_TIMESTAMP(),started_at=COALESCE(started_at,UTC_TIMESTAMP()),updated_at=UTC_TIMESTAMP() WHERE id=?",
-          [result.id,job.id]
+          [providerId,job.id]
         );
+        await db.execute('DELETE FROM voice_input_chunks WHERE generation_id=?',[job.id]);
         slots-=1;
       }catch(error){
-        console.error('Vibi voice submission failed for',job.id,error);
-        await refundGeneration(job.id,'submit_error','Voice generation could not be submitted. Credits were refunded.',null);
+        console.error('Vibi voice submission failed for',job.id,error.message);
+        if(error.definitive){
+          await refundGeneration(job.id,'failed','Voice generation was rejected. Credits were refunded.',null);
+          await db.execute('DELETE FROM voice_input_chunks WHERE generation_id=?',[job.id]);
+        }else{
+          await db.execute("UPDATE generations SET status='submit_error',error_message='Voice submission is unconfirmed. Contact support before creating another request.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'",[job.id]);
+        }
+        slots-=1;
       }
     }
   }
@@ -678,6 +676,7 @@ class GenerationWorker {
     for(const row of rows){
       const v=byId.get(String(row.provider_clone_id));if(!v)continue;
       const status=String(v.status||'processing').toLowerCase();
+      if(status==='failed'){await require('./voice_studio_store').refundClone(db,row);continue;}
       await db.execute(
         "UPDATE user_voice_clones SET status=?,sample_audio_url=?,cover_url=?,error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",
         [status==='done'?'done':(status==='failed'?'failed':'processing'),v.sample_audio_url||null,v.cover_url||null,status==='failed'?'Voice cloning failed.':null,row.id]
@@ -687,6 +686,7 @@ class GenerationWorker {
 
   async submitVibiCloneQueue(db){
     if(!this.vibiEnabled||!this.vibi)return;
+    await db.execute("UPDATE user_voice_clones SET status='submit_error',error_message='Clone submission was interrupted. Contact support before retrying.',updated_at=UTC_TIMESTAMP() WHERE provider='vibi' AND status='submitting' AND provider_clone_id IS NULL AND updated_at<UTC_TIMESTAMP()-INTERVAL 10 MINUTE");
     const [rows]=await db.query(
       "SELECT * FROM user_voice_clones WHERE provider='vibi' AND status='queued' ORDER BY created_at ASC LIMIT 3"
     );
@@ -707,28 +707,15 @@ class GenerationWorker {
           needNoiseReduction:true,
           previewText:row.preview_text||'Hello',
         });
+        if(!result.id)throw new Error('Voice cloning submission is unconfirmed.');
         await db.execute(
           "UPDATE user_voice_clones SET provider_clone_id=?,status=?,sample_data=NULL,error_message=NULL,updated_at=UTC_TIMESTAMP() WHERE id=?",
           [String(result.id||''),String(result.status||'processing').toLowerCase()==='done'?'done':'processing',row.id]
         );
       }catch(error){
-        console.error('Vibi voice clone submission failed for',row.id,error);
-        const conn=await db.getConnection();
-        try{
-          await conn.beginTransaction();
-          const [freshRows]=await conn.execute('SELECT * FROM user_voice_clones WHERE id=? FOR UPDATE',[row.id]);
-          const fresh=freshRows[0];
-          if(fresh){
-            await conn.execute("UPDATE user_voice_clones SET status='failed',error_message=?,updated_at=UTC_TIMESTAMP() WHERE id=?",[String(error.message||'Voice clone failed').slice(0,1000),row.id]);
-            if(!fresh.refunded_at && Number(fresh.credits_cost||0)>0){
-              const amount=Number(fresh.credits_cost);
-              await conn.execute('UPDATE users SET credits=credits+? WHERE id=?',[amount,fresh.user_id]);
-              await conn.execute("INSERT INTO credit_transactions (user_id,generation_id,amount,type,note) VALUES (?,NULL,?,'voice_clone_refund',?)",[fresh.user_id,amount,'Voice cloning failed. Credits were refunded.']);
-              await conn.execute('UPDATE user_voice_clones SET refunded_at=UTC_TIMESTAMP() WHERE id=?',[row.id]);
-            }
-          }
-          await conn.commit();
-        }catch(refundError){await conn.rollback();throw refundError}finally{conn.release()}
+        console.error('Vibi voice clone submission failed for',row.id,error.message);
+        if(error.definitive)await require('./voice_studio_store').refundClone(db,row);
+        else await db.execute("UPDATE user_voice_clones SET status='submit_error',error_message='Clone submission is unconfirmed. Contact support before retrying.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'",[row.id]);
       }
     }
   }

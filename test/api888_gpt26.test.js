@@ -38,7 +38,7 @@ test('new stories and their estimates use GPT 2.6 even if the old environment se
  assert.equal(DEFAULT_IMAGE_MODEL,'api888_gpt_image_2_6');
  const quotes=await previewTierQuotes({getRate:async()=>1.05});
  assert.ok(quotes.every(q=>q.imageModel==='api888_gpt_image_2_6'));assert.equal(quotes[0].breakdown.images,110.25);
- assert.deepEqual(quotes.map(q=>q.credits),[13155.45,19678.05,32723.25]);
+ assert.deepEqual(quotes.map(q=>q.credits),[3344.74,4961.98,8196.47]);
  const earlier=api888MediaModels({data:[{id:'gpt-image-2-1k'}]})[0];assert.equal(earlier.options.adapterSupported,true,'historical image jobs are not retired');
 });
 test('ambiguous GPT 2.6 submission failures never trigger another paid POST',async()=>{

@@ -54,7 +54,7 @@ const DEFAULTS = {
   vibi_api_key: '',
   vibi_enabled: 'true',
   vibi_max_inflight: '4',
-  vibi_clone_customer_cost: '0',
+  vibi_clone_source_cost: '0',
   allow_provider_charges: 'false',
 };
 
@@ -250,7 +250,7 @@ async function getProviderSettings(db = getPool()) {
     vibiApiKey: String(read('vibi_api_key') || '').trim(),
     vibiEnabled: asBool(read('vibi_enabled')),
     vibiMaxInflight: Math.max(1, Math.min(20, Number(read('vibi_max_inflight') || 4))),
-    vibiCloneCustomerCost: Math.max(0, Number(read('vibi_clone_customer_cost') || 0)),
+    vibiCloneSourceCost: Math.max(0, Number(read('vibi_clone_source_cost') || 0)),
     allowProviderCharges: asBool(read('allow_provider_charges')),
   };
 }
@@ -334,7 +334,8 @@ async function getAdminProviderSettings() {
       baseUrl: s.vibiBaseUrl,
       apiKeyConfigured: Boolean(s.vibiApiKey),
       maxInflight: s.vibiMaxInflight,
-      cloneCustomerCost: s.vibiCloneCustomerCost,
+      cloneSourceCost: s.vibiCloneSourceCost,
+      billingPolicy: 'at-cost',
       configured: Boolean(s.vibiApiKey),
       enabled: Boolean(s.vibiEnabled),
       active: Boolean(s.vibiEnabled && s.vibiApiKey),
@@ -510,8 +511,12 @@ async function updateProviderSettings(input = {}) {
   }
   if ('vibiCloneCustomerCost' in input) {
     const n = Number(input.vibiCloneCustomerCost);
-    if (!Number.isFinite(n) || n < 0 || n > 1000000) throw new Error('Vibi clone customer cost must be zero or greater.');
-    await put('vibi_clone_customer_cost', String(n));
+    if(n!==0)throw new Error('Voice markup is disabled. Refresh Admin and enter the actual Vibi clone source credits.');
+  }
+  if ('vibiCloneSourceCost' in input) {
+    const n=Number(input.vibiCloneSourceCost);
+    if(!Number.isFinite(n)||n<0||n>1000000)throw new Error('Vibi clone source credits must be zero or greater.');
+    await put('vibi_clone_source_cost',String(n));
   }
 
   for (const [key, value] of smartUpdates) await put(key, value);
@@ -583,7 +588,7 @@ async function migrateLegacyProviderEnvSettings() {
   secret('vibi_api_key', 'VIBI_API_KEY');
   plain('vibi_enabled', 'VIBI_ENABLED');
   plain('vibi_max_inflight', 'VIBI_MAX_INFLIGHT');
-  plain('vibi_clone_customer_cost', 'VIBI_CLONE_CUSTOMER_COST');
+  plain('vibi_clone_source_cost', 'VIBI_CLONE_SOURCE_COST');
   plain('allow_provider_charges', 'ALLOW_PROVIDER_CHARGES');
   await Promise.all(tasks);
   return tasks.length;
@@ -600,5 +605,6 @@ module.exports = {
   saveGoogleDriveOAuthCredentials,
   deleteSettingValue,
 };
+
 
 

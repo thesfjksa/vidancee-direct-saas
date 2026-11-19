@@ -134,6 +134,25 @@ async function initDb() {
       CONSTRAINT fk_generations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+    `CREATE TABLE IF NOT EXISTS voice_studio_requests (
+      user_id BIGINT UNSIGNED NOT NULL,
+      request_key VARCHAR(80) NOT NULL,
+      request_hash CHAR(64) NOT NULL,
+      generation_id CHAR(36) NULL,
+      clone_id BIGINT UNSIGNED NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id,request_key),
+      CONSTRAINT fk_voice_request_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+    `CREATE TABLE IF NOT EXISTS voice_input_chunks (
+      generation_id CHAR(36) NOT NULL,
+      position_index INT UNSIGNED NOT NULL,
+      input_data MEDIUMBLOB NOT NULL,
+      PRIMARY KEY (generation_id,position_index),
+      CONSTRAINT fk_voice_input_generation FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
     `CREATE TABLE IF NOT EXISTS generation_image_outputs (
       generation_id CHAR(36) NOT NULL,
       mime_type VARCHAR(100) NOT NULL,
@@ -344,7 +363,7 @@ async function initDb() {
       gender VARCHAR(40) NOT NULL DEFAULT 'Male',
       preview_text VARCHAR(220) NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'queued',
-      credits_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      credits_cost DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
       refunded_at DATETIME NULL,
       sample_filename VARCHAR(255) NULL,
       sample_mime_type VARCHAR(100) NULL,
@@ -406,7 +425,9 @@ async function initDb() {
 
   const [voiceCloneCreditsColumn] = await db.query("SHOW COLUMNS FROM user_voice_clones LIKE 'credits_cost'");
   if (!voiceCloneCreditsColumn.length) {
-    await db.query("ALTER TABLE user_voice_clones ADD COLUMN credits_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER status");
+    await db.query("ALTER TABLE user_voice_clones ADD COLUMN credits_cost DECIMAL(12,4) NOT NULL DEFAULT 0.0000 AFTER status");
+  }else if(String(voiceCloneCreditsColumn[0].Type).toLowerCase()!=='decimal(12,4)'){
+    await db.query("ALTER TABLE user_voice_clones MODIFY credits_cost DECIMAL(12,4) NOT NULL DEFAULT 0.0000");
   }
   const [voiceCloneRefundColumn] = await db.query("SHOW COLUMNS FROM user_voice_clones LIKE 'refunded_at'");
   if (!voiceCloneRefundColumn.length) {
@@ -482,4 +503,5 @@ async function dbHealth() {
 }
 
 module.exports = { dbConfigured, getPool, initDb, dbHealth, ensureSchemaTable };
+
 

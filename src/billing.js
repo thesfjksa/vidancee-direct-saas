@@ -22,7 +22,8 @@ const cnyToCredits = cny => Math.ceil(Number(cny) * CREDITS_PER_CNY - 1e-9);
 const rsToCredits = rs => Number(rs) * CREDITS_PER_RS;
 const usdToCredits = usd => Number(usd) * CREDITS_PER_USD;
 
-// Voice (Vibi) only: its per-character source units x 2.5.
+// Legacy source-credit/image conversion. Vibi voice uses its own at-cost
+// conversion below; do not reuse this multiplier for voice generation.
 function creditMultiplier() {
   return 2.5;
 }
@@ -40,6 +41,23 @@ function sourceToCustomerCredits(sourceCredits) {
   const source = Number(sourceCredits);
   if (!Number.isFinite(source) || source <= 0) return null;
   return roundCredits(source * creditMultiplier());
+}
+
+// Owner-supplied Vibi purchasing rate, 19 Nov 2026. Use the customer's
+// purchase value of CMM credits, not the model cost basis (24/PKR), which
+// embeds the plan's 50% margin. No account boost or 5% increase applies.
+const VIBI_CREDITS_PER_PKR=69.637;
+const VOICE_RETAIL_CREDITS_PER_PKR=60000/5000;
+function voiceCreditsPerPkr(user){
+  const plan=require('./plans').getPlan(user?.plan_code);
+  const ratio=Number(plan?.credits)/Number(plan?.pricePkr);
+  return Number.isFinite(ratio)&&ratio>0?ratio:VOICE_RETAIL_CREDITS_PER_PKR;
+}
+function vibiToCustomerCredits(sourceCredits,creditsPerPkr=VOICE_RETAIL_CREDITS_PER_PKR){
+  const source=Number(sourceCredits),basis=Number(creditsPerPkr);
+  if(!Number.isFinite(source)||source<0||!Number.isFinite(basis)||basis<=0)return null;
+  // Round down to wallet precision: rounding must not add a markup.
+  return Math.floor((source/VIBI_CREDITS_PER_PKR*basis+1e-12)*10000)/10000;
 }
 
 // Boosted pricing, turned on per customer by the admin: every price is shown
@@ -74,4 +92,5 @@ function scalePrices(value, rate, inPrice = false) {
   return inPrice && typeof value === 'number' ? applyPriceRate(value, rate) : value;
 }
 
-module.exports = { BOOSTED_PRICE_RATE, PRICE_INCREASE, customerRate, priceRate, applyPriceRate, scalePrices, positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };
+module.exports = { BOOSTED_PRICE_RATE, PRICE_INCREASE, customerRate, priceRate, applyPriceRate, scalePrices, positiveNumber, creditMultiplier, roundCredits, roundYuanCredits, sourceToCustomerCredits, VIBI_CREDITS_PER_PKR, VOICE_RETAIL_CREDITS_PER_PKR,voiceCreditsPerPkr,vibiToCustomerCredits,PKR_PER_USD, CREDITS_PER_RS, CREDIT_COST_RS, CREDITS_PER_USD, CNY_PER_USD, CREDITS_PER_CNY, cnyToCredits, rsToCredits, usdToCredits };
+

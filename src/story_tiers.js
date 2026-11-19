@@ -17,13 +17,13 @@ module.exports={TIERS,VIDEO_MODEL,DEFAULT_IMAGE_MODEL,storyTier,durationTier,tie
 // Price preview does not prove provider readiness or grant generation access.
 // Use the saved exact GPT SKU rate when present, otherwise its reviewed catalog
 // rate. Never substitute another image model or invent a missing price.
-async function previewTierQuotes({getImageModel=async()=>null,getRate,imageModel=DEFAULT_IMAGE_MODEL}){
+async function previewTierQuotes({getImageModel=async()=>null,getRate,getVoiceBasis=async()=>12,imageModel=DEFAULT_IMAGE_MODEL}){
  const {IMAGE_IDS,IMAGE_CNY}=require('./api888_models');
  const {getCost}=require('./pricing');
- const {applyPriceRate,sourceToCustomerCredits,cnyToCredits}=require('./billing');
+ const {applyPriceRate,vibiToCustomerCredits,cnyToCredits}=require('./billing');
  const rawId=IMAGE_IDS.find(id=>/^gpt-image-/.test(id)&&'api888_'+id.replace(/[^a-zA-Z0-9]/g,'_')===imageModel);
  if(!rawId||!(Number(IMAGE_CNY[rawId])>0))throw Object.assign(new Error('The configured GPT image model has no reviewed price.'),{statusCode:503});
- const [model,rate]=await Promise.all([Promise.resolve().then(()=>getImageModel(imageModel)).catch(()=>null),getRate()]);
+ const [model,rate,voiceBasis]=await Promise.all([Promise.resolve().then(()=>getImageModel(imageModel)).catch(()=>null),getRate(),getVoiceBasis()]);
  if(!Number.isFinite(rate)||rate<=0)throw Object.assign(new Error('Account pricing is unavailable.'),{statusCode:503});
  const saved=Number(model?.api888?.sourceCny);
  const useSaved=model?.provider==='api888'&&model.providerModelId===rawId&&model.api888?.billing==='image'&&Number.isFinite(saved)&&saved>0&&saved<=999999;
@@ -31,7 +31,7 @@ async function previewTierQuotes({getImageModel=async()=>null,getRate,imageModel
  const tiers=await tierQuotes({imageModel,
   quoteVideo:async()=>applyPriceRate(getCost(VIDEO_MODEL,15,'768p'),rate),
   quoteImage:async()=>applyPriceRate(cnyToCredits(cny),rate),
-  quoteNarration:async chars=>applyPriceRate(sourceToCustomerCredits(chars),rate),
+  quoteNarration:async chars=>vibiToCustomerCredits(chars,voiceBasis),
  });
  return tiers.map(t=>({...t,priceBasis:useSaved?'saved-model-rate':'reviewed-catalog-rate'}));
 }
