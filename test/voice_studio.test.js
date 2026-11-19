@@ -126,16 +126,72 @@ test('voice picker modal provides filters, searchable cards, preview and dialogu
  new vm.Script(pick);
 });
 
-test('voice selector language is synthesis language, not a native-language restriction',()=>{
+test('voice selector filters native language labels without losing multilingual synthesis setting',()=>{
  const js=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
- const sandbox={document:{addEventListener:()=>{}},voiceOptions:{speechLanguages:[{code:'en',name:'English'},{code:'hi',name:'Hindi'}]}};
+ const sandbox={document:{addEventListener:()=>{}},voiceOptions:{speechLanguages:[{code:'en',name:'English'},{code:'hi',name:'Hindi'},{code:'ur',name:'Urdu'}]}};
  vm.createContext(sandbox);
  vm.runInContext(js,sandbox);
- assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'en',languages:['en']},'hi')",sandbox),true);
- assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:null,languages:[]},'hi')",sandbox),true);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'en',languages:['en']},'hi')",sandbox),false);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:null,languages:[]},'hi')",sandbox),false);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'hi-IN'},'hi')",sandbox),true);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({languages:['Urdu']},'ur')",sandbox),true);
  assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'en'},'unknown')",sandbox),false);
  assert.match(js,/voicePickerChangeLanguage/);
+ assert.match(js,/voicePickerFetch\(\)/);
  assert.match(js,/target\.value=code/);
+ assert.match(js,/No .*labelled voices/);
+});
+
+
+test('language-aware catalog requests fetch distinct provider voices and reject unlabelled defaults',async()=>{
+ const f=fixture(),calls=[];
+ f.client.getModels=async()=>[{...models[0],languages:[...models[0].languages,{language_id:'hi'}]}];
+ f.client.getLanguages=async p=>p==='minimax'?[{code:'English',name:'English'}]:[...langs,{code:'hi',name:'Hindi'}];
+ f.client.getDefaultVoices=async args=>{
+  calls.push(args);
+  if(args.language==='ur')return {voices:[
+    {voice_id:'a',name:'Default English',labels:{gender:'female',accent:'american'}},
+    {voice_id:'ur-native',name:'Urdu narrator',labels:{language:'ur',accent:'pakistani'}},
+    {voice_id:'hi-native',name:'Hindi narrator',language:'hi'}
+  ]};
+  if(args.language==='hi')return {voices:[
+    {voice_id:'hi-native',name:'Hindi narrator',language:'hi-IN'},
+    {voice_id:'ur-native',name:'Urdu narrator',language:'ur'}
+  ]};
+  return {voices:[{voice_id:'a',name:'Default English'}]};
+ };
+ const base='https://cmmtools.site/api/voice-options';
+ await f.studio.handle(req({},'GET'),{},new URL(base+'?language=ur'),'/api/voice-options');
+ assert.deepEqual(f.sent.at(-1).body.voices.map(x=>x.id),['ur-native']);
+ assert.equal(f.sent.at(-1).body.voices[0].previewUrl,null);
+ await f.studio.handle(req({},'GET'),{},new URL(base+'?language=hi'),'/api/voice-options');
+ assert.deepEqual(f.sent.at(-1).body.voices.map(x=>x.id),['hi-native']);
+ assert.deepEqual(calls.map(c=>c.language),['ur','hi']);
+ await f.studio.handle(req({},'GET'),{},new URL(base),'/api/voice-options');
+ assert.deepEqual(f.sent.at(-1).body.voices.map(x=>x.id),['a']);
+ await assert.rejects(f.studio.handle(req({},'GET'),{},new URL(base+'?language=madeup'),'/api/voice-options'),{statusCode:400});
+});
+
+test('unknown language listings do not reuse 21 untagged English default voices',async()=>{
+ const f=fixture(),calls=[];
+ f.client.getDefaultVoices=async args=>{
+   calls.push(args);
+   return {voices:[{voice_id:'english',name:'Bella',labels:{accent:'american',gender:'female'}}]};
+ };
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-options?language=ur'),'/api/voice-options');
+ assert.equal(f.sent.at(-1).body.voices.length,0);
+ assert.equal(f.sent.at(-1).body.voiceCatalogLanguage,'ur');
+ assert.equal(calls.length,2,'try language-filtered listing then a discovery search');
+ assert.equal(calls[1].search,'Urdu');
+});
+
+test('Vibi default voices forwards language in GET catalog query only when provided',async()=>{
+ const c=new VibiClient({apiKey:'test'}),paths=[];
+ c.request=async path=>{paths.push(path);return {voices:[]}};
+ await c.getDefaultVoices({pageSize:60,language:'ur',search:'narrator'});
+ await c.getDefaultVoices({pageSize:30});
+ assert.equal(paths[0],'/v1/default-voices?page_size=60&search=narrator&language=ur');
+ assert.equal(paths[1],'/v1/default-voices?page_size=30');
 });
 
 test('voice catalog exposes same-origin preview and preserves alternate upstream preview fields',async()=>{

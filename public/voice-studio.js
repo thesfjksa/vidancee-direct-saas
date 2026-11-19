@@ -44,7 +44,11 @@ function fillVoiceLanguages(node,items,preferred='en'){
 async function loadVoiceOptions(){
  if(!config?.voice?.enabled)return;const seq=++voiceOptionsSeq;
  try{
-  const d=await api('/api/voice-options?search='+encodeURIComponent($('voiceSearch').value.trim()));if(seq!==voiceOptionsSeq)return;
+  const pickerOpen=Boolean($('voicePickerDialog')?.open);
+  const nativeLanguage=pickerOpen&&!(typeof voicePickerShowCompatible==='boolean'&&voicePickerShowCompatible)?$('vpLanguage').value:'';
+  const params=new URLSearchParams({search:$('voiceSearch').value.trim()});
+  if(nativeLanguage)params.set('language',nativeLanguage);
+  const d=await api('/api/voice-options?'+params.toString());if(seq!==voiceOptionsSeq)return;
   // Preserve choices across remote searches: filtered results must not reset the chosen voice.
   const incoming=Array.isArray(d.voices)?d.voices:[],previous=voiceOptions.voices||[],old=$('voiceSelect').value;
   voiceOptions={...d,voices:[...new Map([...previous,...incoming].map(v=>[v.id,v])).values()]};
@@ -61,7 +65,7 @@ async function loadVoiceOptions(){
   if(!$('voiceDialogueSpeakers').children.length){addVoiceSpeaker('Alice');addVoiceSpeaker('Bob');}
   if(typeof updateVoicePickerCatalog==='function')updateVoicePickerCatalog(incoming);
   applyVoiceCapabilities();voiceInvalidate();if(d.modelError&&['speech','dialogue'].includes(voiceTool))voiceMessage(d.modelError,true);
- }catch(e){voiceMessage(e.message,true);$('generateVoiceBtn').disabled=true;}
+ }catch(e){voiceMessage(e.message,true);$('generateVoiceBtn').disabled=true;if(typeof voicePickerCatalogError==='function')voicePickerCatalogError(e.message);}
 }
 function voiceSelectOptions(){return (voiceOptions.voices||[]).map(v=>'<option value="'+escapeHtml(v.id)+'">'+escapeHtml(v.name)+'</option>').join('');}
 function addVoiceSpeaker(name=''){

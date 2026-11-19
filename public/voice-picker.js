@@ -1,6 +1,6 @@
 
 'use strict';
-let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null;
+let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null,voicePickerLoading=false,voicePickerShowCompatible=false,voicePickerError='';
 const voicePickerFavoriteKey='cmm_voice_favorites_v1';
 function voicePickerFavorites(){try{return new Set(JSON.parse(localStorage.getItem(voicePickerFavoriteKey)||'[]').filter(x=>typeof x==='string'));}catch{return new Set();}}
 function voicePickerStoredFavorites(){try{const rows=JSON.parse(localStorage.getItem('cmm_voice_favorite_records_v1')||'[]');return Array.isArray(rows)?rows.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string').slice(0,200):[];}catch{return [];}}
@@ -20,7 +20,7 @@ function updateVoiceSelectedLabel(){
  const label=$('voiceSelectedLabel');if(label)label.textContent=v?.name||'Choose a voice';
 }
 function voicePickerSetFilters(){
- const voices=voiceOptions.voices||[];
+ const voices=voicePickerSelectNode()?.open?voicePickerLatest:(voiceOptions.voices||[]);
  const fields=['accent','quality','gender','age','category'];
  for(const field of fields){
   const node=$('vp'+field[0].toUpperCase()+field.slice(1));if(!node)continue;
@@ -37,22 +37,32 @@ function voicePickerSetFilters(){
 }
 function updateVoicePickerCatalog(incoming){
  voicePickerLatest=Array.isArray(incoming)?incoming:[];
+ voicePickerLoading=false;voicePickerError='';
  updateVoiceSelectedLabel();
  voicePickerSetFilters();
  const dialog=voicePickerSelectNode();if(dialog?.open)renderVoicePicker();
 }
+function voicePickerCatalogError(message){voicePickerLoading=false;voicePickerError=String(message||'Unable to load the voice catalog.');renderVoicePicker();}
+function voicePickerFetch(){
+ clearTimeout(voicePickerTimer);
+ voicePickerLoading=true;voicePickerError='';voicePickerLatest=[];
+ $('voiceSearch').value=$('vpSearch').value.trim();
+ renderVoicePicker();
+ return loadVoiceOptions();
+}
 function openVoicePicker(target){
  voicePickerTarget=target&&target.tagName==='SELECT'?target:$('voiceSelect');
  const dialog=voicePickerSelectNode();if(!dialog)return;
- voicePickerTab='all';$('vpSearch').value='';$('voiceSearch').value='';
+ voicePickerTab='all';voicePickerShowCompatible=false;$('vpSearch').value='';$('voiceSearch').value='';
  for(const node of dialog.querySelectorAll('[data-vp-filter]'))node.value=node.id==='vpSort'?'provider':'';
  voicePickerSetFilters();
- const languageTarget=voicePickerTarget?.closest('.voice-speaker-row')?.querySelector('[data-speaker-language]')||$('voiceLanguage');
- if(languageTarget&&[...$('vpLanguage').options].some(o=>o.value===languageTarget.value))$('vpLanguage').value=languageTarget.value;
- voicePickerLatest=(voiceOptions.voices||[]).slice();
+ // Start browsing the full catalogue. The user explicitly applies a native-language
+ // filter when they select a language in the popup.
+ $('vpLanguage').value='';
+ voicePickerLatest=[];
  for(const tab of dialog.querySelectorAll('[data-vp-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.vpTab==='all'));
  if(!dialog.open)dialog.showModal();
- renderVoicePicker();
+ voicePickerFetch();
  $('vpSearch').focus();
 }
 function closeVoicePicker(){
@@ -69,30 +79,31 @@ function voicePickerChangeTab(tab){
 function voicePickerSetSearch(){
  clearTimeout(voicePickerTimer);
  const search=$('vpSearch').value.trim();
- voicePickerTimer=setTimeout(()=>{$('voiceSearch').value=search;loadVoiceOptions().catch(()=>{});},350);
- renderVoicePicker();
+ voicePickerTimer=setTimeout(()=>{voicePickerFetch();},350);
+ voicePickerLoading=true;voicePickerLatest=[];renderVoicePicker();
 }
 function voicePickerReset(){
  $('vpSearch').value='';$('voiceSearch').value='';
  for(const node of voicePickerSelectNode().querySelectorAll('[data-vp-filter]'))node.value=node.id==='vpSort'?'provider':'';
- voicePickerTab='all';voicePickerSelectNode().querySelectorAll('[data-vp-tab]').forEach(n=>n.setAttribute('aria-selected',String(n.dataset.vpTab==='all')));
- loadVoiceOptions().catch(()=>{});renderVoicePicker();
+ voicePickerTab='all';voicePickerShowCompatible=false;voicePickerSelectNode().querySelectorAll('[data-vp-tab]').forEach(n=>n.setAttribute('aria-selected',String(n.dataset.vpTab==='all')));
+ voicePickerFetch();
 }
 function voicePickerMatchesLanguage(v,code){
- // A voice's metadata language denotes its native/preview language, not the set of
- // languages the selected multilingual speech model can synthesize.
- // Model-supported languages are validated by the main generation backend.
- return !code||(voiceOptions.speechLanguages||[]).some(l=>l.code===code);
+ if(!code||voicePickerShowCompatible)return true;
+ const name=(voiceOptions.speechLanguages||[]).find(l=>l.code===code)?.name?.toLowerCase()||'';
+ const values=[v.language,...(v.languages||[])].filter(x=>typeof x==='string').map(x=>x.trim().toLowerCase());
+ return values.some(tag=>[code.toLowerCase(),name].some(term=>term&&(tag===term||tag.startsWith(term+'-')||tag.startsWith(term+'_'))));
 }
 function voicePickerChangeLanguage(){
  const code=$('vpLanguage').value;
+ voicePickerShowCompatible=false;
  const target=voicePickerTarget?.closest('.voice-speaker-row')?.querySelector('[data-speaker-language]')||$('voiceLanguage');
  if(code&&target&&[...target.options].some(o=>o.value===code)){
   target.value=code;
   voiceInvalidate();
   scheduleVoiceCost();
  }
- renderVoicePicker();
+ voicePickerFetch();
 }
 function voicePickerMatches(v){
  const search=$('vpSearch').value.trim().toLowerCase();
@@ -106,8 +117,9 @@ function voicePickerMatches(v){
  return true;
 }
 function voicePickerFiltered(){
- const favorites=voicePickerFavorites(),query=$('vpSearch').value.trim(),all=[...new Map([...voicePickerStoredFavorites(),...(voiceOptions.voices||[])].map(v=>[v.id,v])).values()];
- const pool=query&&voicePickerTab!=='favourites'?all.filter(v=>voicePickerLatest.some(x=>x.id===v.id)):all;
+ const favorites=voicePickerFavorites();
+ const all=[...new Map([...voicePickerStoredFavorites(),...voicePickerLatest].map(v=>[v.id,v])).values()];
+ const pool=voicePickerTab==='favourites'?all:voicePickerLatest;
  let matches=pool.filter(v=>{
   if(voicePickerTab==='favourites'&&!favorites.has(v.id))return false;
   if(voicePickerTab==='library'&&!(v.category&&/shared|professional|community|library/i.test(v.category)))return false;
@@ -124,10 +136,21 @@ function renderVoicePicker(){
  const root=$('vpCards');if(!root)return;
  const matches=voicePickerFiltered(),favorites=voicePickerFavorites(),current=voicePickerTarget?.value||voicePickerCurrentId();
  const language=$('vpLanguage').selectedOptions?.[0]?.textContent||'Any language';
- $('vpStatus').textContent='Showing '+matches.length+' voice'+(matches.length===1?'':'s')+'. '+($('vpLanguage').value?'Generation language: '+language+'. Voice preview clips may use their original accent or language.':'Choose a language to set the generation language; multilingual voices remain available.');
+ const langCode=$('vpLanguage').value;
+ if(voicePickerLoading){
+  $('vpStatus').textContent='Searching '+(langCode?language+'-labelled':'available')+' voices…';
+  root.innerHTML='<div class="vp-empty">Searching the connected provider voice catalogue…</div>';return;
+ }
+ if(voicePickerError){
+  $('vpStatus').textContent='Voice catalogue unavailable';
+  root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerError)+'</div>';return;
+ }
+ $('vpStatus').textContent='Showing '+matches.length+' '+(langCode&&!voicePickerShowCompatible?language+'-labelled ':'')+'voice'+(matches.length===1?'':'s')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':'Voice labels reflect provider metadata, not all languages a model can synthesize.');
  if(!matches.length){
-  const desc=voicePickerTab==='library'?'The connected provider has not supplied a separate shared/community voice library.':'No voices match these filters. Try resetting them or searching another name.';
-  root.innerHTML='<div class="vp-empty">'+escapeHtml(desc)+'</div>';return;
+  const desc=voicePickerTab==='library'?'The connected Vibi catalog has no separate verified shared-voice collection.':langCode
+   ?'No '+language+'-labelled voices are currently exposed by the connected Vibi default-voice catalog. Multilingual default voices can still synthesize '+language+'.'
+   :'No voices match these filters. Try resetting them or searching another name.';
+  root.innerHTML='<div class="vp-empty">'+escapeHtml(desc)+(langCode&&voicePickerTab==='all'?'<p><button type="button" class="vp-reset" data-voice-action="compatible">Browse multilingual default voices</button></p>':'')+'</div>';return;
  }
  root.innerHTML=matches.map(v=>{
   const active=current===v.id,liked=favorites.has(v.id);
@@ -169,7 +192,8 @@ document.addEventListener('click',event=>{
  const action=event.target.closest('[data-voice-action]');
  if(!action||!voicePickerSelectNode()?.contains(action))return;
  const id=action.dataset.voiceId;
- if(action.dataset.voiceAction==='use')useVoicePickerVoice(id);
+ if(action.dataset.voiceAction==='compatible'){voicePickerShowCompatible=true;voicePickerFetch();}
+ else if(action.dataset.voiceAction==='use')useVoicePickerVoice(id);
  else if(action.dataset.voiceAction==='play')previewVoicePickerVoice(id);
  else if(action.dataset.voiceAction==='favorite'){
   const fav=voicePickerFavorites();fav.has(id)?fav.delete(id):fav.add(id);voicePickerSaveFavorites(fav);renderVoicePicker();
