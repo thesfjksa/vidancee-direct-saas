@@ -125,7 +125,7 @@ function voicePickerChangeLanguage(){
 }
 function voicePickerMatches(v){
  const search=$('vpSearch').value.trim().toLowerCase();
- const corpus=[v.id,v.name,v.description,v.accent,v.category,v.gender,v.age,v.quality].map(x=>voicePickerText(x)).join(' ').toLowerCase();
+ const corpus=[v.id,v.name,v.description,v.accent,v.category,v.gender,v.age,v.quality,v.language,...(v.languages||[])].map(x=>voicePickerText(x)).join(' ').toLowerCase();
  if(search&&!corpus.includes(search))return false;
  if(!voicePickerMatchesLanguage(v,$('vpLanguage').value))return false;
  for(const field of ['accent','quality','gender','age','category']){
@@ -163,7 +163,7 @@ function renderVoicePicker(){
   $('vpStatus').textContent='Voice catalogue unavailable';
   root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerError)+'</div>';return;
  }
- $('vpStatus').textContent='Showing '+matches.length+' '+(langCode&&!voicePickerShowCompatible?language+'-labelled ':'')+'voice'+(matches.length===1?'':'s')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':voicePickerSource==='shared'?'From Vibi shared-voice catalog.':'Voice labels are limited by the provider catalogue.')+(voicePickerNotice?' '+voicePickerNotice:'');
+ $('vpStatus').textContent='Showing '+matches.length+' voice'+(matches.length===1?'':'s')+(langCode&&!voicePickerShowCompatible?' matching '+language:'')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':voicePickerSource==='shared'?'From Vibi shared-voice search.':'Voice labels are limited by the provider catalogue.')+(voicePickerNotice?' '+voicePickerNotice:'');
  if(!matches.length){
   const desc=voicePickerTab==='library'?'The connected Vibi catalog has no separate verified shared-voice collection.':langCode
    ?'No '+language+'-labelled voices are currently exposed by the connected Vibi default-voice catalog. Multilingual default voices can still synthesize '+language+'.'
