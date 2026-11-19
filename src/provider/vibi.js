@@ -85,9 +85,12 @@ class VibiClient {
     return this.normalizeTask(await this.request(prefix+encodeURIComponent(id)));
   }
 
-  async getDefaultVoices({pageSize=30,search=''}={}){
+  async getDefaultVoices({pageSize=30,search='',language=''}={}){
     const q=new URLSearchParams({page_size:String(pageSize)});
-    if(search)q.set('search',search);
+    if(search)q.set('search',String(search));
+    // The provider may or may not implement language filtering. CMMTools must
+    // still validate the language metadata in its own response before displaying it.
+    if(language)q.set('language',String(language));
     return this.request('/v1/default-voices?'+q.toString());
   }
 
