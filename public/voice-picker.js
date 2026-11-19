@@ -1,6 +1,6 @@
 
 'use strict';
-let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null,voicePickerLoading=false,voicePickerShowCompatible=false,voicePickerError='';
+let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null,voicePickerLoading=false,voicePickerShowCompatible=false,voicePickerError='',voicePickerRequestSeq=0,voicePickerSource='default',voicePickerNotice='';
 const voicePickerFavoriteKey='cmm_voice_favorites_v1';
 function voicePickerFavorites(){try{return new Set(JSON.parse(localStorage.getItem(voicePickerFavoriteKey)||'[]').filter(x=>typeof x==='string'));}catch{return new Set();}}
 function voicePickerStoredFavorites(){try{const rows=JSON.parse(localStorage.getItem('cmm_voice_favorite_records_v1')||'[]');return Array.isArray(rows)?rows.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string').slice(0,200):[];}catch{return [];}}
@@ -43,12 +43,30 @@ function updateVoicePickerCatalog(incoming){
  const dialog=voicePickerSelectNode();if(dialog?.open)renderVoicePicker();
 }
 function voicePickerCatalogError(message){voicePickerLoading=false;voicePickerError=String(message||'Unable to load the voice catalog.');renderVoicePicker();}
-function voicePickerFetch(){
+async function voicePickerFetch(){
  clearTimeout(voicePickerTimer);
+ const seq=++voicePickerRequestSeq;
  voicePickerLoading=true;voicePickerError='';voicePickerLatest=[];
- $('voiceSearch').value=$('vpSearch').value.trim();
+ const language=$('vpLanguage').value;
+ const params=new URLSearchParams({search:$('vpSearch').value.trim()});
+ if(language)params.set('language',language);
+ if(voicePickerShowCompatible)params.set('mode','defaults');
  renderVoicePicker();
- return loadVoiceOptions();
+ try{
+  const d=await api('/api/voice-library?'+params.toString());
+  if(seq!==voicePickerRequestSeq||!voicePickerSelectNode()?.open)return;
+  voicePickerSource=d.source||'default';
+  voicePickerNotice=d.reason||'';
+  const incoming=Array.isArray(d.voices)?d.voices:[];
+  // Persist a new chosen voice in the generation selector, but never merge old
+  // English defaults into the language-specific browse results.
+  if(typeof voiceOptions!=='undefined'){
+    voiceOptions.voices=[...new Map([...(voiceOptions.voices||[]),...incoming].map(v=>[v.id,v])).values()];
+  }
+  updateVoicePickerCatalog(incoming);
+ }catch(e){
+  if(seq===voicePickerRequestSeq&&voicePickerSelectNode()?.open)voicePickerCatalogError(e.message);
+ }
 }
 function openVoicePicker(target){
  voicePickerTarget=target&&target.tagName==='SELECT'?target:$('voiceSelect');
@@ -66,7 +84,7 @@ function openVoicePicker(target){
  $('vpSearch').focus();
 }
 function closeVoicePicker(){
- clearTimeout(voicePickerTimer);
+ clearTimeout(voicePickerTimer);++voicePickerRequestSeq;
  const dlg=voicePickerSelectNode();if(dlg?.open)dlg.close();
  const audio=$('vpAudio');if(audio){audio.pause();audio.removeAttribute('src');audio.load();}
  voicePickerPlaying=null;voicePickerTarget=null;
@@ -122,7 +140,7 @@ function voicePickerFiltered(){
  const pool=voicePickerTab==='favourites'?all:voicePickerLatest;
  let matches=pool.filter(v=>{
   if(voicePickerTab==='favourites'&&!favorites.has(v.id))return false;
-  if(voicePickerTab==='library'&&!(v.category&&/shared|professional|community|library/i.test(v.category)))return false;
+  if(voicePickerTab==='library'&&voicePickerSource!=='shared'&&!(v.category&&/shared|professional|community|library/i.test(v.category)))return false;
   if(voicePickerTab==='default'&&v.category&&/shared|community|library/i.test(v.category))return false;
   return voicePickerMatches(v);
  });
@@ -145,7 +163,7 @@ function renderVoicePicker(){
   $('vpStatus').textContent='Voice catalogue unavailable';
   root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerError)+'</div>';return;
  }
- $('vpStatus').textContent='Showing '+matches.length+' '+(langCode&&!voicePickerShowCompatible?language+'-labelled ':'')+'voice'+(matches.length===1?'':'s')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':'Voice labels reflect provider metadata, not all languages a model can synthesize.');
+ $('vpStatus').textContent='Showing '+matches.length+' '+(langCode&&!voicePickerShowCompatible?language+'-labelled ':'')+'voice'+(matches.length===1?'':'s')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':voicePickerSource==='shared'?'From Vibi shared-voice catalog.':'Voice labels are limited by the provider catalogue.')+(voicePickerNotice?' '+voicePickerNotice:'');
  if(!matches.length){
   const desc=voicePickerTab==='library'?'The connected Vibi catalog has no separate verified shared-voice collection.':langCode
    ?'No '+language+'-labelled voices are currently exposed by the connected Vibi default-voice catalog. Multilingual default voices can still synthesize '+language+'.'
