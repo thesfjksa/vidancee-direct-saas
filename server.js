@@ -1275,10 +1275,8 @@ const customerApi=require('./src/customer_api.js').createCustomerApi({
 });
 const storyStudio=require('./src/story_studio.js').createStoryStudio({
  db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,
- tierQuotes:(user,imageModel)=>require('./src/story_tiers').tierQuotes({imageModel,
-  quoteVideo:()=>customerQuote(user.id,{model:'minimax_h3_cinematic',duration:15,resolution:'768p'}).then(q=>q.cost),
-  quoteImage:()=>customerQuote(user.id,{model:imageModel,mediaType:'image',aspectRatio:'1:1'}).then(q=>q.cost),
-  quoteNarration:async chars=>applyPriceRate(sourceToCustomerCredits(chars),await userPriceRate(user.id)),
+ tierQuotes:(user,imageModel)=>require('./src/story_tiers').previewTierQuotes({imageModel,
+  getImageModel:id=>getProviderModelByPublicId('api888',id,'image'),getRate:()=>userPriceRate(user.id),
  }),
  imageModel:id=>getProviderModelByPublicId('api888',id,'image'),
  image:(user,body,context)=>submitImageGeneration(user,body,null,context),

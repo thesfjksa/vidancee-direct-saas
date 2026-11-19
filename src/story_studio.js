@@ -58,14 +58,18 @@ function createStoryStudio(d){
  async function handle(req,res,url,route){
   if(!route.startsWith('/api/stories'))return false;
   const user=await d.requireUser(req);
-  if(!enabled())throw store.fail(503,'Story Studio is not enabled yet.');
   if(!['GET','HEAD'].includes(req.method)){
    if(req.headers['x-cmm-story']!=='1'||(req.headers.origin&&req.headers.origin!==d.publicOrigin(req)))throw store.fail(403,'Open Story Studio to make this request.');
   }
   const match=route.match(/^\/api\/stories\/([0-9a-f-]{36})(?:\/(media|retry|cancel))?$/i);
   if(route==='/api/stories/config'&&req.method==='GET'){
-   try{const {c}=await preflight(user);const tiers=await d.tierQuotes(user,c.imageModel);d.json(res,200,{ok:true,ready:true,language:'English',tiers});}catch(e){d.json(res,200,{ok:true,ready:false,error:hideVendors(e.message)});}return true;
+   let tiers=[],pricingError=null,setupError=null;
+   try{tiers=await d.tierQuotes(user,config().imageModel);}catch(e){pricingError=hideVendors(e.message);}
+   try{await preflight(user);}catch(e){setupError=hideVendors(e.message);}
+   d.json(res,200,{ok:true,ready:!setupError&&!pricingError,language:'English',tiers,
+    error:setupError||pricingError,pricingError});return true;
   }
+  if(!enabled())throw store.fail(503,'Story Studio is not enabled yet.');
   if(route==='/api/stories'&&req.method==='POST'){
    const {c}=await preflight(user);const body=await d.readJson(req);const tier=require('./story_tiers').storyTier(body.tier);const quote=(await d.tierQuotes(user,c.imageModel)).find(t=>t.id===tier.id);const row=await store.create(d.db(),user.id,body,quote);d.wake?.();d.json(res,201,{ok:true,story:await view(row)});return true;
   }
