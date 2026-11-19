@@ -3,7 +3,7 @@ const store=require('./story_store'),{advance}=require('./story_engine');
 const {planStory}=require('./story_plan'),render=require('./story_render'),media=require('./story_media');
 const {hideVendors}=require('./vendor_names');
 const enabled=()=>/^(true|1)$/i.test(process.env.STORY_STUDIO_ENABLED||'');
-function config(){return {textModel:String(process.env.STORY_TEXT_MODEL||''),imageModel:String(process.env.STORY_IMAGE_MODEL||require('./story_tiers').DEFAULT_IMAGE_MODEL),voiceId:String(process.env.STORY_ENGLISH_VOICE_ID||''),voiceModel:String(process.env.STORY_VOICE_MODEL||'eleven_multilingual_v2')};}
+function config(){return {textModel:String(process.env.STORY_TEXT_MODEL||''),imageModel:require('./story_tiers').DEFAULT_IMAGE_MODEL,voiceId:String(process.env.STORY_ENGLISH_VOICE_ID||''),voiceModel:String(process.env.STORY_VOICE_MODEL||'eleven_multilingual_v2')};}
 function createStoryStudio(d){
  let busy=false,timer;
  async function preflight(user,imageId=null){
@@ -29,7 +29,7 @@ function createStoryStudio(d){
    const save=async(value,completed=false)=>{await d.db().execute("UPDATE stories SET state_json=?,status=IF(status='cancelled',status,?),updated_at=UTC_TIMESTAMP() WHERE id=?",[JSON.stringify(value),completed?'completed':'running',row.id]);};
    try{
     const [[user]]=await d.db().execute('SELECT * FROM users WHERE id=?',[row.user_id]);if(user?.status!=='active')throw new Error('Story account is unavailable.');
-    const {c,s}=await preflight(user,options.imageModel);
+    const {c,s}=await preflight(user,options.imageModel||'api888_gpt_image_2_1k');
     await d.db().execute("UPDATE stories SET status='running',error_message=NULL WHERE id=? AND status='queued'",[row.id]);
     await advance({id:row.id,prompt:row.prompt,state,options},{save,
      plan:(prompt,duration)=>planStory(new (require('./provider/vercel').VercelGatewayClient)({apiKey:s.vercelApiKey}),c.textModel,prompt,duration),

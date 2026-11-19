@@ -245,6 +245,14 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     require('./fal_images.js').applySavedGptEdit(base,row.provider_model_id);
   }
   if(row.provider==='api888'){
+    // Owner selected this exact, newly reviewed Story Studio image SKU.
+    // Rehydrate an already account-visible/enabled imported row without
+    // granting access to an absent, disabled or unavailable model.
+    if(row.provider_model_id==='gpt-image-2.6'&&row.media_type==='image'&&
+      base.enabled&&base.available&&!base.adapterSupported){
+      const reviewed=api888MediaModels({data:[{id:'gpt-image-2.6',type:'image'}]})[0];
+      if(reviewed?.options.adapterSupported){Object.assign(base,reviewed.options);base.label=reviewed.label;}
+    }
     // The catalog table is a historical/account-scoped snapshot. Shipping a new
     // verified 888API input mapping must not require the administrator to write
     // to MySQL just to expose audio/video upload controls. In particular,
@@ -657,3 +665,4 @@ module.exports = {
   publicProviderCatalog,
   addMissingImageModels,
 };
+

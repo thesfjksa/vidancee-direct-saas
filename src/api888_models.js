@@ -33,6 +33,7 @@ const GROK_VARIANTS=['grok-imagine-1.0-video','grok-imagine-video',
  'grok-imagine-video-preview','grok-imagine-video-1.5-preview','grok-imagine-video-1.5-fast'];
 for(const id of [...SORA_VARIANTS,...GROK_VARIANTS])if(!VIDEO_IDS.includes(id))VIDEO_IDS.push(id);
 const IMAGE_IDS = String.raw`
+gpt-image-2.6
 gpt-image-2-1k gpt-image-2 gpt-image-2-plus gpt-image-2-pro gpt-image-2pro gpt-image-2.5-1k gpt-image-2.5-4k gpt-image-2-4k
 gpt-image-2.5-flare gpt-image-2.5-flare-4k gpt-image-2.5-sunburst gpt-image-2.5-sunburst-4k
 gemini-3-pro-image-preview gemini-3-pro-image-preview-c gemini-3.1-flash-image-preview gemini-3.1-flash-image-preview-c
@@ -168,6 +169,8 @@ for(const id of GROK_VARIANTS){
  SPECS[id]=[0.2,'job',preview?5:fast?10:6,preview?15:10,'720p',1,0,0];
 }
 const IMAGE_CNY = {
+  // 888API docs and owner model card, 19 Nov 2026: 1K, CNY per image.
+  'gpt-image-2.6':0.036,
   'gpt-image-2.5-1k':0.06,'gpt-image-2.5-4k':0.09,
   'gpt-image-2.5-flare':0.05,'gpt-image-2.5-flare-4k':0.09,
   'gpt-image-2.5-sunburst':0.05,'gpt-image-2.5-sunburst-4k':0.09,
@@ -311,6 +314,7 @@ const OFFERED={
 // The owner now requests the complete reviewed Seedance offer. Unpriced or
 // unmapped historical channels remain Admin-only; health/access still apply.
 Object.assign(OFFERED, {
+ 'gpt-image-2.6':'GPT Image 2.6 1K',
  'gpt-image-2-1k':'GPT Image 2 1K',
  'jimeng-video-seedance-2.0-fast-vip':'Seedance 2.0 Fast VIP',
  'seedance2.0-pro-480p':'Seedance 2.0 Pro 480p',
@@ -368,9 +372,11 @@ const IMAGE_SIZES={
  '2k':{'1:1':'2048x2048','9:16':'1152x2048','16:9':'2048x1152'},
  '4k':{'1:1':'2880x2880','9:16':'2160x3840','16:9':'3840x2160'},
 };
-const imageTier=id=>/-4k$/.test(id)?'4k':id==='gpt-image-2'?'2k':/-1k$/.test(id)?'1k':null;
-const imageRatios=id=>/^gpt-image-2-?pro$/.test(id)?['1:1']:['1:1','16:9','9:16'];
+const imageTier=id=>id==='gpt-image-2.6'?'1k':/-4k$/.test(id)?'4k':id==='gpt-image-2'?'2k':/-1k$/.test(id)?'1k':null;
+const imageRatios=id=>id==='gpt-image-2.6'?['1:1','16:9','9:16','4:3','3:4']:/^gpt-image-2-?pro$/.test(id)?['1:1']:['1:1','16:9','9:16'];
 function api888ImageSize(id,ratio){
+  // Exact 888API GPT 2.6 1K presets; requesting 2K does not increase output.
+  if(id==='gpt-image-2.6')return {'1:1':'1254x1254','16:9':'1672x941','9:16':'941x1672','4:3':'1448x1086','3:4':'1086x1448'}[ratio]||null;
   const sizes=IMAGE_SIZES[imageTier(String(id))||'1k'];
   return imageRatios(String(id)).includes(ratio)?sizes[ratio]:null;
 }
@@ -399,7 +405,7 @@ function describedModel(id,type) {
   const vgenvMinimax=/^(minimax-h3|pidoi-h3video)/.test(id);
   const offered=OFFER_ALL||Object.hasOwn(OFFERED,id);
   const implemented=known && offered && !vgenvMinimax && (GATEWAY_FORWARDS_MEDIA_REFS||!needsVideo) && (
-    (isImage && ['gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
+    (isImage && ['gpt-image-2.6','gpt-image-2.5-1k','gpt-image-2.5-4k', 'gpt-image-2.5-sunburst','gpt-image-2.5-sunburst-4k','gpt-image-2-4k',
       'gpt-image-2.5-flare','gpt-image-2.5-flare-4k','gpt-image-2-1k',
       'gpt-image-2','gpt-image-2pro','gemini-3-pro-image-preview','gemini-3-pro-image-preview-c',
       'gemini-3.1-flash-image-preview','gemini-3.1-flash-image-preview-c'].includes(id)) ||
