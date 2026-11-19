@@ -1,3 +1,11 @@
+## 19 November 2026 — Verify and enable Voice Studio for every customer
+
+- Owner requested Voice Studio access for all users. Completed this directly in the signed-in production CMMTools Admin console after the owner supplied authentication through the secure browser flow; no token was read or copied.
+- Verified Provider → Vibi is enabled, its saved API key is configured, Show models to customers is on, and generation submissions are enabled. These global settings were already on and were not rewritten.
+- Audited all 264 existing customer accounts through the rendered Users interface, accounting for its 200-row limit with filtered views. 258 accounts showed All on. Individually inspected the six accounts with source restrictions (IDs 208, 193, 191, 185, 1 and 7). Five already had Voice Studio enabled. Enabled only Voice Studio for user 193, saved access and reopened that customer's source settings to confirm the persisted checked switch.
+- Outcome verified live: all 264 accounts have Voice Studio source access. Existing new-user defaults already grant Vibi access. Other provider choices, account active/disabled states, plans, balances, no-markup voice pricing and generation settings were not changed. No paid generation or provider credential update was performed.
+- This is an operational handoff update only; no application code or deployment is required for the access change. Runtime tests were not rerun for documentation. This verifies source access, not a paid voice render, Eleven v4 catalog availability or end-to-end voice success. PR records CI/merge status.
+
 ## 19 November 2026 — Rebuild Voice Studio with Vibi tools and zero-markup billing
 
 - Owner requested a fixed Eleven v4 speech model, language selector and voice sliders matching their screenshot, plus Vibi cloning, dubbing, voice changer and dialogue. Reviewed the public rendered reference at https://vibi.pro/docs including exact request bodies, polling paths, upload flow, limits and costs. Direct documentation/llms HTTP downloads returned 403; the rendered reference was accessible without sign-in. No credentials were requested or exposed.
