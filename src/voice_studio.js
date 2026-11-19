@@ -61,6 +61,9 @@ function createVoiceStudio(d){
      if(typeof client.getSharedVoices==='function'){
        try{
          const data=await client.getSharedVoices({language,search,page,pageSize:40,timeoutMs:5000});
+         if(!Array.isArray(data)&&!Array.isArray(data?.voices)&&!Array.isArray(data?.shared_voices)&&
+            !Array.isArray(data?.data?.voices)&&!Array.isArray(data?.results)&&!Array.isArray(data?.items))
+           throw C.fail(502,'The Vibi gateway did not return a shared-voice catalog.');
          raw=voiceListData(data);source='shared';
          hasMore=Boolean(data?.has_more??data?.hasMore);
        }catch(e){
