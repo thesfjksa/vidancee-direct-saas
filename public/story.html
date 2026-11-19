@@ -61,11 +61,11 @@ $('form').addEventListener('input',()=>{requestKey=null;});
 (async()=>{
  try{
   const c=await api('/config');ready=c.ready;
-  if(ready){for(const t of c.tiers){const p=$('price_'+t.id);if(p)p.textContent=t.credits.toLocaleString(undefined,{maximumFractionDigits:2})+' credits · estimated';}}
-  else{for(const id of ['2min','3min','5min'])$('price_'+id).textContent='Pricing unavailable';}
-  $('create').disabled=!ready;$('message').textContent=ready?'English narration · MiniMax Cinematic · GPT character images':c.error;
- }catch(e){$('message').textContent=e.message;for(const id of ['2min','3min','5min'])$('price_'+id).textContent='Pricing unavailable';}
- await load();
+  if(c.tiers?.length){for(const t of c.tiers){const p=$('price_'+t.id);if(p)p.textContent=t.credits.toLocaleString(undefined,{maximumFractionDigits:2})+' credits · estimated';}}
+  else{for(const id of ['2min','3min','5min'])$('price_'+id).textContent='Credits could not be calculated';}
+  $('create').disabled=!ready;$('message').textContent=ready?'English narration · MiniMax Cinematic · GPT character images':('Story creation is not ready yet. '+(c.error||''));
+ }catch(e){$('message').textContent=e.message;for(const id of ['2min','3min','5min'])$('price_'+id).textContent='Credits could not be calculated';}
+ if(ready)await load();
 })();
-setInterval(()=>{if(!document.hidden)load();},15000);
+setInterval(()=>{if(ready&&!document.hidden)load();},15000);
 </script></body></html>
