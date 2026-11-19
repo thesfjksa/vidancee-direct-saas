@@ -76,8 +76,14 @@ function createVoiceStudio(d){
      const term=search||((language&&mode!=='defaults')?({
        ur:'Urdu',hi:'Hindi',ar:'Arabic',bn:'Bengali',fa:'Persian',pa:'Punjabi'
      }[language]||language):'');
-     const data=await client.getDefaultVoices({pageSize:100,search:term,timeoutMs:5500});
-     raw=voiceListData(data);source='default';
+     try{
+       const data=await client.getDefaultVoices({pageSize:100,search:term,timeoutMs:5500});
+       raw=voiceListData(data);source='default';
+     }catch(e){
+       if(e.statusCode===401)throw e;
+       source='unavailable';raw=[];
+       reason=(reason?reason+' ':'')+'The Vibi voice catalog did not respond in time. Retry the search.';
+     }
    }
    const langName=({ur:'Urdu',hi:'Hindi',ar:'Arabic',bn:'Bengali',fa:'Persian',pa:'Punjabi'})[language]||language;
    let voices=raw.map(v=>voiceCatalogEntry(v,language)).filter(v=>v.id);
@@ -85,7 +91,7 @@ function createVoiceStudio(d){
    // Shared-voice endpoint is already language-filtered by the provider.
    const result={voices,source,reason,hasMore,page};
    if(pickerCache.size>150)pickerCache.clear();
-   pickerCache.set(key,{value:result,until:Date.now()+40000});
+   if(source!=='unavailable')pickerCache.set(key,{value:result,until:Date.now()+40000});
    for(const entry of voices){
      const original=raw.find(v=>String(v.voice_id||v.id||'')===entry.id);
      const preview=[original?.preview_url,original?.previewUrl,original?.preview_audio_url,
