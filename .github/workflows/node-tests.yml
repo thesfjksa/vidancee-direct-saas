@@ -35,6 +35,7 @@ jobs:
           node --check src/voice_studio_store.js
           node --check src/voice_worker.js
           node --check public/voice-studio.js
+          node --check public/voice-picker.js
           node --check server.js
           node --check worker.js
       - name: Unit tests
