@@ -95,7 +95,7 @@ test('browser actions use POST routes that the hosting firewall accepts', async 
   if (!server.listening) await once(server, 'listening');
   const origin = 'http://127.0.0.1:' + server.address().port;
   const post = async (path, body, admin = false) => {
-    const r = await fetch(origin + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(admin ? { 'x-admin-token': 'test-admin-only' } : {}) }, body: JSON.stringify(body || {}) });
+    const r = await fetch(origin + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(path.startsWith('/api/voice-') ? { 'x-cmm-voice': '1' } : {}), ...(admin ? { 'x-admin-token': 'test-admin-only' } : {}) }, body: JSON.stringify(body || {}) });
     return { status: r.status, data: await r.json() };
   };
 

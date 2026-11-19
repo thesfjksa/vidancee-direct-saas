@@ -18,6 +18,10 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install media probe for voice upload validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Syntax check
         run: |
           node --check src/api888_models.js
@@ -25,6 +29,12 @@ jobs:
           node --check src/api888_queue.js
           node --check src/settings.js
           node --check src/provider_models.js
+          node --check src/voice_studio.js
+          node --check src/voice_upload.js
+          node --check src/voice_contract.js
+          node --check src/voice_studio_store.js
+          node --check src/voice_worker.js
+          node --check public/voice-studio.js
           node --check server.js
           node --check worker.js
       - name: Unit tests

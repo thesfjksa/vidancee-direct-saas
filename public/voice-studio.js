@@ -18,7 +18,7 @@ function setVoiceTool(tool){
  $('voicePrimaryVoice').classList.toggle('hide',dialogue);$('voiceLanguageWrap').classList.toggle('hide',upload);
  $('voicePauseWrap').classList.toggle('hide',!dialogue);$('voiceNoiseWrap').classList.toggle('hide',tool!=='voice-changer');
  $('voiceSettingsPanel').classList.toggle('hide',cloning||tool==='dubbing');
- $('voiceModelName').textContent=tool==='voice-changer'?'ElevenLabs speech-to-speech v2':tool==='dubbing'?'ElevenLabs · Vibi-managed dubbing model':'Eleven v4';
+ $('voiceModelName').textContent=tool==='voice-changer'?'ElevenLabs speech-to-speech v2':tool==='dubbing'?'ElevenLabs · Service-managed dubbing model':'Eleven v4';
  $('voiceText').placeholder=dialogue?'Alice: Hello, how are you?\nBob: Great! What are we creating today?':'Type or paste your speech text…';
  $('voiceUploadHelp').textContent=tool==='voice-changer'?'Audio · up to 50 MB and 5 minutes':'Audio or video · up to 100 MB and 2.5 hours';
  $('voiceFile').accept=tool==='voice-changer'?'audio/*':'audio/*,video/mp4,video/quicktime,video/webm';
