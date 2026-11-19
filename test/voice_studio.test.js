@@ -125,6 +125,71 @@ test('voice picker modal provides filters, searchable cards, preview and dialogu
  assert.match(css,/\.vp-grid/);
  new vm.Script(pick);
 });
+
+test('voice selector language is synthesis language, not a native-language restriction',()=>{
+ const js=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ const sandbox={document:{addEventListener:()=>{}},voiceOptions:{speechLanguages:[{code:'en',name:'English'},{code:'hi',name:'Hindi'}]}};
+ vm.createContext(sandbox);
+ vm.runInContext(js,sandbox);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'en',languages:['en']},'hi')",sandbox),true);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:null,languages:[]},'hi')",sandbox),true);
+ assert.equal(vm.runInContext("voicePickerMatchesLanguage({language:'en'},'unknown')",sandbox),false);
+ assert.match(js,/voicePickerChangeLanguage/);
+ assert.match(js,/target\.value=code/);
+});
+
+test('voice catalog exposes same-origin preview and preserves alternate upstream preview fields',async()=>{
+ const f=fixture();
+ f.client.getDefaultVoices=async()=>({voices:[
+  {voice_id:'valid-1',name:'With URL',preview_url:'https://storage.googleapis.com/eleven-public-prod/sample.mp3'},
+  {voice_id:'valid-2',name:'Alt URL',preview_audio_url:'https://storage.googleapis.com/eleven-public-prod/sample2.mp3'},
+  {voice_id:'no-preview',name:'No URL'}
+ ]});
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-options'),'/api/voice-options');
+ const entries=f.sent.at(-1).body.voices;
+ assert.equal(entries[0].previewUrl,'/api/voice-preview/valid-1');
+ assert.equal(entries[1].previewUrl,'/api/voice-preview/valid-2');
+ assert.equal(entries[2].previewUrl,null);
+});
+
+test('voice preview endpoint authenticates and returns provider sample without customer credits',async()=>{
+ const f=fixture(),samples=[];
+ f.client.getDefaultVoices=async()=>({voices:[{voice_id:'voice-1',preview_url:'https://storage.googleapis.com/eleven-public-prod/sample.mp3'}]});
+ f.client.downloadVoicePreview=async url=>{samples.push(url);return {data:Buffer.from('ID3abc'),contentType:'audio/mpeg'};};
+ const response={writeHead(status,headers){this.status=status;this.headers=headers;},end(bytes){this.bytes=bytes;}};
+ await f.studio.handle(req({},'GET'),response,new URL('https://cmmtools.site/api/voice-preview/voice-1'),'/api/voice-preview/voice-1');
+ assert.equal(response.status,200);
+ assert.equal(response.headers['content-type'],'audio/mpeg');
+ assert.equal(response.headers['cache-control'],'private, max-age=300');
+ assert.equal(response.bytes.toString(),'ID3abc');
+ assert.equal(f.created.length,0);
+ assert.equal(samples.length,1);
+ await assert.rejects(f.studio.handle(req({},'GET'),{},null,'/api/voice-preview/other-voice'),{statusCode:404});
+ const denied=fixture({requireUser:async()=>{throw Object.assign(Error('Login'),{statusCode:401});}});
+ await assert.rejects(denied.studio.handle(req({},'GET'),{},null,'/api/voice-preview/voice-1'),{statusCode:401});
+});
+
+test('Vibi media preview fetch allows only trusted HTTPS sources and rejects nonaudio samples',async()=>{
+ const client=new VibiClient({apiKey:'test-key'});
+ await assert.rejects(client.downloadVoicePreview('http://127.0.0.1/private'),/not supported/);
+ await assert.rejects(client.downloadVoicePreview('https://untrusted.invalid/sample.mp3'),/not supported/);
+ const saved=global.fetch;
+ try{
+  global.fetch=async(url,init)=>{
+   assert.equal(init.method,'GET');
+   assert.equal(init.redirect,'manual');
+   assert.equal(new URL(url).hostname,'storage.googleapis.com');
+   assert.equal(init.headers['xi-api-key'],undefined,'external storage must not receive Vibi API key');
+   return {ok:true,headers:new Map([['content-type','audio/mpeg'],['content-length','6']]),body:(async function*(){yield Buffer.from('ID3abc');})()};
+  };
+  const response=await client.downloadVoicePreview('https://storage.googleapis.com/eleven-public-prod/sample.mp3');
+  assert.equal(response.contentType,'audio/mpeg');
+  assert.equal(response.data.toString(),'ID3abc');
+  global.fetch=async()=>({ok:true,headers:new Map([['content-type','text/html']]),body:(async function*(){yield Buffer.from('<html>');})()});
+  await assert.rejects(client.downloadVoicePreview('https://storage.googleapis.com/eleven-public-prod/sample.mp3'),/did not return audio/);
+ }finally{global.fetch=saved;}
+});
+
 test('idempotency hashes include file content, reject mismatched replays and retain original receipt',async()=>{
  const context=S.request('request-key',{text:'Hello',sample:{data:Buffer.from('abc')},expectedCost:1});
  assert.deepEqual(context,S.request('request-key',{text:'Hello',sample:{data:Buffer.from('abc')},expectedCost:2}));
