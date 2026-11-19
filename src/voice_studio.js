@@ -86,7 +86,9 @@ function createVoiceStudio(d){
    for(const entry of voices){
      const original=raw.find(v=>String(v.voice_id||v.id||'')===entry.id);
      const preview=[original?.preview_url,original?.previewUrl,original?.preview_audio_url,
-       original?.sample_url,original?.sample_audio_url,original?.preview?.url].find(x=>typeof x==='string'&&x.length>0);
+       original?.preview_audio,original?.sample_url,original?.sample_audio_url,
+       original?.audio_preview_url,original?.preview?.url,original?.preview?.audio_url,
+       original?.samples?.[0]?.preview_url,original?.samples?.[0]?.audio_url].find(x=>typeof x==='string'&&x.length>0);
      if(preview&&preview.length<=4096){
        if(previewCache.size>1000)previewCache.clear();
        previewCache.set(user.id+':'+entry.id,{url:preview,until:Date.now()+300000});
@@ -208,7 +210,17 @@ function createVoiceStudio(d){
   const previewRoute=route.match(/^\/api\/voice-preview\/([a-zA-Z0-9_-]{1,128})$/);
   if(req.method==='GET'&&previewRoute){
     const service=await services(user);
-    const id=previewRoute[1],cached=previewCache.get(user.id+':'+id);
+    const id=previewRoute[1];
+    let cached=previewCache.get(user.id+':'+id);
+    if((!cached||cached.until<=Date.now())&&url?.searchParams?.get('language')){
+      const lang=String(url.searchParams.get('language')||'').slice(0,20);
+      if(/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(lang)){
+        // A bookmarked voice may be previewed after the cache expires.
+        // Re-resolve by ID in the same language-scoped provider catalog.
+        await loadPicker(user,service.client,{language:lang,search:id});
+        cached=previewCache.get(user.id+':'+id);
+      }
+    }
     if(cached&&cached.until>Date.now()){
       const sample=await service.client.downloadVoicePreview(cached.url);
       if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
