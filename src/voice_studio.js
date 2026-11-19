@@ -3,6 +3,28 @@ const C=require('./voice_contract'),S=require('./voice_studio_store'),U=require(
 const {vibiToCustomerCredits,voiceCreditsPerPkr,VIBI_CREDITS_PER_PKR}=require('./billing');
 const DUB_LANGUAGES=new Set('af ar hy as az be bn bs bg ca ceb ny zh hr cs da nl en et fil fi fr gl ka de el gu ha he hi hu is id ga it ja jv kn kk ky ko lv ln lt lb mk ms ml mr ne no ps fa pl pt pa ro ru sr sd sk sl so es sw sv ta te th tr uk ur vi cy nn yue'.split(' '));
 const MODES=new Set(['speech','dialogue','voice-changer','dubbing','clone-speech']);
+
+function voiceCatalogEntry(raw){
+ const v=raw&&typeof raw==='object'?raw:{};
+ const labels=v.labels&&typeof v.labels==='object'&&!Array.isArray(v.labels)?v.labels:{};
+ const meta=v.metadata&&typeof v.metadata==='object'&&!Array.isArray(v.metadata)?v.metadata:{};
+ const str=(...items)=>{for(const item of items)if(typeof item==='string'&&item.trim())return item.trim().slice(0,500);return null;};
+ const languageEntries=Array.isArray(v.languages)?v.languages:Array.isArray(meta.languages)?meta.languages:[];
+ const languages=languageEntries.map(l=>typeof l==='string'?l:str(l?.code,l?.language_id,l?.name)).filter(Boolean).slice(0,100);
+ const count=Number(v.usage_count??v.use_count??v.play_count??v.stats?.usage_count);
+ const id=str(v.voice_id,v.id);
+ return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:str(v.preview_url,v.previewUrl),
+  description:str(v.description,v.voice_description,meta.description),
+  accent:str(v.accent,labels.accent,meta.accent),
+  quality:str(v.quality,labels.quality,meta.quality),
+  gender:str(v.gender,labels.gender,meta.gender),
+  age:str(v.age,labels.age,meta.age),
+  category:str(v.category,labels.category,meta.category),
+  language:str(v.language,labels.language,meta.language),
+  languages,
+  usageCount:Number.isFinite(count)&&count>=0?count:null};
+}
+
 function createVoiceStudio(d){
  const readUpload=d.readUpload||U.readUpload,probe=d.probe||U.probe;let cache=null;
  async function services(user,paid=false){
@@ -112,7 +134,7 @@ function createVoiceStudio(d){
    const cloneBase=Number(service.settings.vibiCloneSourceCost??0);
    d.json(res,200,{ok:true,...c,models:c.model?[{model_id:c.model.modelId,name:'Eleven v4'}]:[],cloneLanguages,
     cloneCost:vibiToCustomerCredits(cloneBase,voiceCreditsPerPkr(user)),billing:{policy:'at-cost',vibiCreditsPerPkr:VIBI_CREDITS_PER_PKR,cmmCreditsPerPkr:voiceCreditsPerPkr(user),markup:0},dubbingLanguages:c.languages.filter(l=>DUB_LANGUAGES.has(l.code)),
-    voices:(voices.voices||[]).map(v=>({id:String(v.voice_id||''),name:String(v.name||'Voice'),previewUrl:v.preview_url||null})).filter(v=>v.id),
+    voices:(voices.voices||[]).map(voiceCatalogEntry).filter(v=>v.id),
     tools:{speech:!!c.model,dialogue:!!c.model,voiceChanger:true,dubbing:true,cloning:true}});return true;
   }
   if(req.method==='POST'&&route==='/api/voice-clones'){d.json(res,201,{ok:true,clone:await clone(user,req,service)});return true;}
