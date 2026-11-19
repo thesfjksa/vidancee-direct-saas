@@ -92,6 +92,39 @@ test('missing v4 keeps non-TTS tools available and explicitly reports missing mo
  await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-options'),'/api/voice-options');
  const b=f.sent.at(-1).body;assert.equal(b.tools.speech,false);assert.equal(b.tools.voiceChanger,true);assert.equal(b.model,null);assert.match(b.modelError,/Eleven v4/);assert.equal(b.models.length,0);
 });
+
+test('voice options expose actual provider-supplied metadata for the selector filters',async()=>{
+ const f=fixture();
+ f.client.getDefaultVoices=async()=>({voices:[
+  {voice_id:'hindi-1',name:'Hindi Narrator',description:'Warm narration',labels:{accent:'Indian',gender:'Male',age:'Young',language:'hi'},category:'premade',preview_url:'https://example.com/sample.mp3',usage_count:321},
+  {voice_id:'plain',name:'Plain Voice'}
+ ]});
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-options'),'/api/voice-options');
+ const voices=f.sent.at(-1).body.voices;
+ assert.equal(voices.length,2);
+ assert.deepEqual({id:voices[0].id,accent:voices[0].accent,gender:voices[0].gender,age:voices[0].age,language:voices[0].language,usage:voices[0].usageCount},
+  {id:'hindi-1',accent:'Indian',gender:'Male',age:'Young',language:'hi',usage:321});
+ assert.equal(voices[1].gender,null);
+ assert.equal(voices[1].category,null);
+ assert.equal(voices[1].usageCount,null);
+});
+
+test('voice picker modal provides filters, searchable cards, preview and dialogue selection',()=>{
+ const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8');
+ const pick=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ const css=fs.readFileSync(require.resolve('../public/voice-picker.css'),'utf8');
+ assert.match(html,/id="voicePickerDialog"/);
+ for(const control of ['vpLanguage','vpAccent','vpQuality','vpGender','vpAge','vpCategory','vpSort','vpSearch','vpCards','vpAudio'])
+  assert.ok(html.includes('id="'+control+'"'),control+' missing');
+ for(const tab of ['favourites','all','library','default'])assert.ok(html.includes('data-vp-tab="'+tab+'"'));
+ assert.match(html,/voice-picker\.js\?v=/);
+ assert.match(html,/voice-picker\.css\?v=/);
+ assert.match(pick,/function useVoicePickerVoice/);
+ assert.match(pick,/function previewVoicePickerVoice/);
+ assert.match(pick,/function voicePickerFavorites/);
+ assert.match(css,/\.vp-grid/);
+ new vm.Script(pick);
+});
 test('idempotency hashes include file content, reject mismatched replays and retain original receipt',async()=>{
  const context=S.request('request-key',{text:'Hello',sample:{data:Buffer.from('abc')},expectedCost:1});
  assert.deepEqual(context,S.request('request-key',{text:'Hello',sample:{data:Buffer.from('abc')},expectedCost:2}));
