@@ -1,3 +1,10 @@
+## 23 November 2026 — Illustrated Video Tools icons
+
+- Character Swap, Motion Control, and Object Swap use distinct navy and teal illustrations. The square images render at 54 px on desktop and 44 px on mobile. The three WebP files total about 28 KB. Card labels and native radio controls provide the accessible names and selection behavior.
+- Verified the three asset routes return HTTP 200 with the WebP content type and ran the Video Tools tests. The web app needs a Hostinger redeploy to serve the new icons.
+
+---
+
 ## 23 November 2026 — Repair six CI failures
 
 - Updated the AIVID tests for the active Interactive Premium Studio route and the retired customer models. The suite checks the separate RDP viewer, viewer authentication, per-customer access, same-origin input, the page's CSP nonce, and rejection of direct quote requests for retired models.
