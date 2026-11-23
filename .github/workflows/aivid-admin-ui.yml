@@ -5,6 +5,9 @@ on:
     paths:
       - 'public/admin.html'
       - 'public/index.html'
+      - 'public/studio.css'
+      - 'public/video-tools.js'
+      - 'scripts/check-video-tools-ui.cjs'
       - 'public/aivid-admin.js'
       - 'public/provider-admin.js'
       - 'public/admin.css'
@@ -22,6 +25,9 @@ on:
     paths:
       - 'public/admin.html'
       - 'public/index.html'
+      - 'public/studio.css'
+      - 'public/video-tools.js'
+      - 'scripts/check-video-tools-ui.cjs'
       - 'public/aivid-admin.js'
       - 'public/provider-admin.js'
       - 'public/admin.css'
@@ -47,6 +53,7 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright-core install --with-deps chromium
+      - run: node scripts/check-video-tools-ui.cjs
       - run: node scripts/check-aivid-admin-ui.cjs
       - run: node scripts/check-aivid-handoff-ui.cjs
       - run: node scripts/check-provider-admin-ui.cjs

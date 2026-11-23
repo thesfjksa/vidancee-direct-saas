@@ -9,7 +9,7 @@
 <title>CMM Tools — Creation Studio</title>
 <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
-<link rel="stylesheet" href="/studio.css?v=cmm-17">
+<link rel="stylesheet" href="/studio.css?v=cmm-18">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
 <link rel="stylesheet" href="/voice-picker.css?v=20261119">
 <script src="/dope-performance.js?v=4"></script>
@@ -90,51 +90,95 @@
   </header>
 
   <div class="app-shell">
-    <section id="video-tools" class="section">
-      <div class="create-layout">
-        <aside class="creator">
-          <div class="creator-head"><div><strong>Video Tools</strong><div class="sub">Edit a source video</div></div></div>
-          <form id="videoToolForm" class="creator-scroll">
-            <div class="field"><label for="videoToolMode">Tool</label>
-              <select id="videoToolMode">
-                <option value="character-swap">Character Swap</option>
-                <option value="motion-control">Motion Control</option>
-                <option value="object-swap">Object Swap</option>
-              </select>
-            </div>
-            <p id="videoToolDescription" class="muted"></p>
-            <div class="field">
-              <label id="videoToolImageLabel" for="videoToolImage">Character image</label>
-              <input id="videoToolImage" type="file" accept="image/jpeg,image/png,image/webp" required>
-              <div class="sub">JPEG, PNG, or WebP · Up to 5 MB</div>
-            </div>
-            <div class="field">
-              <label id="videoToolClipLabel" for="videoToolClip">Source video</label>
-              <input id="videoToolClip" type="file" accept="video/mp4" required>
-              <div class="sub">MP4 · Up to 25 MB</div>
+    <section id="video-tools" class="section" aria-labelledby="videoToolsTitle">
+      <header class="vt-hero">
+        <div class="vt-hero-copy">
+          <h1 id="videoToolsTitle">Video Tools<span>.</span></h1>
+          <p>Give an existing clip a new character, a new look, or a new performance.</p>
+        </div>
+        <div class="vt-hero-art" aria-hidden="true"><span></span><span></span><span><i></i></span></div>
+      </header>
+
+      <form id="videoToolForm" class="vt-form">
+        <fieldset class="vt-modes">
+          <legend class="vt-sr-only">Choose a video tool</legend>
+          <label class="vt-choice vt-choice-character">
+            <input type="radio" name="videoToolMode" value="character-swap" checked>
+            <span class="vt-card">
+              <span class="vt-mode-icon" aria-hidden="true">⇄</span>
+              <span class="vt-card-copy"><strong>Character Swap</strong><span>Cast a new character</span></span>
+              <span class="vt-indicator" aria-hidden="true"></span>
+            </span>
+          </label>
+          <label class="vt-choice vt-choice-motion">
+            <input type="radio" name="videoToolMode" value="motion-control">
+            <span class="vt-card">
+              <span class="vt-mode-icon" aria-hidden="true">↗</span>
+              <span class="vt-card-copy"><strong>Motion Control</strong><span>Transfer a performance</span></span>
+              <span class="vt-indicator" aria-hidden="true"></span>
+            </span>
+          </label>
+          <label class="vt-choice vt-choice-object">
+            <input type="radio" name="videoToolMode" value="object-swap">
+            <span class="vt-card">
+              <span class="vt-mode-icon" aria-hidden="true">◇</span>
+              <span class="vt-card-copy"><strong>Object Swap</strong><span>Replace a prop or product</span></span>
+              <span class="vt-indicator" aria-hidden="true"></span>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="vt-workspace">
+          <div class="vt-panel vt-references">
+            <h2>References</h2>
+            <p id="videoToolDescription" class="vt-description">Replace the main person in a clip while keeping the source performance.</p>
+            <div class="vt-uploads">
+              <label class="vt-upload">
+                <input id="videoToolImage" type="file" accept="image/jpeg,image/png,image/webp" aria-labelledby="videoToolImageLabel" aria-describedby="videoToolImageFormat videoToolImageFile" required>
+                <span class="vt-upload-icon vt-upload-image" aria-hidden="true"></span>
+                <strong id="videoToolImageLabel">Replacement character image</strong>
+                <span id="videoToolImageFormat" class="vt-upload-format">JPEG, PNG, WebP · Up to 5 MB</span>
+                <span id="videoToolImageFile" class="vt-upload-name" aria-live="polite" hidden></span>
+                <span class="vt-upload-button" aria-hidden="true">Choose image</span>
+              </label>
+              <label class="vt-upload">
+                <input id="videoToolClip" type="file" accept="video/mp4" aria-labelledby="videoToolClipLabel" aria-describedby="videoToolClipFormat videoToolClipFile" required>
+                <span class="vt-upload-icon vt-upload-video" aria-hidden="true"></span>
+                <strong id="videoToolClipLabel">Source video</strong>
+                <span id="videoToolClipFormat" class="vt-upload-format">MP4 · Up to 25 MB</span>
+                <span id="videoToolClipFile" class="vt-upload-name" aria-live="polite" hidden></span>
+                <span class="vt-upload-button" aria-hidden="true">Choose video</span>
+              </label>
             </div>
             <div class="field"><label id="videoToolPromptLabel" for="videoToolPrompt">Instructions (optional)</label>
               <textarea id="videoToolPrompt" rows="3" maxlength="1600"></textarea>
             </div>
-            <div class="field"><label for="videoToolDuration">Duration at 768p</label><select id="videoToolDuration"></select></div>
-            <div class="field"><label for="videoToolRatio">Aspect ratio</label>
-              <select id="videoToolRatio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:3</option></select>
+          </div>
+          <div class="vt-panel vt-settings">
+            <div class="vt-settings-head"><h2>Output settings</h2><span>768p</span></div>
+            <div class="vt-fields">
+              <div class="field"><label for="videoToolDuration">Duration</label><select id="videoToolDuration"></select></div>
+              <div class="field"><label for="videoToolRatio">Aspect ratio</label>
+                <select id="videoToolRatio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:3</option></select>
+              </div>
+              <div id="videoToolStartField" class="field vt-start">
+                <label for="videoToolStart">Source start time (seconds)</label>
+                <input id="videoToolStart" type="number" min="0" step="0.1" value="0">
+              </div>
             </div>
-            <div id="videoToolStartField" class="field">
-              <label for="videoToolStart">Source start time (seconds)</label>
-              <input id="videoToolStart" type="number" min="0" step="0.1" value="0">
+            <label class="vt-audio"><span>Keep original audio</span><input id="videoToolAudio" type="checkbox" checked></label>
+            <label class="vt-permission"><input id="videoToolPermission" type="checkbox" required><span>I have permission to use these files and likenesses.</span></label>
+            <div class="vt-actions">
+              <div class="vt-cost"><span>Cost</span><strong id="videoToolPrice" role="status">Checking price…</strong></div>
+              <button id="videoToolSubmit" class="vt-generate" type="submit" disabled><span id="videoToolSubmitLabel">Generate swap</span><span aria-hidden="true">→</span></button>
             </div>
-            <p><label><input id="videoToolAudio" type="checkbox" checked> Keep original audio</label></p>
-            <p><label><input id="videoToolPermission" type="checkbox" required> I have permission to use these files and likenesses.</label></p>
-            <div class="sub" id="videoToolPrice" style="margin:12px 0" role="status"></div>
-            <button id="videoToolSubmit" class="generate" type="submit" disabled>Generate</button>
             <div id="videoToolStatus" class="msg muted" role="status"></div>
-          </form>
-        </aside>
-        <div class="canvas">
-          <div class="canvas-head"><div><h1>Video Tools history</h1></div></div>
-          <div id="videoToolsGallery" class="gallery"></div>
+          </div>
         </div>
+      </form>
+      <div class="vt-history">
+        <h2>Video Tools history</h2>
+        <div id="videoToolsGallery" class="gallery"></div>
       </div>
     </section>
     <section id="create" class="section active">
@@ -692,7 +736,7 @@
 
 <script src="/voice-studio.js?v=20261119-language-search"></script>
 <script src="/voice-picker.js?v=20261119-language-search"></script>
-<script src="/video-tools.js?v=1"></script>
+<script src="/video-tools.js?v=2"></script>
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;
 let imageGenerations=[],imageFilter='all',imageGenerationLoadPending=false,planStatus=null;
