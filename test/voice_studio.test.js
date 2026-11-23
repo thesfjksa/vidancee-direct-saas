@@ -339,6 +339,39 @@ test('voice preview endpoint authenticates and returns provider sample without c
  await assert.rejects(denied.studio.handle(req({},'GET'),{},null,'/api/voice-preview/voice-1'),{statusCode:401});
 });
 
+test('shared voice previews try alternate samples and refresh broken links for the same voice',async()=>{
+ const f=fixture(),downloads=[];
+ const stale='https://storage.googleapis.com/previews/stale.mp3';
+ const alternate='https://storage.googleapis.com/previews/alternate.mp3';
+ const fresh='https://storage.googleapis.com/previews/fresh.mp3';
+ f.client.getSharedVoices=async({search})=>({voices:[
+  {voice_id:'other',name:'Other Urdu voice',preview_url:'https://storage.googleapis.com/previews/other.mp3'},
+  {voice_id:'selected',name:'Selected Urdu voice',preview_url:search==='selected'?fresh:stale,sample_url:alternate}
+ ]});
+ let alternateAvailable=true,freshAvailable=true;
+ f.client.downloadVoicePreview=async address=>{
+  downloads.push(address);
+  if((address===alternate&&alternateAvailable)||(address===fresh&&freshAvailable))
+   return {data:Buffer.from('ID3abc'),contentType:'audio/mpeg'};
+  throw Object.assign(Error('Sample unavailable'),{statusCode:404});
+ };
+ await f.studio.handle(req({},'GET'),{},new URL('https://cmmtools.site/api/voice-library?language=ur'),'/api/voice-library');
+ const response={writeHead(status){this.status=status;},end(bytes){this.bytes=bytes;}};
+ const url=new URL('https://cmmtools.site/api/voice-preview/selected?language=ur');
+ const play=()=>f.studio.handle(req({},'GET'),response,url,url.pathname);
+ await play();
+ assert.equal(response.status,200);
+ assert.deepEqual(downloads,[stale,alternate]);
+ downloads.length=0;alternateAvailable=false;
+ await play();
+ assert.deepEqual(downloads,[alternate,stale,fresh]);
+ assert.equal(response.bytes.toString(),'ID3abc');
+ downloads.length=0;freshAvailable=false;
+ await assert.rejects(play(),{statusCode:404});
+ assert.deepEqual(downloads,[fresh,alternate,stale]);
+ assert.equal(f.created.length,0);
+});
+
 test('Vibi media preview fetch allows only trusted HTTPS sources and rejects nonaudio samples',async()=>{
  const client=new VibiClient({apiKey:'test-key'});
  await assert.rejects(client.downloadVoicePreview('http://127.0.0.1/private'),/not supported/);
@@ -386,7 +419,7 @@ test('workspace includes all requested tools and compiles with no model or engin
  const section=html.slice(html.indexOf('<section id="voices"'),html.indexOf('<section id="cartoon"'));
  for(const tool of ['speech','dialogue','voice-changer','dubbing','cloning'])assert.ok(section.includes('data-voice-tool="'+tool+'"'));
  for(const control of ['voiceSpeed','voiceStability','voiceSimilarity','voiceStyle','voiceSpeakerBoost','voiceLanguage'])assert.ok(section.includes('id="'+control+'"'));
- assert.doesNotMatch(section,/id="voiceProvider"|id="voiceModel"/);assert.match(html,/voice-studio.js\?v=20261119/);
+ assert.doesNotMatch(section,/id="voiceProvider"|id="voiceModel"/);assert.match(html,/voice-studio\.js\?v=\d{8}/);
  new vm.Script(js);for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
 });
 test('worker claims each paid job once, saves task IDs, and holds uncertain submissions without refund/replay',async()=>{

@@ -4,6 +4,14 @@ const {vibiToCustomerCredits,voiceCreditsPerPkr,VIBI_CREDITS_PER_PKR}=require('.
 const DUB_LANGUAGES=new Set('af ar hy as az be bn bs bg ca ceb ny zh hr cs da nl en et fil fi fr gl ka de el gu ha he hi hu is id ga it ja jv kn kk ky ko lv ln lt lb mk ms ml mr ne no ps fa pl pt pa ro ru sr sd sk sl so es sw sv ta te th tr uk ur vi cy nn yue'.split(' '));
 const MODES=new Set(['speech','dialogue','voice-changer','dubbing','clone-speech']);
 
+function voicePreviewUrls(v){
+ const candidates=[v.preview_url,v.previewUrl,v.preview_audio_url,v.preview_audio,
+  v.sample_url,v.sample_audio_url,v.audio_preview_url,v.preview?.url,v.preview?.audio_url,
+  ...(Array.isArray(v.samples)?v.samples.slice(0,3).flatMap(sample=>[sample?.preview_url,sample?.audio_url]):[])];
+ return [...new Set(candidates.filter(value=>typeof value==='string').map(value=>value.trim())
+  .filter(value=>value&&value.length<=4096))].slice(0,3);
+}
+
 function voiceCatalogEntry(raw,language=''){
  const v=raw&&typeof raw==='object'?raw:{};
  const labels=v.labels&&typeof v.labels==='object'&&!Array.isArray(v.labels)?v.labels:{};
@@ -17,13 +25,7 @@ function voiceCatalogEntry(raw,language=''){
  const count=Number(v.usage_count??v.use_count??v.play_count??v.stats?.usage_count);
 
  const id=str(v.voice_id,v.id);
- // Vibi can supply alternate preview shapes. Preserve signed URLs without truncating.
- const previewCandidates=[v.preview_url,v.previewUrl,v.preview_audio_url,v.preview_audio,
-  v.sample_url,v.sample_audio_url,v.audio_preview_url,v.preview?.url,v.preview?.audio_url,
-  v.samples?.[0]?.preview_url,v.samples?.[0]?.audio_url];
- const preview=previewCandidates.find(value=>typeof value==='string'&&value.trim());
- const previewUrl=preview&&preview.length<=4096?preview.trim():null;
- return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:previewUrl?'/api/voice-preview/'+encodeURIComponent(id)+(language?'?language='+encodeURIComponent(language):''):null,
+ return {id,name:str(v.name,v.voice_name)||'Voice',previewUrl:id&&voicePreviewUrls(v).length?'/api/voice-preview/'+encodeURIComponent(id)+(language?'?language='+encodeURIComponent(language):''):null,
   description:str(v.description,v.voice_description,meta.description),
   accent:str(v.accent,labels.accent,meta.accent),
   quality:str(v.quality,labels.quality,meta.quality),
@@ -146,16 +148,58 @@ function createVoiceStudio(d){
    if(source!=='unavailable')pickerCache.set(key,{value:result,until:Date.now()+40000});
    for(const entry of voices){
      const original=raw.find(v=>String(v.voice_id||v.id||'')===entry.id);
-     const preview=[original?.preview_url,original?.previewUrl,original?.preview_audio_url,
-       original?.preview_audio,original?.sample_url,original?.sample_audio_url,
-       original?.audio_preview_url,original?.preview?.url,original?.preview?.audio_url,
-       original?.samples?.[0]?.preview_url,original?.samples?.[0]?.audio_url].find(x=>typeof x==='string'&&x.length>0);
-     if(preview&&preview.length<=4096){
-       if(previewCache.size>1000)previewCache.clear();
-       previewCache.set(user.id+':'+entry.id,{url:preview,until:Date.now()+300000});
-     }
+     if(original&&entry.previewUrl)rememberPreview(user.id+':'+entry.id,voicePreviewUrls(original),source);
    }
    return result;
+ }
+ function rememberPreview(key,urls,source){
+   if(previewCache.size>1000)previewCache.clear();
+   previewCache.set(key,{urls,source,until:Date.now()+300000});
+ }
+ async function loadPreview(client,key,id,language){
+   const cached=previewCache.get(key),tried=new Set();
+   const signal=AbortSignal.timeout(20000);
+   let failure;
+   async function download(urls,source){
+     for(const address of urls){
+       if(tried.has(address))continue;
+       tried.add(address);
+       try{
+         const sample=await client.downloadVoicePreview(address,{signal});
+         if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
+         rememberPreview(key,[address,...urls.filter(url=>url!==address)],source);
+         return sample;
+       }catch(error){
+         if(signal.aborted)throw C.fail(504,'Voice sample timed out. Try playing it again.');
+         failure=error;
+       }
+     }
+   }
+   if(cached?.until>Date.now()){
+     const sample=await download(cached.urls,cached.source);
+     if(sample)return sample;
+   }
+   const defaults=search=>client.getDefaultVoices({pageSize:100,search,timeoutMs:3500});
+   const shared=search=>client.getSharedVoices({pageSize:100,language,search,timeoutMs:3500});
+   const sharedSearch=typeof client.getSharedVoices==='function'
+     ? [()=>shared(id),...(language?[()=>shared(voiceLanguageName(language))]:[])]:[];
+   const defaultSearch=[()=>defaults(id),()=>defaults('')];
+   const searches=cached?.source==='shared'||(!cached&&language)
+     ? [['shared',sharedSearch],['default',defaultSearch]]
+     : [['default',defaultSearch],['shared',sharedSearch]];
+   for(const [source,lookups] of searches){
+     for(const lookup of lookups){
+       if(signal.aborted)throw C.fail(504,'Voice sample timed out. Try playing it again.');
+       let voices;
+       try{voices=voiceListData(await lookup());}
+       catch(error){if(error.statusCode===401)throw error;continue;}
+       const voice=voices.find(v=>String(v?.voice_id||v?.id||'').trim()===id);
+       if(!voice)continue;
+       const sample=await download(voicePreviewUrls(voice),source);
+       if(sample)return sample;
+     }
+   }
+   throw failure||C.fail(404,'This voice has no available preview audio.');
  }
  async function services(user,paid=false){
   const [settings,access]=await Promise.all([d.settings(),d.access(user.id)]);
@@ -272,40 +316,10 @@ function createVoiceStudio(d){
   if(req.method==='GET'&&previewRoute){
     const service=await services(user);
     const id=previewRoute[1];
-    let cached=previewCache.get(user.id+':'+id);
-    if((!cached||cached.until<=Date.now())&&url?.searchParams?.get('language')){
-      const lang=String(url.searchParams.get('language')||'').slice(0,20);
-      if(/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(lang)){
-        // A bookmarked voice may be previewed after the cache expires.
-        // Re-resolve by ID in the same language-scoped provider catalog.
-        await loadPicker(user,service.client,{language:lang,search:id});
-        cached=previewCache.get(user.id+':'+id);
-      }
-    }
-    if(cached&&cached.until>Date.now()){
-      const sample=await service.client.downloadVoicePreview(cached.url);
-      if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
-      res.writeHead(200,{'content-type':sample.contentType,'content-length':sample.data.length,
-        'cache-control':'private, max-age=300','x-content-type-options':'nosniff','accept-ranges':'none'});
-      res.end(sample.data);return true;
-    }
     const language=String(url?.searchParams?.get('language')||'').trim().slice(0,20);
-    const remote=await service.client.getDefaultVoices({pageSize:100,language});
-    let voices=Array.isArray(remote.voices)?remote.voices:[];
-    let voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
-    if(!voice){
-      const filtered=await service.client.getDefaultVoices({pageSize:100,search:id,language});
-      voices=Array.isArray(filtered.voices)?filtered.voices:[];
-      voice=voices.find(v=>String(v.voice_id||v.id||'')===id);
-    }
-    if(!voice)throw C.fail(404,'Voice sample not found.');
-    const previewCandidates=[voice.preview_url,voice.previewUrl,voice.preview_audio_url,voice.preview_audio,
-      voice.sample_url,voice.sample_audio_url,voice.audio_preview_url,voice.preview?.url,voice.preview?.audio_url,
-      voice.samples?.[0]?.preview_url,voice.samples?.[0]?.audio_url];
-    const location=previewCandidates.find(v=>typeof v==='string'&&v.trim());
-    if(!location)throw C.fail(404,'This voice has no preview audio.');
-    const sample=await service.client.downloadVoicePreview(location);
-    if(!sample?.data?.length)throw C.fail(502,'Voice preview is empty.');
+    if(language&&!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(language))
+      throw C.fail(400,'Invalid language code.');
+    const sample=await loadPreview(service.client,user.id+':'+id,id,language);
     res.writeHead(200,{'content-type':sample.contentType,'content-length':sample.data.length,
       'cache-control':'private, max-age=300','x-content-type-options':'nosniff','accept-ranges':'none'});
     res.end(sample.data);

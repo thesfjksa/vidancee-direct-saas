@@ -1,3 +1,11 @@
+## 23 November 2026 — Recover Voice Studio samples
+
+- The preview route tries alternate Vibi sample links, then refreshes the selected voice by exact ID through the shared or default catalog. It retries only distinct URLs for that voice and uses a bounded lookup and download. Preview requests use the existing authenticated, trusted-host proxy and no paid generation.
+- The player identifies unavailable provider samples and distinguishes actual browser playback blocks. Switching voices cancels the previous playback message. Users can still select a voice when its sample is unavailable.
+- Voice Studio tests cover successful fallback, refreshed links, missing samples, and zero-cost preview behavior. The GitHub merge triggers the web deployment. Verify the new scripts on the app and replay the affected samples in an authenticated voice picker.
+
+---
+
 ## 23 November 2026 — Illustrated Video Tools icons
 
 - Character Swap, Motion Control, and Object Swap use distinct navy and teal illustrations. The square images render at 54 px on desktop and 44 px on mobile. The three WebP files total about 28 KB. Card labels and native radio controls provide the accessible names and selection behavior.

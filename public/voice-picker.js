@@ -86,7 +86,7 @@ function openVoicePicker(target){
 function closeVoicePicker(){
  clearTimeout(voicePickerTimer);++voicePickerRequestSeq;
  const dlg=voicePickerSelectNode();if(dlg?.open)dlg.close();
- const audio=$('vpAudio');if(audio){audio.pause();audio.removeAttribute('src');audio.load();}
+ const audio=$('vpAudio');if(audio){audio.onerror=audio.onplaying=null;audio.pause();audio.removeAttribute('src');audio.load();}
  voicePickerPlaying=null;voicePickerTarget=null;
 }
 function voicePickerChangeTab(tab){
@@ -190,10 +190,8 @@ function previewVoicePickerVoice(id){
    throw Error('Voice preview must come from the protected site player.');
   if(voicePickerPlaying===id&&!audio.paused){audio.pause();return;}
   voicePickerPlaying=id;$('vpNowPlaying').textContent='Loading '+v.name+'…';
-  audio.pause();audio.src=url.href;audio.load();
-  audio.onplaying=()=>{$('vpNowPlaying').textContent=v.name;};
-  audio.onerror=()=>{$('vpNowPlaying').textContent='Provider sample could not be loaded for '+v.name+'.';};
-  audio.play().catch(()=>{$('vpNowPlaying').textContent='Could not play sample. Check browser audio permissions or try another voice.';});
+  playVoiceSample(audio,url,v.name,message=>{$('vpNowPlaying').textContent=message;},
+   ()=>{$('vpNowPlaying').textContent=v.name;});
  }catch{$('vpNowPlaying').textContent='This voice has no valid preview link.';}
 }
 function useVoicePickerVoice(id){
