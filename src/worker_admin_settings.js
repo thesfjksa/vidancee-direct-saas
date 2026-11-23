@@ -22,6 +22,7 @@ const { moveImageJobToArgo } = require('./image_failover.js');
 const { logActivity, errorDetails } = require('./activity_log.js');
 const { getProviderModelByPublicId } = require('./provider_models.js');
 const { getProviderSettings } = require('./settings.js');
+const { backendFailureMessage } = require('./provider_errors.js');
 const { refundGeneration } = require('./generations.js');
 const { sourceToCustomerCredits } = require('./billing.js');
 const { saveVideoOutput } = require('./video_outputs.js');
@@ -287,7 +288,7 @@ class GenerationWorker {
           await refundGeneration(
             row.id,
             'failed',
-            failedMessage(video.error),
+            backendFailureMessage(video.error, failedMessage(video.error)),
             video.price
           );
           await db.execute("UPDATE generations SET provider_cost_unit='usd' WHERE id=?", [row.id]);
@@ -460,7 +461,7 @@ class GenerationWorker {
       const message = error.code === 'IMAGE_ASPECT_RATIO_MISMATCH'
         ? 'The image service returned the wrong aspect ratio for your '+job.aspect_ratio+' image. Credits were refunded. Use Reuse prompt to try again.'
         : 'Image generation failed. Credits were refunded.';
-      await this.refundSmartImage(job.id,'failed',message,null);
+      await this.refundSmartImage(job.id,'failed',backendFailureMessage(error, message),null);
       return;
     }
     // Cloud storage when enabled; the BLOB keeps a tag.
@@ -610,7 +611,7 @@ class GenerationWorker {
             [job.creditsDeducted,job.outputUrl,row.id]
           );
         } else if (job.status === 'failed') {
-          await refundGeneration(row.id,'failed','Voice generation failed during processing. Credits were refunded.',job.creditsDeducted);
+          await refundGeneration(row.id,'failed',backendFailureMessage(job.error, 'Voice generation failed during processing. Credits were refunded.'),job.creditsDeducted);
           await db.execute("UPDATE generations SET provider_cost_unit='credits' WHERE id=?",[row.id]);
         } else {
           await db.execute(
@@ -654,7 +655,7 @@ class GenerationWorker {
       }catch(error){
         console.error('Vibi voice submission failed for',job.id,error.message);
         if(error.definitive){
-          await refundGeneration(job.id,'failed','Voice generation was rejected. Credits were refunded.',null);
+          await refundGeneration(job.id,'failed',backendFailureMessage(error, 'Voice generation was rejected. Credits were refunded.'),null);
           await db.execute('DELETE FROM voice_input_chunks WHERE generation_id=?',[job.id]);
         }else{
           await db.execute("UPDATE generations SET status='submit_error',error_message='Voice submission is unconfirmed. Contact support before creating another request.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting'",[job.id]);
@@ -791,7 +792,7 @@ class GenerationWorker {
     } catch (error) {
       console.error('Generation submission failed for', job.id, error);
       logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: 'vgenv', message: error.message, details: errorDetails(error) });
-      await refundGeneration(job.id, 'submit_error', 'Generation could not be submitted. Credits were refunded.', null);
+      await refundGeneration(job.id, 'submit_error', backendFailureMessage(error, 'Generation could not be submitted. Credits were refunded.'), null);
     }
   }
 }

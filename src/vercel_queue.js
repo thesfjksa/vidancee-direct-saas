@@ -5,6 +5,7 @@ const {getProviderSettings}=require('./settings.js');
 const {getProviderModelByPublicId}=require('./provider_models.js');
 const {VercelGatewayClient}=require('./provider/vercel.js');
 const {providerAssetUrl}=require('./provider/assets.js');
+const { backendFailureMessage } = require('./provider_errors.js');
 const {refundGeneration}=require('./generations.js');
 const {saveVideoOutput}=require('./video_outputs.js');
 const {looksOutOfCredits}=require('./cartoon.js');
@@ -104,7 +105,7 @@ class VercelQueue {
       // an unavailable model cannot terminate the worker or strand the wallet.
       Promise.resolve().then(()=>this.submit(db,job,client))
         .catch(async error=>{this.log(job,'job.submit_failed',error.message,errorDetails(error),'error');
-          try{await this.refund(job.id,'failed',this.submitFailureMessage(error,job),null);}
+          try{await this.refund(job.id,'failed',backendFailureMessage(error, this.submitFailureMessage(error,job)),null);}
           catch{console.error(this.provider+' generation refund will be retried by recovery:',job.id);}})
         .finally(()=>this.tasks.delete(job.id));
     }
@@ -191,7 +192,7 @@ class VercelQueue {
     if(result.status==='completed') {
       const output=await client.videoOutput(result.videos?.[0]);await this.complete(db,job,output);
     } else if(result.status==='error'||result.status==='cancelled') {
-      await this.refund(job.id,'failed','The video model could not complete this request. Credits were refunded.',null);
+      await this.refund(job.id,'failed',backendFailureMessage(result.error, 'The video model could not complete this request. Credits were refunded.'),null);
     } else if(result.status==='pending') await this.markProcessing(db,job);
     else throw Object.assign(new Error('The video status was temporarily unavailable.'),{retryable:true});
   }

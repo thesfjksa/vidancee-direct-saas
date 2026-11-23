@@ -241,7 +241,7 @@ async function getUserImageGeneration(userId, id) {
   return rows[0] || null;
 }
 
-async function deleteUserImageGeneration(userId, generationId) {
+async function deleteUserImageGeneration(userId, generationId, { verify } = {}) {
   const db = getPool();
   const conn = await db.getConnection();
   let offloadedTags = [];
@@ -262,6 +262,8 @@ async function deleteUserImageGeneration(userId, generationId) {
       error.statusCode = 409;
       throw error;
     }
+
+    if (verify) await verify(conn, generationId);
 
     await conn.execute(
       'UPDATE credit_transactions SET generation_id=NULL WHERE generation_id=? AND user_id=?',

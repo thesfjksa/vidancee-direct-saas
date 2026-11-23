@@ -3039,6 +3039,20 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,inputs:await adminGenerationInputs(getPool(),adminToken,inputsMatch[1])});
       }
 
+      if (routePath === '/admin/generations/backend-payment-cleanup' && ['GET','POST'].includes(req.method)) {
+        requireDatabase();
+        const cleanup = require('./src/admin_generation_cleanup.js');
+        if (req.method === 'GET') return sendJson(res, 200, { ok: true, ...await cleanup.previewBackendPaymentCleanup() });
+        const body = await readJson(req);
+        const result = await cleanup.deleteBackendPaymentFailures(body.ids, body.confirm);
+        logActivity({
+          category: 'admin', event: 'generations.backend_payment_cleanup',
+          message: 'Removed ' + result.removed.length + ' refunded backend payment failures.',
+          details: result,
+        });
+        return sendJson(res, 200, { ok: true, ...result });
+      }
+
       if (req.method==='GET' && routePath==='/admin/generations') {
         requireDatabase();
         const db=getPool();

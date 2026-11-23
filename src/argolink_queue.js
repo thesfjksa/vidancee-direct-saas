@@ -1,5 +1,7 @@
 'use strict';
 
+const { backendFailureMessage } = require('./provider_errors.js');
+
 // ArgoLink jobs run through the same claim, heartbeat, recovery and refund
 // logic as the AI Gateway queue; only the API calls differ.
 //
@@ -116,7 +118,7 @@ class ArgoLinkQueue extends VercelQueue {
       // same request can safely run again. Try once more before refunding.
       if (result.status === 'failed' && error.retryable === true && !op.retried && await this.retry(db, client, job, op)) return;
       const reason = String(error.message || '').slice(0, 200);
-      await this.refund(job.id, 'failed', (reason ? 'The video model could not complete this request: ' + reason : 'The video model could not complete this request.') + ' Credits were refunded.', null);
+      await this.refund(job.id, 'failed', backendFailureMessage(error, (reason ? 'The video model could not complete this request: ' + reason : 'The video model could not complete this request.') + ' Credits were refunded.'), null);
     } else if (result.status === 'pending') await this.markProcessing(db, job);
     else throw Object.assign(new Error('The video status was temporarily unavailable.'), { retryable: true });
   }

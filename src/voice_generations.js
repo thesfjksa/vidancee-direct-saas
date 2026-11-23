@@ -142,7 +142,7 @@ async function getUserVoiceGeneration(userId,id){
   return rows[0]||null;
 }
 
-async function deleteUserVoiceGeneration(userId,generationId){
+async function deleteUserVoiceGeneration(userId, generationId, { verify } = {}) {
   const db=getPool();
   const conn=await db.getConnection();
   try{
@@ -160,6 +160,8 @@ async function deleteUserVoiceGeneration(userId,generationId){
       error.statusCode=409;throw error;
     }
     if(row.status==='submit_error'&&!row.refunded_at){const error=new Error('This unconfirmed voice submission needs support review before it can be deleted.');error.statusCode=409;throw error;}
+    if (verify) await verify(conn, generationId);
+
     await conn.execute(
       'UPDATE credit_transactions SET generation_id=NULL WHERE generation_id=? AND user_id=?',
       [generationId,userId]

@@ -1,5 +1,7 @@
 'use strict';
 
+const { backendFailureMessage } = require('./provider_errors.js');
+
 // Upscaler tab jobs (fal.ai) use the AI Gateway queue's claim, heartbeat,
 // restart recovery and refund rules; only the API calls differ.
 const { VercelQueue } = require('./vercel_queue.js');
@@ -58,7 +60,7 @@ class UpscaleQueue extends VercelQueue {
     if (result.state === 'done') await this.complete(db, job, await client.download(result.url));
     else if (result.state === 'failed') {
       const reason = String(result.error || '').trim().replace(/[.!]?$/, '.');
-      await this.refund(job.id, 'failed', 'The video could not be upscaled' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.', null);
+      await this.refund(job.id, 'failed', backendFailureMessage(result.error, 'The video could not be upscaled' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.'), null);
     } else await this.markProcessing(db, job);
   }
 }
