@@ -106,7 +106,7 @@ class VibiClient {
 
   // Preview clips are public/provider-hosted resources, not paid TTS requests.
   // The browser must fetch them from CMMTools' origin (the app CSP restricts media-src).
-  async downloadVoicePreview(address){
+  async downloadVoicePreview(address,{signal=AbortSignal.timeout(15000)}={}){
     const base=new URL(this.baseUrl);
     const trusted=(url)=>{
       if(url.protocol!=='https:'||url.username||url.password||url.port&&url.port!=='443')return false;
@@ -119,7 +119,7 @@ class VibiClient {
     for(let redirect=0;redirect<4;redirect++){
       if(!trusted(current))throw Object.assign(Error('Voice sample source is not supported.'),{statusCode:404});
       const headers=current.origin===base.origin?this.headers():{};
-      const response=await fetch(current,{method:'GET',headers,redirect:'manual',signal:AbortSignal.timeout(15000)});
+      const response=await fetch(current,{method:'GET',headers,redirect:'manual',signal});
       if([301,302,303,307,308].includes(response.status)){
         const location=response.headers.get('location');
         if(!location)throw Object.assign(Error('Voice sample redirect is missing.'),{statusCode:502});
