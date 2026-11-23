@@ -238,7 +238,7 @@ const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers
 // The admin page carries its stylesheets inline: one request instead of three
 // before anything can render.
 function inlineStylesheets(html) {
-  return html.replace(/<link rel="stylesheet" href="\/(brand|admin)\.css(?:\?[^"]*)?">/g, (tag, name) => {
+  return html.replace(/<link rel="stylesheet" href="\/(brand|admin|site-visuals)\.css(?:\?[^"]*)?">/g, (tag, name) => {
     const css = fs.readFileSync(path.join(__dirname, 'public', name + '.css'), 'utf8');
     return '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>';
   });
