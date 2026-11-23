@@ -384,7 +384,7 @@ test('Seedance 2.5 renders on fal.ai while ArgoLink is out of credits, then cont
   Object.assign(strict, { settings: queue.settings, log: () => {}, references: queue.references });
   await strict.pollJob(db, lateFail, { ...job, status: 'submitted', provider_operation: JSON.stringify({ requestId: 'r1' }) });
   assert.equal(refunds.length, 1);
-  assert.match(refunds[0][2], /Wallet balance too low\. Credits were refunded\.$/);
+  assert.equal(refunds[0][2], 'Generation failed due to Backend payment failure, please contact admin');
   refunds.length = 0;
 
   // Polling the fal render: pending, then done -> stored and handed to the HD upscaler.
