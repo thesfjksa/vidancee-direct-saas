@@ -230,10 +230,11 @@ function previewVoicePickerVoice(id){
   const url=new URL(v.previewUrl,window.location.origin);
   if(url.origin!==window.location.origin||!url.pathname.startsWith('/api/voice-preview/'))
    throw Error('Voice preview must come from the protected site player.');
-  if(voicePickerPlaying===id&&!audio.paused){audio.pause();return;}
+  if(voicePickerPlaying===id&&!audio.paused){audio.pause();voicePickerSyncPreview();return;}
   voicePickerPlaying=id;$('vpNowPlaying').textContent='Loading '+v.name+'…';
   playVoiceSample(audio,url,v.name,message=>{$('vpNowPlaying').textContent=message;},
-   ()=>{$('vpNowPlaying').textContent=v.name;});
+   ()=>{$('vpNowPlaying').textContent=v.name;voicePickerSyncPreview();});
+  voicePickerSyncPreview();
  }catch{$('vpNowPlaying').textContent='This voice has no valid preview link.';}
 }
 function useVoicePickerVoice(id){
@@ -266,6 +267,8 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('vpSearch').addEventListener('input',voicePickerSetSearch);
  for(const node of dlg.querySelectorAll('[data-vp-filter]'))node.addEventListener('change',node.id==='vpLanguage'?voicePickerChangeLanguage:renderVoicePicker);
  dlg.querySelectorAll('[data-vp-tab]').forEach(node=>node.addEventListener('click',()=>voicePickerChangeTab(node.dataset.vpTab)));
+ const player=$('vpAudio');
+ for(const eventName of ['playing','pause','ended','error'])player.addEventListener(eventName,voicePickerSyncPreview);
  $('vpReset').addEventListener('click',voicePickerReset);
  $('vpClose').addEventListener('click',closeVoicePicker);
 });
