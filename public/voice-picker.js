@@ -175,37 +175,53 @@ function voicePickerFiltered(){
  if(sort==='usage')matches=matches.slice().sort((a,b)=>(b.usageCount||0)-(a.usageCount||0));
  return matches;
 }
-function voicePickerBadge(value){return value?'<span>'+escapeHtml(value)+'</span>':'';}
+
+function voicePickerBadge(value){return value?'<span>'+escapeHtml(String(value).replace(/[_-]/g,' '))+'</span>':'';}
 function renderVoicePicker(){
  const root=$('vpCards');if(!root)return;
  const matches=voicePickerFiltered(),favorites=voicePickerFavorites(),current=voicePickerTarget?.value||voicePickerCurrentId();
  const language=$('vpLanguage').selectedOptions?.[0]?.textContent||'Any language';
- const langCode=$('vpLanguage').value;
+ const langCode=$('vpLanguage').value,count=$('vpCount'),status=$('vpStatus');
  if(voicePickerLoading){
-  $('vpStatus').textContent='Searching '+(langCode?language+'-labelled':'available')+' voices…';
-  root.innerHTML='<div class="vp-empty">Searching the connected provider voice catalogue…</div>';return;
+  if(count)count.textContent='Finding voices…';
+  status.textContent='Searching '+(langCode?language+' voices':'the connected provider')+'…';
+  root.innerHTML=voicePickerEmpty('search','Exploring the voice library','Searching for voices that match your settings.');
+  return;
  }
  if(voicePickerError){
-  $('vpStatus').textContent='Voice catalogue unavailable';
-  root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerError)+'</div>';return;
+  if(count)count.textContent='Voice library unavailable';
+  status.textContent='Connection issue';
+  root.innerHTML=voicePickerEmpty('retry','Could not load voices',voicePickerError,
+   '<button type="button" class="vp-reset" data-voice-action="retry">'+voicePickerIcons.retry+'Retry voice search</button>');
+  return;
  }
- $('vpStatus').textContent='Showing '+matches.length+' voice'+(matches.length===1?'':'s')+(langCode&&!voicePickerShowCompatible?' matching '+language:'')+'. '+(langCode?('Generation language: '+language+'. '):'')+(voicePickerShowCompatible?'Showing multilingual defaults, not verified native-language voices.':voicePickerSource==='shared'?'From Vibi shared-voice search.':'Voice labels are limited by the provider catalogue.')+(voicePickerNotice?' '+voicePickerNotice:'');
+ if(count)count.textContent=matches.length+' voice'+(matches.length===1?'':'s')+' found';
+ const source=voicePickerShowCompatible?'Multilingual defaults (not verified native voices)':voicePickerSource==='shared'?'Vibi shared-voice search':voicePickerSource==='default'?'Provider default voices':'Provider catalogue';
+ status.textContent=(langCode?('Language: '+language+' · '):'')+source+(voicePickerNotice?' · '+voicePickerNotice:'');
  if(!matches.length){
-  const desc=voicePickerTab==='library'?'The connected Vibi catalog has no separate verified shared-voice collection.':langCode
-   ?'No '+language+'-labelled voices are currently exposed by the connected Vibi default-voice catalog. Multilingual default voices can still synthesize '+language+'.'
-   :'No voices match these filters. Try resetting them or searching another name.';
-  root.innerHTML='<div class="vp-empty">'+escapeHtml(voicePickerSource==='unavailable'?(voicePickerNotice||'The voice library did not respond. Please retry.'):desc)+
-    (voicePickerSource==='unavailable'?'<p><button type="button" class="vp-reset" data-voice-action="retry">Retry voice search</button></p>':langCode&&voicePickerTab==='all'?'<p><button type="button" class="vp-reset" data-voice-action="compatible">Browse multilingual default voices</button></p>':'')+'</div>';return;
+  const desc=voicePickerSource==='unavailable'?(voicePickerNotice||'The voice library did not respond. Please retry.'):
+   voicePickerTab==='library'?'The connected Vibi catalog has no separately verified shared-voice collection.':
+   langCode?'No '+language+'-labelled voices are currently exposed by this catalogue. Multilingual default voices may still synthesize '+language+'.':
+   'No voices match these filters. Try changing a filter or searching another keyword.';
+  const action=voicePickerSource==='unavailable'?'<button type="button" class="vp-reset" data-voice-action="retry">'+voicePickerIcons.retry+'Retry voice search</button>':
+   langCode&&voicePickerTab==='all'?'<button type="button" class="vp-reset" data-voice-action="compatible">'+voicePickerIcons.wave+'Browse multilingual default voices</button>':'';
+  root.innerHTML=voicePickerEmpty('search','No matching voices',desc,action);return;
  }
  root.innerHTML=matches.map(v=>{
-  const active=current===v.id,liked=favorites.has(v.id);
-  return '<article class="vp-card'+(active?' current':'')+'"><div class="vp-title">'+escapeHtml(v.name)+'</div>'+
+  const active=current===v.id,liked=favorites.has(v.id),tone=voicePickerTone(v);
+  const badges=[v.accent,v.gender,v.age,v.category,v.quality].filter(Boolean).slice(0,4).map(voicePickerBadge).join('');
+  const playing=voicePickerPlaying===v.id&&!($('vpAudio')?.paused??true);
+  return '<article class="vp-card'+(active?' current':'')+'">'+
+   '<div class="vp-card-top"><span class="vp-avatar tone-'+tone+'" aria-hidden="true">'+voicePickerIcons.wave+'</span>'+
+   '<div class="vp-title-wrap"><span class="vp-type">Voice profile</span><div class="vp-title">'+escapeHtml(v.name)+'</div></div>'+
+   (active?'<span class="vp-selected-mark" title="Currently selected" aria-label="Currently selected">'+voicePickerIcons.check+'</span>':'')+'</div>'+
    '<div class="vp-description">'+escapeHtml(v.description||'Listen to a sample and select this voice for your project.')+'</div>'+
-   '<div class="vp-badges">'+voicePickerBadge(v.quality)+voicePickerBadge(v.gender)+voicePickerBadge(v.age)+voicePickerBadge(v.accent)+voicePickerBadge(v.category)+'</div>'+
-   '<div class="vp-card-actions"><button type="button" class="vp-favorite" data-voice-action="favorite" data-voice-id="'+escapeHtml(v.id)+'" aria-label="'+(liked?'Remove from':'Add to')+' favourites" aria-pressed="'+liked+'">'+(liked?'♥':'♡')+'</button>'+
-   '<button type="button" data-voice-action="play" data-voice-id="'+escapeHtml(v.id)+'" '+(!v.previewUrl?'disabled title="Preview unavailable"':'')+'>▶ Play</button>'+
-   '<button type="button" class="vp-use" data-voice-action="use" data-voice-id="'+escapeHtml(v.id)+'">'+(active?'Selected':'Use')+'</button></div></article>';
+   '<div class="vp-badges">'+badges+'</div>'+
+   '<div class="vp-card-actions"><button type="button" class="vp-favorite" data-voice-action="favorite" data-voice-id="'+escapeHtml(v.id)+'" aria-label="'+(liked?'Remove from':'Add to')+' favourites" aria-pressed="'+liked+'" title="'+(liked?'Remove favourite':'Add favourite')+'">'+voicePickerIcons[liked?'heartFill':'heart']+'</button>'+
+   '<button type="button" class="vp-play'+(playing?' is-playing':'')+'" data-voice-action="play" data-voice-id="'+escapeHtml(v.id)+'" aria-label="Preview voice sample" '+(!v.previewUrl?'disabled title="Preview unavailable"':'')+'>'+voicePickerIcons[playing?'pause':'play']+(playing?'Pause':'Preview')+'</button>'+
+   '<button type="button" class="vp-use" data-voice-action="use" data-voice-id="'+escapeHtml(v.id)+'">'+(active?voicePickerIcons.check+'Selected':'Use voice')+'</button></div></article>';
  }).join('');
+ voicePickerSyncPreview();
 }
 function previewVoicePickerVoice(id){
  const v=[...(voiceOptions.voices||[]),...voicePickerStoredFavorites()].find(x=>x.id===id),audio=$('vpAudio');
