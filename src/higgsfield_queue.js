@@ -1,5 +1,7 @@
 'use strict';
 
+const { backendFailureMessage } = require('./provider_errors.js');
+
 // Higgsfield API video jobs (Wan 3.0). They use the ArgoLink queue's claim,
 // heartbeat, restart recovery, refunds and HD enhancement: a 720p or 1080p job
 // is rendered lower by Higgsfield, stored, upscaled by fal.ai and the upscale
@@ -73,7 +75,7 @@ class HiggsfieldQueue extends ArgoLinkQueue {
     this.log(job, 'higgsfield.status', op.requestId + ' → ' + result.status, result, result.status === 'failed' ? 'error' : 'info');
     if (result.status === 'failed') {
       const reason = String(result.error || '').trim().replace(/[.!]?$/, '.');
-      return this.refund(job.id, 'failed', 'The video model could not complete this request' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.', null);
+      return this.refund(job.id, 'failed', backendFailureMessage(result.error, 'The video model could not complete this request' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.'), null);
     }
     const output = await client.download(result.url);
     if (savedOptions(job).enhance?.upscale) await this.startEnhancement(db, job, output, op.requestId);

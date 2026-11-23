@@ -79,3 +79,69 @@ test('multiple small batches finish without skipping protected or concurrent row
   assert.equal(deleted,3);
   assert.equal(f.rows.length,3);
 });
+
+const {previewBackendPaymentCleanup,deleteBackendPaymentFailures}=require('../src/admin_generation_cleanup.js');
+const {BACKEND_PAYMENT_FAILURE,VGENV_BALANCE_REJECTION,backendFailureMessage,failureMessage}=require('../src/provider_errors.js');
+
+test('confirmed upstream billing failures use the requested customer message',()=>{
+  const expected='Generation failed due to Backend payment failure, please contact admin';
+  assert.equal(BACKEND_PAYMENT_FAILURE,expected);
+  for(const reason of [
+    new Error(VGENV_BALANCE_REJECTION),
+    {statusCode:402},
+    {code:'insufficient_funds'},
+    {providerMessage:'账户余额不足'},
+    {providerResponse:{error:{message:'The account is out of credits.'}}},
+  ]) assert.equal(backendFailureMessage(reason,'original'),expected);
+  assert.equal(failureMessage('video','余额不足'),expected);
+  for(const reason of [
+    {statusCode:403,message:'Model access denied'},
+    {statusCode:429,message:'Quota exceeded'},
+    {message:'Invalid white balance parameter'},
+    {message:'Maximum prompt length is 402'},
+  ]) assert.equal(backendFailureMessage(reason,'original'),'original');
+});
+
+test('cleanup dispatches only eligible IDs and rechecks eligibility in the delete transaction',async()=>{
+  const [eligible,changed,ineligible]=[1,2,3].map(n=>'00000000-0000-4000-8000-00000000000'+n);
+  const removed=[];
+  const db={execute:async(sql,args)=>{
+    if (sql.includes('information_schema.tables')) return [[{present:1}]];
+    assert.deepEqual(args.slice(-2),[BACKEND_PAYMENT_FAILURE,VGENV_BALANCE_REJECTION]);
+    assert.match(sql,/g\.refunded_at IS NOT NULL/);
+    assert.match(sql,/a\.generation_id=g\.id AND a\.user_id=g\.user_id/);
+    assert.match(sql,/story_steps/);
+    if(sql.includes('AS deletable')) return [[
+      {id:eligible,provider:'vgenv',deletable:1},
+      {id:changed,provider:'vibi',deletable:1},
+      {id:ineligible,provider:'vgenv',deletable:0},
+    ]];
+    assert.deepEqual(args.slice(0,-2),[eligible,changed,ineligible]);
+    return [[{id:eligible,user_id:7,media_type:'video'},{id:changed,user_id:8,media_type:'audio'}]];
+  }};
+  const conn={execute:async(sql,args)=> {
+    assert.match(sql,/g\.status IN \('failed','submit_error'\)/);
+    return [args[0]===eligible?[{id:eligible}]:[]];
+  }};
+  const preview=await previewBackendPaymentCleanup({db});
+  assert.deepEqual(preview.ids,[eligible,changed]);
+  assert.equal(preview.storyLinked,1);
+  const remove=async (userId,id,{verify})=>{
+    await verify(conn,id);
+    removed.push([userId,id]);
+  };
+  await assert.rejects(deleteBackendPaymentFailures([eligible],'', {db,removeVideo:remove}),{statusCode:409});
+  const result=await deleteBackendPaymentFailures([eligible,changed,ineligible],preview.confirmation,
+    {db,removeVideo:remove,removeAudio:remove});
+  assert.deepEqual(result,{removed:[eligible],skipped:[changed,ineligible],stopped:false});
+  assert.deepEqual(removed,[[7,eligible]]);
+});
+
+test('cleanup preview works when Story Studio has never installed its tables',async()=>{
+  const db={execute:async(sql)=>{
+    if(sql.includes('information_schema.tables'))return [[]];
+    assert.doesNotMatch(sql,/story_steps/);
+    return [[]];
+  }};
+  assert.deepEqual((await previewBackendPaymentCleanup({db})).ids,[]);
+});

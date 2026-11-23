@@ -631,7 +631,7 @@ async function getUserGenerationReferenceImage(userId, generationId, imageId) {
   return rows[0] || null;
 }
 
-async function deleteUserGeneration(userId, generationId) {
+async function deleteUserGeneration(userId, generationId, { verify } = {}) {
   const db = getPool();
   const conn = await db.getConnection();
   let deletedDriveId=null,deletedObjectKey=null,offloadedTags=[];
@@ -657,6 +657,8 @@ async function deleteUserGeneration(userId, generationId) {
       error.statusCode = 409;
       throw error;
     }
+
+    if (verify) await verify(conn, generationId);
 
     // Do the child cleanup explicitly instead of relying only on FK actions.
     // Older deployments may have been created before ON DELETE CASCADE / SET NULL

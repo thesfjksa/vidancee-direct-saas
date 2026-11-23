@@ -392,9 +392,9 @@ test('workspace includes all requested tools and compiles with no model or engin
 test('worker claims each paid job once, saves task IDs, and holds uncertain submissions without refund/replay',async()=>{
  const source=fs.readFileSync(require.resolve('../src/worker_admin_settings'),'utf8');
  const section=source.slice(source.indexOf('  async syncVibi(db)'),source.indexOf('  async runOnce()'));
- for(const kind of ['success','timeout','rejected']){
+ for(const kind of ['success','timeout','rejected','provider-balance']){
   let submissions=0,refunds=0,held=0,saved=0,deleted=0,claims=0;
-  const context={require:p=>p==='./voice_worker'?{submit:async()=>{submissions++;if(kind==='timeout')throw Error('socket reset');if(kind==='rejected')throw Object.assign(Error('rejected'),{definitive:true});return 'provider-task';}}:require(p),refundGeneration:async()=>refunds++,console:{error:()=>{}},Buffer};
+  const context={require:p=>p==='./voice_worker'?{submit:async()=>{submissions++;if(kind==='timeout')throw Error('socket reset');if(kind==='provider-balance')throw Object.assign(Error('Payment required'),{definitive:true,statusCode:402});if(kind==='rejected')throw Object.assign(Error('rejected'),{definitive:true});return 'provider-task';}}:require(p),backendFailureMessage:require('../src/provider_errors').backendFailureMessage,refundGeneration:async(_id,_status,message)=>{refunds++;if(kind==='provider-balance')assert.equal(message,'Generation failed due to Backend payment failure, please contact admin');},console:{error:()=>{}},Buffer};
   const Worker=vm.runInNewContext('class Worker {'+section+'};Worker',context),w=new Worker();w.vibiEnabled=true;w.vibi={};w.vibiMaxInflight=1;
   const db={query:async sql=>sql.includes('COUNT(*)')?[[{total:0}]]:[claims?[]:[{id:'job',prompt:'Hello'}]],execute:async(sql,args)=>{
    if(sql.includes("SET status='submitting'")){claims++;return [{affectedRows:1}];}
@@ -404,7 +404,7 @@ test('worker claims each paid job once, saves task IDs, and holds uncertain subm
    return [{}];
   }};
   await w.submitVibiQueued(db);await w.submitVibiQueued(db);assert.equal(submissions,1);
-  assert.equal(saved,kind==='success'?1:0);assert.equal(held,kind==='timeout'?1:0);assert.equal(refunds,kind==='rejected'?1:0);assert.equal(deleted,kind==='timeout'?0:1);
+  assert.equal(saved,kind==='success'?1:0);assert.equal(held,kind==='timeout'?1:0);assert.equal(refunds,['rejected','provider-balance'].includes(kind)?1:0);assert.equal(deleted,kind==='timeout'?0:1);
  }
 });
 test('real multipart parsing and ffprobe validate media before billing, reject missing/oversized sources',async()=>{

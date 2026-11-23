@@ -1,5 +1,7 @@
 'use strict';
 
+const { backendFailureMessage } = require('./provider_errors.js');
+
 // Sluice video jobs (Seedance Lite in Video Studio and Cartoon Studio). They
 // use the ArgoLink queue's claim, heartbeat, restart recovery and refunds;
 // only the API calls differ. Reference images are sent inline, so Sluice never
@@ -56,7 +58,7 @@ class SluiceQueue extends ArgoLinkQueue {
     this.log(job, 'sluice.status', op.requestId + ' → ' + result.status, result, result.status === 'failed' ? 'error' : 'info');
     if (result.status === 'failed') {
       const reason = String(result.error || '').trim().replace(/[.!]?$/, '.');
-      return this.refund(job.id, 'failed', 'The video model could not complete this request' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.', null);
+      return this.refund(job.id, 'failed', backendFailureMessage(result.error, 'The video model could not complete this request' + (reason.length > 1 ? ': ' + reason : '.') + ' Credits were refunded.'), null);
     }
     await this.complete(db, job, await client.download(result.url));
   }

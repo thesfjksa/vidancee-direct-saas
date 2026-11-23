@@ -3,6 +3,31 @@
 // Some sources answer failures in Chinese (888API: "输入图片触发安全策略，请更换图片后重试").
 // Customers get a plain English sentence instead; the activity log keeps the
 // original text for the admin.
+const BACKEND_PAYMENT_FAILURE = 'Generation failed due to Backend payment failure, please contact admin';
+const VGENV_BALANCE_REJECTION = 'Insufficient balance. Please recharge before generating.';
+const BALANCE_CODE = /^(?:insufficient_(?:balance|credits|funds)|balance_insufficient|credits_exhausted|out_of_credits|payment_required)$/i;
+const BALANCE_MESSAGE = /\b(?:insufficient|not enough|no remaining|out of|no more) (?:account |available |api )?(?:balance|credits|funds)\b|\b(?:balance|credits) (?:is |are )?(?:insufficient|exhausted|depleted|too low|zero)\b|\bpayment required\b|余额不足|额度不足|积分不足|余额已耗尽/i;
+
+// Call this only with a provider response from an actual generation request.
+function backendPaymentFailure(error) {
+  if (!error) return false;
+  if (Number(error.statusCode ?? error.providerStatus) === 402) return true;
+  const values = [
+    error, error.message, error.code, error.providerMessage, error.detail,
+    error.providerResponse?.detail, error.providerResponse?.error,
+    error.providerResponse?.message,
+  ];
+  return values.some(value => {
+    const code = typeof value === 'object' ? value?.code : value;
+    const message = typeof value === 'object' ? value?.message : value;
+    return BALANCE_CODE.test(String(code || '').trim()) || BALANCE_MESSAGE.test(String(message || ''));
+  });
+}
+
+function backendFailureMessage(error, fallback) {
+  return backendPaymentFailure(error) ? BACKEND_PAYMENT_FAILURE : fallback;
+}
+
 const HAN = /[㐀-鿿]/;
 const MAINTENANCE = 'Model under maintenance. Please choose another model';
 // The source has switched the model off or has no capacity for it, e.g.
@@ -35,6 +60,7 @@ const modelUnavailable = reason => MODEL_DOWN.test(String(reason || ''));
 // Any other source reason, in any language, is never shown: the customer
 // reads "Model under maintenance" and Activity keeps the raw text.
 function failureMessage(media, reason) {
+  if (backendPaymentFailure(reason)) return BACKEND_PAYMENT_FAILURE;
   const text = String(reason || '').trim();
   const known = KNOWN.find(([pattern]) => pattern.test(text));
   if (known) return known[1].replace('video', media) + '. Credits were refunded.';
@@ -51,4 +77,4 @@ function customerError(text) {
   return MAINTENANCE + '.' + (/refunded/i.test(text) ? ' Credits were refunded.' : '');
 }
 
-module.exports = { failureMessage, modelUnavailable, customerError, MAINTENANCE };
+module.exports = { failureMessage, modelUnavailable, customerError, MAINTENANCE, backendFailureMessage, BACKEND_PAYMENT_FAILURE, VGENV_BALANCE_REJECTION };

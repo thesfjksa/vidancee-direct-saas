@@ -1,3 +1,13 @@
+## 23 November 2026 — Remove failed jobs caused by provider balance
+
+- Admin → Generations → Clean up backend payment failures previews the eligible records and removes only the IDs reviewed. It requires an explicit confirmation and uses the normal per-media cleanup, with a fresh eligibility check while the generation is locked. Failed jobs must be refunded and have no output. Story-linked jobs remain available for Story Studio recovery. Billing entries, refund entries and activity records are retained.
+- Historical Vgenv jobs used a generic submission message. Match those jobs only when the provider activity for the same generation and customer records “Insufficient balance. Please recharge before generating.” The live activity search found 121 such provider events within the retention window. This is an event count; it includes jobs already removed. Other generic errors are insufficient evidence.
+- Future confirmed provider balance failures display “Generation failed due to Backend payment failure, please contact admin”. Source errors remain available in diagnostic logs where already recorded. Customer wallet validation, refund amounts, retries and provider fallback policies are unchanged.
+- Verification: 60 targeted tests passed for cleanup eligibility, message routing, provider behavior, voice refunds and runtime routes. Admin inline scripts passed syntax checks.
+- Production cleanup is an explicit admin operation after deploying the web change. Deploy the worker to enable the new customer message. No records were removed during implementation.
+
+---
+
 ## 19 November 2026 — Language dropdown must trigger Vibi *search*, not just language query
 
 - The user's latest screenshot showed CMMTools returning 40 supposedly “Urdu-labelled” voices after choosing Urdu, but the cards included Jon, Adam, Brazilian and Hindi voices. Typing “Urdu” manually in the keyword box did return the Urdu voices sought. This exposed an earlier mistaken assumption: the Vibi gateway may accept the upstream `language=ur` query but ignore its filtering semantics, while its free-text `search=Urdu` is effective.

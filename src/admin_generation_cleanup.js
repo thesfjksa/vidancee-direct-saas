@@ -4,6 +4,7 @@
 // source jobs are never touched. Reuse the normal per-media deletion paths so
 // wallet history, object storage, and provider receipts follow existing rules.
 const {getPool}=require('./db.js');
+const { BACKEND_PAYMENT_FAILURE, VGENV_BALANCE_REJECTION } = require('./provider_errors.js');
 const {deleteUserGeneration}=require('./generations.js');
 const {deleteUserImageGeneration}=require('./image_generations.js');
 const {deleteUserVoiceGeneration}=require('./voice_generations.js');
@@ -54,4 +55,101 @@ async function deleteFinishedUserGenerations(userId,confirmEmail,{
     userId:after.userId,email:after.email, ...(stopped?{error:stopped}:{})};
 }
 
-module.exports={userGenerationCleanupPreview,deleteFinishedUserGenerations};
+// Old vgenv rows have a generic error. Require the exact originating worker
+// rejection on the same generation and customer, with no provider job created.
+const paymentFailureFilter = `
+  g.status IN ('failed','submit_error')
+  AND g.refunded_at IS NOT NULL
+  AND g.media_type IN ('video','image','audio')
+  AND (g.output_url IS NULL OR g.output_url='')
+  AND (
+    g.error_message = ?
+    OR (g.provider='vgenv' AND g.media_type='video' AND g.status='submit_error'
+      AND (g.provider_job_id IS NULL OR g.provider_job_id='')
+      AND g.error_message='Generation could not be submitted. Credits were refunded.'
+      AND EXISTS (
+        SELECT 1 FROM activity_log a
+        WHERE a.generation_id=g.id AND a.user_id=g.user_id AND a.provider=g.provider
+          AND a.category='provider' AND a.event='job.submit_failed' AND a.level='error'
+          AND a.message=?
+      ))
+  )`;
+const paymentFailureArgs = [BACKEND_PAYMENT_FAILURE, VGENV_BALANCE_REJECTION];
+async function standaloneFilter(db) {
+  const [[schema]] = await db.execute(
+    "SELECT 1 AS present FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='story_steps'");
+  return schema ? 'NOT EXISTS (SELECT 1 FROM story_steps s WHERE s.generation_id=g.id)' : '1=1';
+}
+const batchSize = 5;
+const confirmation = 'DELETE BACKEND PAYMENT FAILURES';
+
+async function previewBackendPaymentCleanup({ db = getPool() } = {}) {
+  const standalone = await standaloneFilter(db);
+  const [rows] = await db.execute(
+    `SELECT g.id, g.provider, ${standalone} AS deletable
+     FROM generations g WHERE ${paymentFailureFilter}
+     ORDER BY g.created_at, g.id`, paymentFailureArgs);
+  const candidates = rows.filter(row => Number(row.deletable) === 1);
+  return {
+    ids: candidates.map(row => row.id),
+    providers: Object.fromEntries(
+      [...new Set(candidates.map(row => row.provider))].map(provider =>
+        [provider, candidates.filter(row => row.provider === provider).length])),
+    storyLinked: rows.length - candidates.length,
+    batchSize,
+    confirmation,
+  };
+}
+
+async function deleteBackendPaymentFailures(ids, confirm, {
+  db = getPool(), removeVideo = deleteUserGeneration,
+  removeImage = deleteUserImageGeneration, removeAudio = deleteUserVoiceGeneration,
+} = {}) {
+  if (confirm !== confirmation) throw fail(409, 'Confirm the backend payment failure cleanup.');
+  if (!Array.isArray(ids) || !ids.length || ids.length > batchSize ||
+      new Set(ids).size !== ids.length ||
+      ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))) {
+    throw fail(400, 'Provide up to five unique generation IDs from the cleanup preview.');
+  }
+  const standalone = await standaloneFilter(db);
+  const [rows] = await db.execute(
+    `SELECT g.id,g.user_id,g.media_type FROM generations g
+     WHERE g.id IN (${ids.map(() => '?').join(',')})
+     AND ${paymentFailureFilter} AND ${standalone}`, [...ids, ...paymentFailureArgs]);
+  const byId = new Map(rows.map(row => [row.id, row]));
+  const removed = [];
+  const skipped = [];
+  const removers = { video: removeVideo, image: removeImage, audio: removeAudio };
+  // The media remover holds the generation row lock while it calls this check.
+  async function verify(conn, id) {
+    const [[match]] = await conn.execute(
+      `SELECT g.id FROM generations g WHERE g.id=?
+       AND ${paymentFailureFilter} AND ${standalone}`, [id, ...paymentFailureArgs]);
+    if (!match) throw fail(409, 'Generation is no longer eligible for cleanup.');
+  }
+
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row) {
+      skipped.push(id);
+      continue;
+    }
+    try {
+      await removers[row.media_type](Number(row.user_id), id, { verify });
+      removed.push(id);
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 409) {
+        skipped.push(id);
+        continue;
+      }
+      console.error('Backend payment cleanup failed for', id, error);
+      return { removed, skipped, stopped: true };
+    }
+  }
+  return { removed, skipped, stopped: false };
+}
+
+module.exports = {
+  userGenerationCleanupPreview, deleteFinishedUserGenerations,
+  previewBackendPaymentCleanup, deleteBackendPaymentFailures,
+};
