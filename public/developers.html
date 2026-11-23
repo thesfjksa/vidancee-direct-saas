@@ -8,17 +8,18 @@
 <link rel="stylesheet" href="/developers.css?v=2">
 <link rel="icon" href="/assets/cmmtools-icon.png">
 <meta name="theme-color" content="#004574">
-</head>
+<link rel="stylesheet" href="/site-visuals.css?v=20261123-visuals1"></head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="developer-header"><a class="developer-logo" href="/" aria-label="CMM Tools home"><img src="/assets/cmmtools-logo-sm.png" alt="CMM Tools" width="116" height="40"></a><nav class="header-links" aria-label="Developer navigation"><a href="/developers" aria-current="page">API keys</a><a href="/developers/docs">Documentation</a><a class="studio-link" href="/app">Open studio ↗</a></nav></header>
 <main id="main" class="developer-main">
-<div class="eyebrow">CMM Tools for developers</div><h1>Your studio.<br>Connected to your application.</h1>
+<div class="cmm-dev-hero"><img class="cmm-dev-art cmm-visual" src="/assets/site-art/developer.svg" alt="" decoding="async" fetchpriority="high"><div class="eyebrow">CMM Tools for developers</div><h1>Your studio.<br>Connected to your application.</h1>
 <p class="lead">Generate videos and images from your own app. One account, one credit balance, and the same models you use in the studio.</p>
-<div class="hero-actions"><a class="button primary" href="/developers/docs#quickstart">Read the quick start ↗</a><a class="button" href="/developers/docs#endpoints">Explore the API</a></div>
+<div class="hero-actions"><a class="button primary" href="/developers/docs#quickstart"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#studio"></use></svg>Read the quick start ↗</a><a class="button" href="/developers/docs#endpoints">Explore the API</a></div>
+</div>
 <div id="login" class="login hidden"><h2>Sign in to manage your API keys</h2><p class="muted">Use your existing CMM Tools account. The API uses the credits and model access on that account.</p><a class="button primary" href="/app">Sign in</a></div>
 <div id="message" role="status" aria-live="polite"></div>
-<div class="stats"><div class="stat"><small>Available balance</small><strong id="balance">—</strong></div><div class="stat"><small>Active API keys</small><strong id="keyCount">—</strong></div><div class="stat"><small>Requests / key / minute</small><strong>120</strong></div></div>
+<div class="stats"><div class="stat"><small>Available balance</small><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#credits"></use></svg><strong id="balance">—</strong></div><div class="stat"><small>Active API keys</small><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#security"></use></svg><strong id="keyCount">—</strong></div><div class="stat"><small>Requests / key / minute</small><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#activity"></use></svg><strong>120</strong></div></div>
 <div class="layout">
 <div class="stack">
 <section class="card" aria-labelledby="keysTitle"><div class="section-head"><h2 id="keysTitle">API keys</h2><span class="badge">Shown once</span></div><p class="muted">Keep keys on your server. Each key can use your account’s enabled models and credits.</p>
