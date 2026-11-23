@@ -75,11 +75,16 @@ const paymentFailureFilter = `
       ))
   )`;
 const paymentFailureArgs = [BACKEND_PAYMENT_FAILURE, VGENV_BALANCE_REJECTION];
-const standalone = 'NOT EXISTS (SELECT 1 FROM story_steps s WHERE s.generation_id=g.id)';
+async function standaloneFilter(db) {
+  const [[schema]] = await db.execute(
+    "SELECT 1 AS present FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='story_steps'");
+  return schema ? 'NOT EXISTS (SELECT 1 FROM story_steps s WHERE s.generation_id=g.id)' : '1=1';
+}
 const batchSize = 5;
 const confirmation = 'DELETE BACKEND PAYMENT FAILURES';
 
 async function previewBackendPaymentCleanup({ db = getPool() } = {}) {
+  const standalone = await standaloneFilter(db);
   const [rows] = await db.execute(
     `SELECT g.id, g.provider, ${standalone} AS deletable
      FROM generations g WHERE ${paymentFailureFilter}
@@ -106,6 +111,7 @@ async function deleteBackendPaymentFailures(ids, confirm, {
       ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))) {
     throw fail(400, 'Provide up to five unique generation IDs from the cleanup preview.');
   }
+  const standalone = await standaloneFilter(db);
   const [rows] = await db.execute(
     `SELECT g.id,g.user_id,g.media_type FROM generations g
      WHERE g.id IN (${ids.map(() => '?').join(',')})

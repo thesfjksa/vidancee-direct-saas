@@ -106,6 +106,7 @@ test('cleanup dispatches only eligible IDs and rechecks eligibility in the delet
   const [eligible,changed,ineligible]=[1,2,3].map(n=>'00000000-0000-4000-8000-00000000000'+n);
   const removed=[];
   const db={execute:async(sql,args)=>{
+    if (sql.includes('information_schema.tables')) return [[{present:1}]];
     assert.deepEqual(args.slice(-2),[BACKEND_PAYMENT_FAILURE,VGENV_BALANCE_REJECTION]);
     assert.match(sql,/g\.refunded_at IS NOT NULL/);
     assert.match(sql,/a\.generation_id=g\.id AND a\.user_id=g\.user_id/);
@@ -134,4 +135,13 @@ test('cleanup dispatches only eligible IDs and rechecks eligibility in the delet
     {db,removeVideo:remove,removeAudio:remove});
   assert.deepEqual(result,{removed:[eligible],skipped:[changed,ineligible],stopped:false});
   assert.deepEqual(removed,[[7,eligible]]);
+});
+
+test('cleanup preview works when Story Studio has never installed its tables',async()=>{
+  const db={execute:async(sql)=>{
+    if(sql.includes('information_schema.tables'))return [[]];
+    assert.doesNotMatch(sql,/story_steps/);
+    return [[]];
+  }};
+  assert.deepEqual((await previewBackendPaymentCleanup({db})).ids,[]);
 });
