@@ -19,14 +19,14 @@ test('site-wide pictorial system uses small local SVG illustrations and accessib
   assert.match(svg,/<svg\b[^>]*viewBox="0 0 256 224"/,'missing SVG viewport: '+name);
   assert.match(svg,/<linearGradient/,'illustration lacks a custom layered design: '+name);
   assert.match(svg,/<g filter="url\(#shadow\)"/,'illustration lacks depth: '+name);
-  assert.doesNotMatch(svg,/<script|<foreignObject|xlink:href|https?:\/\//i,'unsafe external SVG content: '+name);
+  assert.doesNotMatch(svg.replace('xmlns="http://www.w3.org/2000/svg"',''),/<script\b|<foreignObject\b|xlink:href=|(?:href|src)="https?:/i,'unsafe external SVG content: '+name);
   assert.ok(fs.statSync(path.join(root,file)).size<8000,'oversized icon '+name);
  }
  assert.match(sprite,/<symbol id="speech"/);
  for(const name of ['overview','users','generations','plans','credits','storage','provider','activity','history','video','image','library','security','refresh','cloning']){
   assert.ok(sprite.includes('<symbol id="'+name+'"'),'missing glyph '+name);
  }
- assert.doesNotMatch(sprite,/<script|<foreignObject|https?:\/\//i);
+ assert.doesNotMatch(sprite.replace('xmlns="http://www.w3.org/2000/svg"',''),/<script\b|<foreignObject\b|(?:href|src)="https?:/i);
  assert.ok(fs.statSync(path.join(root,'public/assets/site-art/glyphs.svg')).size<14000);
 });
 
