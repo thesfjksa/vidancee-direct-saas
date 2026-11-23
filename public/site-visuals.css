@@ -1,0 +1,69 @@
+/* CMMTools pictorial system — decorative assets are original SVGs, not stock photography.
+   Scoped to opt-in classes so navigation and product workflows retain their layout. */
+.cmm-glyph{display:inline-block;width:17px;height:17px;flex:none;vertical-align:-3px;color:inherit;stroke:currentColor;fill:none}
+.cmm-glyph[aria-hidden]{pointer-events:none}
+.cmm-visual{display:block;object-fit:contain;flex:none;user-select:none;pointer-events:none}
+.cmm-page-art{float:left;width:91px;height:79px;object-fit:contain;margin:-13px 16px -4px -4px;filter:drop-shadow(0 6px 12px rgba(0,71,116,.09))}
+.cmm-creator-art{width:67px;height:57px;object-fit:contain;flex:none;margin-left:auto;border-radius:15px;filter:drop-shadow(0 3px 8px rgba(0,69,116,.07))}
+.cmm-panel-copy{min-width:0;flex:1}
+#voices .cmm-page-art,#library .cmm-page-art,#plans .cmm-page-art,#credits .cmm-page-art,#claude .cmm-page-art,#account .cmm-page-art{border-radius:18px}
+#voices [data-voice-tool]{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+#voices [data-voice-tool] .cmm-glyph{width:18px;height:18px;color:currentColor}
+#voices [data-voice-tool][aria-pressed="true"] .cmm-glyph{filter:drop-shadow(0 0 3px rgba(255,255,255,.13))}
+#library .page-head .cmm-glyph,#account .page-head .cmm-glyph,#voices .page-head .cmm-glyph{width:16px;height:16px}
+#credits .stats>.card{position:relative;overflow:hidden;padding-right:52px}
+#credits .stats>.card>.cmm-stat-glyph{position:absolute;right:17px;top:19px;color:var(--accent);width:23px;height:23px;opacity:.85}
+#shell .main-nav .studio-tabs button svg:not(.cmm-glyph){stroke-width:1.9}
+#shell .main-nav button.active svg{color:var(--accent)}
+#shell .main-nav .studio-tabs button.active{box-shadow:0 3px 9px rgba(0,89,125,.10)}
+#video-tools .cmm-video-tools-mark{position:absolute;right:20px;top:0;width:142px;height:130px;object-fit:contain;opacity:.97;filter:drop-shadow(0 11px 19px rgba(1,16,35,.15));pointer-events:none}
+#video-tools .vt-hero{position:relative;overflow:hidden}
+#video-tools .vt-hero .vt-hero-copy{padding-right:10px}
+#video-tools .vt-hero-art{right:140px}
+#video-tools .vt-card .cmm-glyph{width:18px;height:18px}
+/* Desktop and mobile page headers retain text-first reading order. */
+@media(max-width:1024px){.cmm-page-art{width:75px;height:70px;margin:-9px 13px -3px -5px}.cmm-creator-art{width:57px;height:50px}#video-tools .cmm-video-tools-mark{width:110px;height:104px;right:12px}#video-tools .vt-hero-art{right:100px}}
+@media(max-width:680px){.cmm-page-art{width:59px;height:54px;margin:-8px 11px 0 -5px}.cmm-creator-art{width:49px;height:44px;margin-left:auto}#video-tools .cmm-video-tools-mark{display:none}#voices [data-voice-tool]{gap:5px}#voices [data-voice-tool] .cmm-glyph{width:16px;height:16px}}
+/* The animated landing-page artwork remains intact; these pictorial labels complement it. */
+#studios .tile{position:relative;isolation:isolate}
+#studios .cmm-tile-art{float:right;width:88px;height:83px;object-fit:contain;margin:-8px -5px 5px 12px;border-radius:19px;filter:drop-shadow(0 7px 12px rgba(5,66,93,.08))}
+#studios .tile h3{position:relative}
+#studios .tile .tag{position:relative;z-index:2}
+#studios .tile .art,#studios .tile .voicebox,#studios .tile .compare{clear:both}
+#studios .tile .modelrow{clear:both}
+#studios .cmm-tile-art+ h3{max-width:100%}
+#how .step .ill{border-radius:14px;background:linear-gradient(135deg,rgba(230,248,251,.7),rgba(255,255,255,0))}
+#how .step .ill svg{filter:drop-shadow(0 4px 6px rgba(1,60,94,.04))}
+#pricing .cmm-plan-glyph{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;margin-bottom:10px;background:linear-gradient(135deg,#ebf8fc,#d6eff6);color:#00527c;box-shadow:inset 0 1px 0 #fff}
+#pricing .cmm-plan-glyph .cmm-glyph{width:23px;height:23px}
+.page-hero .wrap.cmm-hero-content{position:relative;padding-right:205px}
+.cmm-marketing-hero{position:absolute;right:21px;top:50%;transform:translateY(-50%);width:166px;height:151px;object-fit:contain;filter:drop-shadow(0 13px 22px rgba(5,55,80,.12));pointer-events:none}
+.cmm-hero-content .kicker,.cmm-hero-content h1,.cmm-hero-content p{position:relative;z-index:1}
+@media(max-width:740px){#studios .cmm-tile-art{width:66px;height:62px;margin:-5px -3px 5px 9px}.page-hero .wrap.cmm-hero-content{padding-right:114px}.cmm-marketing-hero{width:91px;height:94px;right:11px}}
+@media(max-width:480px){.page-hero .wrap.cmm-hero-content{padding-right:94px}.cmm-marketing-hero{width:72px;height:78px;right:5px}#studios .cmm-tile-art{width:61px;height:59px}}
+/* API surfaces: a strong hero illustration, restrained chapter icons and no imagery over code. */
+.cmm-dev-hero{position:relative;padding-right:min(240px,24%);min-height:168px}
+.cmm-dev-art{position:absolute;right:7px;top:-10px;width:min(217px,23%);height:198px;object-fit:contain;filter:drop-shadow(0 12px 20px rgba(0,67,106,.12));pointer-events:none}
+.cmm-dev-hero .hero-actions .cmm-glyph{width:16px;height:16px}
+.docs-hero{position:relative}
+.docs-hero.cmm-has-art{padding-right:154px;min-height:162px}
+.cmm-doc-art{position:absolute;right:0;top:6px;width:133px;height:132px;object-fit:contain;filter:drop-shadow(0 7px 15px rgba(0,58,105,.09));pointer-events:none}
+.doc-card .cmm-doc-icon{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin-bottom:12px;border-radius:11px;color:#007d91;background:#ebf9fb;border:1px solid #d0eef3}
+.doc-card .cmm-doc-icon .cmm-glyph{width:19px;height:19px}
+.doc-card{transition:box-shadow .17s ease,transform .17s ease,border-color .17s ease}
+.doc-card:hover{border-color:#b2e0ec;transform:translateY(-2px);box-shadow:0 9px 24px rgba(0,62,99,.08)}
+.developer-main .stat{position:relative;padding-right:66px}
+.developer-main .stat .cmm-glyph{position:absolute;right:20px;top:22px;width:26px;height:26px;color:#098a9c}
+.header-links .cmm-glyph{width:15px;height:15px}
+@media(max-width:700px){.cmm-dev-hero{padding-right:0}.cmm-dev-art{position:static;float:right;width:102px;height:94px;margin:2px -6px 8px 10px}.docs-hero.cmm-has-art{padding-right:96px}.cmm-doc-art{width:83px;height:84px;right:0;top:8px}.developer-main .stat{padding-right:14px}.developer-main .stat .cmm-glyph{right:9px;top:13px;width:19px;height:19px;opacity:.65}}
+/* Admin console: compact utilitarian glyphs, without decorations obscuring data. */
+#adminApp .tabs button{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+#adminApp .tabs .cmm-glyph{width:16px;height:16px;color:currentColor}
+#adminApp #overview>.grid>.card{position:relative;overflow:hidden;padding-right:62px}
+#adminApp #overview>.grid>.card .cmm-stat-glyph{position:absolute;top:19px;right:19px;width:27px;height:27px;color:var(--accent);opacity:.8}
+#adminApp #overview>.grid>.card:first-child .cmm-stat-glyph{color:#8de9f4}
+.cmm-admin-badge{width:56px;height:53px;object-fit:contain;flex:none}
+#loginBox .cmm-admin-login-art{display:block;width:93px;height:84px;object-fit:contain;margin:1px auto 12px}
+#adminApp .top .cmm-glyph{width:16px;height:16px}
+@media(max-width:700px){#adminApp .tabs button{gap:5px}#adminApp .tabs .cmm-glyph{width:14px;height:14px}.cmm-admin-badge{width:38px;height:38px}}
+@media(prefers-reduced-motion:reduce){.doc-card{transition:none}.doc-card:hover{transform:none}}

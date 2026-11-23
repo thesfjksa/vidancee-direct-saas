@@ -238,7 +238,7 @@ const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers
 // The admin page carries its stylesheets inline: one request instead of three
 // before anything can render.
 function inlineStylesheets(html) {
-  return html.replace(/<link rel="stylesheet" href="\/(brand|admin)\.css(?:\?[^"]*)?">/g, (tag, name) => {
+  return html.replace(/<link rel="stylesheet" href="\/(brand|admin|site-visuals)\.css(?:\?[^"]*)?">/g, (tag, name) => {
     const css = fs.readFileSync(path.join(__dirname, 'public', name + '.css'), 'utf8');
     return '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>';
   });
@@ -1278,6 +1278,7 @@ const server=http.createServer(async (req,res)=>{
       '/brand.css':['brand.css','text/css; charset=utf-8'],
       '/developers.css':['developers.css','text/css; charset=utf-8'],
       '/studio.css':['studio.css','text/css; charset=utf-8'],
+      '/site-visuals.css':['site-visuals.css','text/css; charset=utf-8'],
       '/dope-performance.js':['dope-performance.js','text/javascript; charset=utf-8'],
       '/voice-studio.js':['voice-studio.js','text/javascript; charset=utf-8'],
       '/video-tools.js':['video-tools.js','text/javascript; charset=utf-8'],
@@ -1295,6 +1296,10 @@ const server=http.createServer(async (req,res)=>{
       '/favicon.ico':['assets/cmmtools-icon.png','image/png'],
       '/assets/fonts/inter-latin-wght.woff2':['assets/fonts/inter-latin-wght.woff2','font/woff2'],
     };
+    // Original, optimized pictorial SVG assets. Explicitly enumerate names: never serve arbitrary paths.
+    for (const artName of ['video','image','cartoon','voice','upscale','video-tools','library','developer','credits','glyphs']) {
+      studioAssets['/assets/site-art/'+artName+'.svg']=['assets/site-art/'+artName+'.svg','image/svg+xml'];
+    }
     // MCP Apps client for the CMM Tools card in Claude, loaded from Claude's
     // sandbox origin as a module script (needs CORS).
     if ((req.method==='GET'||req.method==='HEAD') && routePath==='/vendor/mcp-ext-apps-1.7.5.js') {

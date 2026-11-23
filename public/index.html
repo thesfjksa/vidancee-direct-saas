@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="/payment-qr.css?v=1">
 <link rel="stylesheet" href="/voice-picker.css?v=20261123-brand-refresh">
 <script src="/dope-performance.js?v=4"></script>
-</head>
+<link rel="stylesheet" href="/site-visuals.css?v=20261123-visuals1"></head>
 <body>
 
 <div id="bootScreen" class="boot-screen" aria-live="polite">
@@ -58,7 +58,7 @@
     <div class="topnav-label"><strong>Creation studio</strong><span>Your ideas. A world of possibilities.</span></div>
     <nav class="main-nav" aria-label="Studios">
       <div class="studio-tabs">
-        <button data-section="video-tools" onclick="go('video-tools')"><span>Video Tools</span></button>
+        <button data-section="video-tools" onclick="go('video-tools')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#studio"></use></svg><span>Video Tools</span></button>
         <button class="create-tab active" data-section="create" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg><span>Video</span></button>
         <button data-section="images" onclick="go('images')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg><span>Image</span></button>
         <button id="cartoonNav" class="hide" data-section="cartoon" onclick="go('cartoon')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/><circle cx="15" cy="10" r="1.2" fill="currentColor"/><path d="M8 14.5c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/></svg><span>Cartoon</span></button>
@@ -96,7 +96,7 @@
           <h1 id="videoToolsTitle">Video Tools<span>.</span></h1>
           <p>Give an existing clip a new character, a new look, or a new performance.</p>
         </div>
-        <div class="vt-hero-art" aria-hidden="true"><span></span><span></span><span><i></i></span></div>
+        <div class="vt-hero-art" aria-hidden="true"><span></span><span></span><span><i></i></span></div><img class="cmm-video-tools-mark cmm-visual" src="/assets/site-art/video-tools.svg" alt="" decoding="async">
       </header>
 
       <form id="videoToolForm" class="vt-form">
@@ -185,7 +185,7 @@
       <div class="create-layout">
         <aside class="creator">
           <div class="creator-head">
-            <div><strong>Create video</strong><div class="sub">Prompt + optional references</div></div>
+            <div><strong>Create video</strong><div class="sub">Prompt + optional references</div></div><img class="cmm-creator-art cmm-visual" src="/assets/site-art/video.svg" alt="" loading="lazy" decoding="async">
             <div class="kicker">Studio</div>
           </div>
 
@@ -277,7 +277,7 @@
       <div class="create-layout">
         <aside class="creator">
           <div class="creator-head">
-            <div><strong>Create image</strong><div class="sub">Prompt + optional reference images</div></div>
+            <div><strong>Create image</strong><div class="sub">Prompt + optional reference images</div></div><img class="cmm-creator-art cmm-visual" src="/assets/site-art/image.svg" alt="" loading="lazy" decoding="async">
             <div class="kicker">Studio</div>
           </div>
 
@@ -341,13 +341,13 @@
 
     <section id="voices" class="section">
       <div class="page">
-        <div class="page-head"><div><h1>Voice Studio</h1><p>Speech, conversations and translated audio in one workspace.</p></div><button class="btn secondary" onclick="refreshVoiceStudio()">Refresh</button></div>
+        <div class="page-head"><div><img class="cmm-page-art cmm-visual" src="/assets/site-art/voice.svg" alt="" loading="lazy" decoding="async"><h1>Voice Studio</h1><p>Speech, conversations and translated audio in one workspace.</p></div><button class="btn secondary" onclick="refreshVoiceStudio()"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#refresh"></use></svg>Refresh</button></div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px" aria-label="Voice tools">
-          <button class="btn primary" data-voice-tool="speech" aria-pressed="true" onclick="setVoiceTool('speech')">Text to speech</button>
-          <button class="btn secondary" data-voice-tool="dialogue" aria-pressed="false" onclick="setVoiceTool('dialogue')">Dialogue</button>
-          <button class="btn secondary" data-voice-tool="voice-changer" aria-pressed="false" onclick="setVoiceTool('voice-changer')">Voice changer</button>
-          <button class="btn secondary" data-voice-tool="dubbing" aria-pressed="false" onclick="setVoiceTool('dubbing')">Dubbing</button>
-          <button class="btn secondary" data-voice-tool="cloning" aria-pressed="false" onclick="setVoiceTool('cloning')">Voice cloning</button>
+          <button class="btn primary" data-voice-tool="speech" aria-pressed="true" onclick="setVoiceTool('speech')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#speech"></use></svg>Text to speech</button>
+          <button class="btn secondary" data-voice-tool="dialogue" aria-pressed="false" onclick="setVoiceTool('dialogue')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#dialogue"></use></svg>Dialogue</button>
+          <button class="btn secondary" data-voice-tool="voice-changer" aria-pressed="false" onclick="setVoiceTool('voice-changer')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#changer"></use></svg>Voice changer</button>
+          <button class="btn secondary" data-voice-tool="dubbing" aria-pressed="false" onclick="setVoiceTool('dubbing')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#dubbing"></use></svg>Dubbing</button>
+          <button class="btn secondary" data-voice-tool="cloning" aria-pressed="false" onclick="setVoiceTool('cloning')"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#cloning"></use></svg>Voice cloning</button>
         </div>
         <div id="voiceCompose" class="two-col">
           <div class="card">
@@ -401,7 +401,7 @@
       <div class="create-layout">
         <aside class="creator">
           <div class="creator-head">
-            <div><strong>Create cartoon</strong><div class="sub">Pick a style, describe the scene</div></div>
+            <div><strong>Create cartoon</strong><div class="sub">Pick a style, describe the scene</div></div><img class="cmm-creator-art cmm-visual" src="/assets/site-art/cartoon.svg" alt="" loading="lazy" decoding="async">
             <div class="kicker">Studio</div>
           </div>
           <div class="creator-scroll">
@@ -454,7 +454,7 @@
       <div class="create-layout">
         <aside class="creator">
           <div class="creator-head">
-            <div><strong>Upscale video</strong><div class="sub">Sharper detail up to 4K</div></div>
+            <div><strong>Upscale video</strong><div class="sub">Sharper detail up to 4K</div></div><img class="cmm-creator-art cmm-visual" src="/assets/site-art/upscale.svg" alt="" loading="lazy" decoding="async">
             <div class="kicker">Studio</div>
           </div>
           <div class="creator-scroll">
@@ -506,9 +506,9 @@
     <section id="library" class="section">
       <div class="page">
         <div class="page-head">
-          <div><h1>Library</h1><p>Everything you have generated, in one visual archive.</p></div>
+          <div><img class="cmm-page-art cmm-visual" src="/assets/site-art/library.svg" alt="" loading="lazy" decoding="async"><h1>Library</h1><p>Everything you have generated, in one visual archive.</p></div>
           <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
-            <button type="button" class="btn secondary" onclick="loadGenerations()">Refresh</button>
+            <button type="button" class="btn secondary" onclick="loadGenerations()"><svg class="cmm-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#refresh"></use></svg>Refresh</button>
             <a class="btn primary" href="/api/generations/backup" download title="Download completed videos and their prompts as a ZIP">Download backup</a>
           </div>
         </div>
@@ -519,7 +519,7 @@
     <section id="plans" class="section">
       <div class="page">
         <div class="page-head">
-          <div><h1>Plans</h1><p>Choose the credit package and queue priority that fits your workload.</p></div>
+          <div><img class="cmm-page-art cmm-visual" src="/assets/site-art/credits.svg" alt="" loading="lazy" decoding="async"><h1>Plans</h1><p>Choose the credit package and queue priority that fits your workload.</p></div>
         </div>
         <div id="planCurrent" class="plan-current">
           <div><strong>Current plan</strong><div><span id="planCurrentText">Checking...</span></div></div>
@@ -537,12 +537,12 @@
 
     <section id="credits" class="section">
       <div class="page">
-        <div class="page-head"><div><h1>Credits</h1><p>Balance, usage and account adjustments.</p></div></div>
+        <div class="page-head"><div><img class="cmm-page-art cmm-visual" src="/assets/site-art/credits.svg" alt="" loading="lazy" decoding="async"><h1>Credits</h1><p>Balance, usage and account adjustments.</p></div></div>
         <div class="stats">
-          <div class="card stat"><div class="label">Available credits</div><div class="value" id="creditBalance">0</div></div>
-          <div class="card stat"><div class="label">Total generations</div><div class="value" id="statTotal">0</div></div>
-          <div class="card stat"><div class="label">Completed</div><div class="value" id="statCompleted">0</div></div>
-          <div class="card stat"><div class="label">In progress</div><div class="value" id="statActive">0</div></div>
+          <div class="card stat"><svg class="cmm-glyph cmm-stat-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#credits"></use></svg><div class="label">Available credits</div><div class="value" id="creditBalance">0</div></div>
+          <div class="card stat"><svg class="cmm-glyph cmm-stat-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#generations"></use></svg><div class="label">Total generations</div><div class="value" id="statTotal">0</div></div>
+          <div class="card stat"><svg class="cmm-glyph cmm-stat-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#check"></use></svg><div class="label">Completed</div><div class="value" id="statCompleted">0</div></div>
+          <div class="card stat"><svg class="cmm-glyph cmm-stat-glyph" aria-hidden="true" focusable="false"><use href="/assets/site-art/glyphs.svg#activity"></use></svg><div class="label">In progress</div><div class="value" id="statActive">0</div></div>
         </div>
         <div class="card">
           <div class="panel-title">Credit activity</div>
@@ -560,7 +560,7 @@
     <section id="claude" class="section">
       <div class="page">
         <div class="page-head">
-          <div><h1>Use CMM Tools in Claude</h1><p>Make videos and images by chatting with Claude. Jobs use your credits and appear in your library.</p></div>
+          <div><img class="cmm-page-art cmm-visual" src="/assets/site-art/developer.svg" alt="" loading="lazy" decoding="async"><h1>Use CMM Tools in Claude</h1><p>Make videos and images by chatting with Claude. Jobs use your credits and appear in your library.</p></div>
         </div>
         <div id="connectorOff" class="notice hide">The Claude connector is turned off right now. Please check back later.</div>
         <div class="two-col">
@@ -593,7 +593,7 @@
     <section id="account" class="section">
       <div class="page">
         <div class="page-head">
-          <div><h1>Account</h1><p>Profile, security and session controls.</p></div>
+          <div><img class="cmm-page-art cmm-visual" src="/assets/site-art/developer.svg" alt="" loading="lazy" decoding="async"><h1>Account</h1><p>Profile, security and session controls.</p></div>
           <button class="btn secondary" onclick="logout()">Sign out</button>
         </div>
         <div class="two-col">
