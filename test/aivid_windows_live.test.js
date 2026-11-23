@@ -108,33 +108,36 @@ function response(){
   return {...res,writeHead(status,headers){this.status=status;this.headers=headers;},
     end(body){this.body=body;}};
 }
-test('Windows browser page and controls stay behind CMMTools login, source access and same-origin POST',async()=>{
-  {
+test('Legacy Windows browser control APIs enforce login, source access and same-origin requests',async()=>{
+  const handlers={requireDatabase:()=>{},requireUser:async()=>({id:42,email:'test@example.com'}),
+    checkSourceAccess:async()=>true,loadSettings:async()=>settings,
+    runner:async(_user,action)=>({state:'frame',notice:action.action})};
+  const configPath='/api/windows-studio/config';
+  const actionPath='/api/windows-studio/action';
 
-    const handlers={requireDatabase:()=>{},requireUser:async()=>({id:42,email:'test@example.com'}),
-      checkSourceAccess:async()=>true,loadSettings:async()=>settings,
-      runner:async(_user,action)=>({state:'frame',jpeg:'',url:'https://aivid.dev/',
-        notice:action.action,fileName:'',uploadPending:false,downloadReady:false})};
-    let r=response();
-    assert.equal(await handle({method:'GET',headers:{}},r,'/aivid-live-studio',handlers),true);
-    assert.equal(r.status,200);
-    assert.match(r.body,/Windows Premium Studio/);
-    assert.match(r.headers['content-security-policy'],/img-src data:/);
-    assert.doesNotMatch(r.body,/__CMM_NONCE__/);
-    const req=async function*(text){yield Buffer.from(text);};
-    r=response();
-    await handle(Object.assign(req(JSON.stringify({action:'frame'})),{
-      method:'POST',headers:{host:'cmmtools.site',origin:'https://attacker.example'}
-    }),r,'/api/windows-studio/action',handlers);
-    assert.equal(r.status,403);
-    r=response();
-    await handle(Object.assign(req(JSON.stringify({action:'frame'})),{
-      method:'POST',headers:{host:'cmmtools.site',origin:'https://cmmtools.site'}
-    }),r,'/api/windows-studio/action',handlers);
-    assert.equal(r.status,200);
-    assert.equal(JSON.parse(r.body).state,'frame');
-    r=response();
-    await handle({method:'GET',headers:{}},r,'/rdp-studio',{...handlers,checkSourceAccess:async()=>false});
-    assert.equal(r.status,403);
-  }
+  let res=response();
+  await handle({method:'GET',headers:{}},res,configPath,{
+    ...handlers,requireUser:async()=>{throw Object.assign(new Error('Login required'),{statusCode:401});}
+  });
+  assert.equal(res.status,401);
+
+  res=response();
+  await handle({method:'GET',headers:{}},res,configPath,{...handlers,checkSourceAccess:async()=>false});
+  assert.equal(res.status,403);
+
+  res=response();
+  await handle({method:'GET',headers:{}},res,configPath,handlers);
+  assert.equal(res.status,200);
+  assert.equal(JSON.parse(res.body).mode,'windows-edge');
+
+  const action=origin=>Object.assign((async function*(){yield Buffer.from(JSON.stringify({action:'frame'}));})(),{
+    method:'POST',headers:{host:'cmmtools.site',origin}
+  });
+  res=response();
+  await handle(action('https://other.example'),res,actionPath,handlers);
+  assert.equal(res.status,403);
+  res=response();
+  await handle(action('https://cmmtools.site'),res,actionPath,handlers);
+  assert.equal(res.status,200);
+  assert.equal(JSON.parse(res.body).state,'frame');
 });

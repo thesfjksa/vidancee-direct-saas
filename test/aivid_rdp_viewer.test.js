@@ -104,13 +104,13 @@ test('Gateway information requires CMMTools authentication and returns no RDP cr
   });
 });
 
-test('Studio model picker links only selected Premium models to the RDP workspace',()=>{
+test('Studio model picker links selected Premium models to the interactive Windows workspace',()=>{
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8');
-  assert.match(html,/id="premiumDesktopLink" href="\/aivid-live-studio"/);
+  assert.match(html,/id="premiumDesktopLink" href="\/aivid-interactive-studio" target="_blank" rel="noopener noreferrer"/);
   assert.match(html,/desktopLink\.classList\.toggle\('hide',!m\?\.premium\)/);
-  assert.match(html,/rel="noopener noreferrer"/);
   const server=fs.readFileSync(require.resolve('../server.js'),'utf8');
   assert.match(server,/require\('\.\/src\/aivid_rdp_viewer\.js'\)\.handle/);
+  assert.match(server,/require\('\.\/src\/aivid_native_desktop\.js'\)\.handle/);
   assert.doesNotMatch(server,/require\('\.\/src\/aivid_embed\.js'\)\.handle/);
 });
 

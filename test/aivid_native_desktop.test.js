@@ -103,7 +103,16 @@ test('Interactive UI offers direct keyboard controls, fullscreen, actual size an
 });
 test('Viewer is authenticated; non-approved viewers and cross-site input are rejected',async()=>{
  x.stop();
- let res=await ask('GET','/api/aivid-native/status');
+ let res=await ask('GET','/aivid-interactive-studio');
+ assert.equal(res.status,200);
+ assert.match(res.payload,/Interactive Premium Studio/);
+ assert.match(res.headers['content-security-policy'],/img-src blob:/);
+ const nonce=res.headers['content-security-policy'].match(/script-src 'nonce-([^']+)'/)?.[1];
+ assert.ok(nonce&&res.payload.includes('nonce="'+nonce+'"'));
+ assert.doesNotMatch(res.payload,/__CMM_NONCE__/);
+ res=await ask('GET','/aivid-interactive-studio',null,{checkSourceAccess:async()=>false});
+ assert.equal(res.status,403);
+ res=await ask('GET','/api/aivid-native/status');
  assert.equal(res.status,200);assert.equal(json(res).ok,true);
  res=await ask('GET','/api/aivid-native/status',null,{loadSettings:async()=>({...policy,enabled:false})});
  assert.equal(res.status,403);
