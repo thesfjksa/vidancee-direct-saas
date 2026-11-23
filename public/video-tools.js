@@ -2,15 +2,15 @@
 
 const videoToolCopy = {
   'character-swap': {
-    label: 'Character Swap', image: 'Replacement character image', clip: 'Source video',
+    label: 'Character Swap', action: 'Generate swap', image: 'Replacement character image', clip: 'Source video',
     description: 'Replace the main person in a clip while keeping the source performance.',
   },
   'motion-control': {
-    label: 'Motion Control', image: 'Character image', clip: 'Motion video',
+    label: 'Motion Control', action: 'Generate motion', image: 'Character image', clip: 'Motion video',
     description: 'Animate the character in your image using the movement in a reference clip.',
   },
   'object-swap': {
-    label: 'Object Swap', image: 'Replacement object image', clip: 'Source video',
+    label: 'Object Swap', action: 'Generate swap', image: 'Replacement object image', clip: 'Source video',
     description: 'Recreate a clip with a replacement object. Clear shots and a specific object description work best.',
   },
 };
@@ -25,10 +25,29 @@ function videoToolLabel(generation) {
   return Object.hasOwn(videoToolCopy, tool) ? videoToolCopy[tool].label : '';
 }
 
+function selectedVideoTool() {
+  return $('videoToolForm').elements.videoToolMode.value;
+}
+
+function updateVideoToolUpload(input, filenameId, action) {
+  const card = input.closest('.vt-upload');
+  const filename = $(filenameId);
+  const file = input.files[0];
+  filename.textContent = file?.name || '';
+  filename.hidden = !file;
+  card.classList.toggle('has-file', Boolean(file));
+  card.querySelector('.vt-upload-button').textContent = file ? 'Change file' : action;
+}
+
+function refreshVideoToolUploads() {
+  updateVideoToolUpload($('videoToolImage'), 'videoToolImageFile', 'Choose image');
+  updateVideoToolUpload($('videoToolClip'), 'videoToolClipFile', 'Choose video');
+}
+
 function renderVideoTools() {
   if (!$('video-tools').classList.contains('active')) return;
   updateGallery('videoToolsGallery', generations.filter(g => videoToolLabel(g)),
-    'Your character swaps, motion clips, and object swaps will appear here.');
+    'Your character swaps, motion clips, and object swaps will appear here.', []);
 }
 
 function openVideoTools() {
@@ -36,7 +55,11 @@ function openVideoTools() {
     const duration = $('videoToolDuration');
     for (let seconds = 4; seconds <= 15; seconds++) duration.add(new Option(seconds + ' seconds', seconds));
     duration.value = '5';
-    $('videoToolMode').addEventListener('change', updateVideoToolForm);
+    for (const radio of $('videoToolForm').elements.videoToolMode) {
+      radio.addEventListener('change', updateVideoToolForm);
+    }
+    $('videoToolImage').addEventListener('change', refreshVideoToolUploads);
+    $('videoToolClip').addEventListener('change', refreshVideoToolUploads);
     duration.addEventListener('change', refreshVideoToolQuote);
     $('videoToolForm').addEventListener('submit', submitVideoTool);
     videoToolReady = true;
@@ -46,10 +69,12 @@ function openVideoTools() {
 }
 
 function updateVideoToolForm() {
-  const id = $('videoToolMode').value;
+  const id = selectedVideoTool();
   const copy = videoToolCopy[id];
   const objectSwap = id === 'object-swap';
+  $('videoToolForm').dataset.tool = id;
   $('videoToolDescription').textContent = copy.description;
+  $('videoToolSubmitLabel').textContent = videoToolSubmitting ? 'Queueing…' : copy.action;
   $('videoToolImageLabel').textContent = copy.image;
   $('videoToolClipLabel').textContent = copy.clip;
   $('videoToolPromptLabel').textContent = objectSwap ? 'Describe the object to replace' : 'Instructions (optional)';
@@ -70,7 +95,7 @@ async function refreshVideoToolQuote() {
       method: 'POST',
       headers: videoToolHeaders,
       signal: AbortSignal.timeout(15000),
-      body: JSON.stringify({ tool: $('videoToolMode').value, duration: Number($('videoToolDuration').value) }),
+      body: JSON.stringify({ tool: selectedVideoTool(), duration: Number($('videoToolDuration').value) }),
     });
     if (version !== videoToolQuoteVersion) return;
     videoToolCost = result.cost;
@@ -86,7 +111,7 @@ async function submitVideoTool(event) {
   if (videoToolSubmitting || !(videoToolCost > 0)) return;
   const form = $('videoToolForm');
   const status = $('videoToolStatus');
-  const tool = $('videoToolMode').value;
+  const tool = selectedVideoTool();
   const image = $('videoToolImage').files[0];
   const clip = $('videoToolClip').files[0];
   if (!image || !clip || image.size > 5 * 1024 * 1024 || clip.size > 25 * 1024 * 1024) {
@@ -110,6 +135,7 @@ async function submitVideoTool(event) {
   for (const [name, value] of Object.entries(fields)) data.append(name, value);
   const controls = Array.from(form.elements);
   videoToolSubmitting = true;
+  $('videoToolSubmitLabel').textContent = 'Queueing…';
   controls.forEach(control => { control.disabled = true; });
   status.className = 'msg muted';
   status.textContent = 'Uploading references…';
@@ -133,6 +159,7 @@ async function submitVideoTool(event) {
     syncUser();
     $('videoToolImage').value = '';
     $('videoToolClip').value = '';
+    refreshVideoToolUploads();
     $('videoToolPermission').checked = false;
     status.className = 'msg ok';
     status.textContent = videoToolCopy[tool].label + ' queued.';
@@ -142,6 +169,7 @@ async function submitVideoTool(event) {
     status.textContent = error.message;
   } finally {
     videoToolSubmitting = false;
+    $('videoToolSubmitLabel').textContent = videoToolCopy[tool].action;
     controls.forEach(control => { control.disabled = false; });
     refreshVideoToolQuote();
   }

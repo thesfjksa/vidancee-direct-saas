@@ -1,3 +1,11 @@
+## 23 November 2026 — Restyle the Video Tools workspace
+
+- Replaced the tool dropdown with three color-coded cards using native radio controls. Each card supports keyboard selection and a visible focus indicator. Redesigned the reference uploads to show attached filenames and added a cost and Generate row beside output settings. The form stacks on narrow displays.
+- Quote and generation APIs, file limits, permissions, and credit calculations still use the existing flow. Video Tools assets use new cache versions. The web app needs a redeploy for this styling change. No production deployment was made.
+- Added a browser smoke check with desktop and mobile screenshots. It exercises tool switching, file feedback, quote refresh, and a mocked submission. The six focused Video Tools and polling tests passed locally.
+
+---
+
 ## 23 November 2026 — Replace Story Studio with Vgenv Video Tools
 
 - Replaced the Story tab with Video Tools. Old `/story` bookmarks open the new section. Story APIs now return 410 and the web and worker instances no longer schedule stories. Existing story data and clips are retained. Already queued child generations can finish through their normal workers.
