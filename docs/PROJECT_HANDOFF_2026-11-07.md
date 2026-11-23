@@ -1,3 +1,12 @@
+## 23 November 2026 — Replace Story Studio with Vgenv Video Tools
+
+- Replaced the Story tab with Video Tools. Old `/story` bookmarks open the new section. Story APIs now return 410 and the web and worker instances no longer schedule stories. Existing story data and clips are retained. Already queued child generations can finish through their normal workers.
+- Character Swap and Motion Control each accept a character image and a source or motion clip, with distinct instructions for Vgenv's documented V3 person replacement. Object Swap asks which object to replace and uses an image and a source clip with the public V3 reference-video generation API. Vgenv has no documented dedicated object-swap endpoint, so this mode regenerates the clip and may change other details.
+- All three modes run on Fast at 768p. CMMTools validates a single JPEG, PNG, or WebP and one MP4, checks the selected 4–15 second segment and audio track, and shows the existing account-adjusted credit price before queueing. Worker validates the exact V3 provider quote before sending a paid request, persists media asset IDs, and reuses the same idempotency key on an unconfirmed submission. An unresolved submission is held for reconciliation instead of being refunded as a confirmed failure. Existing wallet, refund, library, and storage paths handle the output.
+- 65 focused tests passed. A local HTTP smoke test verified the Story redirect, retired API response, and Video Tools asset. Vgenv request tests used fixtures and did not incur charges. Production requires both the web and worker deployment and an authorized provider render to confirm live results.
+
+---
+
 ## 23 November 2026 — Remove failed jobs caused by provider balance
 
 - Admin → Generations → Clean up backend payment failures previews the eligible records and removes only the IDs reviewed. It requires an explicit confirmation and uses the normal per-media cleanup, with a fresh eligibility check while the generation is locked. Failed jobs must be refunded and have no output. Story-linked jobs remain available for Story Studio recovery. Billing entries, refund entries and activity records are retained.

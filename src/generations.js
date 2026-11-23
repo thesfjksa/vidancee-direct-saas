@@ -32,7 +32,21 @@ function serializeGeneration(row) {
     refunded_at: row.refunded_at,
     has_video: Boolean(row.output_url),
     has_poster: Boolean(row.poster_url),
-    generation_options: (()=>{try{const o=JSON.parse(row.generation_options||'{}');return {generationMode:o.generationMode||null,generateAudio:o.generateAudio===true,...(o.studio==='cartoon'?{studio:'cartoon',cartoon_style:String(o.cartoonStyle||'')}:{}),...(o.studio==='upscale'?{studio:'upscale',source_generation_id:o.sourceGenerationId||null,target_resolution:o.targetResolution||null,source_seconds:o.sourceSeconds??null}:{})};}catch{return {};}})(),
+    generation_options: (() => {
+      try {
+        const options = JSON.parse(row.generation_options || '{}');
+        return {
+          generationMode: options.generationMode || null,
+          generateAudio: options.generateAudio === true,
+          ...(options.studio === 'cartoon' ? { studio: 'cartoon', cartoon_style: String(options.cartoonStyle || '') } : {}),
+          ...(options.studio === 'upscale' ? { studio: 'upscale', source_generation_id: options.sourceGenerationId || null,
+            target_resolution: options.targetResolution || null, source_seconds: options.sourceSeconds ?? null } : {}),
+          ...(options.studio === 'video-tools' ? { studio: 'video-tools', video_tool: options.videoTool } : {}),
+        };
+      } catch {
+        return {};
+      }
+    })(),
     video_url: row.output_url ? '/api/generations/' + row.id + '/media?type=video' : null,
     poster_url: row.poster_url ? '/api/generations/' + row.id + '/media?type=poster' : null,
   };
@@ -640,7 +654,7 @@ async function deleteUserGeneration(userId, generationId, { verify } = {}) {
     await conn.beginTransaction();
 
     const [rows] = await conn.execute(
-      "SELECT id, user_id, status, output_url FROM generations WHERE id = ? AND user_id = ? AND media_type='video' FOR UPDATE",
+      "SELECT id, user_id, status, output_url, refunded_at, generation_options FROM generations WHERE id = ? AND user_id = ? AND media_type='video' FOR UPDATE",
       [generationId, userId],
     );
     const row = rows[0];
@@ -656,6 +670,10 @@ async function deleteUserGeneration(userId, generationId, { verify } = {}) {
       const error = new Error('This generation is still in progress and cannot be deleted yet.');
       error.statusCode = 409;
       throw error;
+    }
+    if (row.status === 'submit_error' && !row.refunded_at &&
+        serializeGeneration(row).generation_options.studio === 'video-tools') {
+      throw Object.assign(new Error('This unconfirmed video submission needs review before it can be deleted.'), { statusCode: 409 });
     }
 
     if (verify) await verify(conn, generationId);

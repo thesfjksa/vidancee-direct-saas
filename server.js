@@ -123,7 +123,7 @@ function wakeWhileJobsRun() {
   setInterval(async()=>{
     try {
       const [[row]]=await getPool().query("SELECT 1 AS active FROM generations WHERE status IN ('queued','submitting','submitted','processing') AND refunded_at IS NULL LIMIT 1");
-      if(row||await hasActiveRenderTest(getPool())||await storyStudio.hasActive())wakeWorker();
+      if(row||await hasActiveRenderTest(getPool()))wakeWorker();
     } catch {}
   },60000).unref();
 }
@@ -138,7 +138,8 @@ const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
 const { isFalImageModel, verifyFalCatalogKey, PROVIDER: FAL_IMAGE_PROVIDER } = require('./src/fal_images.js');
 const { publicImagePricing, IMAGE_ASPECT_RATIOS } = require('./src/image_pricing.js');
-const { creditMultiplier, roundCredits, vibiToCustomerCredits, voiceCreditsPerPkr, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
+const { creditMultiplier, roundCredits, BOOSTED_PRICE_RATE, customerRate, priceRate, applyPriceRate, scalePrices } = require('./src/billing.js');
+const { quoteVideoTool, prepareVideoTool } = require('./src/vgenv_video_tools.js');
 const {
   publicPlans,
   getPlanStatus,
@@ -1249,25 +1250,6 @@ const customerApi=require('./src/customer_api.js').createCustomerApi({
     return proxyMedia(req,res,row,'video');
   },
 });
-const storyStudio=require('./src/story_studio.js').createStoryStudio({
- db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,
- tierQuotes:(user,imageModel)=>require('./src/story_tiers').previewTierQuotes({imageModel,
-  getImageModel:id=>getProviderModelByPublicId('api888',id,'image'),getRate:()=>userPriceRate(user.id),getVoiceBasis:async()=>voiceCreditsPerPkr(user),
- }),
- imageModel:id=>getProviderModelByPublicId('api888',id,'image'),
- image:(user,body,context)=>submitImageGeneration(user,body,null,context),
- video:(user,body,context)=>submitVideoGeneration(user,body,null,context),
- voice:async(user,text,c,context)=>{
-  const sourceEstimate=Math.max(1,text.length);
-  const generation=await createVoiceGenerationForUser(user.id,{text,model:'English story narrator'},{
-   provider:'vibi',model:'English story narrator',costOverride:vibiToCustomerCredits(sourceEstimate,voiceCreditsPerPkr(user)),
-   providerCost:sourceEstimate,providerCostUnit:'credits',apiRequest:context,
-   providerParams:{voiceId:c.voiceId,modelId:c.voiceModel,provider:'elevenlabs',languageCode:'en',voiceSettings:{speed:1.05,stability:0.6,similarity_boost:0.75}}
-  });wakeForNewWork(null);return generation;
- },
- workerEnabled:webWorkerEnabled,wake:()=>wakeForNewWork(null),requireUser,publicOrigin,readJson,json:sendJson,
-});
-
 const voiceStudio=require('./src/voice_studio').createVoiceStudio({
  db:getPool,settings:getProviderSettings,access:getVisibleUserProviderAccess,client:vibiClient,
  requireDatabase,requireUser,origin:publicOrigin,readJson,json:sendJson,rate:userPriceRate,
@@ -1298,6 +1280,7 @@ const server=http.createServer(async (req,res)=>{
       '/studio.css':['studio.css','text/css; charset=utf-8'],
       '/dope-performance.js':['dope-performance.js','text/javascript; charset=utf-8'],
       '/voice-studio.js':['voice-studio.js','text/javascript; charset=utf-8'],
+      '/video-tools.js':['video-tools.js','text/javascript; charset=utf-8'],
       '/admin.css':['admin.css','text/css; charset=utf-8'],
       '/aivid-admin.js':['aivid-admin.js','text/javascript; charset=utf-8'],
       '/provider-admin.js':['provider-admin.js','text/javascript; charset=utf-8'],
@@ -1334,8 +1317,13 @@ const server=http.createServer(async (req,res)=>{
     if (req.method==='GET' && routePath==='/') return sendHtml(res,200,hasSessionCookie(req)?customerPage:landingPage);
     if (req.method==='GET' && routePath==='/developers') return sendHtml(res,200,developerPage);
     if (req.method==='GET' && routePath==='/developers/docs') return sendHtml(res,200,developerDocsPage);
-    if (req.method==='GET' && routePath==='/story') {await requireUser(req);return sendHtml(res,200,fs.readFileSync(path.join(__dirname,'public','story.html'),'utf8'));}
-    if (await storyStudio.handle(req,res,url,routePath)) return;
+    if (['GET','HEAD'].includes(req.method) && routePath==='/story') {
+      res.writeHead(302,{location:'/app#video-tools','cache-control':'no-store'});
+      return res.end();
+    }
+    if (routePath==='/api/stories' || routePath.startsWith('/api/stories/')) {
+      return sendJson(res,410,{ok:false,error:'Story Studio has been retired.'});
+    }
     if (await voiceStudio.handle(req,res,url,routePath)) return;
     if (await customerApi.handle(req,res,url,routePath)) return;
     if (req.method==='GET' && routePath==='/app') return sendHtml(res,200,customerPage);
@@ -1830,6 +1818,41 @@ const server=http.createServer(async (req,res)=>{
         const [users]=await getPool().execute('SELECT * FROM users WHERE id=?',[user.id]);
         return sendJson(res,201,{ok:true,generation,user:userPayload(users[0])});
       }finally{removeDirectUploads(uploadedKeys).catch(()=>{});}
+    }
+
+    if (req.method === 'POST' && ['/api/video-tools/quote','/api/video-tools'].includes(routePath)) {
+      requireDatabase();
+      const user = await requireUser(req);
+      if (req.headers['x-cmm-video-tool'] !== '1' ||
+          (req.headers.origin && req.headers.origin !== publicOrigin(req))) {
+        throw httpError(403, 'Open Video Tools to make this request.');
+      }
+      const settings = await getProviderSettings();
+      const access = await getVisibleUserProviderAccess(user.id, settings);
+      if (!settings.allowProviderCharges || !access.vgenv || !settings.vgenvEnabled || !settings.vgenvApiKey) {
+        throw httpError(503, 'Video Tools is currently unavailable.');
+      }
+      if (routePath.endsWith('/quote')) {
+        const { cost } = quoteVideoTool(await readJson(req));
+        return sendJson(res, 200, { ok: true, cost: applyPriceRate(cost, await userPriceRate(user.id)) });
+      }
+      const body = await readGenerationRequest(req);
+      const uploadedKeys = await collectDirectUploads(body, user.id);
+      try {
+        const { quote, generation: input, options } = prepareVideoTool(body);
+        if (!Number.isFinite(Number(body.priceLimit)) || Number(body.priceLimit) <= 0) {
+          throw httpError(400, 'Review the credit price before generating.');
+        }
+        const generation = await createGenerationForUser(user.id, input, {
+          provider: 'vgenv', validateMedia() {}, // prepareVideoTool checked the exact files.
+          costOverride: quote.cost, maxCustomerCredits: Number(body.priceLimit), generationOptions: options,
+        });
+        wakeForNewWork(req);
+        const [[fresh]] = await getPool().execute('SELECT * FROM users WHERE id=?', [user.id]);
+        return sendJson(res, 201, { ok: true, generation, user: userPayload(fresh) });
+      } finally {
+        removeDirectUploads(uploadedKeys).catch(() => {});
+      }
     }
 
     if (req.method==='POST' && routePath==='/api/upscales/quote') {
@@ -3116,7 +3139,6 @@ server.on('clientError',(error,socket)=>{
 // A server that could not open its port serves nothing; exit so the host
 // starts a fresh process instead of keeping this one alive.
 server.on('error',(error)=>{console.error('HTTP server failed:',error);process.exitCode=1;if(!server.listening)setTimeout(()=>process.exit(1),250).unref();});
-server.on('close',()=>storyStudio.stop());
 server.on('close',()=>require('./src/aivid_admin.js').stopAividAdmin().catch(()=>{}));
 
 
@@ -3213,7 +3235,6 @@ function bootstrap() {
       await ensureHiggsfieldCatalog().catch(error=>console.error('Higgsfield catalog initialization failed:',error.message));
       await ensureSluiceCatalog(()=>fetchSluiceCatalog()).catch(error=>console.error('Sluice catalog initialization failed:',error.message));
       await ensureVidanceeCatalog().catch(error=>console.error('Vidancee catalog initialization failed:',error.message));
-      await storyStudio.start().catch(error=>console.error('Story Studio initialization failed:',error.message));
       startWorkerChild();
       wakeWhileJobsRun();
       connector.prune().catch(()=>{});
