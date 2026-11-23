@@ -68,6 +68,7 @@ class VgenvClient {
         ('vgenv HTTP ' + response.status);
       const error = new Error(String(message));
       error.statusCode = response.status;
+      if (typeof payload?.error?.code === 'string') error.code = payload.error.code;
       const retryAfter = Number(response.headers.get('retry-after'));
       if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
       throw error;
@@ -94,7 +95,7 @@ class VgenvClient {
 
   // model is vgenv's base model: 'base' (MiniMax H3, sent the way it always
   // was, on /v1), 'cinematic' or 'origin' (only on /v3, which names them).
-  async generateVideo({
+  videoPayload({
     model = 'base',
     tier = 'fast',
     prompt,
@@ -104,9 +105,9 @@ class VgenvClient {
     referenceImageUrls = [],
     referenceAudioAssetIds = [],
     referenceVideoAssetId = null,
-    idempotencyKey = null,
+    videoEdit = null,
   }) {
-    const v3 = model === 'cinematic' || model === 'origin';
+    const v3 = Boolean(videoEdit) || model === 'cinematic' || model === 'origin';
     const qualityTier = String(tier || 'fast').toLowerCase();
     if (!['fast', 'standard', 'enhanced', 'quality'].includes(qualityTier))
       throw new Error('Unsupported vgenv quality tier.');
@@ -130,17 +131,48 @@ class VgenvClient {
 
     // /v3 enhances the prompt unless told not to; /v1 sends it as written.
     if (v3) body.prompt_optimization = { mode: 'raw' };
+    if (videoEdit) {
+      body.preserve_source_audio = videoEdit.preserveAudio === true;
+      if (videoEdit.replacement) {
+        body.creation_intent = 'person_replacement';
+        body.motion_start_seconds = videoEdit.motionStart;
+        delete body.prompt_optimization;
+      }
+    }
+    return { body, v3 };
+  }
 
+  async quoteVideoEdit(params) {
+    const { body } = this.videoPayload(params);
+    const payload = await this.request('/v3/videos/quote', {
+      method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(20000),
+    });
+    return { price: extractPrice(payload), currency: payload?.price?.currency || null };
+  }
+
+  async generateVideo(params) {
+    const { idempotencyKey, videoEdit } = params;
+    const { body, v3 } = this.videoPayload(params);
     const options = {
       method: 'POST',
       headers: {
         'Idempotency-Key': String(idempotencyKey || ('mehroz-' + crypto.randomUUID())),
       },
       body: JSON.stringify(body),
+      ...(videoEdit ? { signal: AbortSignal.timeout(60000) } : {}),
     };
-    const payload = v3 ? await this.request('/v3/videos', options) : await this.videoRequest('/videos', options);
+    let payload;
+    try {
+      payload = v3 ? await this.request('/v3/videos', options) : await this.videoRequest('/videos', options);
+      if (!payload?.id) throw new Error('vgenv returned no video ID.');
+    } catch (error) {
+      if (videoEdit && (!error.statusCode || error.statusCode < 400 ||
+          error.statusCode >= 500 || [408,409].includes(error.statusCode))) {
+        error.videoEditSubmissionUncertain = true;
+      }
+      throw error;
+    }
 
-    if (!payload?.id) throw new Error('vgenv returned no video ID.');
     return {
       id: String(payload.id),
       status: String(payload.status || 'queued').toLowerCase(),
@@ -197,6 +229,8 @@ class VgenvClient {
         null,
       price: extractPrice(payload),
       raw: payload,
+      ...(payload?.price?.currency ? { currency: payload.price.currency } : {}),
+      ...(typeof payload?.error?.code === 'string' ? { errorCode: payload.error.code } : {}),
     };
   }
 }
