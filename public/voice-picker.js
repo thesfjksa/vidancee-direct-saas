@@ -2,6 +2,32 @@
 'use strict';
 let voicePickerTab='all',voicePickerTarget=null,voicePickerLatest=[],voicePickerTimer=null,voicePickerPlaying=null,voicePickerLoading=false,voicePickerShowCompatible=false,voicePickerError='',voicePickerRequestSeq=0,voicePickerSource='default',voicePickerNotice='';
 const voicePickerFavoriteKey='cmm_voice_favorites_v1';
+
+const vpSvg=body=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+body+'</svg>';
+const voicePickerIcons=Object.freeze({
+ wave:vpSvg('<path d="M2.5 12h2m3-5v10m4-14v18m4-14v10m4-7v4m2-2h-1"/>'),
+ play:vpSvg('<path d="m8 5.5 11 6.5-11 6.5V5.5Z" fill="currentColor" stroke="none"/>'),
+ pause:vpSvg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
+ heart:vpSvg('<path d="M20.5 8.4c0 4.5-8.5 10-8.5 10s-8.5-5.5-8.5-10a4.4 4.4 0 0 1 8.5-1.7 4.4 4.4 0 0 1 8.5 1.7Z"/>'),
+ heartFill:vpSvg('<path d="M20.5 8.4c0 4.5-8.5 10-8.5 10s-8.5-5.5-8.5-10a4.4 4.4 0 0 1 8.5-1.7 4.4 4.4 0 0 1 8.5 1.7Z" fill="currentColor"/>'),
+ check:vpSvg('<path d="m5 12 4.2 4.2L19 6.5"/>'),
+ search:vpSvg('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>'),
+ retry:vpSvg('<path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/>')
+});
+function voicePickerTone(v){const s=String(v.id||v.name||'');let n=0;for(const ch of s)n=(n*31+ch.codePointAt(0))>>>0;return n%4;}
+function voicePickerEmpty(icon,title,details,action=''){
+ return '<div class="vp-empty">'+voicePickerIcons[icon]+'<strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(details)+'</p>'+action+'</div>';
+}
+function voicePickerSyncPreview(){
+ const audio=$('vpAudio');if(!audio)return;
+ for(const button of voicePickerSelectNode()?.querySelectorAll('[data-voice-action="play"]')||[]){
+  const playing=voicePickerPlaying===button.dataset.voiceId&&!audio.paused&&!audio.ended;
+  button.classList.toggle('is-playing',playing);
+  button.innerHTML=voicePickerIcons[playing?'pause':'play']+(playing?'Pause':'Preview');
+  button.setAttribute('aria-label',(playing?'Pause':'Preview')+' voice sample');
+ }
+}
+
 function voicePickerFavorites(){try{return new Set(JSON.parse(localStorage.getItem(voicePickerFavoriteKey)||'[]').filter(x=>typeof x==='string'));}catch{return new Set();}}
 function voicePickerStoredFavorites(){try{const rows=JSON.parse(localStorage.getItem('cmm_voice_favorite_records_v1')||'[]');return Array.isArray(rows)?rows.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string').slice(0,200):[];}catch{return [];}}
 function voicePickerSaveFavorites(ids){
