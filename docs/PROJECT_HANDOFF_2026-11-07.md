@@ -1,3 +1,13 @@
+## 23 November 2026 — Voice library redesign in CMMTools theme
+
+- Replaced the old cream/teal Voice Studio picker with the shared CMMTools deep-navy, white, and turquoise design language. The modal has a branded audio-wave header, illustrated collection-tab icons, a prominent keyword search, five primary filters, and an expandable Quality/Category section. The 4/3/2/1-column responsive card grid fixes cramped headings, mismatched button weights, disabled-field styling, and mobile crowding.
+- Each voice has one of four lightweight inline SVG illustrations (waveform, microphone, headphones, storybook) in a consistent gradient icon tile; cards show concise metadata pills, a high-contrast **Use voice** action, a visible selected check, and a functional favourite heart. This is decorative UI art, not a claim about voice identity or a generated waveform. All provider IDs, names, metadata, language-search semantics, and selection routing remain unchanged.
+- The sample button now uses play/pause icon states synchronized with the actual audio element; unavailable provider previews remain disabled. Search/loading/empty/provider-error states are friendlier and the error state includes **Retry voice search**. The catalogue and preview APIs remain authenticated, and no synthesis is triggered by previewing. HTML/CSS/JS assets use a new cache version.
+- Verification added: branded markup and asset-version assertions, VM-rendered voice cards with escaped HTML and preview-disabled coverage, retry feedback, and source compilation. No provider charges or paid tests are involved. CI and production browser check still need verification after the PR is merged; merging to `main` triggers the owner's normal GitHub-driven web deployment, but runtime uptake should be confirmed separately.
+- CI preflight: the first PR Node test runner stalled while downloading ffmpeg via apt despite successful previous runs; the workflow now checks the runner's existing ffmpeg/ffprobe binaries first and installs only if either is absent. This does not remove the upload-validation tests. The AIVID browser-check workflow passed on the original PR head; Node and browser checks on the final head must pass before merge.
+
+---
+
 ## 23 November 2026 — Recover Voice Studio samples
 
 - The preview route tries alternate Vibi sample links, then refreshes the selected voice by exact ID through the shared or default catalog. It retries only distinct URLs for that voice and uses a bounded lookup and download. Preview requests use the existing authenticated, trusted-host proxy and no paid generation.

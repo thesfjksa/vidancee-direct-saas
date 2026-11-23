@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/brand.css?v=cmm-2">
 <link rel="stylesheet" href="/studio.css?v=cmm-19">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
-<link rel="stylesheet" href="/voice-picker.css?v=20261119">
+<link rel="stylesheet" href="/voice-picker.css?v=20261123-brand-refresh">
 <script src="/dope-performance.js?v=4"></script>
 </head>
 <body>
@@ -710,32 +710,70 @@
 </dialog>
 
 
-<dialog id="voicePickerDialog" class="voice-picker-dialog" aria-labelledby="vpHeading">
+
+<dialog id="voicePickerDialog" class="voice-picker-dialog" aria-labelledby="vpHeading" aria-describedby="vpSubtitle">
   <div class="vp-shell">
-    <div class="vp-top"><div class="vp-tabs" role="tablist" aria-label="Voice collections" id="vpHeading">
-      <button type="button" class="vp-tab" data-vp-tab="favourites" role="tab" aria-selected="false">♡ Favourites</button>
-      <button type="button" class="vp-tab" data-vp-tab="all" role="tab" aria-selected="true">▦ All Voices</button>
-      <button type="button" class="vp-tab" data-vp-tab="library" role="tab" aria-selected="false">⌕ Voice Library</button>
-      <button type="button" class="vp-tab" data-vp-tab="default" role="tab" aria-selected="false">♩ Default Voices</button>
-    </div><button type="button" class="vp-close" id="vpClose" aria-label="Close voice picker">×</button></div>
-    <div class="vp-filters">
-      <label for="vpLanguage">Language<select id="vpLanguage" data-vp-filter><option value="">Any language</option></select></label>
-      <label for="vpAccent">Accent<select id="vpAccent" data-vp-filter><option value="">Any</option></select></label>
-      <label for="vpQuality">Quality<select id="vpQuality" data-vp-filter><option value="">Any</option></select></label>
-      <label for="vpGender">Gender<select id="vpGender" data-vp-filter><option value="">Any</option></select></label>
-      <label for="vpAge">Age<select id="vpAge" data-vp-filter><option value="">Any</option></select></label>
-      <label for="vpCategory">Category<select id="vpCategory" data-vp-filter><option value="">Any</option></select></label>
-      <label for="vpSort">Sort<select id="vpSort" data-vp-filter><option value="provider">Provider order</option><option value="name">Name A–Z</option><option value="usage">Most used (if available)</option></select></label>
+    <header class="vp-top">
+      <div class="vp-brand">
+        <div class="vp-brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none"><path d="M7 24h5m5-10v20m7-27v34m7-24v14m7-19v24m5-15h-4" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/><path d="M24 4v40" stroke="white" stroke-width="1" opacity=".35"/></svg>
+        </div>
+        <div>
+          <span class="vp-eyebrow">CMMTOOLS / VOICE STUDIO</span>
+          <h2 class="vp-heading" id="vpHeading">Find your signature voice</h2>
+          <p class="vp-subtitle" id="vpSubtitle">Discover, preview and choose the right sound for your story.</p>
+        </div>
+      </div>
+      <button type="button" class="vp-close" id="vpClose" aria-label="Close voice picker" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
+      </button>
+    </header>
+    <nav class="vp-tabs" role="tablist" aria-label="Voice collections">
+      <button type="button" class="vp-tab" data-vp-tab="favourites" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.2c0 4.6-8.8 10.3-8.8 10.3S3.2 12.8 3.2 8.2a4.6 4.6 0 0 1 8.8-1.8 4.6 4.6 0 0 1 8.8 1.8Z"/></svg>Favourites</button>
+      <button type="button" class="vp-tab" data-vp-tab="all" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>All voices</button>
+      <button type="button" class="vp-tab" data-vp-tab="library" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20M8 8h8"/></svg>Voice library</button>
+      <button type="button" class="vp-tab" data-vp-tab="default" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18V5l11-2v13M10 5l11-2"/><ellipse cx="6.5" cy="18" rx="3.5" ry="2.5"/><ellipse cx="17.5" cy="16" rx="3.5" ry="2.5"/></svg>Default voices</button>
+    </nav>
+    <div class="vp-searchbar">
+      <div class="vp-search-field">
+        <span class="vp-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m16 16 5 5"/></svg></span>
+        <input id="vpSearch" type="search" autocomplete="off" placeholder="Search by voice name, mood, accent or voice ID..." aria-label="Search voices">
+      </div>
+      <button type="button" class="vp-reset" id="vpReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>Reset</button>
     </div>
-    <div class="vp-searchbar"><input id="vpSearch" type="search" autocomplete="off" placeholder="Search by keyword or voice ID…" aria-label="Search voices"><button type="button" class="vp-reset" id="vpReset">Reset</button></div>
-    <div class="vp-status" id="vpStatus" aria-live="polite"></div>
-    <div class="vp-grid" id="vpCards"></div>
-    <div class="vp-footer"><strong id="vpNowPlaying">Choose a voice to preview</strong><audio id="vpAudio" controls preload="none" aria-label="Voice preview audio"></audio></div>
+    <div class="vp-filter-panel">
+      <div class="vp-filters">
+        <label for="vpLanguage">Language<select id="vpLanguage" data-vp-filter><option value="">Any language</option></select></label>
+        <label for="vpAccent">Accent<select id="vpAccent" data-vp-filter><option value="">Any accent</option></select></label>
+        <label for="vpGender">Gender<select id="vpGender" data-vp-filter><option value="">Any gender</option></select></label>
+        <label for="vpAge">Age<select id="vpAge" data-vp-filter><option value="">Any age</option></select></label>
+        <label for="vpSort">Sort by<select id="vpSort" data-vp-filter><option value="provider">Provider order</option><option value="name">Name A–Z</option><option value="usage">Most used (if available)</option></select></label>
+      </div>
+      <details class="vp-advanced" id="vpAdvanced">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="white"/><circle cx="15" cy="17" r="2.5" fill="white"/></svg>More filters <svg class="vp-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="vp-filters vp-filters-extra">
+          <label for="vpQuality">Quality<select id="vpQuality" data-vp-filter><option value="">Any quality</option></select></label>
+          <label for="vpCategory">Category<select id="vpCategory" data-vp-filter><option value="">Any category</option></select></label>
+        </div>
+      </details>
+    </div>
+    <div class="vp-status-row">
+      <div class="vp-count"><span class="vp-count-dot" aria-hidden="true"></span><span id="vpCount">Finding voices...</span></div>
+      <div class="vp-status" id="vpStatus" role="status" aria-live="polite"></div>
+    </div>
+    <div class="vp-grid" id="vpCards" aria-label="Voice results"></div>
+    <footer class="vp-footer">
+      <div class="vp-playing">
+        <span class="vp-playing-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 14v-4m4 7V7m4 13V4m4 13V7m4 7v-4"/></svg></span>
+        <span class="vp-playing-text"><span class="vp-playing-label">Voice preview</span><strong id="vpNowPlaying">Choose a voice to preview</strong></span>
+      </div>
+      <audio id="vpAudio" controls preload="none" aria-label="Voice preview audio"></audio>
+    </footer>
   </div>
 </dialog>
 
 <script src="/voice-studio.js?v=20261123-preview-playback"></script>
-<script src="/voice-picker.js?v=20261123-preview-playback"></script>
+<script src="/voice-picker.js?v=20261123-brand-refresh"></script>
 <script src="/video-tools.js?v=2"></script>
 <script>
 let authMode='login',config=null,me=null,poll=null,generations=[],currentFilter='all',generationLoadPending=false;

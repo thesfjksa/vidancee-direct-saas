@@ -123,7 +123,47 @@ test('voice picker modal provides filters, searchable cards, preview and dialogu
  assert.match(pick,/function previewVoicePickerVoice/);
  assert.match(pick,/function voicePickerFavorites/);
  assert.match(css,/\.vp-grid/);
+ assert.match(css,/\.vp-avatar/);
+ assert.match(css,/--turquoise/);
+ assert.match(html,/id="vpAdvanced"/);
+ assert.match(html,/id="vpCount"/);
+ assert.match(html,/class="vp-brand-icon"/);
+ assert.match(html,/voice-picker\.css\?v=20261123-brand-refresh/);
+ assert.match(html,/voice-picker\.js\?v=20261123-brand-refresh/);
+ assert.match(pick,/function voicePickerSyncPreview/);
+ assert.match(pick,/voicePickerIcons\[art\]/);
  new vm.Script(pick);
+});
+
+
+test('branded picker renders safe voice cards, preview availability, and retry state',()=>{
+ const js=fs.readFileSync(require.resolve('../public/voice-picker.js'),'utf8');
+ const nodes={
+  vpCards:{innerHTML:''},vpCount:{textContent:''},vpStatus:{textContent:''},
+  vpLanguage:{value:'ur',selectedOptions:[{textContent:'Urdu'}]},vpSearch:{value:''},vpSort:{value:'provider'},
+  vpAccent:{value:''},vpQuality:{value:''},vpGender:{value:''},vpAge:{value:''},vpCategory:{value:''},
+  vpAudio:{paused:true,ended:false},voiceSelect:{value:'voice-a'},
+  voicePickerDialog:{querySelectorAll:()=>[]}
+ };
+ const sandbox={
+  document:{addEventListener:()=>{}},$:id=>nodes[id]||null,
+  localStorage:{getItem:()=>null},
+  voiceOptions:{voices:[],speechLanguages:[{code:'ur',name:'Urdu'}]},
+  escapeHtml:val=>String(val).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
+ };
+ vm.createContext(sandbox);vm.runInContext(js,sandbox);
+ vm.runInContext("voicePickerSource='shared';voicePickerLatest=[{id:'voice-a',name:'Urdu <Narrator>',description:'A warm sample',gender:'female',age:'middle_aged',previewUrl:'/api/voice-preview/a'},{id:'voice-b',name:'No sample',description:'Provider has no preview',previewUrl:null}];renderVoicePicker()",sandbox);
+ assert.equal(nodes.vpCount.textContent,'2 voices found');
+ assert.match(nodes.vpCards.innerHTML,/vp-card current/);
+ assert.match(nodes.vpCards.innerHTML,/Urdu &lt;Narrator&gt;/);
+ assert.match(nodes.vpCards.innerHTML,/class="vp-avatar tone-/);
+ assert.match(nodes.vpCards.innerHTML,/data-voice-action="favorite"/);
+ assert.match(nodes.vpCards.innerHTML,/Preview voice sample/);
+ assert.match(nodes.vpCards.innerHTML,/disabled title="Preview unavailable"/);
+ assert.match(nodes.vpCards.innerHTML,/middle aged/);
+ vm.runInContext("voicePickerError='Provider temporarily unavailable';renderVoicePicker()",sandbox);
+ assert.match(nodes.vpCards.innerHTML,/Retry voice search/);
+ assert.match(nodes.vpCards.innerHTML,/Provider temporarily unavailable/);
 });
 
 test('voice selector filters native language labels without losing multilingual synthesis setting',()=>{

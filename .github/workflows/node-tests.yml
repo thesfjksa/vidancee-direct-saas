@@ -18,10 +18,13 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Install media probe for voice upload validation
+      - name: Ensure media probe for voice upload validation
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          if ! command -v ffprobe >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout=20
+            sudo apt-get install -y ffmpeg
+          fi
+          ffprobe -version | head -n 1
       - name: Syntax check
         run: |
           node --check src/api888_models.js
