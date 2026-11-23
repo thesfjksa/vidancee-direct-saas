@@ -5,52 +5,39 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 
 const studio=fs.readFileSync(require.resolve('../public/index.html'),'utf8');
-const head=studio.indexOf('function videoModelGroup(value){');
-const tail=studio.indexOf('function rebuildCustomSelect(id){',head);
-assert.ok(head>0 && tail>head,'Video Studio model-picker source is present');
-const context=vm.createContext({
-  escapeHtml:String,
-  modelPickerOptionHtml:(_picker,option,index)=>'<button data-index="'+index+'">'+option.textContent+'</button>',
-});
-vm.runInContext(studio.slice(head,tail),context);
-
-test('Video Studio places MiniMax Beast in the MiniMax dropdown beside H3 variants',()=>{
+test('Video Studio renders MiniMax and Dope together in a flat model list',()=>{
+  const start=studio.indexOf('function rebuildCustomSelect(id){');
+  const end=studio.indexOf('function syncCustomSelect(id){',start);
+  assert.ok(start>0&&end>start);
   const models=[
     {value:'minimax_h3',textContent:'MiniMax H3 Base'},
     {value:'minimax_h3_cinematic',textContent:'MiniMax H3 Cinematic'},
     {value:'minimax_beast',textContent:'Minimax Beast'},
     {value:'dope_seedance_2_0_mini_720p',textContent:'Seedance Mini · Dope'},
   ];
-  assert.equal(context.videoModelGroup('minimax_beast'),'MiniMax');
-  assert.equal(context.videoModelGroup('minimax_h3_origin'),'MiniMax');
-  assert.equal(context.videoModelGroup('dope_seedance_2_0_mini_720p'),null);
-  const html=context.videoModelOptionsHtml({options:models,selectedIndex:2});
-  const mini=html.match(/<details class="model-picker-group"><summary>MiniMax[\s\S]*?<\/details>/)?.[0];
-  assert.ok(mini,'MiniMax collapsible group exists');
-  assert.match(mini,/MiniMax H3 Base/);
-  assert.match(mini,/MiniMax H3 Cinematic/);
-  assert.match(mini,/Minimax Beast/);
-  assert.match(mini,/model-picker-count">3<\/span>/);
-  assert.ok(!mini.includes('Seedance Mini · Dope'));
+  let markup='',sorted=false;
+  const options={
+    querySelector:()=>null,
+    querySelectorAll:()=>[],
+    insertAdjacentHTML:(_position,html)=>{markup=html;},
+  };
+  const menu={querySelector:selector=>selector.includes('.model-picker-options')?options:null};
+  const wrap={querySelector:selector=>selector==='.custom-select-menu'?menu:null,classList:{toggle(){}}};
+  const select={options:models,selectedIndex:2,closest:()=>wrap};
+  const ctx=vm.createContext({
+    $:()=>select,customSelectSearchable:id=>id==='model',syncCustomSelect(){},
+    modelPickerOptionHtml:(_id,model,index,selected)=>'<button data-index="'+index+'" aria-selected="'+selected+'">'+model.textContent+'</button>',
+    sortDopePerformanceOptions:root=>{assert.equal(root,options);sorted=true;},
+  });
+  vm.runInContext(studio.slice(start,end),ctx);
+  ctx.rebuildCustomSelect('model');
+  assert.equal((markup.match(/<button /g)||[]).length,models.length);
+  assert.doesNotMatch(markup,/<details|<summary/);
+  for(const model of models)assert.ok(markup.includes(model.textContent));
+  assert.match(markup,/data-index="2" aria-selected="true">Minimax Beast/);
+  assert.equal(sorted,true,'The flat list still uses the performance sorter');
 });
-test('Video Studio groups every restored AIVID offering inside one Premium submenu',()=>{
-  const models=[
-    {value:'aivid_seedance_2_0_mini',textContent:'Seedance 2.0 (Mini) · Premium'},
-    {value:'aivid_seedance_2_0',textContent:'Seedance 2.0 · Premium'},
-    {value:'aivid_seedance_2_0_fast',textContent:'Seedance 2.0 (Fast) · Premium'},
-    {value:'aivid_seedance_2_5',textContent:'Seedance 2.5 · Premium'},
-    {value:'minimax_beast',textContent:'Minimax Beast'},
-  ];
-  const html=context.videoModelOptionsHtml({options:models,selectedIndex:0});
-  const premium=html.match(/<details class="model-picker-group"><summary>Premium[\s\S]*?<\/details>/)?.[0];
-  assert.ok(premium);
-  assert.match(premium,/model-picker-count">4<\/span>/);
-  for(const m of models.slice(0,4)){
-    assert.equal(context.videoModelGroup(m.value),'Premium');
-    assert.ok(premium.includes(m.textContent),m.value);
-  }
-  assert.ok(!premium.includes('Minimax Beast'));
-});
+
 test('Dope quote failures show a retry action rather than at-submit credits',()=>{
   const start=studio.indexOf('async function updateCost('),end=studio.indexOf('function clearReferenceItems()',start);
   assert.ok(start>0&&end>start);

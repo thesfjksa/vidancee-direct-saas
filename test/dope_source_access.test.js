@@ -3,9 +3,12 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
+const {createRequire}=require('node:module');
 const {customerProviderAccess}=require('../src/dope_brand.js');
 
-const server=fs.readFileSync(require.resolve('../server.js'),'utf8');
+const serverPath=require.resolve('../server.js');
+const server=fs.readFileSync(serverPath,'utf8');
+const requireFromServer=createRequire(serverPath);
 function excerpt(first,last){
   const start=server.indexOf(first),end=server.indexOf(last,start);
   assert.ok(start>=0&&end>start,first+' must exist before '+last);
@@ -17,7 +20,7 @@ const getter=excerpt('async function getUserProviderAccess(', 'async function se
 const setter=excerpt('async function setUserProviderAccess(', '// Video, image and upscaler models a customer can use');
 
 test('Dope appears enabled in Sources for new and existing users without an old override',async()=>{
-  const ctx=vm.createContext({dbConfigured:()=>true,
+  const ctx=vm.createContext({require:requireFromServer,dbConfigured:()=>true,
     getPool:()=>({execute:async()=>[[]]})});
   vm.runInContext(defaults+getter,ctx);
   const access=await ctx.getUserProviderAccess(42);
@@ -57,7 +60,7 @@ test('Dope old off rows are reset once; future Admin opt-outs still work',async(
     throw Error('Unexpected SQL: '+sql);
   }};
   const logged=[];
-  const ctx=vm.createContext({dbConfigured:()=>true,getPool:()=>db,
+  const ctx=vm.createContext({require:requireFromServer,dbConfigured:()=>true,getPool:()=>db,
     getSettingValue:async()=>marker,
     setSettingValue:async(_key,value)=>{writes++;marker=value;},
     logActivity:event=>logged.push(event)});

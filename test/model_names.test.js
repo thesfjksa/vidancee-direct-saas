@@ -18,16 +18,11 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   Object.assign(dbModule, { dbConfigured: () => true, getPool: () => db, initDb: async () => true, dbHealth: async () => ({ connected: true }) });
   const auth = require('../src/auth.js'); const originalAuth = { ...auth };
   auth.requireUser = async () => user; auth.userFromRequest = async () => user;
-  // A ready Microsoft Edge AIVID agent makes all four Premium models visible.
-  // Quote the model through a harmless mocked provider preflight only.
+  // Simulate a ready Edge agent without contacting the provider.
   const aividModels=require('../src/aivid_models.js');
   const originalQuoteAivid=aividModels.quoteAivid;
-  aividModels.quoteAivid=async (config,body,{preview}={})=>{
-    assert.equal(config.rdpDevice.browser,'edge');
-    assert.equal(preview,true);
-    assert.equal(body.model,'aivid_seedance_2_5');
-    return {cost:100,isEstimate:false,sourceCredits:2,modelId:body.model};
-  };
+  let aividQuoteCalls=0;
+  aividModels.quoteAivid=async()=>{aividQuoteCalls++;return {cost:100,isEstimate:false};};
   const aividSettings=require('../src/aivid_settings.js');
   const originalAividSettings=aividSettings.getAividSettings;
   aividSettings.getAividSettings=async()=>({
@@ -56,16 +51,16 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   assert.ok(h3.durations.length && h3.aspectRatios.length && h3.capabilities.image.supported);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   assert.ok(config.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast · up to 15 s'));
-  const premium=config.pricing.filter(m=>String(m.id).startsWith('aivid_'));
-  assert.deepEqual(premium.map(m=>m.id),aividModels.SPECS.map(m=>m.id));
-  assert.ok(premium.every(m=>m.premium&&m.dynamicCost&&m.ready&&!m.unavailable&&m.label.endsWith(' · Premium')));
-  assert.ok(premium.some(m=>m.id==='aivid_seedance_2_5'&&m.capabilities.image.max===30));
-  const aividQuote = await fetch(origin + '/api/model-cost',{
-    method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({model:'aivid_seedance_2_5',mediaType:'video',duration:10,resolution:'720p',aspectRatio:'16:9'}),
-  });
-  assert.equal(aividQuote.status,200,'Restored AIVID ID should reach read-only provider quote');
-  assert.ok(Number((await aividQuote.json()).cost)>0);
+  // Retired IDs stay out of customer lists and direct quotes, even with a ready agent.
+  for(const {id} of aividModels.SPECS){
+    assert.equal(config.pricing.some(model=>model.id===id),false,id);
+    const response=await fetch(origin+'/api/model-cost',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({model:id,mediaType:'video',duration:10,resolution:'720p',aspectRatio:'16:9'}),
+    });
+    assert.equal(response.status,404,id);
+  }
+  assert.equal(aividQuoteCalls,0);
 
   // CMM Mini (historical seedance_2_0_mini ID) is fully retired from user choice.
   assert.equal(config.pricing.some(m=>m.id==='seedance_2_0_mini'),false);
@@ -82,7 +77,7 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   assert.ok(list.models.some(m => m.key === 'cartoon:minimax_h3'));
   assert.equal(list.models.some(m => m.key === 'video:seedance_2_0_mini'),false);
   for(const m of aividModels.SPECS)
-    assert.ok(list.models.some(row=>row.key==='video:'+m.id&&row.vendor==='AIVID'&&row.defaultName.endsWith(' · Premium')));
+    assert.equal(list.models.some(row=>row.key==='video:'+m.id),false,m.id);
   assert.equal(list.models.some(m => m.key === 'cartoon:seedance_2_0_mini'),false);
   assert.equal(list.models.some(m => m.key.endsWith(':seedance_2.5')), false);
 

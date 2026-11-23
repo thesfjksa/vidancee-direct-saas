@@ -1,3 +1,11 @@
+## 23 November 2026 — Repair six CI failures
+
+- Updated the AIVID tests for the active Interactive Premium Studio route and the retired customer models. The suite checks the separate RDP viewer, viewer authentication, per-customer access, same-origin input, the page's CSP nonce, and rejection of direct quote requests for retired models.
+- Restored the server-relative module resolver in both Dope access tests. Updated the video model picker test to check the flat list, selected option, and performance sorting. The remaining picker tests can now run.
+- All 39 tests across the six affected test files passed locally. This update changes tests and documentation only. No production deployment was made.
+
+---
+
 ## 23 November 2026 — Restyle the Video Tools workspace
 
 - Replaced the tool dropdown with three color-coded cards using native radio controls. Each card supports keyboard selection and a visible focus indicator. Redesigned the reference uploads to show attached filenames and added a cost and Generate row beside output settings. The form stacks on narrow displays.
