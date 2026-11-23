@@ -6,6 +6,9 @@ const voicePickerFavoriteKey='cmm_voice_favorites_v1';
 const vpSvg=body=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+body+'</svg>';
 const voicePickerIcons=Object.freeze({
  wave:vpSvg('<path d="M2.5 12h2m3-5v10m4-14v18m4-14v10m4-7v4m2-2h-1"/>'),
+ mic:vpSvg('<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/>'),
+ headphones:vpSvg('<path d="M3.5 13v-2a8.5 8.5 0 0 1 17 0v2"/><rect x="2.5" y="12" width="5" height="8" rx="2"/><rect x="16.5" y="12" width="5" height="8" rx="2"/>'),
+ story:vpSvg('<path d="M12 5.5C9 3.7 6.5 4 3 4.7v13c3.5-.7 6-.3 9 1.5 3-1.8 5.5-2.2 9-1.5v-13c-3.5-.7-6-.3-9 1.5Z"/><path d="M12 5.5v13.7M6 9h3m6 0h3M6 12h3m6 0h3"/>'),
  play:vpSvg('<path d="m8 5.5 11 6.5-11 6.5V5.5Z" fill="currentColor" stroke="none"/>'),
  pause:vpSvg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
  heart:vpSvg('<path d="M20.5 8.4c0 4.5-8.5 10-8.5 10s-8.5-5.5-8.5-10a4.4 4.4 0 0 1 8.5-1.7 4.4 4.4 0 0 1 8.5 1.7Z"/>'),
@@ -208,11 +211,11 @@ function renderVoicePicker(){
   root.innerHTML=voicePickerEmpty('search','No matching voices',desc,action);return;
  }
  root.innerHTML=matches.map(v=>{
-  const active=current===v.id,liked=favorites.has(v.id),tone=voicePickerTone(v);
+  const active=current===v.id,liked=favorites.has(v.id),tone=voicePickerTone(v),art=['wave','mic','headphones','story'][tone];
   const badges=[v.accent,v.gender,v.age,v.category,v.quality].filter(Boolean).slice(0,4).map(voicePickerBadge).join('');
   const playing=voicePickerPlaying===v.id&&!($('vpAudio')?.paused??true);
   return '<article class="vp-card'+(active?' current':'')+'">'+
-   '<div class="vp-card-top"><span class="vp-avatar tone-'+tone+'" aria-hidden="true">'+voicePickerIcons.wave+'</span>'+
+   '<div class="vp-card-top"><span class="vp-avatar tone-'+tone+'" aria-hidden="true">'+voicePickerIcons[art]+'</span>'+
    '<div class="vp-title-wrap"><span class="vp-type">Voice profile</span><div class="vp-title">'+escapeHtml(v.name)+'</div></div>'+
    (active?'<span class="vp-selected-mark" title="Currently selected" aria-label="Currently selected">'+voicePickerIcons.check+'</span>':'')+'</div>'+
    '<div class="vp-description">'+escapeHtml(v.description||'Listen to a sample and select this voice for your project.')+'</div>'+
