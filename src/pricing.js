@@ -17,7 +17,7 @@ const H3_MODELS = {
   // resolve their original provider costs. Public catalog, quotes and new
   // submissions explicitly retire this SKU; not an actual Seedance model.
   seedance_2_0_mini: { label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
-  minimax_h3_origin_standard: { label: 'Seedance 2.0 Cheap (MiniMax H3 Origin Standard)', warning: 'This budget option generates with MiniMax H3 Origin Standard, not ByteDance Seedance 2.0.', vgenvModel: 'origin', vgenvTier: 'standard', usdPerSecond: { '480p': 0.0038, '768p': 0.0077 } },
+  minimax_h3_origin_standard: { label: 'Origin Standard', vgenvModel: 'origin', vgenvTier: 'standard', usdPerSecond: { '480p': 0.0038, '768p': 0.0077 } },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);

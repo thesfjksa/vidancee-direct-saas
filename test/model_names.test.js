@@ -52,8 +52,8 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   assert.ok(config.pricing.some(m => m.id === 'minimax_beast' && m.label === 'Minimax Beast · up to 15 s'));
   const standard = config.pricing.find(m => m.id === 'minimax_h3_origin_standard');
-  assert.equal(standard.label, 'Seedance 2.0 Cheap (MiniMax H3 Origin Standard) · up to 15 s');
-  assert.equal(standard.warning, 'This budget option generates with MiniMax H3 Origin Standard, not ByteDance Seedance 2.0.');
+  assert.equal(standard.label, 'Origin Standard · up to 15 s');
+  assert.equal(standard.warning, undefined);
   assert.ok(!config.cartoon.pricing.some(m => m.id === 'minimax_h3_origin_standard'));
   // Retired IDs stay out of customer lists and direct quotes, even with a ready agent.
   for(const {id} of aividModels.SPECS){
