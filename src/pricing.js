@@ -9,10 +9,13 @@ const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
 // Preserve the three existing Fast-tier models and their pricing.
 // "Minimax Beast" is a separate CMMTools choice using vgenv Origin + Quality,
 // not a new upstream model; its higher tier must be passed to /v3/videos.
+// Both Origin storefront choices share the same upstream and cost configuration.
+const ORIGIN_FAST = { vgenvModel: 'origin', vgenvTier: 'fast', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } };
 const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
-  minimax_h3_origin: { label: 'MiniMax H3 Origin', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  minimax_h3_origin: { label: 'MiniMax H3 Origin', ...ORIGIN_FAST },
+  cmmtools_origin_2_0: { label: 'CMMTools Origin 2.0', ...ORIGIN_FAST },
   // Historical CMM Mini ID retained ONLY so queued/older jobs continue to
   // resolve their original provider costs. Public catalog, quotes and new
   // submissions explicitly retire this SKU; not an actual Seedance model.

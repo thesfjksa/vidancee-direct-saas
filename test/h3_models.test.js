@@ -5,8 +5,8 @@ const { usdToCredits } = require('../src/billing.js');
 const { VgenvClient } = require('../src/provider/vgenv.js');
 
 test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality pricing', () => {
-  assert.deepEqual(H3_MODEL_IDS, ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'seedance_2_0_mini', 'minimax_h3_origin_standard', 'minimax_beast']);
-  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin', 'CMM Mini', 'Origin Standard', 'Minimax Beast']);
+  assert.deepEqual(H3_MODEL_IDS, ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'cmmtools_origin_2_0', 'seedance_2_0_mini', 'minimax_h3_origin_standard', 'minimax_beast']);
+  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin', 'CMMTools Origin 2.0', 'CMM Mini', 'Origin Standard', 'Minimax Beast']);
   const credits = (usd, seconds) => Math.ceil(usdToCredits(usd) * seconds - 1e-9);
   for (const id of ['minimax_h3', 'minimax_h3_cinematic']) {
     assert.equal(getCost(id, 10, '480p'), credits(0.0015, 10));
@@ -23,8 +23,14 @@ test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality p
   assert.deepEqual(mini.durations.map(d => d.seconds), Array.from({length:12},(_,i)=>i+4));
   assert.equal(getCost('minimax_beast', 10, '480p'), credits(0.0077, 10));
   assert.equal(getCost('minimax_beast', 10, '768p'), credits(0.015, 10));
-  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvModel), ['base', 'cinematic', 'origin', 'origin', 'origin', 'origin']);
-  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvTier), ['fast', 'fast', 'fast', 'fast', 'standard', 'quality']);
+  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvModel), ['base', 'cinematic', 'origin', 'origin', 'origin', 'origin', 'origin']);
+  assert.deepEqual(H3_MODEL_IDS.map(h3VgenvTier), ['fast', 'fast', 'fast', 'fast', 'fast', 'standard', 'quality']);
+  const original = publicPricing().find(m => m.id === 'minimax_h3_origin');
+  const duplicate = publicPricing().find(m => m.id === 'cmmtools_origin_2_0');
+  assert.deepEqual(duplicate, { ...original, id: 'cmmtools_origin_2_0', label: 'CMMTools Origin 2.0' });
+  for (const resolution of ['480p', '768p']) for (let duration = 4; duration <= 15; duration++) {
+    assert.equal(getCost('cmmtools_origin_2_0', duration, resolution), getCost('minimax_h3_origin', duration, resolution));
+  }
   const standard = publicPricing().find(m => m.id === 'minimax_h3_origin_standard');
   assert.equal(standard.warning, undefined);
   assert.deepEqual(standard.resolutions.map(r => r.id), ['480p', '768p']);
@@ -107,4 +113,8 @@ test('Beast submits Quality while Origin and the Mini alias submit Origin Fast',
   assert.deepEqual([submitted[3].model, submitted[3].tier], ['origin', 'standard']);
   assert.equal(submitted[3].resolution, '768p');
   assert.equal(submitted[3].idempotencyKey, 'mehroz-standard-test');
+  await worker.submitVgenv(db, { ...base, id: 'cmm-origin-test', model: 'cmmtools_origin_2_0' }, 0);
+  assert.deepEqual([submitted[4].model, submitted[4].tier], ['origin', 'fast']);
+  assert.equal(submitted[4].resolution, '768p');
+  assert.equal(submitted[4].idempotencyKey, 'mehroz-cmm-origin-test');
 });
