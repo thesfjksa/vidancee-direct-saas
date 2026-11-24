@@ -1,4 +1,6 @@
 const crypto = require('node:crypto');
+const { isLongH3Duration, H3_LONG_MAX_SECONDS } = require('../pricing.js');
+const LONG_VIDEOS = '/v3/long-videos';
 
 function normalizeBaseUrl(value) {
   return String(value || 'https://api.vgenv.com').replace(/\/$/, '');
@@ -142,6 +144,29 @@ class VgenvClient {
     return { body, v3 };
   }
 
+  longVideoPayload({ model = 'base', tier = 'fast', prompt, duration, resolution = '768p', aspectRatio, inputs = [] }) {
+    const seconds = Number(duration);
+    if (!Number.isInteger(seconds) || !isLongH3Duration(seconds) || seconds > H3_LONG_MAX_SECONDS)
+      throw Object.assign(new Error('Choose a long video duration from 16 to 30 seconds.'), { statusCode: 400 });
+    return {
+      model, tier, duration: seconds, resolution, aspect_ratio: aspectRatio,
+      ...(prompt === undefined ? {} : { prompt }),
+      ...(inputs.length ? { inputs } : {}),
+    };
+  }
+
+  async longVideoCapabilities() {
+    return this.request(LONG_VIDEOS + '/capabilities', { signal: AbortSignal.timeout(10000) });
+  }
+
+  async quoteLongVideo(params) {
+    const { prompt, ...body } = this.longVideoPayload(params);
+    const payload = await this.request(LONG_VIDEOS + '/quote', {
+      method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+    });
+    return { price: extractPrice(payload), currency: payload?.price?.currency || null };
+  }
+
   async quoteVideoEdit(params) {
     const { body } = this.videoPayload(params);
     const payload = await this.request('/v3/videos/quote', {
@@ -152,23 +177,26 @@ class VgenvClient {
 
   async generateVideo(params) {
     const { idempotencyKey, videoEdit } = params;
-    const { body, v3 } = this.videoPayload(params);
+    const long = isLongH3Duration(params.duration);
+    if (long && videoEdit) throw Object.assign(new Error('Video Tools support up to 15 seconds.'), { statusCode: 400 });
+    const { body, v3 } = long ? { body: this.longVideoPayload(params), v3: true } : this.videoPayload(params);
     const options = {
       method: 'POST',
       headers: {
         'Idempotency-Key': String(idempotencyKey || ('mehroz-' + crypto.randomUUID())),
       },
       body: JSON.stringify(body),
-      ...(videoEdit ? { signal: AbortSignal.timeout(60000) } : {}),
+      ...(videoEdit || long ? { signal: AbortSignal.timeout(60000) } : {}),
     };
     let payload;
     try {
-      payload = v3 ? await this.request('/v3/videos', options) : await this.videoRequest('/videos', options);
+      payload = long ? await this.request(LONG_VIDEOS, options) : v3 ? await this.request('/v3/videos', options) : await this.videoRequest('/videos', options);
       if (!payload?.id) throw new Error('vgenv returned no video ID.');
     } catch (error) {
-      if (videoEdit && (!error.statusCode || error.statusCode < 400 ||
+      if ((videoEdit || long) && (!error.statusCode || error.statusCode < 400 ||
           error.statusCode >= 500 || [408,409].includes(error.statusCode))) {
-        error.videoEditSubmissionUncertain = true;
+        if (videoEdit) error.videoEditSubmissionUncertain = true;
+        if (long) error.longVideoSubmissionUncertain = true;
       }
       throw error;
     }
@@ -205,14 +233,15 @@ class VgenvClient {
   }
 
   // Cinematic and Origin videos were made on /v3 and are read there first.
-  async getVideo(videoId, { v3 = false, timeoutMs = 20000 } = {}) {
+  async getVideo(videoId, { v3 = false, long = false, timeoutMs = 20000 } = {}) {
     const path = '/videos/' + encodeURIComponent(videoId);
     // One deadline covers headers, response body and all version fallbacks.
     // A stuck read must not hold the generation worker indefinitely. This is
     // deliberately read-only: paid submissions keep their existing behavior.
     const options = { signal: AbortSignal.timeout(timeoutMs) };
     let payload = null;
-    if (v3) {
+    if (long) payload = await this.request(LONG_VIDEOS + '/' + encodeURIComponent(videoId), options);
+    else if (v3) {
       try { payload = await this.request('/v3' + path, options); }
       catch (error) { if (Number(error.statusCode) !== 404) throw error; }
     }

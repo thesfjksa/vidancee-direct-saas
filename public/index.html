@@ -436,6 +436,7 @@
           </div>
           <div class="creator-footer">
             <div class="cost-row"><span>Generation cost</span><strong><span id="cartoonCost">—</span> credits</strong></div>
+            <div id="cartoonPriceNote" class="meta hide" role="status"></div><button type="button" class="btn secondary hide" id="cartoonPriceRetry" onclick="updateCartoonCost()">Retry price</button>
             <button id="cartoonGenerateBtn" class="generate" onclick="createCartoon()">Generate cartoon</button>
             <div id="cartoonMsg" class="msg muted"></div>
           </div>
@@ -1856,7 +1857,7 @@ function renderDurations(resetResolution=false, refreshPrice=true){
     $('duration').value=String(
       m.premium && durations.some(d=>Number(d.seconds)===preferred)
         ? preferred
-        : Math.max(...durations.map(d=>Number(d.seconds)||0))
+        : m.longVideoMinDuration ? m.longVideoMinDuration-1 : Math.max(...durations.map(d=>Number(d.seconds)||0))
     );
   }
 
@@ -1882,15 +1883,24 @@ function renderGatewayVideoSettings(model){
 
 // Share one price request for identical selections, including while it is pending.
 const quoteCache=new Map();
-let premiumQuote=null;
+let reviewedVideoQuote=null;
 
-function premiumPriceKey(model){
-  const resolution=$('resolutionControl').classList.contains('hide')?'':$('resolution').value;
-  return JSON.stringify([model.id,Number($('duration').value),resolution,$('ratio').value]);
+function isLongVideoSelection(model){
+  return Boolean(model?.longVideoMinDuration&&Number($('duration').value)>=model.longVideoMinDuration);
 }
 
-function premiumPriceFor(model){
-  return model?.premium&&premiumQuote?.key===premiumPriceKey(model)?premiumQuote.cost:null;
+function reviewedVideoPriceRequired(model){
+  return Boolean(model?.premium||isLongVideoSelection(model));
+}
+
+function reviewedVideoPriceKey(model){
+  const resolution=$('resolutionControl').classList.contains('hide')?'':$('resolution').value;
+  return JSON.stringify([model.id,Number($('duration').value),resolution,$('ratio').value,
+    isLongVideoSelection(model)&&Boolean(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length)]);
+}
+
+function reviewedVideoPriceFor(model){
+  return reviewedVideoPriceRequired(model)&&reviewedVideoQuote?.key===reviewedVideoPriceKey(model)?reviewedVideoQuote.cost:null;
 }
 
 function missingRequiredVideoReferences(model){
@@ -1912,14 +1922,14 @@ function syncVideoGenerateButton(){
   const model=currentVideoModel();
   $('generateBtn').disabled=videoSubmissionInFlight||videoReferenceRestoreInFlight||
     !model||model.unavailable===true||missingRequiredVideoReferences(model)||
-    Boolean(model.premium&&!premiumPriceFor(model));
+    Boolean(reviewedVideoPriceRequired(model)&&!reviewedVideoPriceFor(model));
 }
-async function fetchQuote(body){
+async function fetchQuote(body,{longVideo=false}={}){
   const model=String(body.model||'');
   const premium=model.startsWith('aivid_');
   // Premium previews read the form price for the selected settings. The
   // submitted prompt and files still receive a fresh quote on the server.
-  const request=premium?{...body,prompt:undefined,previewVideoSeconds:undefined}:body;
+  const request=premium?{...body,prompt:undefined,previewVideoSeconds:undefined}:longVideo?{...body,prompt:undefined,previewVideoSeconds:undefined}:body;
   const key=JSON.stringify(premium
     ?[model,request.duration,request.resolution,request.aspectRatio]
     :/^(studio_gw_|argo_)/.test(model)?{...request,prompt:undefined}:request);
@@ -1930,9 +1940,9 @@ async function fetchQuote(body){
   entry.promise=(async()=>{
     for(let attempt=0; ;attempt++){
       try{
-        const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(request),signal:AbortSignal.timeout(premium?100000:10000)});
+        const d=await api('/api/model-cost',{method:'POST',body:JSON.stringify(request),signal:AbortSignal.timeout(premium?100000:longVideo?25000:10000)});
         const cost=Number(d.cost);
-        if(premium&&(!Number.isFinite(cost)||cost<=0))throw new Error('Premium price is unavailable.');
+        if((premium||longVideo)&&(!Number.isFinite(cost)||cost<=0))throw new Error('Price is unavailable.');
         entry.expiresAt=Date.now()+(premium?15000:30000);
         return {cost,isEstimate:premium||Boolean(d.isEstimate)};
       }catch(error){
@@ -1966,7 +1976,8 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
   syncVideoGenerateButton();
   if(!model){$('cost').textContent='—';return}
   if(model.unavailable===true){$('cost').textContent='Unavailable';return}
-  if(!model.dynamicCost){
+  const longVideo=isLongVideoSelection(model);
+  if(!model.dynamicCost&&!longVideo){
     $('cost').textContent=o&&o.dataset.cost?o.dataset.cost:'—';
     return;
   }
@@ -1978,12 +1989,15 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
   const historical=model.premium&&previousGeneration?.status==='completed'&&previousGeneration.model===model.id&&
     Number(previousGeneration.duration)===duration&&previousGeneration.resolution===resolution&&
     previousGeneration.aspect_ratio===aspectRatio&&Number.isFinite(past)&&past>0;
-  const currentPremiumPrice=premiumPriceFor(model);
-  const priceKey=model.premium?premiumPriceKey(model):null;
-  $('cost').textContent=currentPremiumPrice??(historical?past:'…');
+  const reviewedPrice=reviewedVideoPriceFor(model);
+  const priceKey=reviewedVideoPriceRequired(model)?reviewedVideoPriceKey(model):null;
+  $('cost').textContent=reviewedPrice??(historical?past:'…');
   if(model.premium){
-    note.textContent=currentPremiumPrice?'Estimated price for the selected settings.':
+    note.textContent=reviewedPrice?'Estimated price for the selected settings.':
       historical?'Estimate based on this video’s previous cost. Checking the current Premium price…':'Checking Premium price…';
+    note.classList.remove('hide');
+  }else if(longVideo){
+    note.textContent=reviewedPrice?'Long video price for the selected settings.':'Checking long video price…';
     note.classList.remove('hide');
   }
   if(previewOnly)return;
@@ -1998,9 +2012,9 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
       generateAudio:$('videoGenerateAudio').value==='true',
       ...(videoReferenceItems.length?{previewVideoSeconds:videoReferenceItems.map(item=>item.seconds)}:{}),
       ...(referenceItems.length||videoReferenceItems.length||audioReferenceItems.length?{previewHasReferences:true}:{}),
-    });
+    },{longVideo});
     if(seq===videoCostRequestSeq){
-      if(model.premium)premiumQuote={key:priceKey,cost:d.cost};
+      if(priceKey)reviewedVideoQuote={key:priceKey,cost:d.cost};
       $('cost').textContent=Number(d.cost);
       syncVideoGenerateButton();
       note.textContent='Estimated price for the selected settings.';
@@ -2010,12 +2024,13 @@ async function updateCost({previousGeneration=null, previewOnly=false}={}){
     if(seq!==videoCostRequestSeq)return;
     if(!historical)$('cost').textContent='—';
     if(!model.premium){
-      note.textContent='Price is temporarily unavailable. Retry to check the credits before generating.';
+      note.textContent=longVideo&&/Long videos with reference files/.test(e.message)?e.message:'Price is temporarily unavailable. Retry to check the credits before generating.';
       note.classList.remove('hide');
       $('videoPriceRetry').classList.remove('hide');
     }
+    if(priceKey&&reviewedVideoQuote?.key===priceKey)reviewedVideoQuote=null;
+    if(longVideo)syncVideoGenerateButton();
     if(model.premium){
-      if(premiumQuote?.key===priceKey)premiumQuote=null;
       $('cost').textContent=historical?past:'—';
       syncVideoGenerateButton();
       note.textContent=historical?'Previous cost shown. Current Premium price is temporarily unavailable.':'Premium price is temporarily unavailable.';
@@ -3336,8 +3351,8 @@ async function createGeneration(){
   const b=$('generateBtn'),m=$('genMsg');
   if(videoSubmissionInFlight||b.disabled)return;
   const model=currentVideoModel();
-  const ceiling=premiumPriceFor(model);
-  if(model?.premium&&!ceiling){updateCost();return;}
+  const ceiling=reviewedVideoPriceFor(model);
+  if(reviewedVideoPriceRequired(model)&&!ceiling){updateCost();return;}
   videoSubmissionInFlight=true;
   // Only the button is locked: the panel stays usable while this submits.
   b.setAttribute('aria-busy','true');
@@ -3352,7 +3367,7 @@ async function createGeneration(){
     m.textContent='Submitting generation...';
     const form=new FormData();
     form.append('prompt',prompt);
-    if(model?.premium)form.append('maxCustomerCredits',String(ceiling));
+    if(reviewedVideoPriceRequired(model))form.append('maxCustomerCredits',String(ceiling));
     form.append('model',$('model').value);
     form.append('duration',$('duration').value);
     if(!$('resolutionControl').classList.contains('hide'))form.append('resolution',$('resolution').value);
@@ -3411,7 +3426,7 @@ async function createGeneration(){
   }catch(e){
     m.className='msg err';
     m.textContent=e.message;
-    if(/price changed/i.test(e.message)){premiumQuote=null;quoteCache.clear();updateCost();}
+    if(/price changed/i.test(e.message)){reviewedVideoQuote=null;quoteCache.clear();updateCost();}
   }finally{videoSubmissionInFlight=false;syncVideoGenerateButton();b.removeAttribute('aria-busy')}
 }
 
@@ -3911,6 +3926,7 @@ async function createUpscale(){
 
 // ---------- Cartoon Studio ----------
 let cartoonStyleId='',cartoonImageFile=null,cartoonImageUrl='';
+let cartoonQuoteSeq=0,cartoonLongPrice=null,cartoonSubmitting=false;
 function cartoonStyleLabel(id){return (config?.cartoon?.styles||[]).find(s=>s.id===id)?.label||'Cartoon'}
 function renderCartoonConfig(){
   const cfg=config?.cartoon,enabled=Boolean(cfg?.enabled&&cfg.pricing?.length);
@@ -3943,16 +3959,43 @@ function renderCartoonDurations(){
     $('cartoonRatio').value=ratios.includes(r)?r:(ratios.includes('9:16')?'9:16':ratios[0]);}
   $('cartoonDuration').innerHTML=durations.map(d=>'<option value="'+d.seconds+'" data-cost="'+d.cost+'">'+d.seconds+' sec</option>').join('');
   if(durations.some(d=>String(d.seconds)===previous))$('cartoonDuration').value=previous;
-  else if(durations.length)$('cartoonDuration').value=String(Math.max(...durations.map(d=>Number(d.seconds)||0)));
+  else if(durations.length)$('cartoonDuration').value=String(m?.longVideoMinDuration?m.longVideoMinDuration-1:Math.max(...durations.map(d=>Number(d.seconds)||0)));
   ensureCustomSelect('cartoonDuration');rebuildCustomSelect('cartoonDuration');
   syncCustomSelect('cartoonModel');rebuildCustomSelect('cartoonRatio');
   updateCartoonCost();
 }
-function updateCartoonCost(){
+async function updateCartoonCost(){
+  const seq=++cartoonQuoteSeq;
   const o=$('cartoonDuration').options[$('cartoonDuration').selectedIndex];
   const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value);
-  $('cartoonCost').textContent=o?.dataset.cost?Number(o.dataset.cost)+(cartoonImageFile&&m?.referenceSurcharge?Number(m.referenceSurcharge):0):'—';
+  const duration=Number(o?.value),longVideo=Boolean(m?.longVideoMinDuration&&duration>=m.longVideoMinDuration);
+  const b=$('cartoonGenerateBtn'),note=$('cartoonPriceNote'),retry=$('cartoonPriceRetry');
+  retry.classList.add('hide');
+  cartoonLongPrice=null;
   syncCustomSelect('cartoonDuration');syncCustomSelect('cartoonRatio');
+  note.classList.toggle('hide',!longVideo);
+  if(!longVideo){
+    $('cartoonCost').textContent=o?.dataset.cost?Number(o.dataset.cost)+(cartoonImageFile&&m?.referenceSurcharge?Number(m.referenceSurcharge):0):'—';
+    b.disabled=cartoonSubmitting||!o;
+    return;
+  }
+  b.disabled=true;
+  $('cartoonCost').textContent='…';
+  note.textContent='Checking long video price…';
+  try{
+    const q=await fetchQuote({mediaType:'video',model:m.id,duration,resolution:m.defaultResolution,
+      aspectRatio:$('cartoonRatio').value,previewHasReferences:Boolean(cartoonImageFile)},{longVideo:true});
+    if(seq!==cartoonQuoteSeq)return;
+    cartoonLongPrice=q.cost;
+    $('cartoonCost').textContent=q.cost;
+    note.classList.add('hide');
+    b.disabled=cartoonSubmitting;
+  }catch(error){
+    if(seq!==cartoonQuoteSeq)return;
+    $('cartoonCost').textContent='—';
+    note.textContent=/Long videos with reference files/.test(error.message)?error.message:'Price is unavailable. Click Retry price or change the duration.';
+    retry.classList.remove('hide');
+  }
 }
 function setCartoonImage(files){
   const file=files?.[0];
@@ -3975,11 +4018,12 @@ async function createCartoon(){
   if(b.disabled)return;
   const prompt=String($('cartoonPrompt').value||'').trim();
   if(!prompt){m.className='msg err';m.textContent='Describe the scene first.';return}
-  b.disabled=true;m.className='msg muted';m.textContent='Submitting cartoon...';
+  cartoonSubmitting=true;b.disabled=true;m.className='msg muted';m.textContent='Submitting cartoon...';
   try{
     const form=new FormData();
     form.append('prompt',prompt);
     form.append('cartoonStyle',cartoonStyleId);
+    if(cartoonLongPrice!=null)form.append('maxCustomerCredits',String(cartoonLongPrice));
     form.append('model',$('cartoonModel').value);
     form.append('duration',$('cartoonDuration').value);
     form.append('aspectRatio',$('cartoonRatio').value);
@@ -3989,8 +4033,8 @@ async function createCartoon(){
     $('cartoonPrompt').value='';setCartoonImage(null);
     m.className='msg ok';m.textContent='Cartoon queued.';
     await Promise.all([loadGenerations(),loadDashboard(),loadCredits()]);
-  }catch(e){m.className='msg err';m.textContent=e.message}
-  finally{b.disabled=false}
+  }catch(e){m.className='msg err';m.textContent=e.message;if(/price changed/i.test(e.message))quoteCache.clear()}
+  finally{cartoonSubmitting=false;updateCartoonCost()}
 }
 function reuseCartoon(g){
   go('cartoon');

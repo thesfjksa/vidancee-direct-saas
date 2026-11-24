@@ -132,7 +132,9 @@ const {
   normalizeEmail, validateEmail, hashPassword, verifyPassword,
   createSession, destroySession, userFromRequest,
 } = require('./src/auth.js');
-const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model } = require('./src/pricing.js');
+const { publicPricing, getCost, ASPECT_RATIOS, H3_MODEL_IDS, isH3Model, isLongH3Duration } = require('./src/pricing.js');
+const { VgenvClient } = require('./src/provider/vgenv.js');
+const { quoteLongH3Video } = require('./src/vgenv_long_video.js');
 const { H3_REFS, H3_AUDIO_CAPABILITY, H3_VIDEO_CAPABILITY, validateH3Media } = require('./src/h3_references.js');
 const { trimReferenceVideos } = require('./src/reference_trim.js');
 const { presignUpload, collectDirectUploads, removeDirectUploads } = require('./src/direct_uploads.js');
@@ -766,6 +768,12 @@ async function quoteModelForUser(userId,body){
   const mediaType=body.mediaType==='image'?'image':'video';
   if(mediaType==='video'&&DIRECT_VIDEO_MODELS.includes(String(body.model))){
     if(!directVideoSourceActive(String(body.model),access,providerSettings))throw httpError(403,'This model source is unavailable for your account.');
+    if (isLongH3Duration(body.duration)) {
+      const settings = await getProviderSettings();
+      const client = new VgenvClient({baseUrl:settings.vgenvBaseUrl,apiKey:settings.vgenvApiKey});
+      const { cost, isEstimate } = await quoteLongH3Video(client, body);
+      return {cost,isEstimate};
+    }
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
   }
   if(isWxksaiModel(body.model) && mediaType==='video'){
@@ -1025,6 +1033,15 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     // Every direct model runs on vgenv now (MiniMax H3).
     const options=cartoonOptions?{provider:'vgenv',generationOptions:cartoonOptions}
       :{provider:'vgenv',validateMedia:(audios,videos,images)=>validateH3Media(audios,videos,images,{mp4Seconds})};
+    if (isLongH3Duration(body.duration)) {
+      const client = new VgenvClient({baseUrl:providerSettings.vgenvBaseUrl,apiKey:providerSettings.vgenvApiKey});
+      const quote = await quoteLongH3Video(client,body);
+      Object.assign(options,{
+        costOverride:quote.cost, providerCost:quote.sourcePrice, providerCostUnit:quote.sourceUnit,
+        maxCustomerCredits:body.maxCustomerCredits,
+        generationOptions:{...(cartoonOptions||{}),longVideoCredits:quote.cost},
+      });
+    }
     generation=await createVideo(user.id,body,options);
   }
 

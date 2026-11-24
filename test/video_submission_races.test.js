@@ -16,7 +16,7 @@ function fixture(){
   sameItems:(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]),clearReferenceItems(){},clearVideoReferenceItems(){},clearAudioReferenceItems(){},updatePromptCounts(){},
   enhancedPromptCache:{},pendingEnhancementRequests:{},loadGenerations:async()=>{},loadDashboard:async()=>{},loadCredits:async()=>{}};
  vm.createContext(ctx);vm.runInContext(source,ctx);
- vm.runInContext('premiumQuote={key:premiumPriceKey(currentVideoModel()),cost:100}',ctx);
+ vm.runInContext('reviewedVideoQuote={key:reviewedVideoPriceKey(currentVideoModel()),cost:100}',ctx);
  return{ctx,fields,enhance,upload,post,forms,run:()=>vm.runInContext('createGeneration()',ctx)};
 }
 test('model changes cannot unlock a second submission or silently change the first request',async()=>{
@@ -35,7 +35,7 @@ test('unchanged submission posts once with a customer price ceiling and preserve
  f.ctx.unavailable=true;f.post.resolve();await running;assert.equal(f.fields.prompt.value,'My next idea');assert.equal(f.fields.generateBtn.disabled,true);
 });
 test('a historical cost cannot submit while the current Premium price is loading',async()=>{
- const f=fixture();vm.runInContext('premiumQuote=null;syncVideoGenerateButton()',f.ctx);
+ const f=fixture();vm.runInContext('reviewedVideoQuote=null;syncVideoGenerateButton()',f.ctx);
  assert.equal(f.fields.generateBtn.disabled,true);
  await f.run();
  assert.equal(f.forms.length,0);
@@ -106,5 +106,21 @@ test('three fresh reference images upload separately and retain their generation
  assert.deepEqual(JSON.parse(parts.get('imageUploads')).map(item=>item.key),['first','second','third']);
  assert.deepEqual(JSON.parse(parts.get('referenceOrder')).map(item=>item.index),[0,1,2]);
  assert.equal(parts.has('images'),false);
+ f.post.resolve();await running;
+});
+
+test('a reviewed 30-second Vgenv quote is sent as the customer price ceiling',async()=>{
+ const f=fixture();
+ f.fields.model.value='minimax_h3';
+ f.fields.duration.value='30';
+ f.ctx.currentVideoModel=()=>({id:f.fields.model.value,longVideoMinDuration:16});
+ vm.runInContext('reviewedVideoQuote={key:reviewedVideoPriceKey(currentVideoModel()),cost:650}',f.ctx);
+ const running=f.run();
+ f.enhance.resolve();f.upload.resolve(null);await flush();
+ assert.equal(f.forms.length,1);
+ const parts=new Map(f.forms[0].parts);
+ assert.equal(parts.get('model'),'minimax_h3');
+ assert.equal(parts.get('duration'),'30');
+ assert.equal(parts.get('maxCustomerCredits'),'650');
  f.post.resolve();await running;
 });

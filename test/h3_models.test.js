@@ -28,7 +28,7 @@ test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality p
   const original = publicPricing().find(m => m.id === 'minimax_h3_origin');
   const duplicate = publicPricing().find(m => m.id === 'cmmtools_origin_2_0');
   assert.deepEqual(duplicate, { ...original, id: 'cmmtools_origin_2_0', label: 'CMMTools Origin 2.0' });
-  for (const resolution of ['480p', '768p']) for (let duration = 4; duration <= 15; duration++) {
+  for (const resolution of ['480p', '768p']) for (let duration = 4; duration <= 30; duration++) {
     assert.equal(getCost('cmmtools_origin_2_0', duration, resolution), getCost('minimax_h3_origin', duration, resolution));
   }
   const standard = publicPricing().find(m => m.id === 'minimax_h3_origin_standard');
@@ -38,7 +38,15 @@ test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality p
   assert.equal(getCost('minimax_h3_origin_standard', 10, '480p'), credits(0.0038, 10));
   assert.equal(getCost('minimax_h3_origin_standard', 10, '768p'), credits(0.0077, 10));
   assert.throws(() => getCost('minimax_h3_origin_standard', 16, '768p'), /not enabled/i);
-  assert.throws(() => getCost('minimax_beast', 16, '768p'), /not enabled/i);
+  for (const model of publicPricing().filter(m => m.longVideoMinDuration)) {
+    assert.equal(model.longVideoMinDuration, 16);
+    for (const resolution of model.resolutions) {
+      assert.deepEqual(resolution.durations.map(d => d.seconds), Array.from({length:27}, (_, i) => i + 4));
+      assert.ok(getCost(model.id, 30, resolution.id) > getCost(model.id, 15, resolution.id));
+    }
+    assert.throws(() => getCost(model.id, 31, '768p'), /not enabled/i);
+    assert.throws(() => getCost(model.id, 29.5, '768p'), /not enabled/i);
+  }
   assert.throws(() => getCost('seedance_2_0_mini', 16, '768p'), /not enabled/i);
 });
 

@@ -104,6 +104,34 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.equal(inserted[2], 'vgenv');
   assert.equal(JSON.parse(inserted[13] || '{}').studio, undefined);
   assert.equal(inserted[2], 'vgenv');
+
+  // The long-video price is fetched before taking any customer credits.
+  const { VgenvClient } = require('../src/provider/vgenv.js');
+  const { priceRate, applyPriceRate, usdToCredits } = require('../src/billing.js');
+  t.mock.method(VgenvClient.prototype, 'longVideoCapabilities', async () => ({ materialsEnabled:true }));
+  const quotes = [];
+  t.mock.method(VgenvClient.prototype, 'quoteLongVideo', async params => {
+    quotes.push(params);
+    return { price: 0.055, currency: 'USD' };
+  });
+  const longInput = { prompt:'A dragon above a valley',model:'minimax_h3_cinematic',duration:30,resolution:'480p',aspectRatio:'16:9',cartoonStyle:'clay' };
+  const priceResponse = await fetch(origin+'/api/model-cost',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...longInput,mediaType:'video'})});
+  assert.equal(priceResponse.status,200);
+  const {cost} = await priceResponse.json();
+  assert.equal(cost,applyPriceRate(Math.ceil(usdToCredits(0.055)),priceRate(user)));
+  const old = inserted;
+  assert.equal((await post({...longInput,maxCustomerCredits:cost-1})).status,409);
+  assert.equal(inserted,old);
+  assert.equal((await post({...longInput,maxCustomerCredits:cost})).status,201);
+  assert.equal(inserted[6],30);
+  assert.equal(inserted[10],cost);
+  assert.equal(inserted[11],0.055);
+  assert.equal(inserted[12],'usd');
+  assert.deepEqual(JSON.parse(inserted[13]),{studio:'cartoon',cartoonStyle:'clay',longVideoCredits:Math.ceil(usdToCredits(0.055))});
+  assert.ok(quotes.every(q=>q.model==='cinematic'&&q.tier==='fast'&&q.duration===30&&q.resolution==='480p'));
+  const latest=inserted;
+  assert.equal((await post({...longInput,duration:31})).status,400);
+  assert.equal(inserted,latest);
 });
 
 test('MiniMax H3 is rendered at the resolution the customer paid for', async () => {

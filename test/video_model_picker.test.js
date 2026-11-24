@@ -48,7 +48,7 @@ test('Dope quote failures show a retry action rather than at-submit credits',()=
 });
 test('required video image references disable Generate until the image is attached',()=>{
   const start=studio.indexOf('function missingRequiredVideoReferences(model){');
-  const end=studio.indexOf('async function fetchQuote(body){',start);
+  const end=studio.indexOf('async function fetchQuote(body,',start);
   assert.ok(start>0&&end>start);
   const fields={generateBtn:{disabled:false}};
   const state={referenceItems:[],videoReferenceItems:[],audioReferenceItems:[],videoSubmissionInFlight:false,videoReferenceRestoreInFlight:false};
@@ -58,7 +58,7 @@ test('required video image references disable Generate until the image is attach
         image:{min:1,requiredRoles:[]},video:{min:0,requiredRoles:[]},audio:{min:0,requiredRoles:[]},
       },
     }),
-    premiumPriceFor:()=>null,
+    reviewedVideoPriceRequired:()=>false,reviewedVideoPriceFor:()=>null,
   });
   vm.runInContext(studio.slice(start,end),ctx);
   ctx.syncVideoGenerateButton();
@@ -225,4 +225,74 @@ test('async price refresh keeps reference support metadata in the updated card',
   assert.match(css,/\.custom-select\.model-picker \.custom-select-option:focus-visible/);
   assert.match(css,/\.model-picker-price-value\s*\{[\s\S]*?font-size:\s*14\.5px/);
   assert.match(css,/grid-template-columns:\s*34px minmax\(0,1fr\) 20px/);
+});
+
+test('long video selection requires a successful price review and stale quotes cannot unlock Generate',async()=>{
+  const fields={};
+  for(const id of ['duration','resolution','resolutionControl','ratio','videoModeControl','videoGenerationMode','videoGenerateAudio','model','prompt','cost','generateBtn','videoPriceNote','videoPriceRetry']){
+    fields[id]={value:'',textContent:'',disabled:false,classList:{add(){},remove(){},toggle(){},contains(){return false;}}};
+  }
+  fields.model.value='minimax_h3';
+  fields.duration.value='30';
+  fields.duration.selectedIndex=0;
+  fields.duration.options=[{dataset:{cost:'608'}}];
+  fields.resolution.value='768p';fields.ratio.value='16:9';
+  const model={id:'minimax_h3',longVideoMinDuration:16,capabilities:{}};
+  let finish,quoteBody;
+  const ctx=vm.createContext({
+    $:id=>fields[id],config:{pricing:[model]},currentVideoModel:()=>model,
+    videoCostRequestSeq:0,referenceItems:[],videoReferenceItems:[],audioReferenceItems:[],
+    videoSubmissionInFlight:false,videoReferenceRestoreInFlight:false,
+    syncCustomSelect(){},fetchQuote:body=>{quoteBody=body;return new Promise(resolve=>{finish=resolve;});},
+  });
+  const start=studio.indexOf('let reviewedVideoQuote=null;');
+  const end=studio.indexOf('async function fetchQuote(body,',start);
+  assert.ok(start>=0&&end>start);
+  vm.runInContext(studio.slice(start,end),ctx);
+  vm.runInContext(studio.slice(studio.indexOf('async function updateCost('),studio.indexOf('function clearReferenceItems()')),ctx);
+  const first=ctx.updateCost();
+  assert.equal(fields.generateBtn.disabled,true);
+  assert.equal(quoteBody.duration,30);
+  assert.equal(fields.cost.textContent,'…');
+  finish({cost:731.85,isEstimate:false});
+  await first;
+  assert.equal(fields.cost.textContent,731.85);
+  assert.equal(fields.generateBtn.disabled,false);
+  assert.equal(ctx.reviewedVideoPriceFor(model),731.85);
+  fields.duration.value='29';
+  const second=ctx.updateCost();
+  assert.equal(fields.generateBtn.disabled,true);
+  fields.duration.value='15';fields.duration.options=[{dataset:{cost:'318.15'}}];
+  await ctx.updateCost();
+  finish({cost:700,isEstimate:false});
+  await second;
+  assert.equal(fields.cost.textContent,'318.15');
+  assert.equal(fields.generateBtn.disabled,false);
+});
+
+test('Cartoon Studio shows a live 30-second price and disables generation while the quote is pending',async()=>{
+  const fields={};
+  for(const id of ['cartoonDuration','cartoonModel','cartoonRatio','cartoonGenerateBtn','cartoonPriceNote','cartoonPriceRetry','cartoonCost']){
+    fields[id]={value:'',textContent:'',disabled:false,classList:{add(){},remove(){},toggle(){}}};
+  }
+  fields.cartoonModel.value='minimax_h3_cinematic';
+  fields.cartoonRatio.value='9:16';
+  fields.cartoonDuration.selectedIndex=0;
+  fields.cartoonDuration.options=[{value:'30',dataset:{cost:'600'}}];
+  const model={id:'minimax_h3_cinematic',longVideoMinDuration:16,defaultResolution:'768p'};
+  let finish,request;
+  const ctx=vm.createContext({$:id=>fields[id],config:{cartoon:{pricing:[model]}},
+    cartoonQuoteSeq:0,cartoonLongPrice:null,cartoonSubmitting:false,cartoonImageFile:null,
+    syncCustomSelect(){},fetchQuote:(body)=>{request=body;return new Promise(resolve=>{finish=resolve;});}});
+  const a=studio.indexOf('async function updateCartoonCost(){'),b=studio.indexOf('function setCartoonImage(',a);
+  assert.ok(a>=0&&b>a);
+  vm.runInContext(studio.slice(a,b),ctx);
+  const pending=ctx.updateCartoonCost();
+  assert.equal(fields.cartoonGenerateBtn.disabled,true);
+  assert.equal(request.duration,30);
+  finish({cost:620.55});
+  await pending;
+  assert.equal(ctx.cartoonLongPrice,620.55);
+  assert.equal(fields.cartoonCost.textContent,620.55);
+  assert.equal(fields.cartoonGenerateBtn.disabled,false);
 });
