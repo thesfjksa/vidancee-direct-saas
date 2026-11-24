@@ -59,7 +59,13 @@ const { chromium } = require('playwright-core');
       return json({ test: { id, model, status: 'queued' } });
     }
     if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
-    if (pathname === '/admin/model-names') return json({ models: names });
+    if (pathname === '/admin/model-names') {
+      if(request.method()==='POST'){
+        const body=request.postDataJSON();
+        for(const row of names)if(Object.hasOwn(body.names||{},row.key))row.name=body.names[row.key];
+      }
+      return json({models:names});
+    }
     if (pathname === '/admin/api888/sync') { api888Imports++; assert.equal(request.method(),'POST'); return json({total:50,adapterSupported:14,dynamicSeedanceModels:5}); }
     if (pathname === '/admin/provider-models') return json({ models: url.searchParams.get('provider') === 'vercel' ? vercel : url.searchParams.get('provider') === 'api888' ? api888 : argo });
     if (pathname === '/admin/vercel/models/0/price') {
@@ -150,8 +156,17 @@ const { chromium } = require('playwright-core');
   assert.equal(paidRequests, 1);
   await page.getByRole('button', { name: 'Provider', exact: true }).click();
 
-  await page.getByRole('tab', { name: 'Models', exact: true }).click();
+  await page.getByRole('button', { name: 'Video Model Names', exact: true }).click();
   await page.locator('#provider-pager-names').filter({ hasText: 'of 35 models' }).waitFor();
+  assert.equal(await page.locator('#modelNameStudio').inputValue(),'video');
+  await page.locator('[data-key="video:example_0"]').fill('My saved model name');
+  await page.getByRole('button',{name:'Save names',exact:true}).click();
+  await page.locator('#modelNameMsg').filter({hasText:'Saved.'}).waitFor();
+  assert.equal(names[0].name,'My saved model name');
+  await page.locator('[data-key="video:example_0"]').locator('..').getByRole('button',{name:'Reset name',exact:true}).click();
+  await page.getByRole('button',{name:'Save names',exact:true}).click();
+  await page.locator('#modelNameMsg').filter({hasText:'Saved.'}).waitFor();
+  assert.equal(names[0].name,'');
   assert.equal(await page.locator('#modelNameRows tr').count(), 10);
   await page.locator('[data-key="video:example_0"]').fill('My unsaved model name');
   await page.locator('#provider-pager-names').getByRole('button', { name: 'Next', exact: true }).click();

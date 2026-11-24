@@ -672,6 +672,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
   if(isWxksaiModel(id))return 'Dope';
+  if(isLongAiModel(id))return 'LONG AI';
   if(require('./src/aivid_models.js').isAividModel(id))return 'AIVID';
   if(isApi888Model(id))return '888API';
   if(isArgoModel(id))return 'ArgoLink';
@@ -2671,6 +2672,9 @@ const server=http.createServer(async (req,res)=>{
           if(!MODEL_NAME_STUDIOS.includes(studio)||!/^[A-Za-z0-9._:\/-]{1,190}$/.test(rest.join(':')))return sendJson(res,400,{ok:false,error:'Unknown model '+key+'.'});
           const name=String(value??'').replace(/\s+/g,' ').trim();
           if(name.length>80)return sendJson(res,400,{ok:false,error:'Model names can be up to 80 characters.'});
+          // Remove the legacy Dope key as well, otherwise a reset can resurrect its name.
+          const id=rest.join(':');
+          if(id.startsWith('dope_'))delete names[studio+':'+storedModelId(id)];
           if(name)names[key]=name;else delete names[key];
         }
         await setSettingValue(MODEL_NAMES_SETTING,JSON.stringify(names));

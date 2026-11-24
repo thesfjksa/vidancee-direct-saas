@@ -113,6 +113,22 @@ test('Video Studio lists MiniMax H3 and the admin can rename any model', async t
   // Names are per studio: Cartoon Studio keeps its own.
   assert.equal(config.cartoon.pricing.find(m => m.id === 'minimax_h3').label, 'MiniMax H3 Base');
 
+  // The custom Origin choice can be renamed independently with no pricing or capability change.
+  const originalCmm = config.pricing.find(m=>m.id==='cmmtools_origin_2_0');
+  const originalOrigin = config.pricing.find(m=>m.id==='minimax_h3_origin');
+  assert.equal((await save({ names: { 'video:cmmtools_origin_2_0': 'CMM Custom Origin' } })).status,200);
+  config=await (await fetch(origin+'/api/config')).json();
+  assert.deepEqual(config.pricing.find(m=>m.id==='cmmtools_origin_2_0'),{...originalCmm,label:'CMM Custom Origin'});
+  assert.deepEqual(config.pricing.find(m=>m.id==='minimax_h3_origin'),originalOrigin);
+  assert.equal((await save({ names: { 'video:cmmtools_origin_2_0': '' } })).status,200);
+  config=await (await fetch(origin+'/api/config')).json();
+  assert.deepEqual(config.pricing.find(m=>m.id==='cmmtools_origin_2_0'),originalCmm);
+  // Clearing a public Dope name removes a legacy provider-prefixed override too.
+  const savedNames=JSON.parse(settings.get('model_display_names'));
+  settings.set('model_display_names',JSON.stringify({...savedNames,'video:wxksai_test':'Legacy custom name'}));
+  assert.equal((await save({names:{'video:dope_test':''}})).status,200);
+  assert.equal(JSON.parse(settings.get('model_display_names'))['video:wxksai_test'],undefined);
+
   // An empty name goes back to the source's name.
   await save({ names: { 'video:minimax_h3': '' } });
   config = await (await fetch(origin + '/api/config')).json();
