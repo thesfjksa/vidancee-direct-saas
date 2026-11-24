@@ -436,7 +436,7 @@
           </div>
           <div class="creator-footer">
             <div class="cost-row"><span>Generation cost</span><strong><span id="cartoonCost">—</span> credits</strong></div>
-            <div id="cartoonPriceNote" class="meta hide" role="status"></div><button type="button" class="btn secondary" id="cartoonPriceRetry" onclick="updateCartoonCost()" hidden>Retry price</button>
+            <div id="cartoonPriceNote" class="meta hide" role="status"></div><button type="button" class="btn secondary hide" id="cartoonPriceRetry" onclick="updateCartoonCost()">Retry price</button>
             <button id="cartoonGenerateBtn" class="generate" onclick="createCartoon()">Generate cartoon</button>
             <div id="cartoonMsg" class="msg muted"></div>
           </div>
@@ -3970,7 +3970,7 @@ async function updateCartoonCost(){
   const m=(config?.cartoon?.pricing||[]).find(x=>x.id===$('cartoonModel').value);
   const duration=Number(o?.value),longVideo=Boolean(m?.longVideoMinDuration&&duration>=m.longVideoMinDuration);
   const b=$('cartoonGenerateBtn'),note=$('cartoonPriceNote'),retry=$('cartoonPriceRetry');
-  retry.hidden=true;
+  retry.classList.add('hide');
   cartoonLongPrice=null;
   syncCustomSelect('cartoonDuration');syncCustomSelect('cartoonRatio');
   note.classList.toggle('hide',!longVideo);
@@ -3994,7 +3994,7 @@ async function updateCartoonCost(){
     if(seq!==cartoonQuoteSeq)return;
     $('cartoonCost').textContent='—';
     note.textContent=/Long videos with reference files/.test(error.message)?error.message:'Price is unavailable. Click Retry price or change the duration.';
-    retry.hidden=false;
+    retry.classList.remove('hide');
   }
 }
 function setCartoonImage(files){

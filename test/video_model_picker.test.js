@@ -269,3 +269,30 @@ test('long video selection requires a successful price review and stale quotes c
   assert.equal(fields.cost.textContent,'318.15');
   assert.equal(fields.generateBtn.disabled,false);
 });
+
+test('Cartoon Studio shows a live 30-second price and disables generation while the quote is pending',async()=>{
+  const fields={};
+  for(const id of ['cartoonDuration','cartoonModel','cartoonRatio','cartoonGenerateBtn','cartoonPriceNote','cartoonPriceRetry','cartoonCost']){
+    fields[id]={value:'',textContent:'',disabled:false,classList:{add(){},remove(){},toggle(){}}};
+  }
+  fields.cartoonModel.value='minimax_h3_cinematic';
+  fields.cartoonRatio.value='9:16';
+  fields.cartoonDuration.selectedIndex=0;
+  fields.cartoonDuration.options=[{value:'30',dataset:{cost:'600'}}];
+  const model={id:'minimax_h3_cinematic',longVideoMinDuration:16,defaultResolution:'768p'};
+  let finish,request;
+  const ctx=vm.createContext({$:id=>fields[id],config:{cartoon:{pricing:[model]}},
+    cartoonQuoteSeq:0,cartoonLongPrice:null,cartoonSubmitting:false,cartoonImageFile:null,
+    syncCustomSelect(){},fetchQuote:(body)=>{request=body;return new Promise(resolve=>{finish=resolve;});}});
+  const a=studio.indexOf('async function updateCartoonCost(){'),b=studio.indexOf('function setCartoonImage(',a);
+  assert.ok(a>=0&&b>a);
+  vm.runInContext(studio.slice(a,b),ctx);
+  const pending=ctx.updateCartoonCost();
+  assert.equal(fields.cartoonGenerateBtn.disabled,true);
+  assert.equal(request.duration,30);
+  finish({cost:620.55});
+  await pending;
+  assert.equal(ctx.cartoonLongPrice,620.55);
+  assert.equal(fields.cartoonCost.textContent,620.55);
+  assert.equal(fields.cartoonGenerateBtn.disabled,false);
+});
