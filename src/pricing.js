@@ -11,6 +11,9 @@ const perSecond = (rate, seconds) => Math.ceil(rate * seconds - 1e-9);
 // not a new upstream model; its higher tier must be passed to /v3/videos.
 // Both Origin storefront choices share the same upstream and cost configuration.
 const ORIGIN_FAST = { vgenvModel: 'origin', vgenvTier: 'fast', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } };
+const H3_SHORT_MAX_SECONDS = 15;
+const H3_LONG_MAX_SECONDS = 30;
+const isLongH3Duration = duration => Number(duration) > H3_SHORT_MAX_SECONDS;
 const H3_MODELS = {
   minimax_h3: { label: 'MiniMax H3 Base', vgenvModel: 'base', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
   minimax_h3_cinematic: { label: 'MiniMax H3 Cinematic', vgenvModel: 'cinematic', usdPerSecond: { '480p': 0.0015, '768p': 0.003 } },
@@ -19,9 +22,9 @@ const H3_MODELS = {
   // Historical CMM Mini ID retained ONLY so queued/older jobs continue to
   // resolve their original provider costs. Public catalog, quotes and new
   // submissions explicitly retire this SKU; not an actual Seedance model.
-  seedance_2_0_mini: { label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  seedance_2_0_mini: { maxDuration: H3_SHORT_MAX_SECONDS, label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
   // Retired from customer catalogs and new submissions; historical jobs only.
-  minimax_h3_origin_standard: { label: 'Origin Standard', vgenvModel: 'origin', vgenvTier: 'standard', usdPerSecond: { '480p': 0.0038, '768p': 0.0077 } },
+  minimax_h3_origin_standard: { maxDuration: H3_SHORT_MAX_SECONDS, label: 'Origin Standard', vgenvModel: 'origin', vgenvTier: 'standard', usdPerSecond: { '480p': 0.0038, '768p': 0.0077 } },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
@@ -31,16 +34,16 @@ const h3VgenvModel = id => (isH3Model(id) ? H3_MODELS[id].vgenvModel : 'base');
 // Base/Cinematic/Origin remain Fast; the retired budget option requests Origin Standard; Beast requests Origin Quality.
 const h3VgenvTier = id => (isH3Model(id) ? (H3_MODELS[id].vgenvTier || 'fast') : 'fast');
 
-function h3Durations(rate) {
+function h3Durations(rate, maxDuration) {
   const durations = {};
-  for (let seconds = 4; seconds <= 15; seconds += 1) {
+  for (let seconds = 4; seconds <= maxDuration; seconds += 1) {
     durations[seconds] = perSecond(rate, seconds);
   }
   return durations;
 }
 
-function h3ResolutionCosts(usdPerSecond) {
-  return { '480p': h3Durations(usdToCredits(usdPerSecond['480p'])), '768p': h3Durations(usdToCredits(usdPerSecond['768p'])) };
+function h3ResolutionCosts(usdPerSecond, maxDuration) {
+  return { '480p': h3Durations(usdToCredits(usdPerSecond['480p']), maxDuration), '768p': h3Durations(usdToCredits(usdPerSecond['768p']), maxDuration) };
 }
 
 function pricingMap() {
@@ -49,7 +52,8 @@ function pricingMap() {
     ...(model.warning ? { warning: model.warning } : {}),
     defaultResolution: '768p',
     resolutions: ['480p', '768p'],
-    resolutionCosts: h3ResolutionCosts(model.usdPerSecond),
+    resolutionCosts: h3ResolutionCosts(model.usdPerSecond, model.maxDuration || H3_LONG_MAX_SECONDS),
+    ...(!model.maxDuration ? { longVideoMinDuration: H3_SHORT_MAX_SECONDS + 1 } : {}),
   }]));
 }
 
@@ -118,6 +122,7 @@ function publicPricing() {
         label: info.label,
         ...(info.warning ? { warning: info.warning } : {}),
         defaultResolution,
+        ...(info.longVideoMinDuration ? { longVideoMinDuration: info.longVideoMinDuration } : {}),
         resolutions,
         durations: defaultEntry ? defaultEntry.durations : [],
       };
@@ -151,4 +156,7 @@ module.exports = {
   isH3Model,
   h3VgenvModel,
   h3VgenvTier,
+  H3_SHORT_MAX_SECONDS,
+  H3_LONG_MAX_SECONDS,
+  isLongH3Duration,
 };

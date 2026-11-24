@@ -11,7 +11,8 @@ const { AividQueue } = require('./aivid_queue.js');
 const { UpscaleQueue } = require('./upscale_queue.js');
 const { getPool, dbConfigured } = require('./db.js');
 const { VgenvClient } = require('./provider/vgenv.js');
-const { isH3Model, h3VgenvModel, h3VgenvTier } = require('./pricing.js');
+const { isH3Model, h3VgenvModel, h3VgenvTier, isLongH3Duration, H3_LONG_MAX_SECONDS, H3_SHORT_MAX_SECONDS } = require('./pricing.js');
+const { quoteLongH3Video, validateLongVideoQuote, checkLongVideoCapabilities } = require('./vgenv_long_video.js');
 const { TOOLS: VIDEO_TOOLS, validateSourceQuote } = require('./vgenv_video_tools.js');
 const { SmartAipiClient } = require('./provider/smartaipi.js');
 const { smartImageModel, smartImageSourcePrice } = require('./smartaipi_images.js');
@@ -276,7 +277,7 @@ class GenerationWorker {
 
     const syncRow = async row => {
       try {
-        const video = await this.vgenv.getVideo(row.provider_job_id, { v3: h3VgenvModel(row.model) !== 'base' || Boolean(videoEditOptions(row)) });
+        const video = await this.vgenv.getVideo(row.provider_job_id, { v3: h3VgenvModel(row.model) !== 'base' || Boolean(videoEditOptions(row)), long: isLongH3Duration(row.duration) });
         const costUnit = video.currency === 'CNY' ? 'cny' : video.currency === 'USD' ? 'usd' : row.provider_cost_unit || 'usd';
         if (video.status === 'succeeded') {
           if (!video.outputUrl) throw new Error('vgenv succeeded without an output URL.');
@@ -285,7 +286,7 @@ class GenerationWorker {
             [video.price, costUnit, video.outputUrl, row.id]
           );
           logActivity({ level: 'info', category: 'provider', event: 'job.completed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'Completed', details: { providerJobId: row.provider_job_id, price: video.price } });
-        } else if (video.status === 'failed' || video.status === 'cancelled') {
+        } else if (video.status === 'failed' || video.status === 'cancelled' || video.status === 'canceled') {
           logActivity({ level: 'error', category: 'provider', event: 'job.provider_failed', userId: row.user_id, generationId: row.id, provider: 'vgenv', message: 'vgenv reported ' + video.status, details: video });
           await refundGeneration(
             row.id,
@@ -322,11 +323,12 @@ class GenerationWorker {
     );
     for (const row of rows) {
       if (row.provider === 'vgenv') {
-        const approvedAt = videoEditOptions(row) && vgenvOperation(row).editQuoteApprovedAt;
+        const operation = vgenvOperation(row);
+        const approvedAt = operation.longQuoteApprovedAt || (videoEditOptions(row) && operation.editQuoteApprovedAt);
         if (approvedAt && Date.now() - approvedAt >= 30 * 60 * 1000) {
           await db.execute("UPDATE generations SET status='submit_error', error_message=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND provider_job_id IS NULL AND refunded_at IS NULL",
             ['Submission could not be confirmed. Contact admin before creating another request.', row.id]);
-          logActivity({ level: 'warn', category: 'provider', event: 'job.submit_unconfirmed', userId: row.user_id, generationId: row.id, provider: row.provider, message: 'Video edit needs reconciliation after submission could not be confirmed.' });
+          logActivity({ level: 'warn', category: 'provider', event: 'job.submit_unconfirmed', userId: row.user_id, generationId: row.id, provider: row.provider, message: 'Video needs reconciliation after submission could not be confirmed.' });
           continue;
         }
         const [result] = await db.execute("UPDATE generations SET status='queued', updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND provider_job_id IS NULL", [row.id]);
@@ -533,12 +535,20 @@ class GenerationWorker {
 
   async submitVgenv(db, job, imageCount) {
     if (!this.vgenv) throw new Error('MiniMax H3 provider is not configured.');
-    if (Number(job.duration) < 4 || Number(job.duration) > 15 || !Number.isInteger(Number(job.duration))) {
-      throw new Error('MiniMax H3 duration must be an integer from 4 to 15 seconds.');
+    const duration = Number(job.duration);
+    const videoEdit = videoEditOptions(job);
+    const maxDuration = videoEdit ? H3_SHORT_MAX_SECONDS : H3_LONG_MAX_SECONDS;
+    if (!Number.isInteger(duration) || duration < 4 || duration > maxDuration) {
+      throw new Error('MiniMax H3 duration must be an integer from 4 to ' + maxDuration + ' seconds.');
+    }
+    const long = isLongH3Duration(duration);
+    const savedOperation = vgenvOperation(job);
+    if (long && !savedOperation.longQuoteApprovedAt) {
+      await checkLongVideoCapabilities(this.vgenv, job.mode === 'image-to-video');
     }
 
     let referenceImageUrls = [];
-    if (job.mode === 'image-to-video' && imageCount > 0) {
+    if (job.mode === 'image-to-video' && imageCount > 0 && !long) {
       if (imageCount > 6) throw new Error('MiniMax H3 supports up to 6 reference images in this app.');
       const [images] = await db.execute(
         'SELECT position_index FROM generation_images WHERE generation_id=? ORDER BY position_index ASC',
@@ -550,13 +560,12 @@ class GenerationWorker {
     // Sound clips and a reference video (Video Studio only) are uploaded to
     // vgenv as assets. Their ids are saved on the job first, so a resend after
     // a restart reuses them and repeats the same request (same idempotency key).
-    const { referenceAudioAssetIds, referenceVideoAssetId, operation } = job.mode === 'image-to-video'
-      ? await this.vgenvAssets(db, job) : { referenceAudioAssetIds: [], referenceVideoAssetId: null };
-    if (job.mode === 'image-to-video' && !referenceImageUrls.length && !referenceVideoAssetId) {
+    const { referenceImageAssetIds = [], referenceAudioAssetIds, referenceVideoAssetId, operation = savedOperation } = job.mode === 'image-to-video'
+      ? await this.vgenvAssets(db, job, { includeImages: long }) : { referenceAudioAssetIds: [], referenceVideoAssetId: null };
+    if (job.mode === 'image-to-video' && !referenceImageUrls.length && !referenceImageAssetIds.length && !referenceVideoAssetId) {
       throw new Error('MiniMax H3 needs a reference image or video for this job.');
     }
 
-    const videoEdit = videoEditOptions(job);
     if (videoEdit && (referenceImageUrls.length !== 1 || !referenceVideoAssetId || referenceAudioAssetIds.length)) {
       throw new Error('A video edit requires one image and one source video.');
     }
@@ -565,7 +574,7 @@ class GenerationWorker {
       model: h3VgenvModel(job.model),
       tier: h3VgenvTier(job.model),
       prompt: providerPrompt(job),
-      duration: Number(job.duration),
+      duration,
       // The customer's choice (480p or 768p); the price was charged for it.
       resolution: job.resolution === '480p' ? '480p' : '768p',
       aspectRatio: job.aspect_ratio,
@@ -575,6 +584,21 @@ class GenerationWorker {
       idempotencyKey: 'mehroz-' + job.id,
       ...(videoEdit ? { videoEdit } : {}),
     };
+    if (long) {
+      params.inputs = [
+        ...referenceImageAssetIds.map((asset_id,position) => ({asset_id, role:'reference', position})),
+        ...referenceAudioAssetIds.map((asset_id,position) => ({asset_id, role:'reference_audio', position})),
+        ...(referenceVideoAssetId ? [{asset_id:referenceVideoAssetId, role:'reference_video', position:0}] : []),
+      ];
+      if (!operation.longQuoteApprovedAt) {
+        // The customer reviewed a price before queueing. Check the exact
+        // material combination before creating a paid long-video task.
+        const quote = await quoteLongH3Video(this.vgenv, job, { checkCapabilities:false, inputs:params.inputs });
+        validateLongVideoQuote(quote, job);
+        await db.execute('UPDATE generations SET provider_operation=?, updated_at=UTC_TIMESTAMP() WHERE id=?',
+          [JSON.stringify({ ...operation, longQuoteApprovedAt: Date.now() }), job.id]);
+      }
+    }
     if (videoEdit && !operation?.editQuoteApprovedAt) {
       const quote = await this.vgenv.quoteVideoEdit(params);
       validateSourceQuote(quote, videoEdit.tool, Number(job.duration));
@@ -590,19 +614,26 @@ class GenerationWorker {
       );
     } catch (error) {
       if (videoEdit) error.videoEditSubmissionUncertain = true;
+      if (long) error.longVideoSubmissionUncertain = true;
       throw error;
     }
   }
 
   // vgenv asset ids for a job's sound clips and reference video, uploading
   // only the files not uploaded before (kept in provider_operation.vgenvAssets).
-  async vgenvAssets(db, job) {
+  async vgenvAssets(db, job, { includeImages = false } = {}) {
     const [rows] = await db.execute(
       "SELECT position_index, media_kind, filename, mime_type, media_data FROM generation_media WHERE generation_id=? AND media_kind IN ('audio','video') ORDER BY position_index ASC",
       [job.id]
     );
     const media = Array.isArray(rows) ? rows : [];
-    await require('./object_storage.js').hydrateBlobs(media, 'media_data');
+    const { hydrateBlobs } = require('./object_storage.js');
+    await hydrateBlobs(media, 'media_data');
+    if (includeImages) {
+      const [images] = await db.execute('SELECT position_index, filename, mime_type, image_data FROM generation_images WHERE generation_id=? ORDER BY position_index ASC', [job.id]);
+      await hydrateBlobs(images, 'image_data');
+      media.unshift(...images.map(row => ({ ...row, media_kind:'image', media_data:row.image_data })));
+    }
     if (!media.length) return { referenceAudioAssetIds: [], referenceVideoAssetId: null };
     const op = vgenvOperation(job);
     const saved = op.vgenvAssets && typeof op.vgenvAssets === 'object' ? { ...op.vgenvAssets } : {};
@@ -616,6 +647,7 @@ class GenerationWorker {
     }
     if (uploaded) logActivity({ category: 'provider', event: 'vgenv.assets_uploaded', userId: job.user_id, generationId: job.id, provider: 'vgenv', message: uploaded + ' reference file(s) uploaded to vgenv', details: { assets: saved } });
     return {
+      ...(includeImages ? { referenceImageAssetIds: media.filter(r => r.media_kind === 'image').map(r => saved[String(r.position_index)]) } : {}),
       referenceAudioAssetIds: media.filter(r => r.media_kind === 'audio').map(r => saved[String(r.position_index)]),
       referenceVideoAssetId: media.filter(r => r.media_kind === 'video').map(r => saved[String(r.position_index)])[0] || null,
       operation: { ...op, vgenvAssets: saved },
@@ -820,8 +852,8 @@ class GenerationWorker {
       logActivity({ level: 'error', category: 'provider', event: 'job.submit_failed', userId: job.user_id, generationId: job.id, provider: 'vgenv', message: error.message, details: errorDetails(error) });
       // Leave the reservation in place. Stale recovery can replay the same
       // assets and idempotency key to retrieve a task accepted before a timeout.
-      if (error.videoEditSubmissionUncertain) return;
-      const fallback = videoEditOptions(job) && [409, 502].includes(error.statusCode) &&
+      if (error.videoEditSubmissionUncertain || error.longVideoSubmissionUncertain) return;
+      const fallback = (videoEditOptions(job) || isLongH3Duration(job.duration)) && [409, 502].includes(error.statusCode) &&
         error.message.endsWith('Credits were refunded.') ? error.message : 'Generation could not be submitted. Credits were refunded.';
       await refundGeneration(job.id, 'submit_error', backendFailureMessage(error, fallback), null);
     }
