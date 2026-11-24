@@ -6,7 +6,7 @@ const { VgenvClient } = require('../src/provider/vgenv.js');
 
 test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality pricing', () => {
   assert.deepEqual(H3_MODEL_IDS, ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'seedance_2_0_mini', 'minimax_h3_origin_standard', 'minimax_beast']);
-  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin', 'CMM Mini', 'Seedance 2.0 Cheap (MiniMax H3 Origin Standard)', 'Minimax Beast']);
+  assert.deepEqual(publicPricing().map(m => m.label), ['MiniMax H3 Base', 'MiniMax H3 Cinematic', 'MiniMax H3 Origin', 'CMM Mini', 'Origin Standard', 'Minimax Beast']);
   const credits = (usd, seconds) => Math.ceil(usdToCredits(usd) * seconds - 1e-9);
   for (const id of ['minimax_h3', 'minimax_h3_cinematic']) {
     assert.equal(getCost(id, 10, '480p'), credits(0.0015, 10));
@@ -26,7 +26,7 @@ test('Existing H3 models keep Fast pricing; Beast gets separate Origin Quality p
   assert.deepEqual(H3_MODEL_IDS.map(h3VgenvModel), ['base', 'cinematic', 'origin', 'origin', 'origin', 'origin']);
   assert.deepEqual(H3_MODEL_IDS.map(h3VgenvTier), ['fast', 'fast', 'fast', 'fast', 'standard', 'quality']);
   const standard = publicPricing().find(m => m.id === 'minimax_h3_origin_standard');
-  assert.equal(standard.warning, 'This budget option generates with MiniMax H3 Origin Standard, not ByteDance Seedance 2.0.');
+  assert.equal(standard.warning, undefined);
   assert.deepEqual(standard.resolutions.map(r => r.id), ['480p', '768p']);
   assert.deepEqual(standard.durations.map(d => d.seconds), Array.from({length:12},(_,i)=>i+4));
   assert.equal(getCost('minimax_h3_origin_standard', 10, '480p'), credits(0.0038, 10));
