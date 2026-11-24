@@ -17,13 +17,14 @@ const H3_MODELS = {
   // resolve their original provider costs. Public catalog, quotes and new
   // submissions explicitly retire this SKU; not an actual Seedance model.
   seedance_2_0_mini: { label: 'CMM Mini', vgenvModel: 'origin', usdPerSecond: { '480p': 0.0023, '768p': 0.0046 } },
+  minimax_h3_origin_standard: { label: 'Seedance 2.0 Cheap (MiniMax H3 Origin Standard)', warning: 'This budget option generates with MiniMax H3 Origin Standard, not ByteDance Seedance 2.0.', vgenvModel: 'origin', vgenvTier: 'standard', usdPerSecond: { '480p': 0.0038, '768p': 0.0077 } },
   minimax_beast: { label: 'Minimax Beast', vgenvModel: 'origin', vgenvTier: 'quality', usdPerSecond: { '480p': 0.0077, '768p': 0.015 } },
 };
 const H3_MODEL_IDS = Object.keys(H3_MODELS);
 const isH3Model = id => Object.hasOwn(H3_MODELS, String(id || ''));
 // The model name vgenv takes for one of our ids ('base' for unknown ids).
 const h3VgenvModel = id => (isH3Model(id) ? H3_MODELS[id].vgenvModel : 'base');
-// Base/Cinematic/Origin remain Fast; Beast requests Origin Quality.
+// Base/Cinematic/Origin remain Fast; the budget option requests Origin Standard; Beast requests Origin Quality.
 const h3VgenvTier = id => (isH3Model(id) ? (H3_MODELS[id].vgenvTier || 'fast') : 'fast');
 
 function h3Durations(rate) {
