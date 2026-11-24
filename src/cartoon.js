@@ -5,7 +5,7 @@
 // stored on the job; the style direction is added only when it is submitted.
 const { H3_MODEL_IDS } = require('./pricing.js');
 // The new alias is Video Studio-only; no duplicate Origin in Cartoon Studio.
-const CARTOON_MODELS = H3_MODEL_IDS.filter(id => id !== 'seedance_2_0_mini');
+const CARTOON_MODELS = H3_MODEL_IDS.filter(id => !['seedance_2_0_mini', 'minimax_h3_origin_standard'].includes(id));
 // Seedance Lite on Sluice (ids sl_…) is in Cartoon Studio too.
 const isCartoonModel = id => CARTOON_MODELS.includes(String(id || '')) || String(id || '').startsWith('sl_');
 
