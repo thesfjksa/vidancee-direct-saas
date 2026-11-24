@@ -25,3 +25,10 @@ test('retire all AIVID Premium model IDs while preserving other providers',()=>{
     assert.equal(isRetiredModel(id),false,id);
   }
 });
+
+test('retire Origin Standard by ID without retiring Origin Fast or Beast',()=>{
+  assert.equal(isRetiredModel('minimax_h3_origin_standard'),true);
+  assert.equal(isRetiredModel({id:'minimax_h3_origin_standard',label:'Custom name'}),true);
+  assert.equal(isRetiredModel('minimax_h3_origin'),false);
+  assert.equal(isRetiredModel('minimax_beast'),false);
+});

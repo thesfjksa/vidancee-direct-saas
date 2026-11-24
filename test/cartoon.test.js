@@ -74,13 +74,14 @@ test('Cartoon Studio jobs are accepted for its models only and keep the style on
   assert.deepEqual(config.cartoon.styles.map(s => s.id), ['3d', 'anime', '2d', 'clay', 'comic']);
   assert.deepEqual(config.cartoon.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   // Video Studio lists MiniMax H3 (ArgoLink and Higgsfield are not configured here); Seedance Lite is gone.
-  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_h3_origin_standard', 'minimax_beast']);
+  assert.deepEqual(config.pricing.map(m => m.id), ['minimax_h3', 'minimax_h3_cinematic', 'minimax_h3_origin', 'minimax_beast']);
   assert.equal(config.pricing.some(m => m.id === 'seedance_2_0_mini'), false);
 
   assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3', duration: 10, aspectRatio: '9:16', cartoonStyle: 'watercolor' })).status, 400);
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16', cartoonStyle: 'clay' })).status, 400);
   assert.equal((await post({ prompt: 'A dragon', model: 'seedance_2.5', duration: 10, aspectRatio: '9:16' })).status, 400);
-  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3_origin_standard', duration: 4, resolution: '480p', aspectRatio: '9:16', cartoonStyle: 'clay' })).status, 400);
+  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3_origin_standard', duration: 4, resolution: '480p', aspectRatio: '9:16', cartoonStyle: 'clay' })).status, 404);
+  assert.equal((await post({ prompt: 'A dragon', model: 'minimax_h3_origin_standard', duration: 4, resolution: '480p', aspectRatio: '9:16' })).status, 404);
   assert.equal(inserted, null);
   const ok = await post({ prompt: 'A dragon learns to fly', model: 'minimax_h3', duration: 10, resolution: '768p', aspectRatio: '9:16', cartoonStyle: 'clay' });
   assert.equal(ok.status, 201);
