@@ -141,18 +141,24 @@ test('a cached model selection cannot obtain a new quote after its provider is h
     const start = source.indexOf('async function ' + name + '(');
     return source.slice(start, source.indexOf('\n}', start) + 2);
   };
-  let visible = false, priced = 0;
+  let visible = false, priced = 0, longPriced = 0;
   const settings = () => ({ providerModelVisibility: { vgenv: visible }, vgenv: { active: true } });
   const context = { visibleProviderAccess, getProviderSettings: async () => settings(),
     getAdminProviderSettings: async () => settings(), getUserProviderAccess: async () => ({ vgenv: true }),
     isRetiredModel: () => false, DIRECT_VIDEO_MODELS: ['minimax_h3'],
     directVideoSourceActive: (id, access, config) => access.vgenv && config.vgenv.active,
     httpError: (statusCode, message) => Object.assign(new Error(message), { statusCode }),
+    isLongH3Duration: require('../src/pricing.js').isLongH3Duration,
+    VgenvClient: class {}, quoteLongH3Video: async () => { longPriced++; return {cost:600,isEstimate:false}; },
     getCost: () => { priced++; return 100; } };
   vm.createContext(context);
   vm.runInContext(extract('getVisibleUserProviderAccess') + '\n' + extract('quoteModelForUser'), context);
   await assert.rejects(context.quoteModelForUser(1, { model: 'minimax_h3', duration: 4 }), error => error.statusCode === 403);
+  await assert.rejects(context.quoteModelForUser(1,{model:'minimax_h3',duration:30}),error=>error.statusCode===403);
   assert.equal(priced, 0);
+  assert.equal(longPriced,0);
   visible = true;
   assert.equal((await context.quoteModelForUser(1, { model: 'minimax_h3', duration: 4 })).cost, 100);
+  assert.equal((await context.quoteModelForUser(1,{model:'minimax_h3',duration:30})).cost,600);
+  assert.equal(longPriced,1);
 });
