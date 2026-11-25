@@ -1,19 +1,13 @@
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright-core');
-const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { probeCloneSample } = require('../src/voice_probe');
 
 async function run() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-clone-browser-'));
-  const recording = path.join(dir, 'voice-memo.m4a');
-  let browser;
+  // Twelve seconds of a synthetic tone encoded as AAC in an M4A container.
+  const recording = path.join(__dirname,'../test/fixtures/voice-clone-recording.m4a');
+  const browser = await chromium.launch({headless:true,channel:'chromium'});
   try {
-    execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=12',
-      '-c:a', 'aac', recording]);
-    browser = await chromium.launch({headless:true});
     const page = await browser.newPage();
     const url='http://127.0.0.1/clone-test';
     await page.route(url,route=>route.fulfill({contentType:'text/html',body:'<form><input id="cloneVoiceFile" type="file"><input id="cloneVoiceName" value="Test">' +
@@ -57,8 +51,7 @@ async function run() {
     assert.ok(Math.abs(info.duration-12)<0.2);
     console.log('Chromium decoded a real M4A, produced valid WAV, retried the same request, and preserved success after a failed refresh.');
   } finally {
-    await browser?.close();
-    fs.rmSync(dir,{recursive:true,force:true});
+    await browser.close();
   }
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
