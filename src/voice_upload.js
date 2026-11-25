@@ -1,6 +1,6 @@
 'use strict';
 const Busboy=require('busboy'),path=require('node:path');
-const {probe}=require('./voice_probe');
+const {probe,probeCloneSample}=require('./voice_probe');
 const {fail}=require('./voice_contract');
 const AUDIO=new Set(['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave','audio/mp4','audio/m4a','audio/aac','audio/ogg','audio/webm','audio/flac','audio/x-flac']);
 const VIDEO=new Set(['video/mp4','video/quicktime','video/webm']);
@@ -21,4 +21,4 @@ function readUpload(req,{maxBytes=100*1024*1024,allowVideo=true}={}){return new 
  bb.on('error',stop);req.on('aborted',()=>stop(fail(400,'Upload interrupted.')));
  bb.on('close',()=>{if(settled)return;if(!sample)return stop(fail(400,'A media file is required.'));settled=true;resolve({...fields,sample});});req.pipe(bb);
 });}
-module.exports={readUpload,probe};
+module.exports={readUpload,probe,probeCloneSample};

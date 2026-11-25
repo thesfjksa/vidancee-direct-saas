@@ -76,6 +76,7 @@ function voiceKeywordMatch(v,query){
 
 function createVoiceStudio(d){
  const readUpload=d.readUpload||U.readUpload,probe=d.probe||U.probe;
+ const probeCloneSample=d.probeCloneSample||d.probe||U.probeCloneSample;
  let cache=null;
  const pickerCache=new Map(),previewCache=new Map();
  function voiceListData(data){
@@ -269,7 +270,7 @@ function createVoiceStudio(d){
  }
  async function clone(user,req,service){
   const raw=await readUpload(req,{maxBytes:20*1024*1024,allowVideo:false});
-  const name=C.text(raw.voice_name,80),info=await probe(raw.sample);
+  const name=C.text(raw.voice_name,80),info=await probeCloneSample(raw.sample);
   if(info.duration<10||info.duration>300)throw C.fail(400,'Use a voice sample lasting 10 seconds to 5 minutes.');
   const [langs]=await Promise.all([service.client.getLanguages('minimax')]);
   const languageTag=String(raw.language_tag||'English');if(!langs.some(l=>l.code===languageTag))throw C.fail(400,'Choose a supported clone language.');
