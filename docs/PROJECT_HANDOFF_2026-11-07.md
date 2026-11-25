@@ -1,3 +1,10 @@
+## 25 November 2026 — Voice-clone source audio validation
+
+- Customer screenshot showed `Could not read source audio. Check the file and the server FFmpeg installation.` The exact code path was the web-side probe, before the clone row/credit transaction or provider submission. Missing/unlaunchable FFprobe is a plausible cause; production executable state and the original sample bytes are not verified.
+- Voice uploads now resolve explicit FFPROBE_PATH, system FFprobe, then a pinned platform-specific npm FFprobe binary. The existing local-file protocol restriction, bounded execution, audio-stream/duration validation, temporary-file cleanup, upload limits, clone ownership and billing remain. Corrupt media returns 400; missing or unavailable probing returns 503. No paid provider request is required for probe tests.
+- Regression tests exercise real MP3/WAV samples, fallback after a missing executable, invalid input and unavailable tooling. The web app must install the updated dependencies and deploy the new main commit. Prefer a maintained system FFprobe where available. Production cloning still requires an authenticated acceptance test; no paid clone was submitted.
+- First CI run: 737 passing, 2 skipped, 1 failure in the new bundled-binary test. Dependency install uses --ignore-scripts, which can leave the platform binary non-executable. Added a permission repair scoped to the installed trusted binary; CI rerun required.
+
 ## 24 November 2026 — Vgenv 30-second video generations
 
 - Video Studio and Cartoon Studio offer whole-second durations from 4 through 30 for the active MiniMax H3 Base, Cinematic, Origin and Beast models. The Video Studio-only CMMTools Origin 2.0 choice also extends to 30. The initial 15-second selection, short-clip rates, historical retired SKUs and dedicated Video Tools limits stay as before.
