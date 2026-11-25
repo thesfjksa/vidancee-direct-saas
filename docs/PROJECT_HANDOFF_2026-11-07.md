@@ -1,3 +1,10 @@
+## 25 November 2026 — Recover MP3 and WAV voice-clone uploads without FFprobe
+
+- The follow-up screenshot shows the audio validation 503, which occurs in the web app before clone creation, billing, or a request to Vibi. The production reason FFprobe did not complete is unverified.
+- When native probing is unavailable, Voice Clone now parses the uploaded MP3 or WAV bytes in process using pinned `music-metadata`. It checks the codec, audio properties and duration before the existing 10-second to 5-minute limit. Other formats still use FFprobe. The clone upload panel recommends MP3 and WAV.
+- All 36 targeted Voice Studio tests passed locally. Tests disable FFprobe, validate real MP3/WAV files and reject invalid or mismatched formats. A multipart clone test verifies a short clip stops before billing and a valid clip queues. The npm audit reported zero vulnerabilities. No paid clone was submitted.
+- The web host needs the new revision and its updated npm dependencies. GitHub `main` triggers the usual deployment. An authenticated Vibi clone and synthesis test is still needed to verify provider completion.
+
 ## 25 November 2026 — Voice-clone source audio validation
 
 - Customer screenshot showed `Could not read source audio. Check the file and the server FFmpeg installation.` The exact code path was the web-side probe, before the clone row/credit transaction or provider submission. Missing/unlaunchable FFprobe is a plausible cause; production executable state and the original sample bytes are not verified.

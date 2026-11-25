@@ -4,6 +4,8 @@ const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {fail}=require('./voice_contract');
 const exec=promisify(execFile);
 const unavailableCodes=new Set(['ENOENT','EACCES','EPERM','ENOEXEC','ENOTDIR','EINVAL']);
+const cloneMp3Types=new Set(['audio/mpeg','audio/mp3']);
+const cloneWavTypes=new Set(['audio/wav','audio/x-wav','audio/wave']);
 function bundledProbePath(){
  try{return require('@ffprobe-installer/ffprobe').path;}catch{return undefined;}
 }
@@ -55,4 +57,41 @@ async function probe(file,{binaries=probeBinaries()}={}){
   if(dir)await fs.rm(dir,{recursive:true,force:true}).catch(e=>console.warn('[voice-upload] Temporary media cleanup failed:',e.code||e.name));
  }
 }
-module.exports={probe,probeBinaries};
+
+// The web host can block child processes even when a probe binary is installed.
+// Use the uploaded bytes to validate MP3 and WAV clone samples in that case.
+async function probeCloneSample(file, options){
+ try{
+  return await probe(file,options);
+ }catch(error){
+  if(error.statusCode!==503)throw error;
+  const mimeType=String(file.mimeType||'').toLowerCase();
+  const mp3=cloneMp3Types.has(mimeType);
+  if(!mp3&&!cloneWavTypes.has(mimeType)){
+   throw fail(503,'Audio validation for this format is temporarily unavailable. Try an MP3 or WAV sample.');
+  }
+  let parseBuffer;
+  try{
+   ({parseBuffer}=await import('music-metadata'));
+  }catch(importError){
+   console.warn('[voice-upload] In-process audio parser unavailable:',importError.code||importError.name);
+   throw error;
+  }
+  let format;
+  try{
+   const parserMimeType=mp3?'audio/mpeg':'audio/wav';
+   ({format}=await parseBuffer(file.data,{mimeType:parserMimeType},{duration:true,skipCovers:true,skipPostHeaders:true}));
+  }catch{
+   throw fail(400,'Could not read source audio. Upload a valid, playable audio file.');
+  }
+  const correctFormat=mp3
+   ? format.container==='MPEG'&&/Layer 3$/.test(format.codec||'')
+   : format.container==='WAVE'&&Boolean(format.codec);
+  if(!correctFormat||!Number.isFinite(format.duration)||format.duration<=0||
+     !(format.sampleRate>0)||!(format.numberOfChannels>0)){
+   throw fail(400,'The source must contain playable audio in the selected file format.');
+  }
+  return {duration:format.duration,video:false};
+ }
+}
+module.exports={probe,probeBinaries,probeCloneSample};
