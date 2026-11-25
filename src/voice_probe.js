@@ -4,11 +4,21 @@ const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {fail}=require('./voice_contract');
 const exec=promisify(execFile);
 const unavailableCodes=new Set(['ENOENT','EACCES','EPERM','ENOEXEC','ENOTDIR','EINVAL']);
+function bundledProbePath(){
+ try{return require('@ffprobe-installer/ffprobe').path;}catch{return undefined;}
+}
 function probeBinaries(){
  // Prefer the host's maintained FFprobe, but do not depend on a system install.
- let bundled;
- try{bundled=require('@ffprobe-installer/ffprobe').path;}catch{}
- return [...new Set([process.env.FFPROBE_PATH,'ffprobe',bundled].filter(Boolean))];
+ return [...new Set([process.env.FFPROBE_PATH,'ffprobe',bundledProbePath()].filter(Boolean))];
+}
+async function prepareBundledProbe(binary){
+ // npm --ignore-scripts skips the platform package's executable-bit setup.
+ // Only repair the trusted package binary, never a path supplied by configuration or an upload.
+ if(process.platform==='win32'||binary!==bundledProbePath())return;
+ try{
+  const stat=await fs.stat(binary);
+  if(stat.isFile()&&(stat.mode&0o111)!==0o111)await fs.chmod(binary,(stat.mode&0o777)|0o111);
+ }catch(e){console.warn('[voice-upload] Bundled probe permission setup:',e.code||e.name);}
 }
 async function probe(file,{binaries=probeBinaries()}={}){
  let dir;
@@ -19,6 +29,7 @@ async function probe(file,{binaries=probeBinaries()}={}){
   let raw;
   for(const binary of binaries){
    try{
+    await prepareBundledProbe(binary);
     ({stdout:raw}=await exec(binary,args,{timeout:30000,killSignal:'SIGKILL',maxBuffer:100000,windowsHide:true}));
     break;
    }catch(e){
