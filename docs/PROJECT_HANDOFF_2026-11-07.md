@@ -1,3 +1,10 @@
+## 25 November 2026 — Upload phone recordings to Voice Clone
+
+- The owner supplied an iPhone screenshot naming an M4A file. The multipart handler previously rejected MIME labels outside its allowlist before examining the sample. Another screenshot showed an unclassified network error.
+- Voice Studio now prepares recordings such as M4A in the browser as mono 24 kHz WAV. Smaller MP3/WAV files keep their original audio data with a canonical MIME type and filename. Voice Clone also accepts common recording MIME aliases on the multipart route. The 10-second to 5-minute duration and 20 MB original sample limits apply.
+- Samples at least 512 KiB use the existing private direct-upload path when available, with multipart as the fallback. The server accepts exactly one uploaded audio object owned by the current user and removes the temporary object after reading it. A retry keeps the prepared bytes and request key, so switching upload methods does not enqueue a second clone. Clone-list refresh failures cannot overwrite queue confirmation.
+- 36 targeted Node tests passed locally. The multipart and direct-upload regression exercises duration checks, user ownership, cleanup and idempotent replay. Browser CI exercises a real AAC/M4A fixture, WAV validation and a simulated interrupted upload. No production clone was submitted. The web app deploys through the usual GitHub main integration.
+
 ## 25 November 2026 — Recover MP3 and WAV voice-clone uploads without FFprobe
 
 - The follow-up screenshot shows the audio validation 503, which occurs in the web app before clone creation, billing, or a request to Vibi. The production reason FFprobe did not complete is unverified.
