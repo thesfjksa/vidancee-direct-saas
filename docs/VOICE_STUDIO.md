@@ -1,5 +1,11 @@
 # Voice Studio
 
+## 25 November 2026 — Voice-clone source audio validation
+
+- Customer screenshot showed `Could not read source audio. Check the file and the server FFmpeg installation.` The exact code path was the web-side probe, before the clone row/credit transaction or provider submission. Missing/unlaunchable FFprobe is a plausible cause; production executable state and the original sample bytes are not verified.
+- Voice uploads now resolve explicit FFPROBE_PATH, system FFprobe, then a pinned platform-specific npm FFprobe binary. The existing local-file protocol restriction, bounded execution, audio-stream/duration validation, temporary-file cleanup, upload limits, clone ownership and billing remain. Corrupt media returns 400; missing or unavailable probing returns 503. No paid provider request is required for probe tests.
+- Regression tests exercise real MP3/WAV samples, fallback after a missing executable, invalid input and unavailable tooling. The web app must install the updated dependencies and deploy the new main commit. Prefer a maintained system FFprobe where available. Production cloning still requires an authenticated acceptance test; no paid clone was submitted.
+
 ## 19 November 2026 — Language dropdown must trigger Vibi *search*, not just language query
 
 - The user's latest screenshot showed CMMTools returning 40 supposedly “Urdu-labelled” voices after choosing Urdu, but the cards included Jon, Adam, Brazilian and Hindi voices. Typing “Urdu” manually in the keyword box did return the Urdu voices sought. This exposed an earlier mistaken assumption: the Vibi gateway may accept the upstream `language=ur` query but ignore its filtering semantics, while its free-text `search=Urdu` is effective.
@@ -78,7 +84,7 @@ Eleven v4 is identified only by an explicit model ID (`eleven_v4`/equivalent spe
 - Cloning: audio, maximum **20 MiB / 10 seconds–5 minutes**, retaining the current application's byte limit below Vibi's 80 MB.
 - Public request routes remain authenticated, owner scoped, provider visibility/access gated and respect `allowProviderCharges`. Mutations require same-origin requests plus `x-cmm-voice: 1`.
 - Deploy the same main revision on customer web and worker. `initDb` adds `voice_studio_requests` and `voice_input_chunks`, and adjusts clone credit precision to `DECIMAL(12,4)`; existing queued jobs remain. Configure the existing Vibi key/base URL and enabled source. Do not expose the key to clients.
-- The customer web host needs **ffprobe** (or `FFPROBE_PATH`) for source-file validation before upload quoting/charging. It runs against local temporary files with only file/pipe protocols, with a 30-second bound and cleanup. No customer media URL is accepted as an input. Proxy/host upload and request time limits must admit the stated file sizes.
+- The customer web host uses system **ffprobe** (or `FFPROBE_PATH`), with a bundled npm fallback for source-file validation before upload quoting/charging. It runs against local temporary files with only file/pipe protocols, with a 30-second bound and cleanup. No customer media URL is accepted as an input. Proxy/host upload and request time limits must admit the stated file sizes.
 - Keep customer `WORKER_ENABLED=false`, worker host `WORKER_ENABLED=true`. The existing generation worker handles all voice tasks and polls the correct history: `/v1/history/{id}` for speech/dialogue, `/v1/voice-changer/history/{id}`, `/v1/aidubbing/history/{id}`.
 - History plays/downloads MP3/audio and MP4/video dubbing outputs appropriately, with owner-authenticated media proxying and player continuity during status updates.
 
