@@ -1,5 +1,6 @@
 'use strict';
 const C=require('./voice_contract'),S=require('./voice_studio_store'),U=require('./voice_upload');
+const {collectDirectUploads,removeDirectUploads}=require('./direct_uploads');
 const {vibiToCustomerCredits,voiceCreditsPerPkr,VIBI_CREDITS_PER_PKR}=require('./billing');
 const DUB_LANGUAGES=new Set('af ar hy as az be bn bs bg ca ceb ny zh hr cs da nl en et fil fi fr gl ka de el gu ha he hi hu is id ga it ja jv kn kk ky ko lv ln lt lb mk ms ml mr ne no ps fa pl pt pa ro ru sr sd sk sl so es sw sv ta te th tr uk ur vi cy nn yue'.split(' '));
 const MODES=new Set(['speech','dialogue','voice-changer','dubbing','clone-speech']);
@@ -268,8 +269,19 @@ function createVoiceStudio(d){
   }
   return {operation,params,prompt,source,modelLabel,inputFile:['voice-changer','dubbing'].includes(operation)?input.sample:null};
  }
+ async function readCloneUpload(user,req){
+  const contentType=String(req.headers['content-type']||'').split(';',1)[0].trim().toLowerCase();
+  if(contentType!=='application/json')return readUpload(req,{maxBytes:20*1024*1024,allowVideo:false});
+  const body=await d.readJson(req);
+  if(!Array.isArray(body?.audioUploads)||body.audioUploads.length!==1)throw C.fail(400,'Choose one voice sample.');
+  const {audioUploads,...fields}=body;
+  const uploads={audioUploads};
+  const keys=await (d.collectDirectUploads||collectDirectUploads)(uploads,user.id);
+  (d.removeDirectUploads||removeDirectUploads)(keys).catch(()=>{});
+  return {...fields,sample:uploads.audios[0]};
+ }
  async function clone(user,req,service){
-  const raw=await readUpload(req,{maxBytes:20*1024*1024,allowVideo:false});
+  const raw=await readCloneUpload(user,req);
   const name=C.text(raw.voice_name,80),info=await probeCloneSample(raw.sample);
   if(info.duration<10||info.duration>300)throw C.fail(400,'Use a voice sample lasting 10 seconds to 5 minutes.');
   const [langs]=await Promise.all([service.client.getLanguages('minimax')]);

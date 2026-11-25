@@ -5,6 +5,8 @@ on:
     paths:
       - 'public/admin.html'
       - 'public/index.html'
+      - 'public/voice-studio.js'
+      - 'scripts/check-voice-clone-upload-ui.cjs'
       - 'public/landing.html'
       - 'public/pricing.html'
       - 'public/compare.html'
@@ -33,6 +35,8 @@ on:
     paths:
       - 'public/admin.html'
       - 'public/index.html'
+      - 'public/voice-studio.js'
+      - 'scripts/check-voice-clone-upload-ui.cjs'
       - 'public/landing.html'
       - 'public/pricing.html'
       - 'public/compare.html'
@@ -71,6 +75,7 @@ jobs:
       - run: npx playwright-core install --with-deps chromium
       - run: node scripts/check-video-tools-ui.cjs
       - run: node scripts/check-site-visuals-ui.cjs
+      - run: node scripts/check-voice-clone-upload-ui.cjs
       - run: node scripts/check-aivid-admin-ui.cjs
       - run: node scripts/check-aivid-handoff-ui.cjs
       - run: node scripts/check-provider-admin-ui.cjs

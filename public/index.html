@@ -380,9 +380,9 @@
           </div>
         </div>
         <div id="voiceClonePanel" class="two-col hide">
-          <div class="card"><div class="panel-title">Clone a voice</div><p class="muted">MP3 and WAV are recommended. Upload a clean sample lasting 10 seconds to 5 minutes, up to 20 MB. Your clone stays private to your account and uses MiniMax voice synthesis.</p>
+          <div class="card"><div class="panel-title">Clone a voice</div><p class="muted">Upload an MP3, WAV, or M4A recording lasting 10 seconds to 5 minutes, up to 20 MB. Your clone stays private to your account and uses MiniMax voice synthesis.</p>
             <div class="field"><label for="cloneVoiceName">Voice name</label><input id="cloneVoiceName" maxlength="80" placeholder="My voice"></div>
-            <div class="field"><label for="cloneVoiceFile">Audio sample</label><input id="cloneVoiceFile" type="file" accept="audio/*"></div>
+            <div class="field"><label for="cloneVoiceFile">Audio sample</label><input id="cloneVoiceFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.opus"></div>
             <div class="control-grid"><div><label for="cloneLanguage">Sample language</label><select id="cloneLanguage"></select></div><div><label for="cloneGender">Gender</label><select id="cloneGender"><option>Male</option><option>Female</option></select></div></div>
             <div class="field"><label for="clonePreview">Preview text</label><input id="clonePreview" maxlength="200" value="Hello, this is my cloned voice."></div><div class="cost-row"><span>Cloning cost</span><strong id="clonePrice">Checking…</strong></div>
             <button id="cloneVoiceBtn" class="btn primary" onclick="createVoiceClone()">Create cloned voice</button><div id="cloneVoiceMsg" class="msg muted" aria-live="polite"></div><div id="voiceCloneList" style="display:grid;gap:8px;margin-top:12px"></div>
@@ -773,7 +773,7 @@
   </div>
 </dialog>
 
-<script src="/voice-studio.js?v=20261123-preview-playback"></script>
+<script src="/voice-studio.js?v=20261125-recording-upload"></script>
 <script src="/voice-picker.js?v=20261123-brand-refresh"></script>
 <script src="/video-tools.js?v=2"></script>
 <script>

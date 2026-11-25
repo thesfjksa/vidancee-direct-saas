@@ -1,5 +1,6 @@
 'use strict';
-let voiceTool='speech',voiceQuote=null,voiceKey=null,voiceKeySignature=null,cloneKey=null,cloneSignature=null,voiceOptionsSeq=0;
+let voiceTool='speech',voiceQuote=null,voiceKey=null,voiceKeySignature=null,voiceOptionsSeq=0;
+let pendingClone=null;
 function voiceApi(path,options={}){return api(path,{...options,headers:{...(options.headers||{}),'x-cmm-voice':'1'}});}
 function voiceMessage(message,error=false){const m=$('voiceMsg');m.className='msg '+(error?'err':'muted');m.textContent=message;}
 function voiceInvalidate(){voiceQuote=null;++voiceCostRequestSeq;$('voiceCost').textContent='—';}
@@ -137,25 +138,99 @@ async function loadVoiceGenerations(){
  if(!config?.voice?.enabled||voiceGenerationLoadPending)return;voiceGenerationLoadPending=true;
  try{const d=await api('/api/voice-generations');voiceGenerations=d.generations||[];renderVoiceHistory();}catch(e){if(e.status===401)location.reload();}finally{voiceGenerationLoadPending=false;}
 }
-async function loadVoiceClones(){
+async function loadVoiceClones({reportError=true}={}){
  if(!config?.voice?.enabled)return;
  try{
   const d=await api('/api/voice-clones');voiceClones=d.clones||[];
   $('voiceCloneList').innerHTML=voiceClones.length?voiceClones.map(c=>'<div class="provider-access-item" style="padding:10px"><div><strong>'+escapeHtml(c.voice_name)+'</strong><div class="muted">'+escapeHtml(c.language_tag||'')+'</div>'+(c.error_message?'<div class="msg err">'+escapeHtml(c.error_message)+'</div>':'')+'</div><span class="badge '+escapeHtml(c.status)+'">'+escapeHtml(c.status)+'</span></div>').join(''):'<div class="muted">No cloned voices yet.</div>';
   const select=$('cloneSpeechVoice'),old=select.value;select.innerHTML=voiceClones.filter(c=>c.status==='done').map(c=>'<option value="'+Number(c.id)+'">'+escapeHtml(c.voice_name)+'</option>').join('');if([...select.options].some(o=>o.value===old))select.value=old;
   $('cloneSpeechBtn').disabled=!select.value;
- }catch(e){$('cloneVoiceMsg').textContent=e.message;}
+ }catch(e){if(reportError)$('cloneVoiceMsg').textContent='Could not refresh your cloned voices. Try refreshing Voice Studio.';}
 }
-async function createVoiceClone(){
- const b=$('cloneVoiceBtn'),m=$('cloneVoiceMsg'),file=$('cloneVoiceFile').files[0],name=$('cloneVoiceName').value.trim();
- if(!file||!name){m.textContent='Choose an audio sample and a voice name.';return;}if(file.size>20*1024*1024){m.textContent='Voice samples must be 20 MB or smaller.';return;}
- const data={voice_name:name,language_tag:$('cloneLanguage').value,gender:$('cloneGender').value,preview_text:$('clonePreview').value||'Hello'};
- const signature=JSON.stringify({...data,name:file.name,size:file.size,lastModified:file.lastModified});if(cloneSignature!==signature){cloneKey=crypto.randomUUID();cloneSignature=signature;}
- b.disabled=true;m.textContent='Uploading clone sample…';
+
+async function prepareCloneAudio(file){
+ const type=file.type.toLowerCase();
+ const generic=!type||type==='application/octet-stream';
+ const mp3=['audio/mpeg','audio/mp3','audio/x-mp3'].includes(type)||(generic&&/\.mp3$/i.test(file.name));
+ const wav=['audio/wav','audio/x-wav','audio/wave','audio/vnd.wave'].includes(type)||(generic&&/\.wav$/i.test(file.name));
+ if((mp3||wav)&&file.size<=15*1024*1024){
+  const mimeType=mp3?'audio/mpeg':'audio/wav';
+  return new File([file],mp3?'voice-sample.mp3':'voice-sample.wav',{type:mimeType});
+ }
+
+ // Convert recordings (such as iPhone M4A) to a compact, provider-compatible WAV.
+ const sampleRate=24000;
+ let audio;
  try{
-  const form=new FormData();for(const [k,v] of Object.entries(data))form.append(k,v);form.append('file',file,file.name);form.append('requestKey',cloneKey);
-  await voiceApi('/api/voice-clones',{method:'POST',body:form});cloneKey=null;cloneSignature=null;$('cloneVoiceFile').value='';m.textContent='Clone queued. Refresh to check its progress.';await Promise.all([loadVoiceClones(),loadCredits(),loadDashboard()]);
- }catch(e){m.textContent=e.message;}finally{b.disabled=false;}
+  const Context=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+  const context=new Context(1,1,sampleRate);
+  audio=await context.decodeAudioData(await file.arrayBuffer());
+ }catch{
+  throw new Error('This browser could not open the recording. Choose a playable MP3, WAV, or M4A file.');
+ }
+ if(audio.duration<10||audio.duration>300)throw new Error('Use a voice sample lasting 10 seconds to 5 minutes.');
+ const dataBytes=audio.length*2;
+ const buffer=new ArrayBuffer(44+dataBytes),header=new DataView(buffer);
+ const label=(offset,value)=>{for(let i=0;i<value.length;i++)header.setUint8(offset+i,value.charCodeAt(i));};
+ label(0,'RIFF');header.setUint32(4,36+dataBytes,true);
+ label(8,'WAVE');label(12,'fmt ');header.setUint32(16,16,true);
+ header.setUint16(20,1,true);header.setUint16(22,1,true);
+ header.setUint32(24,audio.sampleRate,true);header.setUint32(28,audio.sampleRate*2,true);
+ header.setUint16(32,2,true);header.setUint16(34,16,true);
+ label(36,'data');header.setUint32(40,dataBytes,true);
+ const channels=Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i));
+ for(let i=0;i<audio.length;i++){
+  let sum=0;
+  for(const channel of channels)sum+=channel[i];
+  const sample=Math.max(-1,Math.min(1,sum/channels.length));
+  header.setInt16(44+i*2,Math.round(sample*(sample<0?32768:32767)),true);
+ }
+ return new File([buffer],'voice-sample.wav',{type:'audio/wav'});
+}
+
+async function createVoiceClone(){
+ const b=$('cloneVoiceBtn'),m=$('cloneVoiceMsg'),input=$('cloneVoiceFile'),file=input.files[0],name=$('cloneVoiceName').value.trim();
+ if(b.disabled)return;
+ if(!file||!name){m.textContent='Choose an audio sample and a voice name.';return;}
+ if(file.size>20*1024*1024){m.textContent='Voice samples must be 20 MB or smaller.';return;}
+ const data={voice_name:name,language_tag:$('cloneLanguage').value,gender:$('cloneGender').value,preview_text:$('clonePreview').value||'Hello'};
+ const signature=JSON.stringify(data);
+ if(pendingClone?.source!==file||pendingClone.signature!==signature){
+  pendingClone={source:file,signature,key:crypto.randomUUID(),audio:null};
+ }
+ const request=pendingClone;
+ b.disabled=true;m.textContent='Preparing your voice recording…';
+ try{
+  const audio=request.audio??=await prepareCloneAudio(file);
+  m.textContent='Uploading clone sample…';
+  let uploads=null;
+  if(audio.size>=512*1024){
+   try{uploads=await uploadReferencesDirect([{kind:'audio',item:{file:audio,filename:audio.name}}],m);}
+   catch(error){if(error.status&&error.status<500)throw error;}
+  }
+  const fields={...data,requestKey:request.key};
+  let body;
+  if(uploads?.length){
+   body=JSON.stringify({...fields,audioUploads:uploads.map(entry=>entry.upload)});
+   m.textContent='Submitting your clone…';
+  }else{
+   m.textContent='Uploading clone sample…';
+   body=new FormData();
+   for(const [key,value] of Object.entries(fields))body.append(key,value);
+   body.append('file',audio,audio.name);
+  }
+  const result=await voiceApi('/api/voice-clones',{method:'POST',body,signal:AbortSignal.timeout(120000)});
+  if(!result?.clone?.id)throw new Error('The server did not confirm the clone. Try again with the same sample.');
+  pendingClone=null;
+  if(input.files[0]===file)input.value='';
+  m.textContent='Clone queued. Refresh to check its progress.';
+  await Promise.allSettled([loadVoiceClones({reportError:false}),loadCredits(),loadDashboard()]);
+ }catch(error){
+  m.textContent=error.status===413?'The host rejected the upload size. Try a shorter recording.'
+   : ['TypeError','TimeoutError','AbortError'].includes(error.name)
+    ? 'The upload connection was interrupted. Tap Create cloned voice again to retry.'
+    : error.message;
+ }finally{b.disabled=false;}
 }
 let cloneSpeechKey=null,cloneSpeechSignature=null;
 async function createCloneSpeech(){

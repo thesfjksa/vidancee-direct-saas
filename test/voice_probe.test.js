@@ -47,31 +47,41 @@ test('MP3 clone upload queues only a valid sample when the web host cannot launc
  const makeRequest=(audio)=>{
   const fields={voice_name:'Test voice',requestKey:'test-request-1',language_tag:'English'};
   const parts=Object.entries(fields).map(([name,value])=>'--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"\r\n\r\n'+value+'\r\n');
-  const header='--'+boundary+'\r\nContent-Disposition: form-data; name="file"; filename="sample.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n';
+  const header='--'+boundary+'\r\nContent-Disposition: form-data; name="file"; filename="sample.mp3"\r\nContent-Type: application/octet-stream\r\n\r\n';
   const req=Readable.from(Buffer.concat([Buffer.from(parts.join('')+header),audio,Buffer.from('\r\n--'+boundary+'--\r\n')]));
   req.method='POST';
   req.headers={'content-type':'multipart/form-data; boundary='+boundary,'x-cmm-voice':'1',origin:'https://cmmtools.site'};
   return req;
  };
- let queued=0,woken=0,checkedLanguages=0,reply;
+ let queued=0,woken=0,checkedLanguages=0,reply,savedReceipt;
  const connection={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release() {},
   async execute(sql,args){
    if(sql.startsWith('SELECT credits'))return [[{credits:10,status:'active'}]];
-   if(sql.startsWith('SELECT * FROM voice_studio_requests'))return [[]];
+   if(sql.startsWith('SELECT * FROM voice_studio_requests'))return [savedReceipt?[savedReceipt]:[]];
+   if(sql.startsWith('SELECT id,voice_name,status'))return [[{id:123,voice_name:'Test voice',status:'queued'}]];
    if(sql.startsWith('INSERT INTO user_voice_clones')){
     assert.deepEqual(args.at(-1),valid);
+    assert.equal(args.at(-2),'audio/mpeg');
     queued++;
     return [{insertId:123}];
    }
    assert.match(sql,/INSERT INTO voice_studio_requests/);
+   savedReceipt={request_hash:args[2],clone_id:args[4]};
    return [{affectedRows:1}];
   },
  };
+ const key='12345678-1234-1234-1234-123456789abc',removed=[];
+ const {collectDirectUploads}=require('../src/direct_uploads');
  const studio=createVoiceStudio({
   requireDatabase(){},requireUser:async()=>({id:7}),origin:'https://cmmtools.site',
   db:()=>({getConnection:async()=>connection}),access:async()=>({vibi:true}),
   settings:async()=>({vibiApiKey:'test-key',vibiEnabled:true,allowProviderCharges:true}),
   client:()=>({getLanguages:async()=>{checkedLanguages++;return [{code:'English'}];}}),
+  readJson:async req=>req.body,
+  collectDirectUploads:(body,userId)=>collectDirectUploads(body,userId,{
+   store:{head:async()=>({size:valid.length}),get:async()=>new Response(valid)},
+  }),
+  removeDirectUploads:async keys=>{removed.push(...keys);},
   probeCloneSample:file=>probeCloneSample(file,{binaries:[]}),
   wake(){woken++;},json(_res,status,body){reply={status,body};},
  });
@@ -82,4 +92,13 @@ test('MP3 clone upload queues only a valid sample when the web host cannot launc
  assert.deepEqual(reply,{status:201,body:{ok:true,clone:{id:123,voice_name:'Test voice',status:'queued'}}});
  assert.equal(queued,1);
  assert.equal(woken,1);
+ const directRequest={method:'POST',headers:{'content-type':'application/json','x-cmm-voice':'1',origin:'https://cmmtools.site'},
+  body:{voice_name:'Test voice',requestKey:'test-request-1',language_tag:'English',
+   audioUploads:[{key:'uploads/7/'+key,filename:'sample.mp3',mimeType:'audio/mpeg'}]}};
+ await studio.handle(directRequest,{},null,'/api/voice-clones');
+ assert.equal(reply.body.clone.id,123);
+ assert.equal(queued,1,'the same sample and request key replay even if the transfer method changes');
+ assert.deepEqual(removed,['uploads/7/'+key]);
+ await assert.rejects(studio.handle({...directRequest,body:{...directRequest.body,
+  audioUploads:[{key:'uploads/8/'+key,filename:'sample.mp3',mimeType:'audio/mpeg'}]}},{},null,'/api/voice-clones'),/Invalid uploaded file/);
 });
