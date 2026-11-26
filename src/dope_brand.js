@@ -18,7 +18,7 @@ function customerModelLabel(label) {
   return typeof label === 'string' ? label.replace(/wxksai/gi, 'Dope') : label;
 }
 function customerProviderAccess(access = {}) {
-  const { wxksai, ...other } = access;
-  return { ...other, dope: wxksai === true };
+  const { wxksai, puream, ...other } = access;
+  return { ...other, dope: wxksai === true, ...(Object.hasOwn(access,'puream')?{new:puream===true}:{}) };
 }
 module.exports = { customerModelId, storedModelId, customerModelLabel, customerProviderAccess };

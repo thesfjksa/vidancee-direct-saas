@@ -1,6 +1,7 @@
 'use strict';
 
 const { customerError } = require('./provider_errors.js');
+const { hideNewSourceInMessage, customerNewLabel, customerNewModelId } = require('./new_brand.js');
 
 // Customers never see which companies run CMM Tools' models. Provider error
 // messages are passed through this before they reach a customer or Claude;
@@ -11,7 +12,7 @@ const VENDORS = /\b(?:888[\s-]*API(?:\.xin)?|API[\s-]*888|Vercel\s+AI\s+Gateway|
 // with the maintenance notice first (provider_errors.js customerError).
 function hideVendors(text) {
   if (typeof text !== 'string' || !text) return text;
-  return customerError(text)
+  return customerError(hideNewSourceInMessage(text))
     .replace(/\b(?:CREATEPULSE|VIDANCEE|VGENV|ARGOLINK|SMARTAIPI|VERCEL|FAL|VIBI|GEMINI|YOTTA|HIGGSFIELD|SLUICE)_[A-Z_]+\b/g, 'service setting')
     .replace(/\bAPI888_[A-Z_]+\b/g, 'service setting')
     .replace(/\bapi888_(?=[a-z0-9])/gi, '')
@@ -43,7 +44,13 @@ function hideVendorsInBody(body, depth = 0) {
   if (!body || typeof body !== 'object' || depth > 6) return body;
   if (Array.isArray(body)) { for (const item of body) hideVendorsInBody(item, depth + 1); return body; }
   for (const [key, value] of Object.entries(body)) {
-    if (typeof value === 'string') { if (MESSAGE_KEYS.has(key)) body[key] = hideVendors(value); }
+    if (typeof value === 'string') {
+      if (MESSAGE_KEYS.has(key)) body[key] = hideVendors(value);
+      else if (['id','model','model_id','modelId','publicModelId'].includes(key)) body[key] = customerNewModelId(value);
+      else if (key==='label') body[key] = customerNewLabel(value);
+      else if (['provider','provider_name','source'].includes(key)&&/^(?:puream|pure\s*ream|纯梦)$/i.test(value)) body[key]='new';
+      else if (['code','error_code','errorCode'].includes(key)&&/(?:puream|pure\s*ream|纯梦)/i.test(value)) body[key]='SERVICE_ERROR';
+    }
     else if (value && typeof value === 'object') hideVendorsInBody(value, depth + 1);
   }
   return body;

@@ -1,6 +1,7 @@
 'use strict';
 const store = require('./customer_api_store.js');
 const { hideVendors } = require('./vendor_names.js');
+const { customerNewModelId } = require('./new_brand.js');
 const fail = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode }); };
 const FIELDS = new Set(['model','prompt','duration','resolution','aspectRatio','generateAudio','generationMode','quality','imageSize',
   'images','videos','audios','referenceOrder','videoRoles','audioRoles','reuseGenerationId','reuseImageIds']);
@@ -12,7 +13,7 @@ function normalizeInput(value, mediaType = 'video') {
   }
   for (const key of Object.keys(body)) if (!FIELDS.has(key)) fail(400, 'Unsupported field: ' + key);
   if (typeof body.model !== 'string' || !body.model.trim()) fail(400, 'model is required. Use an ID from GET /v1/models.');
-  body.model = body.model.trim();
+  body.model = customerNewModelId(body.model.trim());
   if (body.duration !== undefined) { body.duration = Number(body.duration); if (!Number.isFinite(body.duration) || body.duration <= 0) fail(400, 'duration must be a positive number of seconds.'); }
   if (body.generateAudio !== undefined) {
     if (![true,false,'true','false','1','0'].includes(body.generateAudio)) fail(400, 'generateAudio must be true or false.');
@@ -30,7 +31,7 @@ function normalizeInput(value, mediaType = 'video') {
 function publicJob(row, mediaType) {
   const image = mediaType === 'image';
   const base = image ? '/v1/images/generations/' : '/v1/videos/';
-  return { id: row.id, object: image ? 'image.generation' : 'video', model: row.model, status: row.status,
+  return { id: row.id, object: image ? 'image.generation' : 'video', model: customerNewModelId(row.model), status: row.status,
     prompt: row.prompt, ...(image ? {} : { duration: Number(row.duration), resolution: row.resolution || null }),
     aspect_ratio: row.aspect_ratio, credits_cost: Number(row.credits_cost),
     refunded_at: row.refunded_at || null, error: row.error_message ? hideVendors(row.error_message) : null,

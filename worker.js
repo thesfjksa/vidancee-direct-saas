@@ -92,7 +92,7 @@ healthServer=http.createServer((req,res)=>{
       higgsfieldPolling:worker.higgsfieldQueue.health(),
       sluicePolling:worker.sluiceQueue.health(),
       longAiPolling:worker.longAiQueue.health(),
-      pureamPolling:worker.pureamQueue.health(),
+      newModelPolling:worker.pureamQueue.health(),
       vidanceePolling:worker.vidanceeQueue.health(),
       aividPolling:worker.aividQueue.health(),
       upscalePolling:worker.upscaleQueue.health(),
@@ -145,6 +145,7 @@ healthServer.listen(port,host,()=>{
   await migrateLegacyProviderEnvSettings();
   await require('./src/api888_access.js').disableApi888ForUsersOnce(getPool());
   await require('./src/api888_access.js').enableDefaultApi888ModelsOnce(getPool()).catch(error=>console.error('888API default-on models failed:',error.message));
+  await require('./src/puream_access.js').enablePureamForEveryoneOnce(getPool()).catch(error=>console.error('Puream access for all failed:',error.message));
   await require('./src/api888_access.js').cancelFullHdJobsOnce(getPool()).catch(error=>console.error('Full HD cancel failed:',error.message));
   await require('./src/api888_access.js').cancelFullSpecJobsOnce(getPool()).catch(error=>console.error('Full Spec cancel failed:',error.message));
   await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));

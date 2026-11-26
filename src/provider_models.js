@@ -140,7 +140,9 @@ async function syncProviderModels(provider, discoveredModels, connection = null,
           // WXKSAI / Dope is explicitly Admin opt-in. Insert disabled
           // atomically so newly discovered models cannot briefly be offered
           // to paying customers between the import and post-import review.
-          ['wxksai','puream'].includes(provider)?0:1,
+          // The owner has approved New models as default-on; later Admin
+          // switches are preserved by the duplicate-key update above.
+          provider==='wxksai'?0:1,
         ],
       );
       if(provider==='api888'){
@@ -171,6 +173,7 @@ const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
 const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai','puream'];
 const { customerModelId, storedModelId, customerModelLabel } = require('./dope_brand.js');
+const { customerNewModelId, storedNewModelId, customerNewLabel } = require('./new_brand.js');
 const { isRetiredModel } = require('./retired_models.js');
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
 
@@ -319,7 +322,7 @@ async function getProviderModelByPublicId(provider, publicModelId, mediaType) {
     `SELECT * FROM provider_models
      WHERE provider=? AND public_model_id=? AND media_type=? AND enabled=1 AND available=1
      ORDER BY updated_at DESC LIMIT 1`,
-    [String(provider), provider === 'wxksai' ? storedModelId(publicModelId) : String(publicModelId), String(mediaType)],
+    [String(provider), provider === 'wxksai' ? storedModelId(publicModelId) : provider==='puream' ? storedNewModelId(String(publicModelId)) : String(publicModelId), String(mediaType)],
   );
   const found=rows[0] ? serializeProviderModel(rows[0]) : null;
   return found && !isRetiredModel(found) ? found : null;
@@ -467,8 +470,8 @@ function publicVideoModel(model) {
   }));
 
   return {
-    id: model.provider === 'wxksai' ? customerModelId(model.publicModelId) : model.publicModelId,
-    label: model.provider === 'wxksai' ? customerModelLabel(model.label) : hideApi888Name(model.label),
+    id: model.provider === 'wxksai' ? customerModelId(model.publicModelId) : model.provider==='puream' ? customerNewModelId(model.publicModelId) : model.publicModelId,
+    label: model.provider === 'wxksai' ? customerModelLabel(model.label) : model.provider==='puream' ? customerNewLabel(model.label) : hideApi888Name(model.label),
     dynamicCost: true,
     defaultResolution: model.defaultResolution || (resolutions[0]?.id || null),
     resolutions,

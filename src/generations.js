@@ -2,6 +2,7 @@ const customerApiStore = require('./customer_api_store.js');
 const { MAX_PROMPT_CHARS } = require('./prompt_limits.js');
 const { hideVendors } = require('./vendor_names.js');
 const { customerModelId } = require('./dope_brand.js');
+const { customerNewModelId } = require('./new_brand.js');
 const crypto = require('node:crypto');
 const { getPool } = require('./db.js');
 const { logActivity } = require('./activity_log.js');
@@ -14,7 +15,7 @@ function serializeGeneration(row) {
   return {
     id: row.id,
     mode: row.mode,
-    model: row.provider === 'wxksai' ? customerModelId(row.model) : row.model,
+    model: row.provider === 'wxksai' ? customerModelId(row.model) : customerNewModelId(row.model),
     duration: Number(row.duration),
     resolution: row.resolution || null,
     aspect_ratio: row.aspect_ratio,

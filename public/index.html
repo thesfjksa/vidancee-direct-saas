@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/studio.css?v=cmm-20">
 <link rel="stylesheet" href="/payment-qr.css?v=1">
 <link rel="stylesheet" href="/voice-picker.css?v=20261123-brand-refresh">
-<script src="/dope-performance.js?v=6"></script>
+<script src="/dope-performance.js?v=7"></script>
 <link rel="stylesheet" href="/site-visuals.css?v=20261123-visuals1"></head>
 <body>
 
@@ -1450,10 +1450,10 @@ function rebuildCustomSelect(id){
       ?modelPickerOptionHtml(id,o,i,selected)
       :customSelectRatioPicker(id)?ratioPickerOptionHtml(o,i,selected)
       :'<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+escapeHtml(o.textContent)+'</button>';
-    // Group by the stable Puream public ID, not the admin-editable label.
-    (id==='model'&&/^puream_/.test(o.value)?newOptions:mainOptions).push(html);
+    // Group by the stable New public ID, not the admin-editable label.
+    (id==='model'&&/^new_/.test(o.value)?newOptions:mainOptions).push(html);
   });
-  const selectedIsNew=id==='model'&&/^puream_/.test(select.options[select.selectedIndex]?.value||'');
+  const selectedIsNew=id==='model'&&/^new_/.test(select.options[select.selectedIndex]?.value||'');
   const newMenu=newOptions.length?'<details class="model-picker-new-group"'+(groupWasOpen||selectedIsNew?' open':'')+'>'+
     '<summary class="model-picker-group-header"><span class="model-picker-group-name">New</span>'+
     '<span class="model-picker-group-count">'+newOptions.length+(newOptions.length===1?' model':' models')+'</span>'+

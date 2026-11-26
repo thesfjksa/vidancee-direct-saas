@@ -6,7 +6,7 @@ const FAMILIES = { seedance20: 'Seedance 2.0', seedance25: 'Seedance 2.5', wan3:
 const MAX_MEDIA = 50;
 const MIB = 1024 * 1024;
 const publicId = id => String(id).replace(/-/g, '_');
-const isPureamModel = id => /^puream_(?:sd20|sd25|wan3)_[a-f0-9]+$/.test(String(id||''));
+const isPureamModel = id => /^puream_(?:sd20|sd25|wan3)_[a-f0-9]+$/.test(require('./new_brand.js').storedNewModelId(String(id||'')));
 const invalid = message => Object.assign(new Error(message), {statusCode:400});
 
 function pureamMediaModels(catalog) {

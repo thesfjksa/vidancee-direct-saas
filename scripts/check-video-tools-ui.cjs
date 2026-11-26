@@ -18,10 +18,10 @@ const videoModel=(id,label,puream=false)=>({
 });
 const modelFixtures=[
   videoModel('minimax_h3','MiniMax H3'),
-  videoModel('puream_sd25_abcdef123456','Seedance 2.5 · Fixture',true),
+  videoModel('new_sd25_abcdef123456','Seedance 2.5 · Fixture',true),
   videoModel('dope_seedance_2_0_mini_720p','Dope Seedance'),
-  videoModel('puream_wan3_abcdef654321','Wan 3.0 · Fixture',true),
-  videoModel('puream_sd20_123456abcdef','Renamed fixture model',true)
+  videoModel('new_wan3_abcdef654321','Wan 3.0 · Fixture',true),
+  videoModel('new_sd20_123456abcdef','Renamed fixture model',true)
 ];
 
 
@@ -39,9 +39,9 @@ const modelFixtures=[
       const path = url.pathname;
       if (path === '/api/config') return route.fulfill({json:{ok:true,user,pricing:modelFixtures,imagePricing:[],signupsEnabled:true}});
       if (path === '/api/model-cost') return route.fulfill({json:{cost:50}});
-      if (path === '/api/puream-performance') return route.fulfill({json:{models:{
-        puream_sd25_abcdef123456:{successRate:25,averageLatencyMs:2000},
-        puream_wan3_abcdef654321:{successRate:100,averageLatencyMs:1000}
+      if (path === '/api/new-performance') return route.fulfill({json:{models:{
+        new_sd25_abcdef123456:{successRate:25,averageLatencyMs:2000},
+        new_wan3_abcdef654321:{successRate:100,averageLatencyMs:1000}
       }}});
       if (path === '/api/dope-performance') return route.fulfill({json:{models:{}}});
       if (path === '/api/video-tools/quote') {
@@ -125,7 +125,7 @@ const modelFixtures=[
     await group.locator('summary').press('Enter');
     assert.equal(await group.evaluate(el=>el.open),true);
     await group.getByRole('option',{name:/Wan 3.0/}).click();
-    assert.equal(await page.locator('#model').inputValue(),'puream_wan3_abcdef654321');
+    assert.equal(await page.locator('#model').inputValue(),'new_wan3_abcdef654321');
     assert.equal(await page.locator('#addVideoReferenceButton').isVisible(),true);
     await page.setViewportSize({width:390,height:844});
     await trigger.click();
