@@ -8,7 +8,7 @@
   const pages = new Map();
   const sources = {
     aivid: null, argolink: 'argo', api888: 'api888', higgsfield: 'higgsfield',
-    longai: 'longai', wxksai: 'wxksai', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
+    longai: 'longai', wxksai: 'wxksai', puream: 'puream', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
     vgenv: 'vgenv', fal: 'fal', vibi: 'vibi',
   };
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
@@ -69,7 +69,9 @@
     el('providerSourceSelect').value = key;
     el('providerSaveFooter').hidden = key === 'aivid';
     if (key === 'longai') loadLongAiPrices();
+    if (key === 'puream') loadPureamModels();
   };
+  setInterval(() => { if (currentView==='connections' && el('providerSourceSelect')?.value==='puream') loadPureamModels(); }, 10*60*1000);
   window.filterProviderSources = () => {
     const query = el('providerSourceSearch').value.trim().toLowerCase();
     let count = 0;

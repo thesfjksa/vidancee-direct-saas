@@ -13,6 +13,9 @@ const DEFAULTS = {
   vercel_enabled: 'true',
   vercel_max_inflight: '2',
   vercel_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
+  puream_api_key: '',
+  puream_enabled: 'false',
+  puream_max_inflight: '1',
   wxksai_api_key: '',
   wxksai_enabled: 'false',
   wxksai_max_inflight: '2',
@@ -205,6 +208,9 @@ async function getProviderSettings(db = getPool()) {
     // Every USD-priced source converts at cost (1 credit = Rs 1, Rs 280 per USD);
     // the profit is in the plan price, so these rates are no longer settings.
     vercelCustomerCreditsPerUsd: CREDITS_PER_USD,
+    pureamApiKey: String(read('puream_api_key') || '').trim(),
+    pureamEnabled: asBool(read('puream_enabled')),
+    pureamMaxInflight: Math.max(1,Math.min(5,Number(read('puream_max_inflight')||1))),
     wxksaiApiKey: String(read('wxksai_api_key') || '').trim(),
     wxksaiEnabled: asBool(read('wxksai_enabled')),
     wxksaiMaxInflight: Math.max(1, Math.min(5,Number(read('wxksai_max_inflight')||2))),
@@ -264,6 +270,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.vercelApiKey), configured: Boolean(s.vercelApiKey),
       enabled: s.vercelEnabled, active: Boolean(s.vercelEnabled && s.vercelApiKey),
       maxInflight: s.vercelMaxInflight, customerCreditsPerUsd: s.vercelCustomerCreditsPerUsd,
+    },
+    puream: {
+      baseUrl: require('./puream_models.js').BASE_URL,
+      apiKeyConfigured: Boolean(s.pureamApiKey), configured: Boolean(s.pureamApiKey),
+      enabled: s.pureamEnabled, active: Boolean(s.pureamEnabled && s.pureamApiKey),
+      maxInflight: s.pureamMaxInflight, creditsPerUsd: CREDITS_PER_USD,
     },
     wxksai: {
       baseUrl: 'https://api.wxksai.com/v1',
@@ -381,6 +393,20 @@ async function updateProviderSettings(input = {}) {
     if (!Number.isFinite(n)||n<=0||n>1000000) throw Object.assign(new Error('fal.ai credits per USD must be greater than zero and at most 1000000.'), {statusCode:400});
     falUpdates.push(['fal_customer_credits_per_usd',String(n)]);
   }
+  const pureamUpdates=[];
+  if ('pureamEnabled' in input) {
+    if (typeof input.pureamEnabled !== 'boolean') throw Object.assign(new Error('Puream enabled must be boolean.'),{statusCode:400});
+    pureamUpdates.push(['puream_enabled',String(input.pureamEnabled)]);
+  }
+  if ('pureamMaxInflight' in input) {
+    const max=Number(input.pureamMaxInflight);
+    if(!Number.isInteger(max)||max<1||max>5)throw Object.assign(new Error('Puream inflight limit must be 1–5.'),{statusCode:400});
+    pureamUpdates.push(['puream_max_inflight',String(max)]);
+  }
+  if(Object.hasOwn(input,'pureamApiKey')&&(typeof input.pureamApiKey!=='string'||input.pureamApiKey.length>512||/\s/.test(input.pureamApiKey.trim())))throw Object.assign(new Error('Invalid Puream authorization code.'),{statusCode:400});
+  for(const update of pureamUpdates)await put(...update);
+  if(input.clearPureamApiKey===true)await del('puream_api_key');
+  else if(input.pureamApiKey?.trim())await put('puream_api_key',input.pureamApiKey.trim(),true);
   if ('wxksaiEnabled' in input) {
     if (typeof input.wxksaiEnabled !== 'boolean') throw Object.assign(new Error('WXKSAI enabled must be boolean.'), {statusCode:400});
     await put('wxksai_enabled',input.wxksaiEnabled?'true':'false');

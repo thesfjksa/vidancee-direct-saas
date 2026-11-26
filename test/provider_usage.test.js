@@ -32,12 +32,14 @@ test('usage combines provider balances with 30-day consumption from job records'
   const admin = { vercel: { active: true, configured: true }, vgenv: { active: true, configured: true } };
   const rows = await usage.providerUsage(db, settings, admin, { fetchImpl });
   const by = Object.fromEntries(rows.map(r => [r.key, r]));
-  assert.equal(rows.length, 10);
-  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'sluice', 'longai', 'vidancee', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
+  assert.equal(rows.length, 11);
+  assert.deepEqual(rows.map(r => r.key), ['argolink', 'higgsfield', 'sluice', 'longai', 'puream', 'vidancee', 'vercel', 'smartaipi', 'vgenv', 'fal', 'vibi']);
   assert.deepEqual([by.argolink.balance.remaining, by.argolink.balance.unit], [12.34, 'USD']);
   assert.match(by.vibi.balance.note, /does not report/);
   assert.equal(by.longai.label, 'LONG AI');
   assert.equal(by.longai.usage.jobs30d, 0);
+  assert.equal(by.puream.usage.jobs30d, 0);
+  assert.match(by.puream.balance.note,/does not report/);
   assert.deepEqual([by.vercel.balance.remaining, by.vercel.balance.used, by.vercel.balance.unit], [95.5, 4.5, 'USD']);
   assert.deepEqual([by.smartaipi.balance.remaining, by.smartaipi.balance.limit, by.smartaipi.balance.used], [37.5, 50, 12.5]);
   assert.ok(by.fal.balance.outOfCreditsUntil);
