@@ -296,3 +296,84 @@ test('Cartoon Studio shows a live 30-second price and disables generation while 
   assert.equal(fields.cartoonCost.textContent,620.55);
   assert.equal(fields.cartoonGenerateBtn.disabled,false);
 });
+
+test('Puream models appear exclusively in the expandable New menu with original option indices',()=>{
+  const start=studio.indexOf('function rebuildCustomSelect(id){');
+  const end=studio.indexOf('function syncCustomSelect(id){',start);
+  const models=[
+    {value:'minimax_h3',textContent:'MiniMax'},
+    {value:'puream_sd25_abcdef123456',textContent:'Custom admin name'},
+    {value:'dope_seedance_2_0_mini_720p',textContent:'Dope'},
+    {value:'puream_sd20_123456abcdef',textContent:'Seedance 2.0'},
+    {value:'puream_wan3_abcdef654321',textContent:'Wan 3.0'},
+  ];
+  let markup='',sorted=false;
+  const options={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_p,html)=>{markup=html;}};
+  const menu={querySelector:selector=>selector.includes('.model-picker-options')?options:null};
+  const wrap={querySelector:selector=>selector==='.custom-select-menu'?menu:null,classList:{toggle(){}}};
+  const select={options:models,selectedIndex:0,closest:()=>wrap};
+  const ctx=vm.createContext({
+    $:()=>select,customSelectSearchable:()=>true,syncCustomSelect(){},
+    modelPickerOptionHtml:(_id,model,index,selected)=>'<button data-index="'+index+'" aria-selected="'+selected+'">'+model.textContent+'</button>',
+    sortDopePerformanceOptions(){sorted=true;},
+  });
+  vm.runInContext(studio.slice(start,end),ctx);
+  ctx.rebuildCustomSelect('model');
+  assert.match(markup,/^<details class="model-picker-new-group">/);
+  assert.match(markup,/<span class="model-picker-group-name">New<\/span>/);
+  assert.match(markup,/3 models/);
+  const [group,flat]=markup.split('</details>');
+  assert.deepEqual([...group.matchAll(/data-index="(\d+)"/g)].map(m=>Number(m[1])),[1,3,4]);
+  assert.deepEqual([...flat.matchAll(/data-index="(\d+)"/g)].map(m=>Number(m[1])),[0,2]);
+  assert.equal(sorted,true);
+  select.selectedIndex=3;ctx.rebuildCustomSelect('model');
+  assert.match(markup,/^<details class="model-picker-new-group" open>/);
+  assert.match(markup,/data-index="3" aria-selected="true"/);
+  ctx.rebuildCustomSelect('imageModel');
+  assert.doesNotMatch(markup,/<details/,'Only Video Studio gets the Puream submenu');
+});
+
+test('search expands New, hides nonmatching models, restores collapse and supports searching the submenu name',()=>{
+  const start=studio.indexOf('function filterCustomSelectOptions(');
+  const end=studio.indexOf('function modelPickerSource(',start);
+  const items=['MiniMax','Seedance 2.5','Wan 3.0'].map(textContent=>({textContent,style:{display:''}}));
+  const count={textContent:''};
+  const group={open:false,hidden:false,dataset:{},contains:item=>items.indexOf(item)>0,querySelector:()=>count};
+  let emptyShown=false;
+  const wrap={querySelector:s=>s==='.model-picker-new-group'?group:{classList:{toggle:(_s,active)=>{emptyShown=active;}}},
+    querySelectorAll:()=>items};
+  const ctx=vm.createContext({});vm.runInContext(studio.slice(start,end),ctx);
+  ctx.filterCustomSelectOptions(wrap,'Wan');
+  assert.equal(group.open,true);assert.equal(group.hidden,false);assert.equal(count.textContent,'1 model');
+  assert.deepEqual(items.map(x=>x.style.display),['none','none','']);
+  ctx.filterCustomSelectOptions(wrap,'New');
+  assert.equal(count.textContent,'2 models');
+  assert.deepEqual(items.map(x=>x.style.display),['none','','']);
+  ctx.filterCustomSelectOptions(wrap,'missing');
+  assert.equal(group.hidden,true);assert.equal(emptyShown,true);
+  ctx.filterCustomSelectOptions(wrap,'');
+  assert.equal(group.open,false);assert.equal(group.hidden,false);assert.equal(emptyShown,false);
+  assert.deepEqual(items.map(x=>x.style.display),['','','']);
+});
+
+test('performance sorting preserves the New submenu and ranks nested options without flattening them',()=>{
+  const perf=fs.readFileSync(require.resolve('../public/dope-performance.js'),'utf8');
+  const start=perf.indexOf('  function sortOptions(root)');
+  const end=perf.indexOf('  async function refresh(',start);
+  const option=(index,id)=>({dataset:{index:String(index)},matches:s=>s==='.custom-select-option',
+    querySelector:()=>({dataset:{dopePerformance:id}})});
+  const section=(children)=>({children,contains:()=>false,insertBefore(node,before){
+    this.children.splice(this.children.indexOf(node),1);this.children.splice(this.children.indexOf(before),0,node);
+  }});
+  const pureamA=option(1,'puream_a'),pureamB=option(3,'puream_b'),normalA=option(0,'normal_a'),normalB=option(2,'normal_b');
+  const nested=section([pureamA,pureamB]);
+  const group={matches:s=>s==='.model-picker-new-group',querySelector:()=>nested};
+  const empty={matches:()=>false};
+  const root=section([group,normalA,normalB,empty]);
+  const metrics={puream_a:{successRate:50,averageLatencyMs:1000},puream_b:{successRate:100,averageLatencyMs:500},
+    normal_a:{successRate:0,averageLatencyMs:100},normal_b:{successRate:80,averageLatencyMs:2000}};
+  const ctx=vm.createContext({metricsFor:id=>metrics[id],document:{activeElement:null}});
+  vm.runInContext(perf.slice(start,end),ctx);ctx.sortOptions(root);
+  assert.deepEqual(root.children,[group,normalB,normalA,empty]);
+  assert.deepEqual(nested.children,[pureamB,pureamA]);
+});

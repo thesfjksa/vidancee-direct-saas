@@ -9,6 +9,21 @@ const origin = 'https://cmmtools.test';
 const artifacts = 'artifacts/video-tools';
 const user = { id: 1, email: 'preview@example.test', credits: 1000, status: 'active' };
 const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.woff2': 'font/woff2' };
+const durationRows=[{seconds:2,label:'2 sec',cost:50},{seconds:4,label:'4 sec',cost:100}];
+const videoModel=(id,label,puream=false)=>({
+  id,label,dynamicCost:puream,billingMode:puream?'per_second':undefined,billingRateCredits:puream?25:undefined,
+  resolutions:[{id:'480p',label:'480p',durations:durationRows}],durations:durationRows,defaultResolution:'480p',
+  defaultDuration:2,aspectRatios:['16:9','9:16'],defaultAspectRatio:'16:9',modes:['reference'],defaultMode:'reference',
+  capabilities:{image:{supported:true,max:3,roles:['image_references']},video:{supported:puream,max:puream?5:0,roles:['video_references'],formats:['mp4']},audio:{supported:false,max:0}}
+});
+const modelFixtures=[
+  videoModel('minimax_h3','MiniMax H3'),
+  videoModel('puream_sd25_abcdef123456','Seedance 2.5 · Fixture',true),
+  videoModel('dope_seedance_2_0_mini_720p','Dope Seedance'),
+  videoModel('puream_wan3_abcdef654321','Wan 3.0 · Fixture',true),
+  videoModel('puream_sd20_123456abcdef','Renamed fixture model',true)
+];
+
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -22,6 +37,13 @@ const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/jav
       const url = new URL(route.request().url());
       if (url.origin !== origin) return route.abort();
       const path = url.pathname;
+      if (path === '/api/config') return route.fulfill({json:{ok:true,user,pricing:modelFixtures,imagePricing:[],signupsEnabled:true}});
+      if (path === '/api/model-cost') return route.fulfill({json:{cost:50}});
+      if (path === '/api/puream-performance') return route.fulfill({json:{models:{
+        puream_sd25_abcdef123456:{successRate:25,averageLatencyMs:2000},
+        puream_wan3_abcdef654321:{successRate:100,averageLatencyMs:1000}
+      }}});
+      if (path === '/api/dope-performance') return route.fulfill({json:{models:{}}});
       if (path === '/api/video-tools/quote') {
         const quote = route.request().postDataJSON();
         quotes.push(quote);
@@ -74,6 +96,44 @@ const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/jav
     await page.locator('#videoToolPrice').getByText('56 credits', { exact: true }).waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'No horizontal overflow on mobile');
     await page.locator('#video-tools').screenshot({ path: join(artifacts, 'mobile.png') });
+
+    // Video model menu: Puream variants belong inside New, regardless of
+    // admin label or metric order. All ordinary video models remain flat.
+    await page.setViewportSize({width:1440,height:1010});
+    await page.locator('[data-section="create"]').click();
+    const trigger=page.locator('#model').locator('..').locator('.custom-select-trigger');
+    await trigger.click();
+    const group=page.locator('#modelPicker .model-picker-new-group');
+    await group.locator('summary').waitFor();
+    assert.equal(await group.locator('.model-picker-group-name').innerText(),'New');
+    assert.equal(await group.locator('.model-picker-group-count').innerText(),'3 models');
+    assert.equal(await group.evaluate(el=>el.open),false);
+    assert.equal(await page.locator('#modelPicker .model-picker-options > .custom-select-option').count(),2);
+    const search=page.locator('#modelPicker input[type=search]');
+    await search.fill('Wan 3.0');
+    assert.equal(await group.evaluate(el=>el.open),true);
+    assert.equal(await group.locator('.custom-select-option:visible').count(),1);
+    assert.match(await group.locator('.custom-select-option:visible').innerText(),/Wan 3.0/);
+    await search.fill('New');
+    assert.equal(await group.locator('.custom-select-option:visible').count(),3);
+    await search.fill('not a model');
+    assert.equal(await group.isVisible(),false);
+    assert.equal(await page.locator('#modelPicker .custom-select-empty').isVisible(),true);
+    await search.fill('');
+    assert.equal(await group.evaluate(el=>el.open),false);
+    await group.locator('summary').focus();
+    await group.locator('summary').press('Enter');
+    assert.equal(await group.evaluate(el=>el.open),true);
+    await group.getByRole('option',{name:/Wan 3.0/}).click();
+    assert.equal(await page.locator('#model').inputValue(),'puream_wan3_abcdef654321');
+    assert.equal(await page.locator('#addVideoReferenceButton').isVisible(),true);
+    await page.setViewportSize({width:390,height:844});
+    await trigger.click();
+    assert.equal(await group.evaluate(el=>el.open),true,'Reopening reveals selected New model');
+    assert.equal(await group.getByRole('option',{name:/Wan 3.0/}).getAttribute('aria-selected'),'true');
+    assert(await page.evaluate(()=>document.querySelector('#modelPicker .model-picker-options').scrollWidth<=document.querySelector('#modelPicker .model-picker-options').clientWidth),'Model submenu fits on mobile');
+    await page.locator('#modelPicker').screenshot({ path:join(artifacts,'new-model-menu-mobile.png') });
+    await page.locator('#modelPicker .model-picker-close').click();
 
     assert.deepEqual(errors, []);
     console.log('Video Tools desktop and mobile checks passed.');
