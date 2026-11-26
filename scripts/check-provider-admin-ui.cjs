@@ -12,7 +12,7 @@ const { chromium } = require('playwright-core');
   });
   const artifacts = 'artifacts/provider-admin-ui'; fs.mkdirSync(artifacts, { recursive: true });
   const errors = [], requests = [], writes = [];
-  let api888Imports=0, longAiImport=null;
+  let api888Imports=0, longAiImport=null, pureamChecks=0, pureamImports=0, pureamEnabled=false;
   let renderTest = null, paidRequests = 0;
   const renderProof = { expiresAt: Date.now() + 5 * 60 * 1000, signature: 'fixture-proof' };
   page.on('pageerror', error => errors.push(error.message));
@@ -58,6 +58,17 @@ const { chromium } = require('playwright-core');
       renderTest = { id, model, status: 'verified', taskId: 'fixture_task', diagnostic: 'Completed and verified a full MP4.' };
       return json({ test: { id, model, status: 'queued' } });
     }
+    if (pathname === '/admin/puream/check') { assert.equal(request.method(),'POST'); pureamChecks++; return json({accessibleModels:1,supportedModels:1}); }
+    if (pathname === '/admin/puream/sync') { assert.equal(request.method(),'POST'); pureamImports++; return json({total:1,enabled:Number(pureamEnabled)}); }
+    if (pathname === '/admin/puream/models') {
+      assert.equal(request.method(),'POST'); pureamEnabled=request.postDataJSON().enabled; return json({total:1});
+    }
+    if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'puream') return json({models:[{
+      id:1,label:'Wan 3.0 · Puream TEST',providerModelId:'puream-wan3-fixture',publicModelId:'puream_wan3_fixture',
+      available:true,ready:true,enabled:pureamEnabled,puream:{tiers:{'480p':{durations:[2,4],unit:'second',priceCny:0.2475}}},
+      referenceCapabilities:{image:{max:9},video:{max:5},audio:{max:3}}
+    }]});
+    if (pathname === '/admin/puream/performance') return json({models:{'puream_wan3_fixture':{successRate:100,samples:2,averageLatencyMs:1000}}});
     if (pathname === '/admin/provider-models' && url.searchParams.get('provider') === 'longai') return json({ models: [] });
     if (pathname === '/admin/model-names') {
       if(request.method()==='POST'){
@@ -96,6 +107,23 @@ const { chromium } = require('playwright-core');
   await page.locator('[data-source-key="aivid"]').click();
   await wxksaiNav.click();
   assert.equal(await page.locator('#wxksaiApiKey').inputValue(), 'private-unsaved-wxksai-fixture');
+  await page.locator('[data-source-key="puream"]').click();
+  await page.locator('#provider-nav-status-puream').filter({hasText:'Needs setup'}).waitFor();
+  assert.equal(await page.locator('#pureamApiKey').getAttribute('type'),'password');
+  await page.locator('#pureamApiKey').fill('synthetic-unsaved-puream-code');
+  await page.locator('#pureamModelSummary').getByText('Wan 3.0 · Puream TEST',{exact:true}).waitFor();
+  assert.match(await page.locator('#pureamModelSummary').innerText(),/¥0\.2475\/sec/);
+  assert.match(await page.locator('#pureamModelSummary').innerText(),/5 videos/);
+  await page.locator('[data-provider-source="puream"]').getByRole('button',{name:'Check connection',exact:true}).click();
+  await page.locator('#pureamActionMsg').filter({hasText:'Connected'}).waitFor(); assert.equal(pureamChecks,1);
+  await page.locator('[data-provider-source="puream"]').getByRole('button',{name:'Import account models',exact:true}).click();
+  await page.locator('#pureamActionMsg').filter({hasText:'Imported 1'}).waitFor(); assert.equal(pureamImports,1);
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('[data-provider-source="puream"]').getByRole('button',{name:'Enable all available',exact:true}).click();
+  await page.locator('#pureamActionMsg').filter({hasText:'1 models enabled'}).waitFor(); assert.equal(pureamEnabled,true);
+  await page.locator('[data-source-key="aivid"]').click();
+  await page.locator('[data-source-key="puream"]').click();
+  assert.equal(await page.locator('#pureamApiKey').inputValue(),'synthetic-unsaved-puream-code');
   await page.locator('[data-source-key="aivid"]').click();
   await page.screenshot({ path: path.join(artifacts, 'connections-desktop.png'), fullPage: true });
 
@@ -115,7 +143,7 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSearch').fill('voice');
   assert.equal(await page.locator('[data-source-key]:visible').count(), 1);
   await page.locator('#providerSourceSearch').fill('');
-  assert.equal(await page.locator('[data-source-key]:visible').count(), 13);
+  assert.equal(await page.locator('[data-source-key]:visible').count(), 14);
   assert.equal(await page.locator('[data-source-key="enhancer"]').count(), 0);
   assert.equal(await page.locator('[data-provider-source="enhancer"]').count(), 0);
   assert.equal(await page.locator('#providerSourceSelect option[value="enhancer"]').count(), 0);
@@ -201,6 +229,9 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSelect').selectOption('wxksai');
   assert.equal(await page.locator('[data-provider-source="wxksai"]').isVisible(), true);
   assert.equal(await page.locator('#wxksaiApiKey').inputValue(), 'private-unsaved-wxksai-fixture');
+  await page.locator('#providerSourceSelect').selectOption('puream');
+  assert.equal(await page.locator('[data-provider-source="puream"]').isVisible(),true);
+  assert.equal(await page.locator('#pureamApiKey').inputValue(),'synthetic-unsaved-puream-code');
   await page.locator('#providerSourceSelect').selectOption('aivid');
   assert.equal(await page.locator('[data-provider-source]:visible').count(), 1);
   assert.equal(await page.locator('#aividAdminCard').isVisible(), true);
