@@ -28,12 +28,18 @@ class PureamQueue extends VercelQueue {
   async runOnce(db=getPool(),settings=null){
     const current=settings||await this.getSettings();
     const key=this.apiKey(current);
-    if(key&&this.sourceEnabled(current)&&(this.catalogKey!==key||Date.now()>=this.refreshAfter)){
-      this.catalogKey=key;this.refreshAfter=Date.now()+10*60*1000;
-      try{
-        const models=pureamMediaModels(await this.clientFactory({apiKey:key}).models());
+    // Initialize the same client used for claims so concurrent live catalog
+    // checks share one in-flight read and a successful transport fallback.
+    if(key!==this.fingerprint){this.fingerprint=key;this.client=key?this.clientFactory({apiKey:key}):null;}
+    this.catalogKey=key;
+    if(key&&this.sourceEnabled(current)&&!this.catalogRefresh&&(this.refreshKey!==key||Date.now()>=this.refreshAfter)){
+      this.refreshKey=key;this.refreshAfter=Date.now()+10*60*1000;
+      const client=this.client;
+      this.catalogRefresh=Promise.resolve().then(async()=>{
+        const models=pureamMediaModels(await client.models());
+        if(this.catalogKey!==key)return;
         await this.syncCatalog(models);this.refreshAfter=Date.now()+60*60*1000;
-      }catch(error){this.log(null,'puream.catalog_failed',error.message,null,'warn');}
+      }).catch(error=>this.log(null,'puream.catalog_failed',error.message,null,'warn')).finally(()=>{this.catalogRefresh=null;});
     }
     // Resume the saved idempotent operation after a worker interruption.
     await db.execute("UPDATE generations SET status='submitted',updated_at=UTC_TIMESTAMP() WHERE provider='puream' AND status='submitting' AND provider_operation IS NOT NULL AND refunded_at IS NULL AND updated_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE)");
@@ -44,7 +50,13 @@ class PureamQueue extends VercelQueue {
     const options=savedOptions(job);
     const model=await this.getModel('puream',job.model,'video');
     if(!model?.ready)throw new Error('This Puream model is unavailable.');
-    const live=pureamMediaModels(await client.models()).find(row=>row.providerModelId===model.providerModelId);
+    let catalog;
+    try{catalog=await client.models();}
+    catch(error){
+      this.log(job,'puream.preflight_failed','Live catalog check failed before video submission.',{code:error.code,transportReason:error.transportReason,responseReason:error.responseReason},'warn');
+      throw Object.assign(new Error('Could not connect to the generation service to verify model availability and price. No video was submitted.'),{code:error.code,statusCode:error.statusCode});
+    }
+    const live=pureamMediaModels(catalog).find(row=>row.providerModelId===model.providerModelId);
     if(!live)throw new Error('This Puream model is no longer available.');
     const fresh={...live.options,providerModelId:live.providerModelId,mediaType:live.mediaType,provider:'puream'};
     const currentQuote=quoteGateway(fresh,options);
