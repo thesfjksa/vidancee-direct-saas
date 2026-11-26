@@ -1,3 +1,8 @@
+## 26 November 2026 — Puream catalog connection diagnostics
+
+- Admin screenshot shows a configured credential, 20 cached imported models and a failed live catalog connection. The transport catch previously discarded all underlying error categories. Preserve only an allowlisted diagnostic code (DNS, socket, timeout or certificate) and keep raw exceptions/credentials out of messages. Retry a transient catalog GET once within the original 40-second budget; no paid submission retries or billing changes. Existing inventory is not overwritten on failure.
+- Added mock regression for transient recovery, repeated failure, sanitized diagnostic, timeout, authentication rejection and a single paid-method attempt. CI remains the merge gate. No live production credentials, provider-side root cause, Hostinger deployment or upstream generation success verified. No paid generation performed.
+
 ## 26 November 2026 — New video models default-on and customer white-label
 
 - Owner explicitly approved enabling every available Puream model for all existing and future customers, despite no successful live upstream render yet. A shared, transaction-locked one-time migration on either web or worker enables the provider, global customer visibility, every imported model, and resets existing customer opt-outs. Newly discovered priced, available models are inserted enabled. Subsequent Admin switch-offs, availability/readiness checks, saved credentials, customer's credit balance and the global allow-provider-charges gate remain authoritative. No API key is stored in source or introduced through environment variables.
