@@ -171,6 +171,7 @@ function selection(model,input={}) {
   }
   const duration=choose(input.duration===undefined?undefined:Number(input.duration),model.durations,model.defaultDuration,'duration');
   const resolution=choose(input.resolution,model.resolutions,model.defaultResolution,'resolution');
+  if (model.puream && !model.puream.tiers?.[resolution]?.durations.includes(duration)) fail('Unsupported duration for this resolution.');
   const generationMode=model.modes?.length?choose(input.generationMode,model.modes,model.defaultMode,'generation mode'):null;
   if (input.generationMode&&!model.modes?.length) fail('This model does not support a mode switch.');
   // Audio is on by default for models that can make it.
@@ -205,6 +206,11 @@ function quoteGateway(model,input={},factor=DEFAULT_VERCEL_CREDITS_PER_USD) {
     // Token-based models have additional variable input charges. Their base
     // image quote is an estimate, not an invented conversion of output tokens.
     if (editing||positive(p.input)) isEstimate=true;
+  } else if (model.puream) {
+    const tier=model.puream.tiers[chosen.resolution];
+    const yuan=tier.priceCny*(tier.unit==='second'?chosen.duration:1);
+    // Puream reserves a whole number of fen; round upward to the next cent.
+    sourceUsd=Math.ceil(yuan*100-1e-8)/100/require('./billing.js').CNY_PER_USD;
   } else if (override?.perSecond) {sourceUsd=Number(override.perSecond)*chosen.duration;isEstimate=true;}
   // Some sources (Vidancee) charge a flat price per clip length.
   else if ((p.video_duration_prices||[]).length) {
@@ -346,7 +352,7 @@ function validateReferences(model,input={}, { forQuote=false }={}) {
   // WXKSAI BD2 counts every media type in its combined 30-file quota.
   // Preserve established caps for other providers (some exclude audio from
   // the combined image/video quota).
-  const combined=images.length+videos.length+reused+(model.provider==='wxksai'?audios.length:0);
+  const combined=images.length+videos.length+reused+(['wxksai','puream'].includes(model.provider)?audios.length:0);
   if (combined>caps.totalMax) fail('Too many total reference files for this model.');
   if (model.provider==='wxksai' && model.providerModelId==='seedance-2.5-bd-2') {
     const imageCount=images.length+reused;
@@ -356,6 +362,7 @@ function validateReferences(model,input={}, { forQuote=false }={}) {
     if ([...images,...videos,...audios].reduce((sum,file)=>sum+(file?.data?.length||0),0)>maxTotal)
       fail('WXKSAI BD2 reference uploads exceed the conservative 30 MB total limit.');
   }
+  if (model.provider==='puream') require('./puream_models.js').validatePureamReferences(model,input,{forQuote});
   const roles=list(input.referenceOrder).map(r=>r.role);
   const frames=roles.some(r=>r==='start_image'||r==='end_image');
   const refs=roles.some(r=>r==='image_references')||videos.length>0;

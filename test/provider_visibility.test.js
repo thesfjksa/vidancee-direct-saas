@@ -7,11 +7,13 @@ const { PROVIDERS, readModelVisibility, validateVisibilityPatch, visibleProvider
 
 const saved = new Map();
 const writes = [];
+const secretFlags = new Map();
 const db = {
-  query: async () => [[...saved].map(([setting_key, setting_value]) => ({ setting_key, setting_value, is_secret: 0 }))],
+  query: async () => [[...saved].map(([setting_key, setting_value]) => ({ setting_key, setting_value, is_secret: secretFlags.get(setting_key)||0 }))],
   execute: async (sql, params) => {
+    if(sql.startsWith('DELETE FROM app_settings')){saved.delete(params[0]);secretFlags.delete(params[0]);return [{affectedRows:1}];}
     assert.match(sql, /INSERT INTO app_settings/);
-    writes.push(params); saved.set(params[0], params[1]); return [{ affectedRows: 1 }];
+    writes.push(params); saved.set(params[0], params[1]); secretFlags.set(params[0],params[2]); return [{ affectedRows: 1 }];
   },
 };
 require('../src/db.js').getPool = () => db;
@@ -111,7 +113,7 @@ test('Admin controls save one provider, retain unsaved values across navigation 
   const html = fs.readFileSync(require.resolve('../public/admin.html'), 'utf8');
   for (const provider of PROVIDERS) assert.ok(html.includes('id="modelsVisible-' + provider + '"'), provider);
   let request, fail = false;
-  const context = { window: {}, document: { getElementById: el, querySelectorAll: () => [] },
+  const context = { window: {}, setInterval:()=>{}, document: { getElementById: el, querySelectorAll: () => [] },
     api: async (path, options) => {
       request = { path, method: options.method, ...JSON.parse(options.body) };
       if (fail) throw new Error('Could not save');
@@ -161,4 +163,30 @@ test('a cached model selection cannot obtain a new quote after its provider is h
   assert.equal((await context.quoteModelForUser(1, { model: 'minimax_h3', duration: 4 })).cost, 100);
   assert.equal((await context.quoteModelForUser(1,{model:'minimax_h3',duration:30})).cost,600);
   assert.equal(longPriced,1);
+});
+
+test('Puream dashboard saves encrypted credentials without returning them or reading environment API keys',async()=>{
+  saved.clear();writes.length=0;
+  const previous=process.env.SETTINGS_ENCRYPTION_KEY;
+  const oldPuream=process.env.PUREAM_API_KEY;
+  process.env.SETTINGS_ENCRYPTION_KEY='synthetic-encryption-root';
+  process.env.PUREAM_API_KEY='unused-env-key';
+  try{
+    assert.equal((await getProviderSettings()).pureamApiKey,'');
+    await updateProviderSettings({pureamApiKey:'synthetic-admin-code',pureamEnabled:true,pureamMaxInflight:2});
+    assert.match(saved.get('puream_api_key'),/^v1:/);assert.equal(secretFlags.get('puream_api_key'),1);
+    assert.equal((await getProviderSettings()).pureamApiKey,'synthetic-admin-code');
+    const admin=await getAdminProviderSettings();
+    assert.equal(admin.puream.active,true);assert.equal(admin.puream.maxInflight,2);
+    assert.equal(JSON.stringify(admin).includes('synthetic-admin-code'),false);
+    const before=writes.length;
+    await assert.rejects(updateProviderSettings({pureamEnabled:false,pureamApiKey:'bad code'}),e=>e.statusCode===400);
+    assert.equal(writes.length,before);
+    await updateProviderSettings({clearPureamApiKey:true});
+    assert.equal((await getAdminProviderSettings()).puream.apiKeyConfigured,false);
+  }finally{
+    if(previous===undefined)delete process.env.SETTINGS_ENCRYPTION_KEY;else process.env.SETTINGS_ENCRYPTION_KEY=previous;
+    if(oldPuream===undefined)delete process.env.PUREAM_API_KEY;else process.env.PUREAM_API_KEY=oldPuream;
+    saved.clear();secretFlags.clear();
+  }
 });

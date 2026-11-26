@@ -140,7 +140,7 @@ async function syncProviderModels(provider, discoveredModels, connection = null,
           // WXKSAI / Dope is explicitly Admin opt-in. Insert disabled
           // atomically so newly discovered models cannot briefly be offered
           // to paying customers between the import and post-import review.
-          provider==='wxksai'?0:1,
+          ['wxksai','puream'].includes(provider)?0:1,
         ],
       );
       if(provider==='api888'){
@@ -169,7 +169,7 @@ async function syncProviderModels(provider, discoveredModels, connection = null,
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai','puream'];
 const { customerModelId, storedModelId, customerModelLabel } = require('./dope_brand.js');
 const { isRetiredModel } = require('./retired_models.js');
 const isPricedSource=provider=>PRICED_SOURCES.includes(provider);
@@ -215,6 +215,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     }:{}),
     ...(row.provider==='api888'?{api888:options.api888||{}}:{}),
     ...(row.provider==='wxksai'?{wxksai:options.wxksai||{}}:{}),
+    ...(row.provider==='puream'?{puream:options.puream||{}}:{}),
     ...(row.provider==='falimg'?{falImage:options.falImage||{}}:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
@@ -462,7 +463,7 @@ function publicVideoModel(model) {
   const resolutions = model.resolutions.map(resolution => ({
     id: resolution,
     label: resolution,
-    durations: durationEntries,
+    durations: model.puream?.tiers?.[resolution] ? durationEntries.filter(d=>model.puream.tiers[resolution].durations.includes(d.seconds)) : durationEntries,
   }));
 
   return {
@@ -482,6 +483,7 @@ function publicVideoModel(model) {
       billingRateCredits:api888RateCredits(model),
     }:{}),
     ...(secondPriced?{billingMode:'per_second'}:constantClipPrice?{billingMode:'per_request'}:{}),
+    ...(model.puream?{billingMode:Object.values(model.puream.tiers).every(t=>t.unit==='successful_video')?'per_request':Object.values(model.puream.tiers).every(t=>t.unit==='second')?'per_second':undefined}:{}),
     ...(isPricedSource(model.provider)?{modes:model.modes,defaultMode:model.defaultMode,supportsAudio:model.supportsAudio}:{}),
   };
 }

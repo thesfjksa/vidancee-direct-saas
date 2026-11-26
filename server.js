@@ -198,6 +198,8 @@ const { isHiggsfieldModel, higgsfieldMediaModels, fetchHiggsfieldTiers, validate
 const { HiggsfieldClient } = require('./src/provider/higgsfield.js');
 const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/sluice_models.js');
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
+const { isPureamModel, pureamMediaModels } = require('./src/puream_models.js');
+const { PureamClient } = require('./src/provider/puream.js');
 const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
 const { createDopePerformance } = require('./src/dope_performance.js');
 const getDopePerformance = createDopePerformance();
@@ -360,7 +362,7 @@ function readGenerationRequest(req) {
     try {
       bb=Busboy({
         headers:req.headers,
-        limits:{files:24,fileSize:25*1024*1024,fields:40,parts:70},
+        limits:{files:50,fileSize:25*1024*1024,fields:40,parts:95},
       });
     } catch(error) {
       error.statusCode=400; return reject(error);
@@ -424,7 +426,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','puream','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 const { visibleProviderAccess } = require('./src/provider_visibility.js');
 // Customer video and image sources are available by default. Admin per-user
 // overrides can still turn an individual source off; global provider and
@@ -650,6 +652,10 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
+  if(access.puream && providerSettings.puream?.active){
+    const catalog=await safeCatalog('puream',()=>publicProviderCatalog('puream'));
+    video.push(...catalog.video.filter(model=>isPureamModel(model.id)));
+  }
   if(access.wxksai && providerSettings.wxksai.active){
     const catalog=await safeCatalog('wxksai',()=>publicProviderCatalog('wxksai'));
     video.push(...catalog.video.filter(model=>isWxksaiModel(model.id)));
@@ -673,6 +679,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
+  if(isPureamModel(id))return 'Puream';
   if(isWxksaiModel(id))return 'Dope';
   if(isLongAiModel(id))return 'LONG AI';
   if(require('./src/aivid_models.js').isAividModel(id))return 'AIVID';
@@ -775,6 +782,14 @@ async function quoteModelForUser(userId,body){
       return {cost,isEstimate};
     }
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
+  }
+  if(isPureamModel(body.model) && mediaType==='video'){
+    if(!access.puream || !providerSettings.puream?.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('puream',String(body.model),'video');
+    if(!model?.ready)throw httpError(404,'This model is currently unavailable.');
+    validateReferences(model,body,{forQuote:true});
+    const quote=quoteGateway(model,body,providerSettings.puream.creditsPerUsd);
+    return {cost:quote.cost,isEstimate:false};
   }
   if(isWxksaiModel(body.model) && mediaType==='video'){
     if(!access.wxksai || !providerSettings.wxksai.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -905,7 +920,7 @@ async function enableBrowserUploads(){
 // The longest reference video (total, or per clip) a video model accepts.
 async function referenceVideoLimit(id){
   if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
-  const provider=isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
+  const provider=isPureamModel(id)?'puream':isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
   const model=await getProviderModelByPublicId(provider,id,'video').catch(()=>null);
   const caps=model?.referenceCapabilities||{};
@@ -971,6 +986,17 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     });
   }
 
+  if(!cartoonOptions&&isPureamModel(requestedModel)){
+    if(!customerAccess.puream||!providerSettings.pureamEnabled||!providerSettings.pureamApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('puream',requestedModel,'video');
+    if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,require('./src/billing.js').CREDITS_PER_USD);
+    generation=await createVideo(user.id,{...body,...quote},{provider:'puream',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd*require('./src/billing.js').CNY_PER_USD,providerCostUnit:'cny',generationOptions:{...quote,model},
+    });
+  }
   if(!cartoonOptions&&isWxksaiModel(requestedModel)){
     if(!customerAccess.wxksai||!providerSettings.wxksaiEnabled||!providerSettings.wxksaiApiKey)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('wxksai',requestedModel,'video');
@@ -1489,7 +1515,7 @@ const server=http.createServer(async (req,res)=>{
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active || providerSettings.longai.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active || providerSettings.longai.active || providerSettings.puream?.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -1534,6 +1560,18 @@ const server=http.createServer(async (req,res)=>{
 
     if (req.method==='GET' && routePath==='/api/dope-performance') {
       return sendJson(res,200,await getDopePerformance());
+    }
+
+    if (req.method==='GET' && routePath==='/api/puream-performance') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const access=await getVisibleUserProviderAccess(user.id);
+      if(!access.puream)throw httpError(403,'Performance data is unavailable for this account.');
+      const settings=await getProviderSettings();
+      if(!settings.pureamEnabled||!settings.pureamApiKey)throw httpError(403,'Performance data is unavailable for this account.');
+      const [performance,catalog]=await Promise.all([require('./src/puream_performance.js').pureamPerformance(getPool()),publicProviderCatalog('puream')]);
+      const visible=new Set(catalog.video.map(model=>model.id));
+      return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).filter(([id])=>visible.has(id)))});
     }
 
     if (req.method==='GET' && routePath==='/api/api888-performance') {
@@ -2354,6 +2392,16 @@ const server=http.createServer(async (req,res)=>{
             providerMessage:error.providerMessage||null});
         }
       }
+      if(req.method==='POST'&&['/admin/puream/check','/admin/puream/sync'].includes(routePath)){
+        requireDatabase();
+        const settings=await getProviderSettings();
+        if(!settings.pureamApiKey)return sendJson(res,400,{ok:false,error:'Save a Puream authorization code first.'});
+        const live=await new PureamClient({apiKey:settings.pureamApiKey}).models();
+        const models=pureamMediaModels(live);
+        if(routePath.endsWith('/check'))return sendJson(res,200,{ok:true,accessibleModels:live.data.length,supportedModels:models.length});
+        const stored=await syncProviderModels('puream',models);
+        return sendJson(res,200,{ok:true,total:models.length,enabled:stored.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
       if(req.method==='POST'&&routePath==='/admin/wxksai/check'){
         const settings=await getProviderSettings();
         if(!settings.wxksaiApiKey)return sendJson(res,400,{ok:false,error:'Save a WXKSAI API key first.'});
@@ -2761,21 +2809,32 @@ const server=http.createServer(async (req,res)=>{
             }
           }
         }
+        let pureamSync=null;
+        if(String(body.pureamApiKey||'').trim() || (body.pureamEnabled===true&&!previous.pureamEnabled)){
+          const latest=await getProviderSettings();
+          if(latest.pureamApiKey){
+            try{
+              const catalog=await new PureamClient({apiKey:latest.pureamApiKey}).models();
+              const models=await syncProviderModels('puream',pureamMediaModels(catalog));
+              pureamSync={ok:true,total:models.filter(m=>m.available).length};
+            }catch(error){pureamSync={ok:false,error:error.message};}
+          }
+        }
         // Keys and passwords are masked by the activity log.
-        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{})}}});
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{}),...(body.pureamApiKey?{pureamApiKey:'[REDACTED]'}:{})}}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
         let higgsfieldSync=null;
         if(String(body.higgsfieldApiKey||'').trim()){
           try{const r=await syncHiggsfieldPrices();higgsfieldSync={ok:true,ready:r.models.some(m=>m.ready)};}
           catch(error){higgsfieldSync={ok:false,error:error.message};}
         }
-        return sendJson(res,200,{ok:true,settings,higgsfieldSync,api888Sync});
+        return sendJson(res,200,{ok:true,settings,higgsfieldSync,api888Sync,pureamSync});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai','wxksai'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai','wxksai','puream'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         let models=await listProviderModels(provider);
         if(provider==='api888'){
           const health=await loadApi888Health().catch(()=>null);
@@ -2785,16 +2844,30 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,models});
       }
 
+      if(req.method==='POST'&&routePath==='/admin/puream/models'){
+        requireDatabase();
+        const body=await readJson(req);
+        if(typeof body.enabled!=='boolean')return sendJson(res,400,{ok:false,error:'Select enable or disable.'});
+        const models=await listProviderModels('puream');
+        const rows=models.filter(model=>!body.enabled||(model.available&&model.ready));
+        for(const model of rows)await setProviderModelEnabled('puream',model.id,body.enabled);
+        return sendJson(res,200,{ok:true,total:rows.length});
+      }
+
       const providerModelMatch=routePath.match(/^\/admin\/provider-models\/(\d+)$/);
       if (req.method==='POST' && providerModelMatch) {
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','higgsfield','sluice','vidancee','wxksai'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield','sluice','vidancee','wxksai','puream'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
 
+      if (req.method==='GET' && routePath==='/admin/puream/performance') {
+        requireDatabase();
+        return sendJson(res,200,await require('./src/puream_performance.js').pureamPerformance(getPool()));
+      }
       if (req.method==='GET' && routePath==='/admin/provider-usage') {
         requireDatabase();
         const providers=await providerUsage(getPool(),await getProviderSettings(),await getAdminProviderSettings());

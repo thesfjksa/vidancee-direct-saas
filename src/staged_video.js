@@ -79,7 +79,7 @@ async function stageVideo(body, { contentLength, maxBytes }) {
       }
       return bytes;
     };
-    if (!(await validateMp4(readChunk, size))) throw new Error('Dope output did not contain a complete MP4.');
+    if (!(await validateMp4(readChunk, size))) throw new Error('The output did not contain a complete MP4.');
     return { mimeType: 'video/mp4', size, md5: md5.digest('hex'), sha256: sha256.digest('hex'),
       readChunk, openStream: () => createReadStream(filename), cleanup };
   } catch (error) {

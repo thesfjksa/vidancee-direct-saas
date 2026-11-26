@@ -4,12 +4,14 @@
   const sources = {
     dope: { refreshMs: 10 * 60 * 1000 },
     api888: { refreshMs: 10 * 60 * 1000 },
+    puream: { refreshMs: 10 * 60 * 1000 },
   };
-  const sourceFor = id => sources[id?.startsWith('api888_') ? 'api888' : 'dope'];
+  const sourceName = id => id?.startsWith('puream_')?'puream':id?.startsWith('api888_')?'api888':'dope';
+  const sourceFor = id => sources[sourceName(id)];
   const metricsFor = id => sourceFor(id).snapshot?.models[id];
 
   function describe(id, card = false) {
-    const heading = '24h performance';
+    const heading = sourceName(id)==='puream'?'24h CMMTools performance':'24h performance';
     const { snapshot } = sourceFor(id);
     const metrics = metricsFor(id);
     if (!metrics) {
@@ -86,8 +88,8 @@
   window.sortDopePerformanceOptions = sortOptions;
   window.modelPerformanceMarkup = window.dopePerformanceMarkup = function (modelId, card = false) {
     const id = String(modelId || '').replace(/^wxksai_/, 'dope_');
-    if (!/^(dope|api888)_[a-zA-Z0-9_]+$/.test(id)) return '';
-    void refresh(id.startsWith('api888_') ? 'api888' : 'dope');
+    if (!/^(dope|api888|puream)_[a-zA-Z0-9_]+$/.test(id)) return '';
+    void refresh(sourceName(id));
     if (card) return '<span class="model-picker-performance" data-dope-performance-card data-dope-performance="' +
       id + '">' + describe(id, true) + '</span>';
     return '<small class="muted" style="display:block" data-dope-performance="' + id + '">' + describe(id) + '</small>';
