@@ -1,3 +1,8 @@
+## 26 November 2026 — Puream response-body diagnostics and read recovery
+
+- Follow-up Admin screenshot after saved credential and redeploy reports invalid JSON rather than connection failure. The previous parser treated interrupted body reads, empty payloads and non-JSON responses identically. Distinguish incomplete, oversized, empty, HTML/XML and malformed JSON bodies with safe HTTP status and fixed diagnostic labels; never expose response content or credentials. Request identity encoding, accept a UTF-8 BOM, and retry only transient incomplete/empty catalog reads within the existing budget. No paid submission retries added; ambiguous paid responses remain ambiguous. Existing inventory preserved.
+- Mock regressions cover each response category, successful read retry, BOM, safe message and single paid POST attempt. CI pending; production response format, credential validity, root cause and deployment remain unverified. No live paid request.
+
 ## 26 November 2026 — Puream catalog connection diagnostics
 
 - Admin screenshot shows a configured credential, 20 cached imported models and a failed live catalog connection. The transport catch previously discarded all underlying error categories. Preserve only an allowlisted diagnostic code (DNS, socket, timeout or certificate) and keep raw exceptions/credentials out of messages. Retry a transient catalog GET once within the original 40-second budget; no paid submission retries or billing changes. Existing inventory is not overwritten on failure.
