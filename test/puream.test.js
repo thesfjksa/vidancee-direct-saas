@@ -158,3 +158,27 @@ test('catalog separates HTML, malformed JSON, empty and truncated responses; nev
   const bom=new PureamClient({apiKey:'secret',fetchImpl:async()=>new Response('\uFEFF'+JSON.stringify(catalog))});
   assert.deepEqual(await bom.models(),catalog);
 });
+
+test('IPv4 recovery is selected from a successful read and subsequent paid POST is sent once on that transport',async()=>{
+  const calls=[];
+  const client=new PureamClient({apiKey:'secret',fetchImpl:async(url)=>{calls.push(['fetch',url]);throw Object.assign(new Error('connection'),{cause:{code:'UND_ERR_CONNECT_TIMEOUT'}});},ipv4Impl:async(url,request)=>{
+    calls.push(['ipv4',url]);assert.equal(request.headers.authorization,'Bearer secret');
+    if(request.method==='POST')return Response.json({id:'yv_abc',quoted_charge_yuan:5.25},{status:202});
+    return Response.json(catalog);
+  }});
+  const [a,b]=await Promise.all([client.models(),client.models()]);assert.deepEqual(a,b);
+  assert.deepEqual(await client.startVideo(payloadFor(options,refs),'cmm-job'),{requestId:'yv_abc',quotedCny:5.25});
+  assert.deepEqual(calls,[['fetch',BASE_URL+'/models'],['ipv4',BASE_URL+'/models'],['ipv4',BASE_URL+'/videos']]);
+});
+test('periodic catalog refresh does not block the worker tick or bypass submission preflight',async()=>{
+  let release;const pending=new Promise(resolve=>{release=resolve;});
+  let synced=0;
+  const q=new PureamQueue({clientFactory:()=>({apiKey:'secret',models:()=>pending}),syncCatalog:async()=>{synced++;},getModel:async()=>model});
+  const db={execute:async()=>[{affectedRows:1}],query:async()=>[[]]};
+  await q.runOnce(db,{pureamApiKey:'secret',pureamEnabled:true,allowProviderCharges:false});
+  assert.ok(q.catalogRefresh);assert.equal(synced,0);
+  release(catalog);await q.catalogRefresh;assert.equal(synced,1);
+  let writes=0; q.log=()=>{};
+  await assert.rejects(q.submit({execute:async()=>{writes++;}},{id:'x',model:row.publicModelId,prompt:options.prompt,generation_options:JSON.stringify(options)},{models:async()=>{throw Object.assign(new Error('timeout'),{code:'PUREAM_CONNECTION'});}}),/No video was submitted/);
+  assert.equal(writes,0);
+});

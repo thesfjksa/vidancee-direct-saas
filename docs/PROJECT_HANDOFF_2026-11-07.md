@@ -1,3 +1,9 @@
+## 26 November 2026 — Puream IPv4 transport and queue preflight recovery
+
+- Follow-up customer screenshot showed UND_ERR_CONNECT_TIMEOUT after queueing, and another failure was reported. The worker previously awaited the periodic catalog refresh before polling/claiming. Run refresh independently, share the credential-scoped in-flight catalog request, and keep live price/availability checks mandatory before any paid POST. Distinguish preflight failure from a provider submission in logs and customer text. The 5-second queue cadence, reservations, refund path and persisted submission idempotency remain unchanged.
+- Use a fresh fixed-origin IPv4 HTTPS transport as a fallback for transient read failures, with verified TLS, bounded deadline and no redirects. After a validated catalog succeeds on that transport, use it for subsequent requests on that client, including a single paid submission. No automatic extra paid POST or new idempotency key introduced.
+- Mock regression covers transport selection, concurrent read coalescing, nonblocking refresh and failed preflight preventing any submission write. CI pending. No live production network access, job/credit audit, deployment or successful paid render verified. No paid test submitted.
+
 ## 26 November 2026 — Puream response-body diagnostics and read recovery
 
 - Follow-up Admin screenshot after saved credential and redeploy reports invalid JSON rather than connection failure. The previous parser treated interrupted body reads, empty payloads and non-JSON responses identically. Distinguish incomplete, oversized, empty, HTML/XML and malformed JSON bodies with safe HTTP status and fixed diagnostic labels; never expose response content or credentials. Request identity encoding, accept a UTF-8 BOM, and retry only transient incomplete/empty catalog reads within the existing budget. No paid submission retries added; ambiguous paid responses remain ambiguous. Existing inventory preserved.
