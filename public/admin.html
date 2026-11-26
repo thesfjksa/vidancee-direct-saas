@@ -307,7 +307,7 @@
   <div class="provider-model-visibility" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px"><label style="display:inline-flex;align-items:center;gap:8px"><input id="modelsVisible-puream" type="checkbox" disabled onchange="document.getElementById('saveModelsVisible-puream').disabled=false">Show models to customers</label><button id="saveModelsVisible-puream" class="secondary" type="button" disabled aria-label="Save Puream model visibility" onclick="saveProviderModelVisibility('puream')">Save visibility</button><span id="modelsVisibleMsg-puream" class="muted" role="status"></span></div>
   <div class="source-head"><h3>Video Studio · Puream</h3><label class="source-switch"><input id="pureamEnabled" type="checkbox" aria-label="Enable Puream" onchange="updateSourceSwitchLabels()"><span class="source-switch-track"></span></label></div>
   <div id="pureamEnabledText" class="source-state"></div>
-  <p class="muted">Save your Puream authorization code (授权码) or API key. Account models and prices are imported from the live catalog. New models are disabled until enabled in Admin. Confirm generation and billing before opening customer access.</p>
+  <p class="muted">Save your Puream authorization code (授权码) or API key. Account models and prices are imported from the live catalog. All available models are enabled by default and shown as New to customers. Individual model switches and customer access controls remain available. Upstream generation completion is not yet verified.</p>
   <a href="https://www.puream.cn/docs/seedance-wan" target="_blank" rel="noopener noreferrer">Puream video API documentation</a>
   <div class="field"><label for="pureamApiKey">Authorization code / API key</label><input id="pureamApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"></div>
   <label class="muted"><input id="clearPureamApiKey" type="checkbox" style="width:auto"> Clear saved credential</label>
@@ -1491,7 +1491,7 @@ async function saveProviderSettings(){
   try{const d=await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});m.className='ok';m.textContent='Provider settings saved. The worker will use them automatically.';
     if(d.pureamSync){
       $('pureamActionMsg').className=d.pureamSync.ok?'ok':'err';
-      $('pureamActionMsg').textContent=d.pureamSync.ok?'Puream connected · '+d.pureamSync.total+' available models imported. Review and enable models below.':'Puream import failed: '+d.pureamSync.error;
+      $('pureamActionMsg').textContent=d.pureamSync.ok?'Puream connected · '+d.pureamSync.total+' available models imported. New models are enabled by default; individual switches remain available.':'Puream import failed: '+d.pureamSync.error;
     }
     const hs=d.higgsfieldSync;
     if(d.api888Sync){

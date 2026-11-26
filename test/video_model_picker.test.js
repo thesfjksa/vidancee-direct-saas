@@ -302,10 +302,10 @@ test('Puream models appear exclusively in the expandable New menu with original 
   const end=studio.indexOf('function syncCustomSelect(id){',start);
   const models=[
     {value:'minimax_h3',textContent:'MiniMax'},
-    {value:'puream_sd25_abcdef123456',textContent:'Custom admin name'},
+    {value:'new_sd25_abcdef123456',textContent:'Custom admin name'},
     {value:'dope_seedance_2_0_mini_720p',textContent:'Dope'},
-    {value:'puream_sd20_123456abcdef',textContent:'Seedance 2.0'},
-    {value:'puream_wan3_abcdef654321',textContent:'Wan 3.0'},
+    {value:'new_sd20_123456abcdef',textContent:'Seedance 2.0'},
+    {value:'new_wan3_abcdef654321',textContent:'Wan 3.0'},
   ];
   let markup='',sorted=false;
   const options={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_p,html)=>{markup=html;}};
@@ -365,12 +365,12 @@ test('performance sorting preserves the New submenu and ranks nested options wit
   const section=(children)=>({children,contains:()=>false,insertBefore(node,before){
     this.children.splice(this.children.indexOf(node),1);this.children.splice(this.children.indexOf(before),0,node);
   }});
-  const pureamA=option(1,'puream_a'),pureamB=option(3,'puream_b'),normalA=option(0,'normal_a'),normalB=option(2,'normal_b');
+  const pureamA=option(1,'new_a'),pureamB=option(3,'new_b'),normalA=option(0,'normal_a'),normalB=option(2,'normal_b');
   const nested=section([pureamA,pureamB]);
   const group={matches:s=>s==='.model-picker-new-group',querySelector:()=>nested};
   const empty={matches:()=>false};
   const root=section([group,normalA,normalB,empty]);
-  const metrics={puream_a:{successRate:50,averageLatencyMs:1000},puream_b:{successRate:100,averageLatencyMs:500},
+  const metrics={new_a:{successRate:50,averageLatencyMs:1000},new_b:{successRate:100,averageLatencyMs:500},
     normal_a:{successRate:0,averageLatencyMs:100},normal_b:{successRate:80,averageLatencyMs:2000}};
   const ctx=vm.createContext({metricsFor:id=>metrics[id],document:{activeElement:null}});
   vm.runInContext(perf.slice(start,end),ctx);ctx.sortOptions(root);

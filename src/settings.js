@@ -14,7 +14,7 @@ const DEFAULTS = {
   vercel_max_inflight: '2',
   vercel_customer_credits_per_usd: String(DEFAULT_VERCEL_CREDITS_PER_USD),
   puream_api_key: '',
-  puream_enabled: 'false',
+  puream_enabled: 'true',
   puream_max_inflight: '1',
   wxksai_api_key: '',
   wxksai_enabled: 'false',

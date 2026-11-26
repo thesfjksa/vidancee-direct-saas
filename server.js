@@ -200,6 +200,7 @@ const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isPureamModel, pureamMediaModels } = require('./src/puream_models.js');
 const { PureamClient } = require('./src/provider/puream.js');
+const { customerNewModelId, storedNewModelId, customerNewLabel } = require('./src/new_brand.js');
 const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
 const { createDopePerformance } = require('./src/dope_performance.js');
 const getDopePerformance = createDopePerformance();
@@ -576,8 +577,10 @@ function applyModelNames(studio,models,names){
   return models.map(m=>{
     // Prior admin overrides used the historical provider-prefixed public ID.
     // Preserve them, but never leak that old source name in the customer label.
-    const override=names[studio+':'+m.id] || (m.id.startsWith('dope_') ? names[studio+':'+storedModelId(m.id)] : '');
-    return typeof override==='string'&&override.trim() ? {...m,label:m.id.startsWith('dope_') ? customerModelLabel(override.trim()) : override.trim()} : m;
+    const isNew=m.id.startsWith('new_');
+    const override=names[studio+':'+m.id] || (m.id.startsWith('dope_') ? names[studio+':'+storedModelId(m.id)] : isNew?names[studio+':'+storedNewModelId(m.id)]:'');
+    const label=typeof override==='string'&&override.trim()?override.trim():m.label;
+    return {...m,label:isNew?customerNewLabel(label):m.id.startsWith('dope_')?customerModelLabel(label):label};
   });
 }
 
@@ -703,7 +706,7 @@ async function adminModelNameList(){
   const cartoon=publicPricing().filter(model => CARTOON_MODELS.includes(model.id));
   const rows=[];
   for(const [studio,list] of [['video',catalog.video],['image',catalog.image],['cartoon',cartoon]]){
-    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||names[studio+':'+storedModelId(m.id)]||'',
+    for(const m of list)rows.push({key:studio+':'+m.id,studio,id:m.id,vendor:modelVendor(m.id),defaultName:m.label,name:names[studio+':'+m.id]||names[studio+':'+storedModelId(m.id)]||names[studio+':'+storedNewModelId(m.id)]||'',
       ...(studio==='video'&&(isArgoModel(m.id)||isHiggsfieldModel(m.id))?{hdEnhance:!hdOff.has(m.id)}:{})});
   }
   return rows;
@@ -992,7 +995,7 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     if(!model?.ready)throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,require('./src/billing.js').CREDITS_PER_USD);
-    generation=await createVideo(user.id,{...body,...quote},{provider:'puream',dynamicModel:true,
+    generation=await createVideo(user.id,{...body,...quote,model:storedNewModelId(requestedModel)},{provider:'puream',dynamicModel:true,
       defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
       costOverride:quote.cost,providerCost:quote.sourceUsd*require('./src/billing.js').CNY_PER_USD,providerCostUnit:'cny',generationOptions:{...quote,model},
     });
@@ -1562,7 +1565,7 @@ const server=http.createServer(async (req,res)=>{
       return sendJson(res,200,await getDopePerformance());
     }
 
-    if (req.method==='GET' && routePath==='/api/puream-performance') {
+    if (req.method==='GET' && routePath==='/api/new-performance') {
       requireDatabase();
       const user=await requireUser(req);
       const access=await getVisibleUserProviderAccess(user.id);
@@ -1571,7 +1574,7 @@ const server=http.createServer(async (req,res)=>{
       if(!settings.pureamEnabled||!settings.pureamApiKey)throw httpError(403,'Performance data is unavailable for this account.');
       const [performance,catalog]=await Promise.all([require('./src/puream_performance.js').pureamPerformance(getPool()),publicProviderCatalog('puream')]);
       const visible=new Set(catalog.video.map(model=>model.id));
-      return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).filter(([id])=>visible.has(id)))});
+      return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).map(([id,stats])=>[customerNewModelId(id),stats]).filter(([id])=>visible.has(id)))});
     }
 
     if (req.method==='GET' && routePath==='/api/api888-performance') {
@@ -2740,6 +2743,7 @@ const server=http.createServer(async (req,res)=>{
           // Remove the legacy Dope key as well, otherwise a reset can resurrect its name.
           const id=rest.join(':');
           if(id.startsWith('dope_'))delete names[studio+':'+storedModelId(id)];
+          if(id.startsWith('new_'))delete names[studio+':'+storedNewModelId(id)];
           if(name)names[key]=name;else delete names[key];
         }
         await setSettingValue(MODEL_NAMES_SETTING,JSON.stringify(names));
@@ -3331,6 +3335,7 @@ function bootstrap() {
       await enableVgenvForCustomersOnce().catch(error=>console.error('vgenv access for all failed:',error.message));
       await enableApi888ForCustomersOnce().catch(error=>console.error('888API access for all failed:',error.message));
       await enableDopeForCustomersOnce().catch(error=>console.error('Dope access for all failed:',error.message));
+      await require('./src/puream_access.js').enablePureamForEveryoneOnce(getPool()).catch(error=>console.error('Puream access for all failed:',error.message));
       await ensureGatewayCatalog().catch(error=>console.error('Gateway catalog initialization failed:',error.message));
       await ensureArgoCatalog().catch(error=>console.error('ArgoLink catalog initialization failed:',error.message));
       await ensureApi888Catalog().catch(error=>console.error('888API catalog initialization failed:',error.message));
