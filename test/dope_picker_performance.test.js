@@ -8,7 +8,7 @@ const vm = require('node:vm');
 test('picker sorts successful models by latency without changing their native indexes', async () => {
   const makeCard = (index, id) => {
     const metric = id && { dataset: { dopePerformance: id }, hasAttribute: () => true };
-    return { metric, dataset: { index: String(index) }, matches: () => true, querySelector: () => metric };
+    return { metric, dataset: { index: String(index) }, matches: selector => selector === ".custom-select-option", querySelector: () => metric };
   };
   const mini = makeCard(0, 'dope_mini');
   const zero = makeCard(2, 'dope_zero');

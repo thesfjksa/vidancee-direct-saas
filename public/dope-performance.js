@@ -35,7 +35,11 @@
 
   function sortOptions(root) {
     if (!root) return;
-    const items = [...root.children].filter(item => item.matches('.custom-select-option')).map(item => ({
+    const children = [...root.children];
+    // Keep section headers/disclosures in place and rank options only within
+    // their original list. A Puream metric must never pull a card out of New.
+    const positions = children.map((item,index) => item.matches('.custom-select-option') ? index : -1).filter(index=>index>=0);
+    const items = positions.map(index => children[index]).map(item => ({
       item,
       metrics: metricsFor(item.querySelector('[data-dope-performance-card]')?.dataset.dopePerformance),
     }));
@@ -48,9 +52,12 @@
       Number(a.item.dataset.index) - Number(b.item.dataset.index));
     const focused = document.activeElement;
     items.forEach(({ item }, index) => {
-      if (root.children[index] !== item) root.insertBefore(item, root.children[index]);
+      if (root.children[positions[index]] !== item) root.insertBefore(item, root.children[positions[index]]);
     });
-    if (root.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    if (focused && root.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    for(const child of children){
+      if(child.matches('.model-picker-new-group'))sortOptions(child.querySelector('.model-picker-group-options'));
+    }
   }
 
   async function refresh(name) {
