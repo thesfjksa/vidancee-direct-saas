@@ -136,3 +136,25 @@ test('catalog retries transient network errors once without exposing credentials
   const timeout=new PureamClient({apiKey:'test-secret',fetchImpl:async()=>{throw Object.assign(new Error('secret'),{name:'TimeoutError'});}});
   await assert.rejects(timeout.models(),e=>e.transportReason==='TIMEOUT'&&!e.message.includes('secret'));
 });
+
+test('catalog separates HTML, malformed JSON, empty and truncated responses; never exposes raw response or repeats a paid POST',async()=>{
+  let calls=0;
+  const html=new PureamClient({apiKey:'secret',fetchImpl:async()=>{calls++;return new Response('<html>secret</html>',{headers:{'content-type':'text/html'}});}});
+  await assert.rejects(html.models(),e=>e.responseReason==='HTML_OR_XML_RESPONSE'&&!e.message.includes('secret'));assert.equal(calls,1);
+  calls=0;
+  const malformed=new PureamClient({apiKey:'secret',fetchImpl:async()=>{calls++;return new Response('invalid secret');}});
+  await assert.rejects(malformed.models(),e=>e.responseReason==='MALFORMED_JSON'&&!e.message.includes('secret'));assert.equal(calls,1);
+  calls=0;
+  const recovered=new PureamClient({apiKey:'secret',fetchImpl:async(_url,options)=>{
+    assert.equal(options.headers['accept-encoding'],'identity');
+    return ++calls===1?new Response('partial',{headers:{'content-length':'100'}}):Response.json(catalog);
+  }});
+  assert.deepEqual(await recovered.models(),catalog);assert.equal(calls,2);
+  calls=0;
+  const empty=new PureamClient({apiKey:'secret',fetchImpl:async()=>{calls++;return new Response('');}});
+  await assert.rejects(empty.models(),e=>e.responseReason==='EMPTY_BODY');assert.equal(calls,2);
+  calls=0;
+  await assert.rejects(empty.startVideo(payloadFor(options,refs),'cmm-job'),e=>e.ambiguous===true&&e.responseReason==='EMPTY_BODY');assert.equal(calls,1);
+  const bom=new PureamClient({apiKey:'secret',fetchImpl:async()=>new Response('\uFEFF'+JSON.stringify(catalog))});
+  assert.deepEqual(await bom.models(),catalog);
+});

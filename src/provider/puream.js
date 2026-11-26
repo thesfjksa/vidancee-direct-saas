@@ -41,7 +41,7 @@ class PureamClient {
     if(!this.apiKey)throw new Error('Save a Puream authorization code in Admin.');
     if(!/^\/(?:models|videos(?:\/[a-zA-Z0-9_-]+(?:\/content)?)?)$/.test(path))throw new Error('Invalid Puream request path.');
     let response;
-    try {response=await this.fetch(BASE_URL+path,{method,redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{authorization:'Bearer '+this.apiKey,accept:path.endsWith('/content')?'video/mp4':'application/json',...(body?{'content-type':'application/json','Idempotency-Key':idempotencyKey}:{}),...(path.endsWith('/content')?{'accept-encoding':'identity'}:{})},...(body?{body:JSON.stringify(body)}:{})});}
+    try {response=await this.fetch(BASE_URL+path,{method,redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{authorization:'Bearer '+this.apiKey,accept:path.endsWith('/content')?'video/mp4':'application/json',...(body?{'content-type':'application/json','Idempotency-Key':idempotencyKey}:{}),'accept-encoding':'identity'},...(body?{body:JSON.stringify(body)}:{})});}
     catch (cause) {
       const known=new Set(['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EAI_AGAIN','ENOTFOUND','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_BODY_TIMEOUT','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN']);
       const raw=cause?.cause?.code||cause?.code;
@@ -56,8 +56,20 @@ class PureamClient {
   }
   async json(path,options){
     const response=await this.request(path,options);
-    try{return JSON.parse((await readBounded(response,4*1024*1024)).toString('utf8'));}
-    catch {throw Object.assign(new Error('Puream returned an invalid JSON response.'),{ambiguous:options?.method==='POST'});}
+    // Keep the raw response, headers and authorization code out of messages.
+    const fail=(reason,retryable=false)=>Object.assign(new Error('Puream API response could not be read (HTTP '+response.status+', '+reason+').'),{statusCode:502,code:'PUREAM_RESPONSE',responseReason:reason,retryable,ambiguous:options?.method==='POST'});
+    let bytes;
+    try{bytes=await readBounded(response,4*1024*1024);}
+    catch(error){
+      await response.body?.cancel?.().catch(()=>{});
+      const oversized=Number(response.headers.get('content-length'))>4*1024*1024||error?.message==='The generated file exceeds the supported size limit.';
+      throw fail(oversized?'RESPONSE_TOO_LARGE':'INCOMPLETE_BODY',!oversized);
+    }
+    const body=bytes.toString('utf8').replace(/^\uFEFF/,'').trim();
+    if(!body)throw fail('EMPTY_BODY',true);
+    if(/^</.test(body))throw fail('HTML_OR_XML_RESPONSE');
+    try{return JSON.parse(body);}
+    catch{throw fail('MALFORMED_JSON');}
   }
   async models(){
     const started=Date.now();
@@ -67,7 +79,9 @@ class PureamClient {
       // Read-only catalog retry, only for transient transport failures and
       // within the original 40-second budget. Never retry a generation POST here.
       const remaining=40000-(Date.now()-started);
-      if(error.code!=='PUREAM_CONNECTION'||!['ECONNRESET','EAI_AGAIN','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT','ETIMEDOUT','NETWORK_ERROR'].includes(error.transportReason)||remaining<5000)throw error;
+      const transportRetry=error.code==='PUREAM_CONNECTION'&&['ECONNRESET','EAI_AGAIN','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT','ETIMEDOUT','NETWORK_ERROR'].includes(error.transportReason);
+      const bodyRetry=error.code==='PUREAM_RESPONSE'&&error.retryable===true;
+      if((!transportRetry&&!bodyRetry)||remaining<5000)throw error;
       result=await this.json('/models',{timeoutMs:remaining});
     }
     pureamMediaModels(result);return result;
