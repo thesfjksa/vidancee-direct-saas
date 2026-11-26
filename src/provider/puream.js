@@ -6,6 +6,31 @@ const {openPublicVideo} = require('../remote_image.js');
 const {stageVideo} = require('../staged_video.js');
 const VIDEO_LIMIT=256*1024*1024;
 const TIMEOUT=300000;
+// Fixed-origin fresh IPv4 TLS transport, with the same abort budget and no
+// redirect following. No credential is ever forwarded to a media CDN.
+function ipv4Response(url,{method,headers,signal,body}){
+  if(new URL(url).origin!==new URL(BASE_URL).origin)throw new Error('Invalid Puream API origin.');
+  return new Promise((resolve,reject)=>{
+    const req=require('node:https').request(url,{method,headers:{...headers,connection:'close',...(body?{'content-length':Buffer.byteLength(body)}:{})},signal,agent:false,family:4,rejectUnauthorized:true},incoming=>{
+      try{
+        const h=new Headers();
+        for(const [name,value] of Object.entries(incoming.headers)){
+          if(Array.isArray(value))value.forEach(v=>h.append(name,v));else if(value!==undefined)h.set(name,String(value));
+        }
+        const status=incoming.statusCode;
+        if([204,205,304].includes(status)){incoming.resume();return resolve(new Response(null,{status,headers:h}));}
+        // Identity is requested; handle a server that nevertheless compresses.
+        let stream=incoming;
+        const z=require('node:zlib'),encoding=h.get('content-encoding');
+        const decoder=encoding==='gzip'?z.createGunzip():encoding==='deflate'?z.createInflate():encoding==='br'?z.createBrotliDecompress():null;
+        if(decoder){incoming.on('error',e=>decoder.destroy(e));decoder.on('close',()=>incoming.destroy());stream=incoming.pipe(decoder);h.delete('content-length');h.delete('content-encoding');}
+        resolve(new Response(require('node:stream').Readable.toWeb(stream),{status,headers:h}));
+      }catch(error){incoming.destroy();reject(error);}
+    });
+    req.on('error',reject);req.end(body);
+  });
+}
+
 const safeId = value => {
   const id=String(value||'');
   if (!/^[A-Za-z0-9_-]{1,191}$/.test(id)) throw new Error('Puream did not return a valid task ID.');
@@ -36,12 +61,12 @@ function payloadFor(options,references=[]){
   return payload;
 }
 class PureamClient {
-  constructor({apiKey='',fetchImpl=fetch,fetchMedia=openPublicVideo}={}){this.apiKey=String(apiKey).trim();this.fetch=fetchImpl;this.fetchMedia=fetchMedia;}
-  async request(path,{method='GET',body,idempotencyKey,timeoutMs=40000}={}){
+  constructor({apiKey='',fetchImpl=fetch,fetchMedia=openPublicVideo,ipv4Impl=fetchImpl===fetch?ipv4Response:null}={}){this.apiKey=String(apiKey).trim();this.fetch=fetchImpl;this.fetchMedia=fetchMedia;this.ipv4=ipv4Impl;this.preferIpv4=false;this.catalogInFlight=null;}
+  async request(path,{method='GET',body,idempotencyKey,timeoutMs=40000,useIpv4=this.preferIpv4}={}){
     if(!this.apiKey)throw new Error('Save a Puream authorization code in Admin.');
     if(!/^\/(?:models|videos(?:\/[a-zA-Z0-9_-]+(?:\/content)?)?)$/.test(path))throw new Error('Invalid Puream request path.');
     let response;
-    try {response=await this.fetch(BASE_URL+path,{method,redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{authorization:'Bearer '+this.apiKey,accept:path.endsWith('/content')?'video/mp4':'application/json',...(body?{'content-type':'application/json','Idempotency-Key':idempotencyKey}:{}),'accept-encoding':'identity'},...(body?{body:JSON.stringify(body)}:{})});}
+    try {response=await (useIpv4&&this.ipv4?this.ipv4:this.fetch)(BASE_URL+path,{method,redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{authorization:'Bearer '+this.apiKey,accept:path.endsWith('/content')?'video/mp4':'application/json',...(body?{'content-type':'application/json','Idempotency-Key':idempotencyKey}:{}),'accept-encoding':'identity'},...(body?{body:JSON.stringify(body)}:{})});}
     catch (cause) {
       const known=new Set(['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EAI_AGAIN','ENOTFOUND','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_BODY_TIMEOUT','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN']);
       const raw=cause?.cause?.code||cause?.code;
@@ -72,17 +97,26 @@ class PureamClient {
     catch{throw fail('MALFORMED_JSON');}
   }
   async models(){
+    if(!this.catalogInFlight){
+      this.catalogInFlight=this.readModels().finally(()=>{this.catalogInFlight=null;});
+    }
+    return this.catalogInFlight;
+  }
+  async readModels(){
     const started=Date.now();
     let result;
-    try {result=await this.json('/models');}
+    try {result=await this.json('/models',{timeoutMs:this.ipv4&&!this.preferIpv4?18000:40000});}
     catch(error){
       // Read-only catalog retry, only for transient transport failures and
       // within the original 40-second budget. Never retry a generation POST here.
       const remaining=40000-(Date.now()-started);
-      const transportRetry=error.code==='PUREAM_CONNECTION'&&['ECONNRESET','EAI_AGAIN','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT','ETIMEDOUT','NETWORK_ERROR'].includes(error.transportReason);
+      const transportRetry=error.code==='PUREAM_CONNECTION'&&['ECONNRESET','EAI_AGAIN','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT','ETIMEDOUT','NETWORK_ERROR','TIMEOUT','ENETUNREACH','EHOSTUNREACH'].includes(error.transportReason);
       const bodyRetry=error.code==='PUREAM_RESPONSE'&&error.retryable===true;
-      if((!transportRetry&&!bodyRetry)||remaining<5000)throw error;
-      result=await this.json('/models',{timeoutMs:remaining});
+      if((!transportRetry&&!bodyRetry)||remaining<5000||(!this.ipv4&&error.transportReason==='TIMEOUT'))throw error;
+      const useIpv4=Boolean(this.ipv4);
+      result=await this.json('/models',{timeoutMs:remaining,useIpv4});
+      pureamMediaModels(result);
+      if(useIpv4)this.preferIpv4=true;
     }
     pureamMediaModels(result);return result;
   }
@@ -113,4 +147,4 @@ class PureamClient {
     return stageVideo(media.body,{contentLength:media.contentLength,maxBytes:VIDEO_LIMIT});
   }
 }
-module.exports={PureamClient,payloadFor};
+module.exports={PureamClient,payloadFor,ipv4Response};
