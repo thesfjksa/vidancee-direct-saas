@@ -42,7 +42,12 @@ class PureamClient {
     if(!/^\/(?:models|videos(?:\/[a-zA-Z0-9_-]+(?:\/content)?)?)$/.test(path))throw new Error('Invalid Puream request path.');
     let response;
     try {response=await this.fetch(BASE_URL+path,{method,redirect:'manual',signal:AbortSignal.timeout(timeoutMs),headers:{authorization:'Bearer '+this.apiKey,accept:path.endsWith('/content')?'video/mp4':'application/json',...(body?{'content-type':'application/json','Idempotency-Key':idempotencyKey}:{}),...(path.endsWith('/content')?{'accept-encoding':'identity'}:{})},...(body?{body:JSON.stringify(body)}:{})});}
-    catch {throw Object.assign(new Error('Puream connection timed out or failed.'),{ambiguous:method==='POST',code:'PUREAM_CONNECTION'});}
+    catch (cause) {
+      const known=new Set(['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EAI_AGAIN','ENOTFOUND','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_BODY_TIMEOUT','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN']);
+      const raw=cause?.cause?.code||cause?.code;
+      const reason=known.has(raw)?raw:(cause?.name==='TimeoutError'||cause?.name==='AbortError'?'TIMEOUT':'NETWORK_ERROR');
+      throw Object.assign(new Error('Puream connection failed ('+reason+').'),{ambiguous:method==='POST',statusCode:502,code:'PUREAM_CONNECTION',transportReason:reason});
+    }
     if(!response.ok && !(path.endsWith('/content')&&response.status>=300&&response.status<400)){
       await response.body?.cancel?.().catch(()=>{});
       throw Object.assign(new Error('Puream returned HTTP '+response.status+'.'),{providerStatus:response.status,statusCode:response.status===402?402:502,ambiguous:method==='POST'&&response.status>=500,code:response.status===402?'INSUFFICIENT_BALANCE':'PUREAM_HTTP'});
@@ -54,7 +59,19 @@ class PureamClient {
     try{return JSON.parse((await readBounded(response,4*1024*1024)).toString('utf8'));}
     catch {throw Object.assign(new Error('Puream returned an invalid JSON response.'),{ambiguous:options?.method==='POST'});}
   }
-  async models(){const result=await this.json('/models');pureamMediaModels(result);return result;}
+  async models(){
+    const started=Date.now();
+    let result;
+    try {result=await this.json('/models');}
+    catch(error){
+      // Read-only catalog retry, only for transient transport failures and
+      // within the original 40-second budget. Never retry a generation POST here.
+      const remaining=40000-(Date.now()-started);
+      if(error.code!=='PUREAM_CONNECTION'||!['ECONNRESET','EAI_AGAIN','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT','ETIMEDOUT','NETWORK_ERROR'].includes(error.transportReason)||remaining<5000)throw error;
+      result=await this.json('/models',{timeoutMs:remaining});
+    }
+    pureamMediaModels(result);return result;
+  }
   async startVideo(payload,key){
     if(!/^[a-zA-Z0-9_.:-]{1,128}$/.test(key))throw new Error('Invalid Puream idempotency key.');
     const result=await this.json('/videos',{method:'POST',body:payload,idempotencyKey:key,timeoutMs:90000});

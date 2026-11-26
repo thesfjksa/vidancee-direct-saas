@@ -115,3 +115,24 @@ test('completed task downloads the same task, does not forward the key to the CD
   assert.equal(JSON.stringify(records[2].options).includes('test-secret'),false);
   await assert.rejects(staged.readChunk(0,8));
 });
+
+test('catalog retries transient network errors once without exposing credentials or retrying submissions',async()=>{
+  let count=0;
+  const client=new PureamClient({apiKey:'test-secret',fetchImpl:async()=>{
+    if(++count===1)throw Object.assign(new Error('private token test-secret'),{cause:{code:'ECONNRESET'}});
+    return Response.json(catalog);
+  }});
+  assert.deepEqual(await client.models(),catalog);assert.equal(count,2);
+  count=0;
+  const failing=new PureamClient({apiKey:'test-secret',fetchImpl:async()=>{
+    count++;throw Object.assign(new Error('private token test-secret'),{cause:{code:'ECONNRESET'}});
+  }});
+  await assert.rejects(failing.models(),e=>e.transportReason==='ECONNRESET'&&!e.message.includes('test-secret'));assert.equal(count,2);
+  count=0;
+  await assert.rejects(failing.startVideo(payloadFor(options,refs),'cmm-job'),e=>e.ambiguous===true);assert.equal(count,1);
+  count=0;
+  const auth=new PureamClient({apiKey:'test-secret',fetchImpl:async()=>{count++;return new Response('',{status:401});}});
+  await assert.rejects(auth.models(),e=>e.providerStatus===401);assert.equal(count,1);
+  const timeout=new PureamClient({apiKey:'test-secret',fetchImpl:async()=>{throw Object.assign(new Error('secret'),{name:'TimeoutError'});}});
+  await assert.rejects(timeout.models(),e=>e.transportReason==='TIMEOUT'&&!e.message.includes('secret'));
+});
