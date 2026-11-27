@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
+const {renderAdminPage}=require('../src/page_assets');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -14,6 +15,7 @@ const { chromium } = require('playwright-core');
   const errors = [], requests = [], writes = [];
   let api888Imports=0, longAiImport=null, pureamChecks=0, pureamImports=0, pureamEnabled=false;
   let renderTest = null, paidRequests = 0;
+  let settingsReads=0, staleNavRequests=0;
   const renderProof = { expiresAt: Date.now() + 5 * 60 * 1000, signature: 'fixture-proof' };
   page.on('pageerror', error => errors.push(error.message));
   const names = Array.from({ length: 35 }, (_, i) => ({ key: 'video:example_' + i, id: 'example_' + i,
@@ -31,8 +33,10 @@ const { chromium } = require('playwright-core');
     const request = route.request(), url = new URL(request.url()), pathname = url.pathname;
     requests.push(pathname + url.search);
     const json = value => route.fulfill({ json: { ok: true, ...value } });
-    if (pathname === '/admin-console') return route.fulfill({ contentType: 'text/html', body: fs.readFileSync('public/admin.html', 'utf8') });
+    if (pathname === '/admin-console') return route.fulfill({ contentType: 'text/html', body: renderAdminPage() });
+    if(pathname==='/provider-admin.js'){staleNavRequests++;return route.fulfill({contentType:'application/javascript',body:'window.selectProviderSource = () => {};'});}
     if (pathname === '/admin/aivid/status') return json({ configured: false, apiKeyConfigured: false, endpoint: 'https://production-sfo.browserless.io', ttlDays: 1, login: { state: 'idle' } });
+    if (pathname === '/admin/provider-settings' && request.method()==='GET' && ++settingsReads===1) return route.fulfill({status:503,json:{ok:false,error:'Temporary settings outage'}});
     if (pathname === '/admin/provider-settings') return json({ settings: { argolink: { enabled: true, apiKeyConfigured: true }, longai: { enabled: false, apiKeyConfigured: true }, allowProviderCharges: false } });
     if (pathname === '/admin/longai/check') { assert.equal(request.method(), 'GET'); return json({ providerStatus: 401, elapsedMs: 125 }); }
     if (pathname === '/admin/longai/import') { assert.equal(request.method(), 'POST'); longAiImport = request.postDataJSON(); return json({ models: [] }); }
@@ -103,6 +107,18 @@ const { chromium } = require('playwright-core');
   await page.locator('#aividKeyStatus').filter({ hasText: 'No Browserless key' }).waitFor();
   assert.equal(await page.locator('[data-provider-source]:visible').count(), 1);
   assert.equal(requests.some(url => url === '/admin/model-names' || url === '/admin/provider-models?provider=vercel'), false);
+  // A temporary settings failure cannot disable navigation or leave a
+  // provider at Checking forever; a read-only retry restores actual status.
+  await page.locator('#provider-nav-status-huiqu').filter({hasText:'Settings unavailable'}).waitFor();
+  await page.locator('[data-source-key="huiqu"]').click();
+  assert.equal(await page.locator('[data-provider-source="huiqu"]').isVisible(),true);
+  assert.equal(await page.locator('#aividAdminCard').isVisible(),false);
+  await page.getByRole('button',{name:'Save provider settings',exact:true}).click();
+  await page.locator('#providerSettingsMsg').filter({hasText:'Load existing provider settings'}).waitFor();
+  await page.locator('#providerSettingsRetry').click();
+  await page.locator('#provider-nav-status-huiqu').filter({hasText:'Needs setup'}).waitFor();
+  assert.equal(await page.locator('#providerSettingsRetry').isVisible(),false);
+  assert.equal(staleNavRequests,0,'The deployed Admin HTML must not load stale external navigation scripts');
   // Regression: WXKSAI's directory entry must be selectable and never remain at "Checking…".
   const wxksaiNav = page.locator('[data-source-key="wxksai"]');
   await page.locator('#provider-nav-status-wxksai').filter({ hasText: 'Needs setup' }).waitFor();
@@ -250,6 +266,9 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSelect').selectOption('puream');
   assert.equal(await page.locator('[data-provider-source="puream"]').isVisible(),true);
   assert.equal(await page.locator('#pureamApiKey').inputValue(),'synthetic-unsaved-puream-code');
+  await page.locator('#providerSourceSelect').selectOption('huiqu');
+  assert.equal(await page.locator('[data-provider-source="huiqu"]').isVisible(),true);
+  assert.equal(await page.locator('#huiquApiKey').inputValue(),'synthetic-unsaved-huiqu');
   await page.locator('#providerSourceSelect').selectOption('aivid');
   assert.equal(await page.locator('[data-provider-source]:visible').count(), 1);
   assert.equal(await page.locator('#aividAdminCard').isVisible(), true);

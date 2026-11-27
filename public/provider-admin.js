@@ -6,12 +6,23 @@
   const el = id => document.getElementById(id);
   const loaded = new Set();
   const pages = new Map();
-  const sources = {
-    aivid: null, argolink: 'argo', api888: 'api888', higgsfield: 'higgsfield',
-    longai: 'longai', wxksai: 'wxksai', puream: 'puream', huiqu: 'huiqu', sluice: 'sluice', vidancee: 'vidancee', vercel: 'vercel', smartaipi: 'smart',
-    vgenv: 'vgenv', fal: 'fal', vibi: 'vibi',
-  };
+  // Cards are the source of truth. A new source must not need a duplicate
+  // hard-coded entry in a second file to become clickable.
+  const prefixAliases = { aivid: null, argolink: 'argo', smartaipi: 'smart' };
+  const cards = () => [...document.querySelectorAll('[data-provider-source]')];
+  const sources = Object.fromEntries(cards().map(card => {
+    const key = card.dataset.providerSource;
+    return [key, Object.hasOwn(prefixAliases, key) ? prefixAliases[key] : key];
+  }));
   let currentView = 'connections', currentCatalog = 'names', initialized = false;
+  let directoryState = 'loading';
+  window.providerSettingsReady = () => directoryState === 'ready';
+  window.setProviderDirectoryState = state => {
+    directoryState = state;
+    const retry = el('providerSettingsRetry');
+    if (retry) retry.hidden = state !== 'failed';
+    window.refreshProviderDirectory();
+  };
   window.loadProviderModelVisibility = visibility => {
     Object.keys(sources).forEach(key => {
       const input = el('modelsVisible-' + key), save = el('saveModelsVisible-' + key);
@@ -53,6 +64,9 @@
         const text = el('aividConnectionBadge').textContent.toLowerCase();
         status.textContent = /verified|^connected$/.test(text) ? 'Connected' : /progress|verifying/.test(text) ? 'Signing in' : 'Setup';
         status.classList.toggle('is-on', status.textContent === 'Connected');
+      } else if (directoryState !== 'ready') {
+        status.textContent = directoryState === 'failed' ? 'Settings unavailable' : 'Checking…';
+        status.classList.remove('is-on');
       } else {
         const enabled = el(prefix + 'Enabled')?.checked;
         const secret = el(prefix + 'SecretStatus')?.textContent || '';
@@ -63,8 +77,9 @@
     });
   };
   window.selectProviderSource = key => {
-    if (!Object.hasOwn(sources, key)) return;
-    document.querySelectorAll('[data-provider-source]').forEach(card => { card.hidden = card.dataset.providerSource !== key; });
+    const matchingCards = cards();
+    if (!Object.hasOwn(sources, key) || !matchingCards.some(card => card.dataset.providerSource === key)) return;
+    matchingCards.forEach(card => { card.hidden = card.dataset.providerSource !== key; });
     document.querySelectorAll('[data-source-key]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.sourceKey === key)));
     el('providerSourceSelect').value = key;
     el('providerSaveFooter').hidden = key === 'aivid';
