@@ -1,3 +1,8 @@
+## 27 November 2026 — Correct model-specific Flash duration and release regression
+
+- Reopened the exact current Apifox pages after repeated owner HTTP 400 screenshot. 720p https://huiquyunapi.apifox.cn/539860662e0 explicitly states 4–6 seconds (2.8 CNY/clip), whereas 480p https://huiquyunapi.apifox.cn/539860661e0 states 4–30 seconds (2.5 CNY/clip). This supersedes the earlier 30s assumption for 720p. Restrict 720p to 4–6s, retain 480p 4–30s and existing pricing/reference limits. Both pages now show model-specific submit and task query paths; their live base URL and compatibility with existing generic routes are unverified, so no speculative endpoint switch or paid retry. Existing worker live quote validation rejects out-of-range durations before POST. Production catalog sync required.
+- GitHub Node run 46041076767 failed because PR #309 added a literal internal provider identifier to customer HTML, violating existing brand isolation. Remove that literal; public alias filter and backend customer-access block remain. Added resolution-specific quote rejection regression. Production deployment, exact historic upstream rejection and refunds remain unverified. No paid generations.
+
 ## 27 November 2026 — Huiqu 30s Flash HTTP 400
 
 - Owner screenshot now shows 30s/720p/16:9 Flash job at 2822.4 credits with HTTP 400. Official exact model documentation https://huiquyunapi.apifox.cn/539860662e0 confirms 4–30 integer seconds, optional references, 16:9, and generic POST /v1/videos with model in body. Existing payload matches documented contract; do not revert duration or switch endpoints without evidence. Public catalog presence, account channel behavior and specific rejected request body cannot be established from screenshot.
