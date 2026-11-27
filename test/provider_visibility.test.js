@@ -30,6 +30,10 @@ test('existing installations retain visibility and hidden sources cannot grant d
   }
 });
 
+test('retired New provider cannot be granted customer access even when enabled; Huiqu remains independent',()=>{
+  assert.deepEqual(visibleProviderAccess({puream:true,huiqu:true},{puream:true,huiqu:true}),{puream:false,huiqu:true});
+});
+
 test('visibility saves persist independently without altering provider enablement or credentials', async () => {
   saved.clear(); writes.length = 0;
   saved.set('vgenv_enabled', 'true');
@@ -66,7 +70,8 @@ test('customer catalog removes every hidden provider while preserving the Admin 
   for (const key of PROVIDERS) {
     const catalog = await context.customerMediaCatalog(access, { providerModelVisibility: { [key]: false } }, { names: {} });
     assert.equal(catalog.video.some(model => model.id === key), false);
-    assert.equal(catalog.video.length, PROVIDERS.length - 1);
+    assert.equal(catalog.video.length, PROVIDERS.length - (key==='puream'?1:2));
+    assert.equal(seen.puream,false);
     assert.equal(seen[key], false);
     assert.equal(access[key], true);
   }
