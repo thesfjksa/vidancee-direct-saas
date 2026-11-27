@@ -147,3 +147,18 @@ test('Seedance 2.5 Flash supports 4–30s with constant pricing and unchanged re
   assert.equal(model.huiqu.videoClipSeconds,15);
  }
 });
+
+test('Huiqu HTTP 400 records only a safe rejection classification, never retries or leaks upstream text',async()=>{
+ const model=full('sd2.5-flash-10.5.5-720p');
+ let calls=0;
+ const client=new HuiquClient({apiKey:'test-key',fetchImpl:async()=>{
+  calls++;return Response.json({error:{message:'duration rejected private-string',param:'seconds'}},{status:400});
+ }});
+ const queue=new HuiquQueue();
+ await assert.rejects(client.startVideo(model,payloadFor(model,{duration:30,prompt:'test',aspectRatio:'16:9'},[])),e=>{
+  assert.equal(e.providerStatus,400);assert.equal(e.failureType,'duration_rejected');assert.equal(e.ambiguous,false);
+  assert.equal(e.recoveryStage,'video_submission');assert.ok(!JSON.stringify(e).includes('private-string'));
+  assert.match(queue.submitFailureMessage(e),/rejected the selected duration/);return true;
+ });
+ assert.equal(calls,1);
+});
