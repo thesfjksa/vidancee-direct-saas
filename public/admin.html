@@ -1765,11 +1765,11 @@ async function loadHuiquModels(){
     const rows=Array.isArray(r.models)?r.models:[];
     const formatLatency=ms=>ms==null?'—':Math.round(ms/1000)+'s';
     rows.sort((a,b)=>Number(!!performance.models?.[b.publicModelId])-Number(!!performance.models?.[a.publicModelId])||(performance.models?.[a.publicModelId]?.averageLatencyMs??Infinity)-(performance.models?.[b.publicModelId]?.averageLatencyMs??Infinity));
-    panel.innerHTML='<strong>'+rows.length+' imported Huiqu models</strong><div class="muted">24h performance uses completed CMMTools jobs; upstream catalog availability is not a generation success rate.</div>'+rows.map(m=>{
+    panel.innerHTML='<strong>'+rows.length+' imported Huiqu models</strong><div class="muted">24h provider-reported performance; CMMTools results are shown separately when available.</div>'+rows.map(m=>{
       const p=m.huiqu?.price;
       const tiers=p?'¥'+esc(p.priceCny)+(p.unit==='second'?'/sec':'/clip')+' · '+esc(m.resolutions.join(', '))+' · '+esc(m.durations[0])+'–'+esc(m.durations.at(-1))+'s': 'Price not verified';
       const metric=performance.models?.[m.publicModelId];
-      const stats=metric?Number(metric.successRate).toFixed(2)+'% success · '+formatLatency(metric.averageLatencyMs)+' avg · '+Number(metric.samples)+' jobs':'No CMMTools performance data';
+      const stats=metric?(metric.source==='provider'?'Provider: ':'CMMTools: ')+(metric.successRate==null?'—':Number(metric.successRate).toFixed(2)+'%')+' success · '+formatLatency(metric.averageLatencyMs)+' avg'+(metric.source==='local'?' · '+Number(metric.samples)+' jobs':performance.stale?' · Last known':'')+(metric.local?' · CMMTools: '+Number(metric.local.successRate).toFixed(2)+'% / '+Number(metric.local.samples)+' jobs':''):'Provider performance not reported';
       return '<div style="display:flex;gap:8px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(m.label)+'</strong><div class="muted">'+esc(m.providerModelId)+' · '+(m.ready&&m.available?'ready':esc(m.setupReason||'not available'))+'</div><div>'+tiers+'</div><div class="muted">References: '+Number(m.referenceCapabilities?.image?.max||0)+' images / '+Number(m.referenceCapabilities?.video?.max||0)+' videos / '+Number(m.referenceCapabilities?.audio?.max||0)+' audio</div><div class="muted">'+esc(stats)+'</div></div><label><input type="checkbox" '+(m.enabled&&m.ready&&m.available?'checked':'')+' onchange="toggleHuiquModel('+Number(m.id)+',this.checked,this)" '+(!m.available||!m.ready?'disabled':'')+'> Enabled</label></div>';
     }).join('');
   }catch(e){panel.textContent='Model inventory unavailable: '+e.message;}

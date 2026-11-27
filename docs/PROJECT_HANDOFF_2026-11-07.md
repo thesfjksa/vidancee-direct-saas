@@ -1,3 +1,9 @@
+## 27 November 2026 — Huiqu public performance metrics
+
+- Read Huiqu's public GET https://api.bjhuiqu.net/api/perf-metrics/summary?hours=24 directly, without credentials or paid jobs. Live response returned 109 model rows, with 19 exact reviewed catalog matches (13 eligible routes). Other models have no recent metrics in this response; do not infer 100% success from the website's default status display.
+- Cache the provider snapshot for ten minutes, coalesce reads, validate numerical values, preserve missing latency as null, retain last known values on network errors and map exact upstream model names to stable public IDs. Customer visibility filters remain unchanged. Prefer provider-reported metrics on Newly Listed cards and show distinct local outcomes where available; Admin displays the same source distinction. No pricing, generation or model access changes.
+- Add regression for exact IDs, nullable latency, zero success, refresh and stale handling. Production deployment and CI verification pending.
+
 ## 27 November 2026 — Admin provider navigation cache recovery
 
 - Owner screenshot showed Huiqu Cloud stuck at Checking and clicks left the AIVID card visible. Production served the updated Admin HTML with unchanged `/provider-admin.js?v=6`; HTTP headers exposed a seven-day public cache lifetime for that JavaScript. The previous script's hard-coded source registry silently rejected Huiqu.
