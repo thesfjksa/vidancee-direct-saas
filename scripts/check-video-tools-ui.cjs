@@ -21,7 +21,8 @@ const modelFixtures=[
   videoModel('new_sd25_abcdef123456','Seedance 2.5 · Fixture',true),
   videoModel('dope_seedance_2_0_mini_720p','Dope Seedance'),
   videoModel('new_wan3_abcdef654321','Wan 3.0 · Fixture',true),
-  videoModel('new_sd20_123456abcdef','Renamed fixture model',true)
+  videoModel('new_sd20_123456abcdef','Renamed fixture model',true),
+  videoModel('huiqu_123456789012345678901234','Huiqu fixture',true)
 ];
 
 
@@ -103,7 +104,10 @@ const modelFixtures=[
     await page.locator('[data-section="create"]').click();
     const trigger=page.locator('#model').locator('..').locator('.custom-select-trigger');
     await trigger.click();
-    const group=page.locator('#modelPicker .model-picker-new-group');
+    const group=page.locator('#modelPicker .model-picker-new-group:not([data-group-label])');
+    const huiquGroup=page.locator('#modelPicker .model-picker-new-group[data-group-label="Newly Listed"]');
+    assert.equal(await huiquGroup.locator('.model-picker-group-name').innerText(),'Newly Listed');
+    assert.equal(await huiquGroup.locator('.model-picker-group-count').innerText(),'1 model');
     await group.locator('summary').waitFor();
     assert.equal(await group.locator('.model-picker-group-name').innerText(),'New');
     assert.equal(await group.locator('.model-picker-group-count').innerText(),'3 models');
@@ -116,6 +120,9 @@ const modelFixtures=[
     assert.match(await group.locator('.custom-select-option:visible').innerText(),/Wan 3.0/);
     await search.fill('New');
     assert.equal(await group.locator('.custom-select-option:visible').count(),3);
+    await search.fill('Newly Listed');
+    assert.equal(await huiquGroup.locator('.custom-select-option:visible').count(),1);
+    assert.equal(await group.isVisible(),false);
     await search.fill('not a model');
     assert.equal(await group.isVisible(),false);
     assert.equal(await page.locator('#modelPicker .custom-select-empty').isVisible(),true);
@@ -133,7 +140,10 @@ const modelFixtures=[
     assert.equal(await group.getByRole('option',{name:/Wan 3.0/}).getAttribute('aria-selected'),'true');
     assert(await page.evaluate(()=>document.querySelector('#modelPicker .model-picker-options').scrollWidth<=document.querySelector('#modelPicker .model-picker-options').clientWidth),'Model submenu fits on mobile');
     await page.locator('#modelPicker').screenshot({ path:join(artifacts,'new-model-menu-mobile.png') });
-    await page.locator('#modelPicker .model-picker-close').click();
+    await search.fill('Newly Listed');
+    await huiquGroup.getByRole('option',{name:/Huiqu fixture/}).click();
+    assert.equal(await page.locator('#model').inputValue(),'huiqu_123456789012345678901234');
+    assert.equal(await page.locator('#addVideoReferenceButton').isVisible(),true);
 
     assert.deepEqual(errors, []);
     console.log('Video Tools desktop and mobile checks passed.');

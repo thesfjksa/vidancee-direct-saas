@@ -200,6 +200,8 @@ const { isSluiceModel, sluiceMediaModels, fetchSluiceCatalog } = require('./src/
 const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isPureamModel, pureamMediaModels } = require('./src/puream_models.js');
 const { PureamClient } = require('./src/provider/puream.js');
+const { isHuiquModel } = require('./src/huiqu_models.js');
+const { HuiquClient, fingerprint: huiquFingerprint } = require('./src/provider/huiqu.js');
 const { customerNewModelId, storedNewModelId, customerNewLabel } = require('./src/new_brand.js');
 const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
 const { createDopePerformance } = require('./src/dope_performance.js');
@@ -427,7 +429,7 @@ function adminAuthorized(req) {
   if (!supplied || !adminToken || supplied.length !== adminToken.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken));
 }
-const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','puream','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
+const CUSTOMER_PROVIDER_KEYS=['aivid','api888','sluice','vidancee','longai','wxksai','puream','huiqu','vgenv','vibi','smartaipi','vercel','argolink','higgsfield','fal'];
 const { visibleProviderAccess } = require('./src/provider_visibility.js');
 // Customer video and image sources are available by default. Admin per-user
 // overrides can still turn an individual source off; global provider and
@@ -655,6 +657,12 @@ async function sourceMediaCatalog(access,adminSettings=null){
     const catalog=await safeCatalog('sluice',()=>publicProviderCatalog('sluice',{creditsPerUsd:providerSettings.sluice.customerCreditsPerUsd}));
     video=[...video,...catalog.video];
   }
+  if(access.huiqu && providerSettings.huiqu?.active){
+    const settings=await getProviderSettings();
+    const fingerprint=huiquFingerprint(settings.huiquApiKey||'');
+    const catalog=await safeCatalog('huiqu',()=>publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===fingerprint?m:{...m,resolutions:[]}}));
+    video.push(...catalog.video.filter(model=>isHuiquModel(model.id)));
+  }
   if(access.puream && providerSettings.puream?.active){
     const catalog=await safeCatalog('puream',()=>publicProviderCatalog('puream'));
     video.push(...catalog.video.filter(model=>isPureamModel(model.id)));
@@ -683,6 +691,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
 // The API vendor behind a model id, for the admin.
 function modelVendor(id){
   if(isPureamModel(id))return 'Puream';
+  if(isHuiquModel(id))return 'Huiqu';
   if(isWxksaiModel(id))return 'Dope';
   if(isLongAiModel(id))return 'LONG AI';
   if(require('./src/aivid_models.js').isAividModel(id))return 'AIVID';
@@ -785,6 +794,15 @@ async function quoteModelForUser(userId,body){
       return {cost,isEstimate};
     }
     return {cost:getCost(String(body.model),Number(body.duration),body.resolution||null),isEstimate:false};
+  }
+  if(isHuiquModel(body.model) && mediaType==='video'){
+    if(!access.huiqu || !providerSettings.huiqu?.active)throw httpError(403,'This model source is unavailable for your account.');
+    const model=await getProviderModelByPublicId('huiqu',String(body.model),'video');
+    const settings=await getProviderSettings();
+    if(!model?.ready||model.huiqu?.credential!==huiquFingerprint(settings.huiquApiKey||''))throw httpError(404,'This model is currently unavailable.');
+    validateReferences(model,body,{forQuote:true});
+    const quote=quoteGateway(model,body,providerSettings.huiqu.creditsPerUsd);
+    return {cost:quote.cost,isEstimate:false};
   }
   if(isPureamModel(body.model) && mediaType==='video'){
     if(!access.puream || !providerSettings.puream?.active)throw httpError(403,'This model source is unavailable for your account.');
@@ -923,7 +941,7 @@ async function enableBrowserUploads(){
 // The longest reference video (total, or per clip) a video model accepts.
 async function referenceVideoLimit(id){
   if(isH3Model(id))return {clipSeconds:H3_REFS.maxSeconds};
-  const provider=isPureamModel(id)?'puream':isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
+  const provider=isHuiquModel(id)?'huiqu':isPureamModel(id)?'puream':isWxksaiModel(id)?'wxksai':isApi888Model(id)?'api888':isArgoModel(id)?'argolink':isHiggsfieldModel(id)?'higgsfield':isGatewayModel(id)?'vercel':null;
   if(!provider)return {};
   const model=await getProviderModelByPublicId(provider,id,'video').catch(()=>null);
   const caps=model?.referenceCapabilities||{};
@@ -989,6 +1007,17 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
     });
   }
 
+  if(!cartoonOptions&&isHuiquModel(requestedModel)){
+    if(!customerAccess.huiqu||!providerSettings.huiquEnabled||!providerSettings.huiquApiKey)throw httpError(503,'This video model is currently unavailable.');
+    const model=await getProviderModelByPublicId('huiqu',requestedModel,'video');
+    if(!model?.ready||model.huiqu?.credential!==huiquFingerprint(providerSettings.huiquApiKey))throw httpError(404,'This video model is currently unavailable.');
+    validateReferences(model,body);
+    const quote=quoteGateway(model,body,require('./src/billing.js').CREDITS_PER_USD);
+    generation=await createVideo(user.id,{...body,...quote,model:requestedModel},{provider:'huiqu',dynamicModel:true,
+      defaultResolution:quote.resolution,referenceCapabilities:model.referenceCapabilities,
+      costOverride:quote.cost,providerCost:quote.sourceUsd*require('./src/billing.js').CNY_PER_USD,providerCostUnit:'cny',generationOptions:{...quote,model},
+    });
+  }
   if(!cartoonOptions&&isPureamModel(requestedModel)){
     if(!customerAccess.puream||!providerSettings.pureamEnabled||!providerSettings.pureamApiKey)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('puream',requestedModel,'video');
@@ -1518,7 +1547,7 @@ const server=http.createServer(async (req,res)=>{
         const providerSettings=await getAdminProviderSettings();
         generationBackendReady=Boolean(
           providerSettings.vgenv.active ||
-          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active || providerSettings.longai.active || providerSettings.puream?.active
+          providerSettings.vibi.active || providerSettings.smartaipi.active || providerSettings.vercel.active || providerSettings.argolink.active || providerSettings.higgsfield.active || providerSettings.sluice.active || providerSettings.vidancee.active || providerSettings.longai.active || providerSettings.puream?.active || providerSettings.huiqu?.active
         );
         imageGenerationReady=Boolean(providerSettings.vercel.active || providerSettings.argolink.active || (providerSettings.smartaipi.active && providerSettings.smartaipi.models.some(m=>m.enabled && Object.values(m.qualitySourceUsd).some(n=>n>0))));
         generationEnabled=Boolean(providerSettings.allowProviderCharges);
@@ -1575,6 +1604,18 @@ const server=http.createServer(async (req,res)=>{
       const [performance,catalog]=await Promise.all([require('./src/puream_performance.js').pureamPerformance(getPool()),publicProviderCatalog('puream')]);
       const visible=new Set(catalog.video.map(model=>model.id));
       return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).map(([id,stats])=>[customerNewModelId(id),stats]).filter(([id])=>visible.has(id)))});
+    }
+
+    if (req.method==='GET' && routePath==='/api/huiqu-performance') {
+      requireDatabase();
+      const user=await requireUser(req);
+      const access=await getVisibleUserProviderAccess(user.id);
+      if(!access.huiqu)throw httpError(403,'Performance data is unavailable for this account.');
+      const settings=await getProviderSettings();
+      if(!settings.huiquEnabled||!settings.huiquApiKey)throw httpError(403,'Performance data is unavailable for this account.');
+      const [performance,catalog]=await Promise.all([require('./src/puream_performance.js').huiquPerformance(getPool()),publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===huiquFingerprint(settings.huiquApiKey)?m:{...m,resolutions:[]}})]);
+      const visible=new Set(catalog.video.map(model=>model.id));
+      return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).filter(([id])=>visible.has(id)))});
     }
 
     if (req.method==='GET' && routePath==='/api/api888-performance') {
@@ -2395,6 +2436,16 @@ const server=http.createServer(async (req,res)=>{
             providerMessage:error.providerMessage||null});
         }
       }
+      if(req.method==='POST'&&['/admin/huiqu/check','/admin/huiqu/sync'].includes(routePath)){
+        requireDatabase();
+        const settings=await getProviderSettings();
+        if(!settings.huiquApiKey&&routePath.endsWith('/check'))return sendJson(res,400,{ok:false,error:'Save a Huiqu video-group API key first.'});
+        const models=await new HuiquClient({apiKey:settings.huiquApiKey}).models();
+        const supported=models.filter(m=>m.options.adapterSupported);
+        if(routePath.endsWith('/check'))return sendJson(res,200,{ok:true,accessibleModels:models.filter(m=>m.options.huiqu.accessible).length,supportedModels:supported.length,total:models.length});
+        const stored=await syncProviderModels('huiqu',models);
+        return sendJson(res,200,{ok:true,total:models.length,enabled:stored.filter(m=>m.ready&&m.enabled&&m.available).length});
+      }
       if(req.method==='POST'&&['/admin/puream/check','/admin/puream/sync'].includes(routePath)){
         requireDatabase();
         const settings=await getProviderSettings();
@@ -2824,21 +2875,30 @@ const server=http.createServer(async (req,res)=>{
             }catch(error){pureamSync={ok:false,error:error.message};}
           }
         }
+        let huiquSync=null;
+        if(String(body.huiquApiKey||'').trim() || (body.huiquEnabled===true&&!previous.huiquEnabled) || body.clearHuiquApiKey===true){
+          const latest=await getProviderSettings();
+          try{
+            const models=await new HuiquClient({apiKey:latest.huiquApiKey}).models();
+            const stored=await syncProviderModels('huiqu',models);
+            huiquSync={ok:true,total:models.length,ready:stored.filter(m=>m.ready&&m.available).length};
+          }catch(error){huiquSync={ok:false,error:error.message};}
+        }
         // Keys and passwords are masked by the activity log.
-        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{}),...(body.pureamApiKey?{pureamApiKey:'[REDACTED]'}:{})}}});
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{}),...(body.pureamApiKey?{pureamApiKey:'[REDACTED]'}:{}),...(body.huiquApiKey?{huiquApiKey:'[REDACTED]'}:{})}}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
         let higgsfieldSync=null;
         if(String(body.higgsfieldApiKey||'').trim()){
           try{const r=await syncHiggsfieldPrices();higgsfieldSync={ok:true,ready:r.models.some(m=>m.ready)};}
           catch(error){higgsfieldSync={ok:false,error:error.message};}
         }
-        return sendJson(res,200,{ok:true,settings,higgsfieldSync,api888Sync,pureamSync});
+        return sendJson(res,200,{ok:true,settings,higgsfieldSync,api888Sync,pureamSync,huiquSync});
       }
 
       if (req.method==='GET' && routePath==='/admin/provider-models') {
         requireDatabase();
         const provider=String(url.searchParams.get('provider')||'vercel');
-        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai','wxksai','puream'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if (!['vercel','argolink','higgsfield','sluice','vidancee','api888','longai','wxksai','puream','huiqu'].includes(provider)) return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         let models=await listProviderModels(provider);
         if(provider==='api888'){
           const health=await loadApi888Health().catch(()=>null);
@@ -2858,16 +2918,30 @@ const server=http.createServer(async (req,res)=>{
         return sendJson(res,200,{ok:true,total:rows.length});
       }
 
+      if(req.method==='POST'&&routePath==='/admin/huiqu/models'){
+        requireDatabase();
+        const body=await readJson(req);
+        if(typeof body.enabled!=='boolean')return sendJson(res,400,{ok:false,error:'Select enable or disable.'});
+        const models=await listProviderModels('huiqu');
+        const rows=models.filter(model=>!body.enabled||(model.available&&model.ready));
+        for(const model of rows)await setProviderModelEnabled('huiqu',model.id,body.enabled);
+        return sendJson(res,200,{ok:true,total:rows.length});
+      }
+
       const providerModelMatch=routePath.match(/^\/admin\/provider-models\/(\d+)$/);
       if (req.method==='POST' && providerModelMatch) {
         requireDatabase();
         const body=await readJson(req);
         const provider=String(body.provider||'vercel');
-        if(!['vercel','argolink','higgsfield','sluice','vidancee','wxksai','puream'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
+        if(!['vercel','argolink','higgsfield','sluice','vidancee','wxksai','puream','huiqu'].includes(provider))return sendJson(res,400,{ok:false,error:'Unsupported provider.'});
         const model=await setProviderModelEnabled(provider,Number(providerModelMatch[1]),body.enabled===true);
         return sendJson(res,200,{ok:true,model});
       }
 
+      if (req.method==='GET' && routePath==='/admin/huiqu/performance') {
+        requireDatabase();
+        return sendJson(res,200,await require('./src/puream_performance.js').huiquPerformance(getPool()));
+      }
       if (req.method==='GET' && routePath==='/admin/puream/performance') {
         requireDatabase();
         return sendJson(res,200,await require('./src/puream_performance.js').pureamPerformance(getPool()));

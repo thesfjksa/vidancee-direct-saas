@@ -5,13 +5,14 @@
     dope: { refreshMs: 10 * 60 * 1000 },
     api888: { refreshMs: 10 * 60 * 1000 },
     new: { refreshMs: 10 * 60 * 1000 },
+    huiqu: { refreshMs: 10 * 60 * 1000 },
   };
-  const sourceName = id => id?.startsWith('new_')?'new':id?.startsWith('api888_')?'api888':'dope';
+  const sourceName = id => id?.startsWith('huiqu_')?'huiqu':id?.startsWith('new_')?'new':id?.startsWith('api888_')?'api888':'dope';
   const sourceFor = id => sources[sourceName(id)];
   const metricsFor = id => sourceFor(id).snapshot?.models[id];
 
   function describe(id, card = false) {
-    const heading = sourceName(id)==='new'?'24h CMMTools performance':'24h performance';
+    const heading = ['new','huiqu'].includes(sourceName(id))?'24h CMMTools performance':'24h performance';
     const { snapshot } = sourceFor(id);
     const metrics = metricsFor(id);
     if (!metrics) {
@@ -95,7 +96,7 @@
   window.sortDopePerformanceOptions = sortOptions;
   window.modelPerformanceMarkup = window.dopePerformanceMarkup = function (modelId, card = false) {
     const id = String(modelId || '').replace(/^wxksai_/, 'dope_');
-    if (!/^(dope|api888|new)_[a-zA-Z0-9_]+$/.test(id)) return '';
+    if (!/^(dope|api888|new|huiqu)_[a-zA-Z0-9_]+$/.test(id)) return '';
     void refresh(sourceName(id));
     if (card) return '<span class="model-picker-performance" data-dope-performance-card data-dope-performance="' +
       id + '">' + describe(id, true) + '</span>';

@@ -190,3 +190,29 @@ test('Puream dashboard saves encrypted credentials without returning them or rea
     saved.clear();secretFlags.clear();
   }
 });
+
+test('Huiqu dashboard saves encrypted credentials without returning them or reading environment API keys',async()=>{
+  saved.clear();writes.length=0;
+  const previous=process.env.SETTINGS_ENCRYPTION_KEY;
+  const oldHuiqu=process.env.HUIQU_API_KEY;
+  process.env.SETTINGS_ENCRYPTION_KEY='synthetic-encryption-root';
+  process.env.HUIQU_API_KEY='unused-env-key';
+  try{
+    assert.equal((await getProviderSettings()).huiquApiKey,'');
+    await updateProviderSettings({huiquApiKey:'synthetic-admin-code',huiquEnabled:true,huiquMaxInflight:2});
+    assert.match(saved.get('huiqu_api_key'),/^v1:/);assert.equal(secretFlags.get('huiqu_api_key'),1);
+    assert.equal((await getProviderSettings()).huiquApiKey,'synthetic-admin-code');
+    const admin=await getAdminProviderSettings();
+    assert.equal(admin.huiqu.active,true);assert.equal(admin.huiqu.maxInflight,2);
+    assert.equal(JSON.stringify(admin).includes('synthetic-admin-code'),false);
+    const before=writes.length;
+    await assert.rejects(updateProviderSettings({huiquEnabled:false,huiquApiKey:'bad code'}),e=>e.statusCode===400);
+    assert.equal(writes.length,before);
+    await updateProviderSettings({clearHuiquApiKey:true});
+    assert.equal((await getAdminProviderSettings()).huiqu.apiKeyConfigured,false);
+  }finally{
+    if(previous===undefined)delete process.env.SETTINGS_ENCRYPTION_KEY;else process.env.SETTINGS_ENCRYPTION_KEY=previous;
+    if(oldHuiqu===undefined)delete process.env.HUIQU_API_KEY;else process.env.HUIQU_API_KEY=oldHuiqu;
+    saved.clear();secretFlags.clear();
+  }
+});

@@ -5,6 +5,7 @@ const { ArgoLinkQueue } = require('./argolink_queue.js');
 const { HiggsfieldQueue } = require('./higgsfield_queue.js');
 const { LongAiQueue } = require('./longai_queue.js');
 const { PureamQueue } = require('./puream_queue.js');
+const { HuiquQueue } = require('./huiqu_queue.js');
 const { WxksaiQueue } = require('./wxksai_queue.js');
 const { SluiceQueue } = require('./sluice_queue.js');
 const { VidanceeQueue } = require('./vidancee_queue.js');
@@ -83,6 +84,7 @@ class GenerationWorker {
     this.longAiQueue = new LongAiQueue();
     this.wxksaiQueue = new WxksaiQueue();
     this.pureamQueue = new PureamQueue();
+    this.huiquQueue = new HuiquQueue();
     // Omni Flash on Vidancee.
     this.vidanceeQueue = new VidanceeQueue();
     this.aividQueue = new AividQueue();
@@ -157,6 +159,7 @@ class GenerationWorker {
     this.longAiQueue.start();
     this.wxksaiQueue.start();
     this.pureamQueue.start();
+    this.huiquQueue.start();
     this.vidanceeQueue.start();
     this.aividQueue.start();
     this.upscaleQueue.start();
@@ -179,6 +182,7 @@ class GenerationWorker {
     this.longAiQueue.stop();
     this.wxksaiQueue.stop();
     this.pureamQueue.stop();
+    this.huiquQueue.stop();
     this.vidanceeQueue.stop();
     this.aividQueue.stop();
     this.upscaleQueue.stop();
