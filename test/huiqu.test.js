@@ -164,3 +164,16 @@ test('Huiqu HTTP 400 records only a safe rejection classification, never retries
  });
  assert.equal(calls,1);
 });
+
+test('MX930 480p submits the documented 15-second request to /v1/videos/generations',async()=>{
+ const model=full('sd2.0-mx930-480p');
+ const payload=payloadFor(model,{prompt:'cartoon animation',duration:15,aspectRatio:'16:9'},[]);
+ assert.deepEqual(payload,{model:'sd2.0-mx930-480p',prompt:'cartoon animation',seconds:15,aspect_ratio:'16:9'});
+ assert.deepEqual(model.aspectRatios,['16:9','9:16','1:1']);
+ const calls=[];
+ const client=new HuiquClient({apiKey:'test-key',fetchImpl:async(url,opts)=>{
+  calls.push({url,method:opts.method});return Response.json({task_id:'task_fixture'});
+ }});
+ assert.deepEqual(await client.startVideo(model,payload),{requestId:'task_fixture'});
+ assert.deepEqual(calls,[{url:'https://api.bjhuiqu.net/v1/videos/generations',method:'POST'}]);
+});
