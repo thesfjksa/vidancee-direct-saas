@@ -198,3 +198,14 @@ test('held Huiqu refund requires explicit confirmation, no task receipt and an e
  await assert.rejects(refundHeldHuiqu(db,job.id,confirmation,refund),e=>e.statusCode===409);
  assert.equal(refunds,1);assert.equal(locked,false);
 });
+
+test('November 24 provider capacity caps reject longer requests before submission',()=>{
+ const caps={'sd2.0-hd-933-720p':13,'sd2.5-30.10.10-720p':15,'sd2.5-flash-10.5.5-720p':6,'sd2.5-hd-30.10.10-720p':13,'wan-3.0-10.5.5-720p':22,'wan-3.0-10.5.5-1080p':11,'wan-3.0-pro-10.5.5-720p':22,'wan-3.0-pro-10.5.5-1080p':11,'wan-3.0-prime-10.5.5-720p':15,'wan-3.0-prime-10.5.5-1080p':7,'wan-3.0-hd-10.5.5-480p':21,'wan-3.0-hd-10.5.5-720p':10,'wan-3.0-hd-10.5.5-1080p':5};
+ for(const [id,max] of Object.entries(caps)){
+  const model=full(id);
+  assert.equal(Math.max(...model.durations),max,id);
+  assert.ok(quoteGateway(model,{duration:max}).cost>0,id);
+  assert.throws(()=>quoteGateway(model,{duration:max+1}),/duration/i,id);
+ }
+ assert.equal(Math.max(...full('wan-3.0-pro-10.5.5-480p').durations),30);
+});
