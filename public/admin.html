@@ -326,6 +326,13 @@
   <div class="field"><label for="huiquApiKey">API key</label><input id="huiquApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"></div>
   <label class="muted"><input id="clearHuiquApiKey" type="checkbox" style="width:auto"> Clear saved credential</label>
   <div id="huiquSecretStatus" class="muted"></div>
+  <div class="field"><label>Additional API keys by group</label>
+    <div class="muted">Keep the existing video key. Enter the exact group name assigned to each additional API key in the provider console. Disabled keys remain available only for polling existing jobs.</div>
+    <div id="huiquGroupKeys"></div>
+    <input id="huiquAdditionalGroup" placeholder="Group name, e.g. 9.1-SD2.5系列" autocomplete="off">
+    <input id="huiquAdditionalKey" type="password" autocomplete="new-password" placeholder="Additional API key">
+    <button class="secondary" type="button" onclick="addHuiquGroupKey(this)">Add group API key</button>
+  </div>
   <div class="field"><label for="huiquInflight">Max parallel generations</label><input id="huiquInflight" type="number" min="1" max="5" value="1"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" onclick="checkHuiqu()">Check connection</button><button class="secondary" onclick="syncHuiqu()">Import video catalog</button><button class="secondary" onclick="setAllHuiquModels(true,this)">Enable all available</button><button class="secondary" onclick="setAllHuiquModels(false,this)">Disable all</button></div>
   <div class="muted" id="huiquActionMsg" role="status"></div>
@@ -1456,6 +1463,7 @@ async function loadProviderSettings(){try{
   $('huiquApiKey').value=''; $('clearHuiquApiKey').checked=false;
   $('huiquSecretStatus').textContent=s.huiqu?.apiKeyConfigured?'Saved key: configured':'Saved key: not configured';
   $('huiquInflight').value=s.huiqu?.maxInflight||1;
+  renderHuiquGroupKeys(s.huiqu?.credentials||[]);
   loadPureamModels();
   $('longaiEnabled').checked=s.longai?.enabled===true;
   $('longaiApiKey').value='';$('clearLongAiApiKey').checked=false;
@@ -1748,6 +1756,31 @@ async function togglePureamModel(id,enabled,input){
   try{await api('/admin/provider-models/'+id,{method:'POST',body:JSON.stringify({provider:'puream',enabled})});await loadPureamModels();}
   catch(e){input.checked=!enabled;input.disabled=false;$('pureamActionMsg').className='err';$('pureamActionMsg').textContent=e.message;}
 }
+function renderHuiquGroupKeys(rows){
+  const root=$('huiquGroupKeys');root.replaceChildren();
+  for(const row of rows){
+    const line=document.createElement('div');line.style.cssText='display:flex;gap:8px;align-items:center;margin:8px 0';
+    const label=document.createElement('span');label.textContent=row.group+' · '+(row.enabled?'Active':'Disabled')+(row.legacy?' · Existing key':'');line.append(label);
+    if(!row.legacy){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=row.enabled?'Disable':'Enable';button.onclick=()=>saveHuiquGroupChange({huiquCredentialState:{id:row.id,enabled:!row.enabled}},button);line.append(button);}
+    root.append(line);
+  }
+}
+async function saveHuiquGroupChange(body,button){
+  const panel=$('huiquActionMsg');button.disabled=true;panel.className='muted';panel.textContent='Saving group key and syncing model catalogs…';
+  try{
+    const r=await api('/admin/provider-settings',{method:'POST',body:JSON.stringify(body)});
+    renderHuiquGroupKeys(r.settings?.huiqu?.credentials||[]);
+    $('huiquAdditionalKey').value='';$('huiquAdditionalGroup').value='';
+    panel.className=r.huiquSync?.ok?'ok':'err';
+    panel.textContent=r.huiquSync?.ok?'Saved · '+r.huiquSync.ready+' ready models across groups.':'Key saved; catalog sync failed: '+(r.huiquSync?.error||'Check connection.');
+    await loadHuiquModels();
+  }catch(e){panel.className='err';panel.textContent=e.message;}finally{button.disabled=false;}
+}
+async function addHuiquGroupKey(button){
+  const group=$('huiquAdditionalGroup').value.trim(),apiKey=$('huiquAdditionalKey').value.trim();
+  if(!group||!apiKey){$('huiquActionMsg').textContent='Enter the group name and API key.';return;}
+  return saveHuiquGroupChange({huiquAddCredential:{group,apiKey}},button);
+}
 async function checkHuiqu(){
   const panel=$('huiquActionMsg');panel.className='muted';panel.textContent='Checking Huiqu model catalog…';
   try{const r=await api('/admin/huiqu/check',{method:'POST',body:'{}'});panel.textContent='Connected · '+r.accessibleModels+' account models · '+r.supportedModels+' available and priced.';panel.className='ok';}
@@ -1770,7 +1803,7 @@ async function loadHuiquModels(){
       const tiers=p?'¥'+esc(p.priceCny)+(p.unit==='second'?'/sec':'/clip')+' · '+esc(m.resolutions.join(', '))+' · '+esc(m.durations[0])+'–'+esc(m.durations.at(-1))+'s': 'Price not verified';
       const metric=performance.models?.[m.publicModelId];
       const stats=metric?(metric.source==='provider'?'Provider: ':'CMMTools: ')+(metric.successRate==null?'—':Number(metric.successRate).toFixed(2)+'%')+' success · '+formatLatency(metric.averageLatencyMs)+' avg'+(metric.source==='local'?' · '+Number(metric.samples)+' jobs':performance.stale?' · Last known':'')+(metric.local?' · CMMTools: '+Number(metric.local.successRate).toFixed(2)+'% / '+Number(metric.local.samples)+' jobs':''):'Provider performance not reported';
-      return '<div style="display:flex;gap:8px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(m.label)+'</strong><div class="muted">'+esc(m.providerModelId)+' · '+(m.ready&&m.available?'ready':esc(m.setupReason||'not available'))+'</div><div>'+tiers+'</div><div class="muted">References: '+Number(m.referenceCapabilities?.image?.max||0)+' images / '+Number(m.referenceCapabilities?.video?.max||0)+' videos / '+Number(m.referenceCapabilities?.audio?.max||0)+' audio</div><div class="muted">'+esc(stats)+'</div></div><label><input type="checkbox" '+(m.enabled&&m.ready&&m.available?'checked':'')+' onchange="toggleHuiquModel('+Number(m.id)+',this.checked,this)" '+(!m.available||!m.ready?'disabled':'')+'> Enabled</label></div>';
+      return '<div style="display:flex;gap:8px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(m.label)+'</strong><div class="muted">'+esc(m.providerModelId)+' · '+(m.ready&&m.available?'ready':esc(m.setupReason||'not available'))+(m.huiqu?.group?' · '+esc(m.huiqu.group):'')+'</div><div>'+tiers+'</div><div class="muted">References: '+Number(m.referenceCapabilities?.image?.max||0)+' images / '+Number(m.referenceCapabilities?.video?.max||0)+' videos / '+Number(m.referenceCapabilities?.audio?.max||0)+' audio</div><div class="muted">'+esc(stats)+'</div></div><label><input type="checkbox" '+(m.enabled&&m.ready&&m.available?'checked':'')+' onchange="toggleHuiquModel('+Number(m.id)+',this.checked,this)" '+(!m.available||!m.ready?'disabled':'')+'> Enabled</label></div>';
     }).join('');
   }catch(e){panel.textContent='Model inventory unavailable: '+e.message;}
 }
