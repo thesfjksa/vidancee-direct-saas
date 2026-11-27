@@ -338,10 +338,10 @@ test('search expands New, hides nonmatching models, restores collapse and suppor
   const end=studio.indexOf('function modelPickerSource(',start);
   const items=['MiniMax','Seedance 2.5','Wan 3.0'].map(textContent=>({textContent,style:{display:''}}));
   const count={textContent:''};
-  const group={open:false,hidden:false,dataset:{},contains:item=>items.indexOf(item)>0,querySelector:()=>count};
+  const group={open:false,hidden:false,dataset:{},contains:item=>items.indexOf(item)>0,querySelector:s=>s==='.model-picker-group-name'?{textContent:'New'}:count};
   let emptyShown=false;
   const wrap={querySelector:s=>s==='.model-picker-new-group'?group:{classList:{toggle:(_s,active)=>{emptyShown=active;}}},
-    querySelectorAll:()=>items};
+    querySelectorAll:s=>s==='.model-picker-new-group'?[group]:items};
   const ctx=vm.createContext({});vm.runInContext(studio.slice(start,end),ctx);
   ctx.filterCustomSelectOptions(wrap,'Wan');
   assert.equal(group.open,true);assert.equal(group.hidden,false);assert.equal(count.textContent,'1 model');
@@ -376,4 +376,30 @@ test('performance sorting preserves the New submenu and ranks nested options wit
   vm.runInContext(perf.slice(start,end),ctx);ctx.sortOptions(root);
   assert.deepEqual(root.children,[group,normalB,normalA,empty]);
   assert.deepEqual(nested.children,[pureamB,pureamA]);
+});
+
+test('Huiqu options form a separate Newly Listed submenu without moving existing models',()=>{
+ const start=studio.indexOf('function rebuildCustomSelect(id){'),end=studio.indexOf('function syncCustomSelect(id){',start);
+ const models=[{value:'minimax_h3',textContent:'MiniMax'},{value:'new_sd20_abc',textContent:'New Seedance'},{value:'huiqu_'+ 'a'.repeat(32),textContent:'Huiqu video'}];
+ let markup='';
+ const options={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_p,html)=>{markup=html;}};
+ const menu={querySelector:s=>s.includes('.model-picker-options')?options:null};
+ const wrap={querySelector:s=>s==='.custom-select-menu'?menu:null,classList:{toggle(){}}};
+ const select={options:models,selectedIndex:2,closest:()=>wrap};
+ const ctx=vm.createContext({$:()=>select,customSelectSearchable:()=>true,syncCustomSelect(){},modelPickerOptionHtml:(_id,m,i)=>'<button data-index="'+i+'">'+m.textContent+'</button>'});
+ vm.runInContext(studio.slice(start,end),ctx);ctx.rebuildCustomSelect('model');
+ assert.match(markup,/aria-label="New">/);
+ assert.match(markup,/class="model-picker-new-group model-picker-huiqu-group" open>/);
+ assert.match(markup,/aria-label="Newly Listed"><button data-index="2">Huiqu video/);
+ assert.match(markup,/<\/details><button data-index="0">MiniMax/);
+});
+test('search matches only the requested model group and preserves both disclosure states',()=>{
+ const start=studio.indexOf('function filterCustomSelectOptions('),end=studio.indexOf('function modelPickerSource(',start);
+ const items=['MiniMax','Seedance','Wan'].map(textContent=>({textContent,style:{}}));
+ const mk=(label,item,open)=>{const count={textContent:''};return {open,dataset:{},contains:x=>x===item,querySelector:s=>s==='.model-picker-group-name'?{textContent:label}:count};};
+ const groups=[mk('New',items[1],false),mk('Newly Listed',items[2],true)];
+ const wrap={querySelector:()=>({classList:{toggle(){}}}),querySelectorAll:s=>s==='.model-picker-new-group'?groups:items};
+ const ctx=vm.createContext({});vm.runInContext(studio.slice(start,end),ctx);
+ ctx.filterCustomSelectOptions(wrap,'newly listed');assert.deepEqual(items.map(x=>x.style.display),['none','none','']);assert.equal(groups[0].hidden,true);
+ ctx.filterCustomSelectOptions(wrap,'');assert.deepEqual(groups.map(x=>x.open),[false,true]);
 });
