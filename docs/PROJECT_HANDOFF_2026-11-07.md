@@ -1,3 +1,8 @@
+## 27 November 2026 — Huiqu Seedance 2.5 Flash duration correction
+
+- Owner reported production picker still shows 15s for `sd2.5-flash-10.5.5-720p`; previous provider documentation screenshot specified integer output durations 4–30s. Correct both Flash resolutions to 4–30s; leave 15s reference-clip limits, pricing and unrelated HD routes unchanged. Add offline regression for catalog, constant price and 30s payload.
+- Owner also reports all visible cards show Not reported. PR #305 imports public 24h metrics using exact model names; earlier handoff recorded 13 eligible routes with data. Current environment cannot resolve provider/production hosts, so no current metrics coverage or live deployment confirmation. Recheck public performance response vs authenticated customer endpoint after web/worker deployment and catalog sync; never substitute fabricated metrics. No paid generations.
+
 ## 27 November 2026 — Multiple Huiqu group-specific credentials
 
 - Owner reports that Seedance 2.5 standard, flash, HD and deal routes shown on the provider marketplace are missing from Newly Listed and that each API key is limited to one group. All seven named routes are already in the reviewed catalog and the fixture permits them in the 1x video group; production account membership, per-model Admin switches and live prices remain unverified. The prior single-key filter is a possible cause, not a proven diagnosis.

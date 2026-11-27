@@ -137,3 +137,13 @@ test('polling a previously submitted job uses the original credential even after
  await queue.pollJob({}, {forCredential:id=>id===fingerprint('old')?original:null}, {id:'job',provider_operation:JSON.stringify({credential:fingerprint('old'),requestId:'task123'})});
  assert.equal(polled,1);
 });
+
+test('Seedance 2.5 Flash supports 4–30s with constant pricing and unchanged reference limits',()=>{
+ for(const resolution of ['480p','720p']){
+  const model=full('sd2.5-flash-10.5.5-'+resolution);
+  assert.deepEqual(model.durations,Array.from({length:27},(_,i)=>i+4));
+  assert.equal(quoteGateway(model,{duration:30,resolution},CREDITS_PER_USD).cost,quoteGateway(model,{duration:4,resolution},CREDITS_PER_USD).cost);
+  assert.equal(payloadFor(model,{prompt:'Product shot',duration:30,aspectRatio:'16:9'},[]).seconds,30);
+  assert.equal(model.huiqu.videoClipSeconds,15);
+ }
+});
