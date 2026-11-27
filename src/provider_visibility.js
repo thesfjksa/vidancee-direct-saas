@@ -21,7 +21,7 @@ function validateVisibilityPatch(value) {
 }
 
 function visibleProviderAccess(access, visibility = {}) {
-  return Object.fromEntries(Object.entries(access).map(([provider, enabled]) => [provider, provider !== 'puream' && Boolean(enabled) && visibility[provider] !== false]));
+  return Object.fromEntries(Object.entries(access).map(([provider, enabled]) => [provider, !['puream','huiqu'].includes(provider) && Boolean(enabled) && visibility[provider] !== false]));
 }
 
 module.exports = { PROVIDERS, visibilityKey, readModelVisibility, validateVisibilityPatch, visibleProviderAccess };
