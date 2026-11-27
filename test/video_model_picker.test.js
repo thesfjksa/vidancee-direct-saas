@@ -369,7 +369,7 @@ test('performance sorting preserves the New submenu and ranks nested options wit
   assert.deepEqual(nested.children,[pureamB,pureamA]);
 });
 
-test('Huiqu retains Newly Listed while retired New models are absent',()=>{
+test('Retired New and Newly Listed models stay absent even from stale picker data',()=>{
   const a=studio.indexOf('function rebuildCustomSelect(id){'),b=studio.indexOf('function syncCustomSelect(id){',a);
   let markup='';
   const optionsRoot={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_,html)=>{markup=html;}};
@@ -378,10 +378,6 @@ test('Huiqu retains Newly Listed while retired New models are absent',()=>{
   const select={options:[{value:'normal',textContent:'Normal'},{value:'huiqu_a123',textContent:'Renamed by admin'},{value:'new_sd20_abc',textContent:'Existing New'},{value:'huiqu_b123',textContent:'Wan'}],selectedIndex:1,closest:()=>wrap};
   const ctx=vm.createContext({$:()=>select,customSelectSearchable:()=>true,syncCustomSelect(){},modelPickerOptionHtml:(_id,o,i)=>'<button data-index="'+i+'">'+o.textContent+'</button>'});
   vm.runInContext(studio.slice(a,b),ctx);ctx.rebuildCustomSelect('model');
-  const [huiqu,flat]=markup.split('</details>');
-  assert.match(huiqu,/data-group-label="Newly Listed" open/);
-  assert.match(huiqu,/aria-label="Newly Listed"/);
-  assert.deepEqual([...huiqu.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[1,3]);
-  assert.doesNotMatch(markup,/Existing New|aria-label="New"/);
-  assert.deepEqual([...flat.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[0]);
+  assert.doesNotMatch(markup,/<details|Renamed by admin|Existing New|Wan/);
+  assert.deepEqual([...markup.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[0]);
 });
