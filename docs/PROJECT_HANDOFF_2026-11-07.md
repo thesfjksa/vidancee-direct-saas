@@ -1,3 +1,8 @@
+## 27 November 2026 — Admin recovery for held Huiqu submission
+
+- Owner provided provider usage screenshot showing four Flash 480p error entries at 22:23:25–26, all zero CNY. CMMTools generation 669af7df-6d65-49b3-8968-5461f73aa33b has no provider job ID and 2520 credits reserved. Provider task history still needs confirmation; no automatic refund or paid retry performed.
+- Add admin-only Reconcile and refund credits button in Generations Details for held Huiqu video jobs with durable pending marker, no receipt and no prior refund. Require explicit confirmation of no accepted task and no charge. Use existing per-job lock and atomic wallet refund transaction; release queue capacity without replacing upstream request. Retain audit trail. Regression added; CI, deployment and actual refund not yet verified.
+
 ## 27 November 2026 — Huiqu MX930 endpoint mismatch and ambiguous Flash receipt
 
 - Owner screenshot shows sd2.0-mx930-480p 15s rejected with duration diagnostic and sd2.5-flash-10.5.5-480p 30s with submission receipt unconfirmed. Exact MX930 docs https://huiquyunapi.apifox.cn/538185538e0 explicitly specify real POST https://api.bjhuiqu.net/v1/videos/generations, integer seconds 5–15, aspect ratios 16:9/9:16/1:1 and GET /v1/videos/{task_id}. Catalog incorrectly selected /v1/videos. Correct route and aspect ratios; mocked test verifies request; live success remains unverified. No automatic retry or paid generation.
