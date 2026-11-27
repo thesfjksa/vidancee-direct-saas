@@ -13,21 +13,23 @@ const isVideo=row=>String(row?.tags||'').split(',').includes('视频生成')||ro
 const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 const MiB=1024*1024;
 const bad=message=>Object.assign(new Error(message),{statusCode:400});
-function priceFor(row,groupRatio){
-  if(Number(groupRatio)!==1||!row.enable_groups?.includes(GROUP))return null;
+function priceFor(row,groupRatio,group=GROUP){
+  // Non-default groups require an exact public group multiplier; the legacy 1x route remains unchanged.
+  const multiplier=Number(groupRatio);
+  if(!Number.isFinite(multiplier)||multiplier<=0||!row.enable_groups?.includes(group)||(group===GROUP&&multiplier!==1))return null;
   // Never execute upstream expressions. Accept only the two reviewed linear
   // billing forms; a changed/unknown expression removes the route from sale.
   if(row.billing_expr){
     const match=String(row.billing_expr).match(/^tier\("[^"]+",\s*u\("(seconds|requests)"\)\s*\*\s*(\d+(?:\.\d+)?)\s*\)$/);
     if(!match)return null;
     const price=Number(match[2]);
-    return price>0?{unit:match[1]==='seconds'?'second':'request',priceCny:price}:null;
+    return price>0?{unit:match[1]==='seconds'?'second':'request',priceCny:price*multiplier}:null;
   }
   const price=Number(row.model_price);
-  return Number(row.quota_type)===1&&Number.isFinite(price)&&price>0&&String(row.tags||'').includes('按次计费')?{unit:'request',priceCny:price}:null;
+  return Number(row.quota_type)===1&&Number.isFinite(price)&&price>0&&String(row.tags||'').includes('按次计费')?{unit:'request',priceCny:price*multiplier}:null;
 }
 
-function huiquMediaModels(pricing,account=null){
+function huiquMediaModels(pricing,account=null,group=GROUP){
   if(pricing?.success!==true||!Array.isArray(pricing.data))throw new Error('Video pricing catalog unavailable.');
   const accountIds=account===null?new Set():new Set(Array.isArray(account.data)?account.data.map(r=>r.id):[]);
   if(account!==null&&!Array.isArray(account?.data))throw new Error('Account model list unavailable.');
@@ -36,9 +38,9 @@ function huiquMediaModels(pricing,account=null){
   return rows.map(row=>{
     const id=String(row.model_name||'');
     const spec=Object.hasOwn(reviewed,id)?reviewed[id]:null;
-    const price=priceFor(row,pricing.group_ratio?.[GROUP]);
+    const price=priceFor(row,pricing.group_ratio?.[group],group);
     const accessible=accountIds.has(id);
-    const reason=spec?.hold||(!spec?'Unreviewed video route.':!price?'Unsupported or changed billing formula.':!accessible?'Not available to the saved video-group API key.':'');
+    const reason=spec?.hold||(!spec?'Unreviewed video route.':!price?'Unsupported or changed billing formula.':!accessible?'Not available to the saved group API key.':'');
     const ready=!reason;
     const [min,max]=spec?.seconds||[5,5];
     const durations=range(min,max),resolutions=spec?.resolutions||[spec?.resolution||'720p'];
@@ -64,7 +66,7 @@ function huiquMediaModels(pricing,account=null){
       inputLimits:{text:{max_chars:spec?.promptMax||2000}},referenceCapabilities:caps,
       mediaRoles:[...caps.image.roles,...caps.video.roles,...caps.audio.roles],
       supportedOperations:[...(caps.textOnly?['text-to-video']:[]),'reference-to-video'],
-      huiqu:{...spec,price,accessible},
+      huiqu:{...spec,price,accessible,group},
     }};
   });
 }

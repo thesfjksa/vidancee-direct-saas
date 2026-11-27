@@ -100,3 +100,40 @@ test('worker refuses a changed price; an ambiguous paid start is saved and never
   await queue.pollJob(db,client,{...job,provider_operation:writes[0][1][0]});
   assert.equal(post,1);assert.equal(refund,0);
 });
+
+test('all seven screenshot Seedance routes are in the reviewed catalog and become eligible with matching group access',()=>{
+ const ids=['sd2.5-30.10.10-480p','sd2.5-30.10.10-720p','sd2.5-deal-10.5.0-720p','sd2.5-flash-10.5.5-480p','sd2.5-flash-10.5.5-720p','sd2.5-hd-30.10.10-480p','sd2.5-hd-30.10.10-720p'];
+ for(const id of ids)assert.equal(rows.find(r=>r.providerModelId===id)?.options.adapterSupported,true,id);
+});
+test('multiple group keys preserve legacy access, union distinct IDs and select lowest verified group price',async()=>{
+ const {HuiquGroupPool}=require('../src/provider/huiqu');
+ const {credentials,summary,activeCredential,parseExtra}=require('../src/huiqu_credentials');
+ const group='9.1-SD2.5系列';
+ const modelA='sd2.5-30.10.10-720p',modelB='sd2.5-flash-10.5.5-480p';
+ const multiPricing={...pricing,group_ratio:{...pricing.group_ratio,[group]:0.5}};
+ const settings={huiquApiKey:'legacy-test',huiquExtraCredentials:parseExtra(JSON.stringify([{apiKey:'extra-test',group},{apiKey:'disabled-test',group,enabled:false}]))};
+ assert.equal(credentials(settings,{activeOnly:true}).length,2);
+ assert.ok(!JSON.stringify(summary(settings)).includes('extra-test'));
+ const pool=new HuiquGroupPool(settings,{clientFactory:({apiKey,group})=>new HuiquClient({apiKey,group,fetchImpl:async(url)=>{
+  if(url.endsWith('/api/pricing'))return Response.json(multiPricing);
+  return Response.json({data:(apiKey==='legacy-test'?[modelA]:[modelA,modelB]).map(id=>({id}))});
+ }})});
+ const union=await pool.models();
+ assert.equal(union.length,70);
+ assert.equal(union.filter(row=>row.options.adapterSupported).length,2);
+ const a=union.find(row=>row.providerModelId===modelA);
+ assert.equal(a.options.huiqu.price.priceCny,1.75);
+ assert.equal(a.options.huiqu.group,group);
+ assert.equal(a.options.huiqu.credential,fingerprint('extra-test'));
+ assert.equal(pool.forCredential(fingerprint('disabled-test'),{activeOnly:true}),null);
+ assert.ok(pool.forCredential(fingerprint('disabled-test')));
+ assert.equal(activeCredential(settings,fingerprint('disabled-test')),false);
+ assert.equal(priceFor({enable_groups:[group],quota_type:1,tags:'按次计费',model_price:5},undefined,group),null);
+});
+test('polling a previously submitted job uses the original credential even after another group is selected',async()=>{
+ const queue=new HuiquQueue();let polled=0;
+ const original={apiKey:'old',videoStatus:async id=>{assert.equal(id,'task123');polled++;return {status:'pending'};}};
+ queue.markProcessing=async()=>{};
+ await queue.pollJob({}, {forCredential:id=>id===fingerprint('old')?original:null}, {id:'job',provider_operation:JSON.stringify({credential:fingerprint('old'),requestId:'task123'})});
+ assert.equal(polled,1);
+});

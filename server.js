@@ -201,7 +201,8 @@ const { isLongAiModel, longAiMediaModel } = require('./src/longai_models.js');
 const { isPureamModel, pureamMediaModels } = require('./src/puream_models.js');
 const { PureamClient } = require('./src/provider/puream.js');
 const { isHuiquModel } = require('./src/huiqu_models.js');
-const { HuiquClient, fingerprint: huiquFingerprint } = require('./src/provider/huiqu.js');
+const { HuiquGroupPool } = require('./src/provider/huiqu.js');
+const {activeCredential:huiquActiveCredential,credentials:huiquCredentials}=require('./src/huiqu_credentials');
 const { customerNewModelId, storedNewModelId, customerNewLabel } = require('./src/new_brand.js');
 const { isWxksaiModel, wxksaiMediaModels, unverifiedDopeCandidateVisible } = require('./src/wxksai_models.js');
 const { createDopePerformance } = require('./src/dope_performance.js');
@@ -653,8 +654,7 @@ async function sourceMediaCatalog(access,adminSettings=null){
   }
   if(access.huiqu && providerSettings.huiqu?.active){
     const settings=await getProviderSettings();
-    const fingerprint=huiquFingerprint(settings.huiquApiKey||'');
-    const catalog=await safeCatalog('huiqu',()=>publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===fingerprint?m:{...m,resolutions:[]}}));
+    const catalog=await safeCatalog('huiqu',()=>publicProviderCatalog('huiqu',{transform:m=>huiquActiveCredential(settings,m.huiqu?.credential)?m:{...m,resolutions:[]}}));
     video.push(...catalog.video.filter(model=>isHuiquModel(model.id)));
   }
   if(access.puream && providerSettings.puream?.active){
@@ -793,7 +793,7 @@ async function quoteModelForUser(userId,body){
     if(!access.huiqu || !providerSettings.huiqu?.active)throw httpError(403,'This model source is unavailable for your account.');
     const model=await getProviderModelByPublicId('huiqu',String(body.model),'video');
     const settings=await getProviderSettings();
-    if(!model?.ready||model.huiqu?.credential!==huiquFingerprint(settings.huiquApiKey||''))throw httpError(404,'This model is currently unavailable.');
+    if(!model?.ready||!huiquActiveCredential(settings,model.huiqu?.credential))throw httpError(404,'This model is currently unavailable.');
     validateReferences(model,body,{forQuote:true});
     const quote=quoteGateway(model,body,providerSettings.huiqu.creditsPerUsd);
     return {cost:quote.cost,isEstimate:false};
@@ -1002,9 +1002,9 @@ async function submitVideoGeneration(user,body,req=null,apiRequest=null){
   }
 
   if(!cartoonOptions&&isHuiquModel(requestedModel)){
-    if(!customerAccess.huiqu||!providerSettings.huiquEnabled||!providerSettings.huiquApiKey)throw httpError(503,'This video model is currently unavailable.');
+    if(!customerAccess.huiqu||!providerSettings.huiquEnabled||!huiquCredentials(providerSettings,{activeOnly:true}).length)throw httpError(503,'This video model is currently unavailable.');
     const model=await getProviderModelByPublicId('huiqu',requestedModel,'video');
-    if(!model?.ready||model.huiqu?.credential!==huiquFingerprint(providerSettings.huiquApiKey))throw httpError(404,'This video model is currently unavailable.');
+    if(!model?.ready||!huiquActiveCredential(providerSettings,model.huiqu?.credential))throw httpError(404,'This video model is currently unavailable.');
     validateReferences(model,body);
     const quote=quoteGateway(model,body,require('./src/billing.js').CREDITS_PER_USD);
     generation=await createVideo(user.id,{...body,...quote,model:requestedModel},{provider:'huiqu',dynamicModel:true,
@@ -1606,8 +1606,8 @@ const server=http.createServer(async (req,res)=>{
       const access=await getVisibleUserProviderAccess(user.id);
       if(!access.huiqu)throw httpError(403,'Performance data is unavailable for this account.');
       const settings=await getProviderSettings();
-      if(!settings.huiquEnabled||!settings.huiquApiKey)throw httpError(403,'Performance data is unavailable for this account.');
-      const [performance,catalog]=await Promise.all([require('./src/huiqu_performance.js').huiquCombinedPerformance(getPool()),publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===huiquFingerprint(settings.huiquApiKey)?m:{...m,resolutions:[]}})]);
+      if(!settings.huiquEnabled||!huiquCredentials(settings,{activeOnly:true}).length)throw httpError(403,'Performance data is unavailable for this account.');
+      const [performance,catalog]=await Promise.all([require('./src/huiqu_performance.js').huiquCombinedPerformance(getPool()),publicProviderCatalog('huiqu',{transform:m=>huiquActiveCredential(settings,m.huiqu?.credential)?m:{...m,resolutions:[]}})]);
       const visible=new Set(catalog.video.map(model=>model.id));
       return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).filter(([id])=>visible.has(id)))});
     }
@@ -2433,8 +2433,8 @@ const server=http.createServer(async (req,res)=>{
       if(req.method==='POST'&&['/admin/huiqu/check','/admin/huiqu/sync'].includes(routePath)){
         requireDatabase();
         const settings=await getProviderSettings();
-        if(!settings.huiquApiKey&&routePath.endsWith('/check'))return sendJson(res,400,{ok:false,error:'Save a Huiqu video-group API key first.'});
-        const models=await new HuiquClient({apiKey:settings.huiquApiKey}).models();
+        if(!huiquCredentials(settings,{activeOnly:true}).length&&routePath.endsWith('/check'))return sendJson(res,400,{ok:false,error:'Save a Huiqu video-group API key first.'});
+        const models=await new HuiquGroupPool(settings).models();
         const supported=models.filter(m=>m.options.adapterSupported);
         if(routePath.endsWith('/check'))return sendJson(res,200,{ok:true,accessibleModels:models.filter(m=>m.options.huiqu.accessible).length,supportedModels:supported.length,total:models.length});
         const stored=await syncProviderModels('huiqu',models);
@@ -2870,16 +2870,16 @@ const server=http.createServer(async (req,res)=>{
           }
         }
         let huiquSync=null;
-        if(String(body.huiquApiKey||'').trim() || (body.huiquEnabled===true&&!previous.huiquEnabled) || body.clearHuiquApiKey===true){
+        if(String(body.huiquApiKey||'').trim() || (body.huiquEnabled===true&&!previous.huiquEnabled) || body.clearHuiquApiKey===true||body.huiquAddCredential||body.huiquCredentialState){
           const latest=await getProviderSettings();
           try{
-            const models=await new HuiquClient({apiKey:latest.huiquApiKey}).models();
+            const models=await new HuiquGroupPool(latest).models();
             const stored=await syncProviderModels('huiqu',models);
             huiquSync={ok:true,total:models.length,ready:stored.filter(m=>m.ready&&m.available).length};
           }catch(error){huiquSync={ok:false,error:error.message};}
         }
         // Keys and passwords are masked by the activity log.
-        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{}),...(body.pureamApiKey?{pureamApiKey:'[REDACTED]'}:{}),...(body.huiquApiKey?{huiquApiKey:'[REDACTED]'}:{})}}});
+        logActivity({category:'admin',event:'settings.saved',message:'Provider settings saved',details:{changes:{...body,...(body.wxksaiApiKey?{wxksaiApiKey:'[REDACTED]'}:{}),...(body.pureamApiKey?{pureamApiKey:'[REDACTED]'}:{}),...(body.huiquApiKey?{huiquApiKey:'[REDACTED]'}:{}),...(body.huiquAddCredential?{huiquAddCredential:'[REDACTED]'}:{})}}});
         // A new Higgsfield key: read Wan 3.0's prices right away, so the model appears.
         let higgsfieldSync=null;
         if(String(body.higgsfieldApiKey||'').trim()){

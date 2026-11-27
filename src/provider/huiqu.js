@@ -51,7 +51,7 @@ function payloadFor(model,options,refs){
   return payload;
 }
 class HuiquClient {
-  constructor({apiKey='',fetchImpl=fetch,fetchMedia=openPublicVideo}={}){this.apiKey=String(apiKey).trim();this.fetch=fetchImpl;this.fetchMedia=fetchMedia;}
+  constructor({apiKey='',group=require('../huiqu_models').GROUP,fetchImpl=fetch,fetchMedia=openPublicVideo}={}){this.apiKey=String(apiKey).trim();this.group=group;this.fetch=fetchImpl;this.fetchMedia=fetchMedia;}
   async request(path,{method='GET',body,auth=true,timeoutMs=40000}={}){
     if(auth&&!this.apiKey)throw new Error('Save a Huiqu video-group API key first.');
     let response;
@@ -76,7 +76,7 @@ class HuiquClient {
   async models(){
     if(!this.inFlight)this.inFlight=(async()=>{
       const [pricing,account]=await Promise.all([this.json('/api/pricing',{auth:false}),this.apiKey?this.json('/v1/models'):null]);
-      const rows=huiquMediaModels(pricing,account);
+      const rows=huiquMediaModels(pricing,account,this.group);
       // Avoid leaking a key or accepting a prior account's inventory.
       for(const row of rows)row.options.huiqu.credential=this.apiKey?fingerprint(this.apiKey):null;
       return rows;
@@ -116,4 +116,24 @@ class HuiquClient {
     return stageVideo(media.body,{contentLength:media.contentLength,maxBytes:VIDEO_LIMIT});
   }
 }
-module.exports={HuiquClient,payloadFor,fingerprint};
+// Keep a single public SKU; use the least expensive verified group. A failed
+// account read aborts sync rather than silently removing that group's routes.
+class HuiquGroupPool {
+  constructor(settings,{clientFactory=o=>new HuiquClient(o)}={}){
+    this.entries=require('../huiqu_credentials').credentials(settings).map(row=>({...row,client:clientFactory({apiKey:row.apiKey,group:row.group})}));
+  }
+  forCredential(id,{activeOnly=false}={}){return this.entries.find(e=>e.id===id&&(!activeOnly||e.enabled))?.client||null;}
+  async models(){
+    const active=this.entries.filter(e=>e.enabled);
+    if(!active.length)return new HuiquClient().models();
+    const lists=await Promise.all(active.map(e=>e.client.models()));
+    const byId=new Map();
+    for(const row of lists.flat()){
+      const prev=byId.get(row.providerModelId);
+      const ready=row.options.adapterSupported,wasReady=prev?.options.adapterSupported;
+      if(!prev||(ready&&(!wasReady||row.options.huiqu.price.priceCny<prev.options.huiqu.price.priceCny))||(!ready&&!wasReady&&row.options.huiqu.accessible&&!prev.options.huiqu.accessible))byId.set(row.providerModelId,row);
+    }
+    return [...byId.values()];
+  }
+}
+module.exports={HuiquClient,HuiquGroupPool,payloadFor,fingerprint};
