@@ -96,4 +96,32 @@ class HuiquQueue extends VercelQueue{
     return this.markProcessing(db,job);
   }
 }
-module.exports={HuiquQueue};
+function heldHuiquSubmission(job){
+  if(!job||job.provider!=='huiqu'||job.media_type!=='video'||job.status!=='submitted'||job.refunded_at||job.provider_job_id)return false;
+  try{
+    const op=typeof job.provider_operation==='string'?JSON.parse(job.provider_operation):job.provider_operation;
+    return op?.submissionPending===true&&!op.requestId&&/^[a-f0-9]{64}$/.test(op.credential||'');
+  }catch{return false;}
+}
+// Admin confirmation is based on provider history; never submit a replacement.
+async function refundHeldHuiqu(db,id,input,refund=require('./generations').refundGeneration){
+  const bad=(message,statusCode=409)=>Object.assign(new Error(message),{statusCode});
+  if(input?.confirmedNoAcceptedTask!==true||input?.confirmedNoCharge!==true)
+    throw bad('Confirm that provider task history contains no accepted task and no charge.',400);
+  const conn=await db.getConnection(),name='cmm_job_'+id;
+  let locked=false;
+  try{
+    const [[lock]]=await conn.query('SELECT GET_LOCK(?,0) AS acquired',[name]);
+    locked=Number(lock?.acquired)===1;
+    if(!locked)throw bad('Generation is busy. Refresh and try again.');
+    const [[job]]=await conn.query('SELECT * FROM generations WHERE id=?',[id]);
+    if(!heldHuiquSubmission(job))throw bad('Only an unrefunded held submission without a provider task ID can be reconciled.');
+    if(!await refund(id,'submit_error','Admin confirmed no accepted provider task or charge. Credits were refunded.',0))
+      throw bad('Generation no longer exists.');
+    return {reconciled:true,creditsRefunded:Number(job.credits_cost)};
+  }finally{
+    if(locked)await conn.query('SELECT RELEASE_LOCK(?)',[name]).catch(()=>{});
+    conn.release();
+  }
+}
+module.exports={HuiquQueue,heldHuiquSubmission,refundHeldHuiqu};
