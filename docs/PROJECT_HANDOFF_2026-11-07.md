@@ -1,3 +1,8 @@
+## 27 November 2026 — Huiqu 30s Flash HTTP 400
+
+- Owner screenshot now shows 30s/720p/16:9 Flash job at 2822.4 credits with HTTP 400. Official exact model documentation https://huiquyunapi.apifox.cn/539860662e0 confirms 4–30 integer seconds, optional references, 16:9, and generic POST /v1/videos with model in body. Existing payload matches documented contract; do not revert duration or switch endpoints without evidence. Public catalog presence, account channel behavior and specific rejected request body cannot be established from screenshot.
+- Classify bounded upstream error into fixed diagnostic categories, preserve payment handling, log safe model/duration/route metadata, and return useful customer refund message. No raw upstream messages or reference URLs retained, no automatic retries, no new paid requests. Mock regression added; exact historic rejection, actual refund ledger, CI and deployment unverified.
+
 ## 27 November 2026 — Remove New video submenu
 
 - Owner requested removal of the New submenu and all its models, retaining Huiqu Newly Listed. Customer provider access now denies Puream regardless of saved visibility or account access, including quotes and new submissions; picker skips stale new_/puream_ options. Huiqu access and model toggles untouched. Preserve saved admin credentials, model settings, history and processing of previously accepted jobs. Added regression coverage for both catalog and picker. No paid generation or production verification.
