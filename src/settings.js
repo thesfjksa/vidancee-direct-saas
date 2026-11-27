@@ -17,6 +17,7 @@ const DEFAULTS = {
   puream_enabled: 'true',
   puream_max_inflight: '1',
   huiqu_api_key: '',
+  huiqu_extra_credentials: '[]',
   huiqu_enabled: 'true',
   huiqu_max_inflight: '1',
   wxksai_api_key: '',
@@ -215,6 +216,7 @@ async function getProviderSettings(db = getPool()) {
     pureamEnabled: asBool(read('puream_enabled')),
     pureamMaxInflight: Math.max(1,Math.min(5,Number(read('puream_max_inflight')||1))),
     huiquApiKey: String(read('huiqu_api_key') || '').trim(),
+    huiquExtraCredentials: require('./huiqu_credentials').parseExtra(read('huiqu_extra_credentials')),
     huiquEnabled: asBool(read('huiqu_enabled')),
     huiquMaxInflight: Math.max(1,Math.min(5,Number(read('huiqu_max_inflight')||1))),
     wxksaiApiKey: String(read('wxksai_api_key') || '').trim(),
@@ -285,8 +287,9 @@ async function getAdminProviderSettings() {
     },
     huiqu: {
       baseUrl: require('./huiqu_models.js').BASE_URL,
-      apiKeyConfigured: Boolean(s.huiquApiKey), configured: Boolean(s.huiquApiKey),
-      enabled: s.huiquEnabled, active: Boolean(s.huiquEnabled && s.huiquApiKey),
+      apiKeyConfigured: Boolean(s.huiquApiKey), configured: require('./huiqu_credentials').credentials(s,{activeOnly:true}).length>0,
+      credentials: require('./huiqu_credentials').summary(s),
+      enabled: s.huiquEnabled, active: Boolean(s.huiquEnabled && require('./huiqu_credentials').credentials(s,{activeOnly:true}).length),
       maxInflight: s.huiquMaxInflight, creditsPerUsd: CREDITS_PER_USD,
     },
     wxksai: {
@@ -430,6 +433,22 @@ async function updateProviderSettings(input = {}) {
     huiquUpdates.push(['huiqu_max_inflight',String(max)]);
   }
   if(Object.hasOwn(input,'huiquApiKey')&&(typeof input.huiquApiKey!=='string'||input.huiquApiKey.length>512||/\s/.test(input.huiquApiKey.trim())))throw Object.assign(new Error('Invalid Huiqu API key.'),{statusCode:400});
+  if(input.huiquAddCredential||input.huiquCredentialState){
+    const registry=require('./huiqu_credentials');
+    const state=await getProviderSettings();
+    let extras=state.huiquExtraCredentials;
+    if(input.huiquAddCredential){
+      const [added]=registry.parseExtra(JSON.stringify([input.huiquAddCredential]));
+      if(registry.credentials(state).some(row=>row.apiKey===added.apiKey))throw Object.assign(new Error('This API key is already configured.'),{statusCode:400});
+      extras=registry.parseExtra(JSON.stringify([...extras,{...added,enabled:true}]));
+    }
+    if(input.huiquCredentialState){
+      const {id,enabled}=input.huiquCredentialState;
+      if(typeof enabled!=='boolean'||!extras.some(row=>registry.fingerprint(row.apiKey)===id))throw Object.assign(new Error('Unknown group credential.'),{statusCode:400});
+      extras=extras.map(row=>registry.fingerprint(row.apiKey)===id?{...row,enabled}:row);
+    }
+    await put('huiqu_extra_credentials',JSON.stringify(extras),true);
+  }
   for(const update of huiquUpdates)await put(...update);
   if(input.clearHuiquApiKey===true)await del('huiqu_api_key');
   else if(input.huiquApiKey?.trim())await put('huiqu_api_key',input.huiquApiKey.trim(),true);
