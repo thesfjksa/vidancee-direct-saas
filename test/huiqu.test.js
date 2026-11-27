@@ -138,12 +138,14 @@ test('polling a previously submitted job uses the original credential even after
  assert.equal(polled,1);
 });
 
-test('Seedance 2.5 Flash supports 4–30s with constant pricing and unchanged reference limits',()=>{
+test('Seedance 2.5 Flash has resolution-specific duration limits and unchanged reference clip limits',()=>{
  for(const resolution of ['480p','720p']){
   const model=full('sd2.5-flash-10.5.5-'+resolution);
-  assert.deepEqual(model.durations,Array.from({length:27},(_,i)=>i+4));
-  assert.equal(quoteGateway(model,{duration:30,resolution},CREDITS_PER_USD).cost,quoteGateway(model,{duration:4,resolution},CREDITS_PER_USD).cost);
-  assert.equal(payloadFor(model,{prompt:'Product shot',duration:30,aspectRatio:'16:9'},[]).seconds,30);
+  const max=resolution==='720p'?6:30;
+  assert.deepEqual(model.durations,Array.from({length:max-3},(_,i)=>i+4));
+  assert.equal(quoteGateway(model,{duration:max,resolution},CREDITS_PER_USD).cost,quoteGateway(model,{duration:4,resolution},CREDITS_PER_USD).cost);
+  assert.equal(payloadFor(model,{prompt:'Product shot',duration:max,aspectRatio:'16:9'},[]).seconds,max);
+  if(resolution==='720p')assert.throws(()=>quoteGateway(model,{duration:30,resolution},CREDITS_PER_USD),/duration/i);
   assert.equal(model.huiqu.videoClipSeconds,15);
  }
 });

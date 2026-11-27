@@ -1445,7 +1445,7 @@ function rebuildCustomSelect(id){
   optionsRoot.querySelectorAll('.custom-select-option').forEach(node=>node.remove());
   const mainOptions=[],huiquOptions=[];
   [...select.options].forEach((o,i)=>{
-    if(id==='model'&&/^(new|puream)_/.test(o.value))return;
+    if(id==='model'&&/^new_/.test(o.value))return;
     const selected=i===select.selectedIndex;
     const html=customSelectSearchable(id)
       ?modelPickerOptionHtml(id,o,i,selected)
