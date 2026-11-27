@@ -440,6 +440,11 @@ async function updateProviderSettings(input = {}) {
     if(input.huiquAddCredential){
       const [added]=registry.parseExtra(JSON.stringify([input.huiquAddCredential]));
       if(registry.credentials(state).some(row=>row.apiKey===added.apiKey))throw Object.assign(new Error('This API key is already configured.'),{statusCode:400});
+      // Do not persist a typo, invalid key, or a group with no reviewed priced
+      // model; otherwise one bad credential would block the union refresh.
+      const {HuiquClient}=require('./provider/huiqu');
+      const rows=await new HuiquClient(added).models();
+      if(!rows.some(row=>row.options.adapterSupported))throw Object.assign(new Error('No reviewed priced video models are accessible for this key and group. Verify the exact group name.'),{statusCode:400});
       extras=registry.parseExtra(JSON.stringify([...extras,{...added,enabled:true}]));
     }
     if(input.huiquCredentialState){
