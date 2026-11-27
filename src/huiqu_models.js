@@ -83,4 +83,4 @@ function validateHuiquReferences(model,input,{forQuote=false}={}){
       throw bad('Reference video duration exceeds this model’s limit.');
   }
 }
-module.exports={BASE_URL,GROUP,isHuiquModel,huiquMediaModels,validateHuiquReferences,priceFor};
+module.exports={BASE_URL,GROUP,publicId,isHuiquModel,huiquMediaModels,validateHuiquReferences,priceFor};

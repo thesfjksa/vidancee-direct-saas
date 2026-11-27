@@ -1607,7 +1607,7 @@ const server=http.createServer(async (req,res)=>{
       if(!access.huiqu)throw httpError(403,'Performance data is unavailable for this account.');
       const settings=await getProviderSettings();
       if(!settings.huiquEnabled||!settings.huiquApiKey)throw httpError(403,'Performance data is unavailable for this account.');
-      const [performance,catalog]=await Promise.all([require('./src/puream_performance.js').huiquPerformance(getPool()),publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===huiquFingerprint(settings.huiquApiKey)?m:{...m,resolutions:[]}})]);
+      const [performance,catalog]=await Promise.all([require('./src/huiqu_performance.js').huiquCombinedPerformance(getPool()),publicProviderCatalog('huiqu',{transform:m=>m.huiqu?.credential===huiquFingerprint(settings.huiquApiKey)?m:{...m,resolutions:[]}})]);
       const visible=new Set(catalog.video.map(model=>model.id));
       return sendJson(res,200,{...performance,models:Object.fromEntries(Object.entries(performance.models).filter(([id])=>visible.has(id)))});
     }
@@ -2934,7 +2934,7 @@ const server=http.createServer(async (req,res)=>{
 
       if (req.method==='GET' && routePath==='/admin/huiqu/performance') {
         requireDatabase();
-        return sendJson(res,200,await require('./src/puream_performance.js').huiquPerformance(getPool()));
+        return sendJson(res,200,await require('./src/huiqu_performance.js').huiquCombinedPerformance(getPool()));
       }
       if (req.method==='GET' && routePath==='/admin/puream/performance') {
         requireDatabase();

@@ -12,11 +12,11 @@
   const metricsFor = id => sourceFor(id).snapshot?.models[id];
 
   function describe(id, card = false) {
-    const heading = ['new','huiqu'].includes(sourceName(id))?'24h CMMTools performance':'24h performance';
     const { snapshot } = sourceFor(id);
     const metrics = metricsFor(id);
+    const heading = sourceName(id)==='huiqu'&&metrics?.source!=='local'?'24h provider-reported performance': ['new','huiqu'].includes(sourceName(id))?'24h CMMTools performance':'24h performance';
     if (!metrics) {
-      const status = !snapshot ? 'Loading…' : snapshot.stale ? 'Unavailable' : 'No data';
+      const status = !snapshot ? 'Loading…' : snapshot.stale ? 'Unavailable' : sourceName(id)==='huiqu'?'Not reported':'No data';
       return card ? '<span class="model-picker-performance-heading">' + heading +
         '</span><span>' + status + '</span>' : heading + ' · ' + status;
     }
@@ -28,9 +28,10 @@
       return '<span class="model-picker-performance-heading">' + heading + '</span>' +
         '<span class="model-picker-metric">Success <strong>' + success + '</strong></span>' +
         '<span class="model-picker-metric">Avg latency <strong>' + latency + '</strong></span>' +
-        (snapshot.stale ? '<span class="model-picker-performance-stale">Last known</span>' : '');
+        (snapshot.stale && metrics.source!=='local' ? '<span class="model-picker-performance-stale">Last known</span>' : '') +
+        (metrics.local ? '<span class="model-picker-metric">CMMTools: '+metrics.local.successRate.toFixed(2)+'% · '+metrics.local.samples+' jobs</span>' : '');
     }
-    return '24h · ' + success + ' success · ' + latency + ' avg latency' +
+    return heading + ' · ' + success + ' success · ' + latency + ' avg latency' +
       (snapshot.stale ? ' · Last known' : '');
   }
 
