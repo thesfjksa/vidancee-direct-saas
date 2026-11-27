@@ -1,6 +1,7 @@
 'use strict';
 const {VercelQueue,savedOptions}=require('./vercel_queue');
-const {HuiquClient,payloadFor,fingerprint}=require('./provider/huiqu');
+const {HuiquClient,HuiquGroupPool,payloadFor,fingerprint}=require('./provider/huiqu');
+const {signature,credentials}=require('./huiqu_credentials');
 const {syncProviderModels}=require('./provider_models');
 const {quoteGateway}=require('./vercel_models');
 const {CNY_PER_USD}=require('./billing');
@@ -12,14 +13,14 @@ class HuiquQueue extends VercelQueue{
     super({...options,provider:'huiqu',clientFactory:options.clientFactory||((o)=>new HuiquClient(o))});
     this.syncCatalog=options.syncCatalog||((models)=>syncProviderModels('huiqu',models));
   }
-  apiKey(s){return s.huiquApiKey||'';}
-  sourceEnabled(s){return Boolean(s.huiquEnabled);}
+  apiKey(s){return signature(s);}
+  sourceEnabled(s){return Boolean(s.huiquEnabled&&credentials(s,{activeOnly:true}).length);}
   maxInflight(s){return s.huiquMaxInflight||1;}
   timeoutFor(){return Infinity;}
   async runOnce(db=getPool(),settings=null){
     const current=settings||await this.getSettings();
     const key=this.apiKey(current);
-    if(key!==this.fingerprint){this.fingerprint=key;this.client=key?this.clientFactory({apiKey:key}):null;this.refreshAfter=0;}
+    if(key!==this.fingerprint){this.fingerprint=key;this.client=key?new HuiquGroupPool(current,{clientFactory:this.clientFactory}):null;this.refreshAfter=0;}
     if(this.client&&this.sourceEnabled(current)&&!this.refreshTask&&Date.now()>=(this.refreshAfter||0)){
       const client=this.client;
       this.refreshAfter=Date.now()+10*60*1000;
@@ -36,7 +37,13 @@ class HuiquQueue extends VercelQueue{
   async submit(db,job,client){
     const options=savedOptions(job);
     const saved=await this.getModel('huiqu',job.model,'video');
-    if(!saved?.ready||saved.huiqu?.credential!==fingerprint(client.apiKey))throw new Error('This video model is unavailable.');
+    if(!saved?.ready)throw new Error('This video model is unavailable.');
+    // The group selected when quoted must still be active. Never switch a
+    // queued or in-flight paid request silently to another key.
+    const credential=options.model?.huiqu?.credential||saved.huiqu?.credential;
+    const selected=client.forCredential?client.forCredential(credential,{activeOnly:true}):client;
+    if(!selected||credential!==fingerprint(selected.apiKey))throw new Error('This video model group is unavailable.');
+    client=selected;
     const live=(await client.models()).find(row=>row.providerModelId===saved.providerModelId);
     if(!live?.options.adapterSupported)throw new Error('This video model is no longer available.');
     const model={...live.options,provider:'huiqu',mediaType:'video',providerModelId:live.providerModelId};
@@ -60,7 +67,8 @@ class HuiquQueue extends VercelQueue{
   }
   async pollJob(db,client,job){
     const op=JSON.parse(job.provider_operation||'{}');
-    if(op.credential!==fingerprint(client.apiKey))throw new Error('Restore the original provider credential for this task.');
+    client=client.forCredential?client.forCredential(op.credential):client;
+    if(!client||op.credential!==fingerprint(client.apiKey))throw new Error('Restore the original provider credential for this task.');
     if(!op.requestId)return;
     const result=await client.videoStatus(op.requestId);
     if(result.status==='failed')return this.refund(job.id,'failed',backendFailureMessage({code:result.errorCode},'The video service failed. CMMTools credits were refunded.'),null);
