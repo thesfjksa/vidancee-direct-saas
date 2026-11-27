@@ -50,6 +50,19 @@ function payloadFor(model,options,refs){
   }
   return payload;
 }
+// Only fixed classifications are retained; do not persist raw provider text,
+// credentials, prompts, reference URLs or arbitrary upstream error codes.
+function classifyRejection(body){
+  const e=body?.error;
+  const reason=[e?.code,e?.param,e?.message,typeof e==='string'?e:'',body?.code,body?.message,body?.msg,typeof body?.detail==='string'?body.detail:''].filter(v=>typeof v==='string').join(' ').slice(0,4000);
+  if(/no available channel|model.{0,30}(unavailable|not found|not supported|disabled|does not exist)|无可用渠道|模型.{0,10}(不存在|下线|不支持|不可用)/i.test(reason))return 'model_unavailable';
+  if(/duration|seconds|时长|秒数/i.test(reason))return 'duration_rejected';
+  if(/resolution|分辨率/i.test(reason))return 'resolution_rejected';
+  if(/aspect_ratio|aspect ratio|宽高比|比例/i.test(reason))return 'aspect_ratio_rejected';
+  if(/reference|image|audio|参考|图片|音频/i.test(reason))return 'reference_or_media_rejected';
+  if(/group|permission|unauthori[sz]ed|分组|权限/i.test(reason))return 'group_or_permission_rejected';
+  return 'unspecified_rejection';
+}
 class HuiquClient {
   constructor({apiKey='',group=require('../huiqu_models').GROUP,fetchImpl=fetch,fetchMedia=openPublicVideo}={}){this.apiKey=String(apiKey).trim();this.group=group;this.fetch=fetchImpl;this.fetchMedia=fetchMedia;}
   async request(path,{method='GET',body,auth=true,timeoutMs=40000}={}){
@@ -59,12 +72,12 @@ class HuiquClient {
     catch{throw Object.assign(new Error('Video service connection failed.'),{ambiguous:method==='POST'});}
     if(!response.ok&&!(path.endsWith('/content')&&response.status>=300&&response.status<400)){
       // Only a classification is kept; provider response bodies may contain private data.
-      let payment=response.status===402;
+      let payment=response.status===402, failureType;
       if(method==='POST'&&!payment){
-        try{const parsed=JSON.parse((await readBounded(response,65536)).toString('utf8'));payment=/^(insufficient_quota|insufficient_balance|insufficient_credits|payment_required)$/i.test(String(parsed?.error?.code||''))||require('../provider_errors').backendFailureMessage(parsed?.error,'')!=='';}catch{}
+        try{const parsed=JSON.parse((await readBounded(response,65536)).toString('utf8'));payment=/^(insufficient_quota|insufficient_balance|insufficient_credits|payment_required)$/i.test(String(parsed?.error?.code||''))||require('../provider_errors').backendFailureMessage(parsed?.error,'')!=='';if(response.status===400)failureType=classifyRejection(parsed);}catch{if(response.status===400)failureType='unreadable_rejection';}
       }
       await response.body?.cancel?.().catch(()=>{});
-      throw Object.assign(new Error('Video service returned HTTP '+response.status+'.'),{providerStatus:response.status,statusCode:payment?402:502,ambiguous:method==='POST'&&(response.status>=500||response.status===408||response.status>=300&&response.status<400)});
+      throw Object.assign(new Error('Video service returned HTTP '+response.status+'.'),{providerStatus:response.status,statusCode:payment?402:502,failureType,requestMethod:method,recoveryStage:path==='/v1/videos'||path==='/v1/videos/generations'?'video_submission':'provider_read',ambiguous:method==='POST'&&(response.status>=500||response.status===408||response.status>=300&&response.status<400)});
     }
     return response;
   }
