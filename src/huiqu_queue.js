@@ -60,10 +60,27 @@ class HuiquQueue extends VercelQueue{
         await db.execute("UPDATE generations SET status='submitted',provider_operation=?,provider_job_id=?,started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),error_message=NULL WHERE id=? AND status='submitting' AND refunded_at IS NULL",[JSON.stringify({credential:op.credential,requestId:receipt.requestId}),receipt.requestId,job.id]);
       }catch{throw Object.assign(new Error('Video receipt could not be saved.'),{ambiguous:true});}
     }catch(error){
-      if(!error.ambiguous)throw error;
+      if(!error.ambiguous){
+        if(error.providerStatus===400)this.log(job,'huiqu.submit_rejected','Video request rejected by upstream',{failureType:error.failureType||'unspecified_rejection',model:saved.providerModelId,duration:options.duration,resolution:options.resolution,aspectRatio:options.aspectRatio,route:model.huiqu.route},'warn');
+        throw error;
+      }
       await db.execute("UPDATE generations SET status='submitted',error_message='Submission receipt unconfirmed. Contact admin.',updated_at=UTC_TIMESTAMP() WHERE id=? AND status='submitting' AND refunded_at IS NULL",[job.id]).catch(()=>{});
       this.log(job,'huiqu.submit_unconfirmed','Original paid submission may have been accepted. No retry. Contact provider to reconcile.',null,'warn');
     }
+  }
+  submitFailureMessage(error){
+    if(error.providerStatus===400){
+      const reason={
+        duration_rejected:'The video service rejected the selected duration.',
+        resolution_rejected:'The video service rejected the selected resolution.',
+        aspect_ratio_rejected:'The video service rejected the selected aspect ratio.',
+        reference_or_media_rejected:'The video service rejected the reference or media settings.',
+        group_or_permission_rejected:'The video service rejected access to this model. Contact admin.',
+        model_unavailable:'The video model is currently unavailable.'
+      }[error.failureType]||'The video service rejected this request. Contact admin.';
+      return reason+' Credits were refunded.';
+    }
+    return super.submitFailureMessage(error);
   }
   async pollJob(db,client,job){
     const op=JSON.parse(job.provider_operation||'{}');
