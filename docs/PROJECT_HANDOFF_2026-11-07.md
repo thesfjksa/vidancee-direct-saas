@@ -1,3 +1,7 @@
+## 27 November 2026 — Remove New video submenu
+
+- Owner requested removal of the New submenu and all its models, retaining Huiqu Newly Listed. Customer provider access now denies Puream regardless of saved visibility or account access, including quotes and new submissions; picker skips stale new_/puream_ options. Huiqu access and model toggles untouched. Preserve saved admin credentials, model settings, history and processing of previously accepted jobs. Added regression coverage for both catalog and picker. No paid generation or production verification.
+
 ## 27 November 2026 — Huiqu Seedance 2.5 Flash duration correction
 
 - Owner reported production picker still shows 15s for `sd2.5-flash-10.5.5-720p`; previous provider documentation screenshot specified integer output durations 4–30s. Correct both Flash resolutions to 4–30s; leave 15s reference-clip limits, pricing and unrelated HD routes unchanged. Add offline regression for catalog, constant price and 30s payload.

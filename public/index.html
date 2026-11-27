@@ -1443,14 +1443,15 @@ function rebuildCustomSelect(id){
   const openGroups=new Set(previousGroups.filter(g=>g.open).map(g=>g.dataset.groupLabel||'New'));
   previousGroups.forEach(group=>group.remove());
   optionsRoot.querySelectorAll('.custom-select-option').forEach(node=>node.remove());
-  const mainOptions=[],newOptions=[],huiquOptions=[];
+  const mainOptions=[],huiquOptions=[];
   [...select.options].forEach((o,i)=>{
+    if(id==='model'&&/^(new|puream)_/.test(o.value))return;
     const selected=i===select.selectedIndex;
     const html=customSelectSearchable(id)
       ?modelPickerOptionHtml(id,o,i,selected)
       :customSelectRatioPicker(id)?ratioPickerOptionHtml(o,i,selected)
       :'<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+escapeHtml(o.textContent)+'</button>';
-    (id==='model'&&/^huiqu_/.test(o.value)?huiquOptions:id==='model'&&/^new_/.test(o.value)?newOptions:mainOptions).push(html);
+    (id==='model'&&/^huiqu_/.test(o.value)?huiquOptions:mainOptions).push(html);
   });
   const selectedValue=select.options[select.selectedIndex]?.value||'';
   function groupMenu(label,options,selected){
@@ -1460,7 +1461,7 @@ function rebuildCustomSelect(id){
       '<svg class="model-picker-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></summary>'+
       '<div class="model-picker-group-options" role="group" aria-label="'+label+'">'+options.join('')+'</div></details>':'';
   }
-  const optionsHtml=groupMenu('Newly Listed',huiquOptions,/^huiqu_/.test(selectedValue))+groupMenu('New',newOptions,/^new_/.test(selectedValue))+mainOptions.join('');
+  const optionsHtml=groupMenu('Newly Listed',huiquOptions,/^huiqu_/.test(selectedValue))+mainOptions.join('');
   if(empty)empty.insertAdjacentHTML('beforebegin',optionsHtml);
   else optionsRoot.insertAdjacentHTML('beforeend',optionsHtml);
   if(id==='model'||id==='imageModel')globalThis.sortDopePerformanceOptions?.(optionsRoot);

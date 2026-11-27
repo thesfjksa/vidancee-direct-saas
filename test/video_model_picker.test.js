@@ -297,7 +297,7 @@ test('Cartoon Studio shows a live 30-second price and disables generation while 
   assert.equal(fields.cartoonGenerateBtn.disabled,false);
 });
 
-test('Puream models appear exclusively in the expandable New menu with original option indices',()=>{
+test('Retired New models are excluded even from a stale video picker catalog',()=>{
   const start=studio.indexOf('function rebuildCustomSelect(id){');
   const end=studio.indexOf('function syncCustomSelect(id){',start);
   const models=[
@@ -319,18 +319,9 @@ test('Puream models appear exclusively in the expandable New menu with original 
   });
   vm.runInContext(studio.slice(start,end),ctx);
   ctx.rebuildCustomSelect('model');
-  assert.match(markup,/^<details class="model-picker-new-group">/);
-  assert.match(markup,/<span class="model-picker-group-name">New<\/span>/);
-  assert.match(markup,/3 models/);
-  const [group,flat]=markup.split('</details>');
-  assert.deepEqual([...group.matchAll(/data-index="(\d+)"/g)].map(m=>Number(m[1])),[1,3,4]);
-  assert.deepEqual([...flat.matchAll(/data-index="(\d+)"/g)].map(m=>Number(m[1])),[0,2]);
+  assert.doesNotMatch(markup,/<details|Custom admin name|Seedance 2\.0|Wan 3\.0/);
+  assert.deepEqual([...markup.matchAll(/data-index="(\d+)"/g)].map(m=>Number(m[1])),[0,2]);
   assert.equal(sorted,true);
-  select.selectedIndex=3;ctx.rebuildCustomSelect('model');
-  assert.match(markup,/^<details class="model-picker-new-group" open>/);
-  assert.match(markup,/data-index="3" aria-selected="true"/);
-  ctx.rebuildCustomSelect('imageModel');
-  assert.doesNotMatch(markup,/<details/,'Only Video Studio gets the Puream submenu');
 });
 
 test('search expands New, hides nonmatching models, restores collapse and supports searching the submenu name',()=>{
@@ -378,7 +369,7 @@ test('performance sorting preserves the New submenu and ranks nested options wit
   assert.deepEqual(nested.children,[pureamB,pureamA]);
 });
 
-test('Huiqu gets its own Newly Listed submenu; existing New models retain their own group',()=>{
+test('Huiqu retains Newly Listed while retired New models are absent',()=>{
   const a=studio.indexOf('function rebuildCustomSelect(id){'),b=studio.indexOf('function syncCustomSelect(id){',a);
   let markup='';
   const optionsRoot={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_,html)=>{markup=html;}};
@@ -387,11 +378,10 @@ test('Huiqu gets its own Newly Listed submenu; existing New models retain their 
   const select={options:[{value:'normal',textContent:'Normal'},{value:'huiqu_a123',textContent:'Renamed by admin'},{value:'new_sd20_abc',textContent:'Existing New'},{value:'huiqu_b123',textContent:'Wan'}],selectedIndex:1,closest:()=>wrap};
   const ctx=vm.createContext({$:()=>select,customSelectSearchable:()=>true,syncCustomSelect(){},modelPickerOptionHtml:(_id,o,i)=>'<button data-index="'+i+'">'+o.textContent+'</button>'});
   vm.runInContext(studio.slice(a,b),ctx);ctx.rebuildCustomSelect('model');
-  const [huiqu,puream,flat]=markup.split('</details>');
+  const [huiqu,flat]=markup.split('</details>');
   assert.match(huiqu,/data-group-label="Newly Listed" open/);
   assert.match(huiqu,/aria-label="Newly Listed"/);
   assert.deepEqual([...huiqu.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[1,3]);
-  assert.match(puream,/aria-label="New"/);
-  assert.deepEqual([...puream.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[2]);
+  assert.doesNotMatch(markup,/Existing New|aria-label="New"/);
   assert.deepEqual([...flat.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[0]);
 });
