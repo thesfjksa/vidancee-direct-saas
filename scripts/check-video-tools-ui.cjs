@@ -98,29 +98,24 @@ const modelFixtures=[
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'No horizontal overflow on mobile');
     await page.locator('#video-tools').screenshot({ path: join(artifacts, 'mobile.png') });
 
-    // The retired New models must not appear even in a stale fixture catalog.
+    // Both retired groups must stay absent even in a stale fixture catalog.
     await page.setViewportSize({width:1440,height:1010});
     await page.locator('[data-section="create"]').click();
     const trigger=page.locator('#model').locator('..').locator('.custom-select-trigger');
     await trigger.click();
     const picker=page.locator('#modelPicker');
-    const huiquGroup=picker.locator('.model-picker-new-group[data-group-label="Newly Listed"]');
-    assert.equal(await picker.locator('.model-picker-new-group').count(),1);
-    assert.equal(await huiquGroup.locator('.model-picker-group-count').innerText(),'1 model');
+    assert.equal(await picker.locator('.model-picker-new-group').count(),0);
     assert.equal(await picker.locator('.model-picker-options > .custom-select-option').count(),2);
     const search=picker.locator('input[type=search]');
-    await search.fill('Wan 3.0');
-    assert.equal(await picker.locator('.custom-select-empty').isVisible(),true);
-    await search.fill('Newly Listed');
-    assert.equal(await huiquGroup.locator('.custom-select-option:visible').count(),1);
-    await huiquGroup.getByRole('option',{name:/Huiqu fixture/}).click();
-    assert.equal(await page.locator('#model').inputValue(),'huiqu_123456789012345678901234');
-    assert.equal(await page.locator('#addVideoReferenceButton').isVisible(),true);
+    for(const query of ['Wan 3.0','Huiqu fixture','Newly Listed']){
+      await search.fill(query);
+      assert.equal(await picker.locator('.custom-select-empty').isVisible(),true);
+    }
+    await search.fill('');
     await page.setViewportSize({width:390,height:844});
-    await trigger.click();
-    assert.equal(await huiquGroup.evaluate(el=>el.open),true);
-    assert(await page.evaluate(()=>document.querySelector('#modelPicker .model-picker-options').scrollWidth<=document.querySelector('#modelPicker .model-picker-options').clientWidth),'Model submenu fits on mobile');
-    await picker.screenshot({path:join(artifacts,'newly-listed-menu-mobile.png')});
+    assert.equal(await picker.locator('.model-picker-new-group').count(),0);
+    assert(await page.evaluate(()=>document.querySelector('#modelPicker .model-picker-options').scrollWidth<=document.querySelector('#modelPicker .model-picker-options').clientWidth),'Flat model list fits on mobile');
+    await picker.screenshot({path:join(artifacts,'flat-model-menu-mobile.png')});
 
     assert.deepEqual(errors, []);
     console.log('Video Tools desktop and mobile checks passed.');
