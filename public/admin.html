@@ -606,6 +606,11 @@
     </section>
     <h3>Uploaded inputs</h3>
     <div id="gdInputs" class="gd-inputs"></div>
+    <section id="gdHuiquHeld" class="hide" style="margin-top:14px">
+      <p class="muted">Submission is held without a provider task ID. Check provider task and usage history before refunding.</p>
+      <button id="gdHuiquRefund" class="secondary" onclick="refundHeldHuiquFromDetail()">Reconcile and refund credits</button>
+      <p id="gdHuiquMessage" role="status" class="muted"></p>
+    </section>
     <details style="margin-top:14px"><summary class="muted">Settings</summary><pre id="gdOptions" style="white-space:pre-wrap"></pre></details>
   </div>
 </div>
@@ -854,6 +859,8 @@ async function openGenDetail(id){
   $('gdPrompt').textContent=g.prompt||'(no prompt)';
   $('gdPromptCount').textContent='· '+num((g.prompt||'').length)+' characters';
   $('gdOptions').textContent=JSON.stringify({mode:g.mode,status:g.status,provider:g.provider,provider_job_id:g.provider_job_id,credits:g.credits_cost,...(g.generation_options||{})},null,2);
+  $('gdHuiquHeld').classList.toggle('hide',!g.huiquHeld);
+  $('gdHuiquRefund').disabled=false;$('gdHuiquMessage').textContent='';
   $('gdHandoff').classList.toggle('hide',!g.manualHandoff);
   $('gdFinishedMp4').value='';
   $('gdHandoffMessage').textContent='';
@@ -870,6 +877,17 @@ async function openGenDetail(id){
       return '<figure>'+media+'<figcaption class="muted">'+esc((f.role||f.kind).replace(/_/g,' '))+' · <a href="'+esc(f.url)+'" target="_blank" rel="noopener">'+esc(f.filename||'file')+'</a></figcaption></figure>';
     }).join(''):'<div class="muted">No files were uploaded (text only).</div>';}
   catch(e){if(gdCurrent===g)$('gdInputs').innerHTML='<div class="err">'+esc(e.message)+'</div>'}
+}
+async function refundHeldHuiquFromDetail(){
+  const g=gdCurrent;if(!g?.huiquHeld)return;
+  if(!confirm('Confirm provider task history contains NO accepted task for '+g.id+' and usage history shows NO charge. Refund '+g.credits_cost+' credits? This cannot cancel an upstream task.'))return;
+  const button=$('gdHuiquRefund');button.disabled=true;
+  try{
+    const result=await api('/admin/huiqu/generations/'+encodeURIComponent(g.id)+'/reconcile',{method:'POST',body:JSON.stringify({confirmedNoAcceptedTask:true,confirmedNoCharge:true})});
+    g.huiquHeld=false;g.status='submit_error';
+    if(gdCurrent===g){$('gdHuiquMessage').textContent=result.creditsRefunded+' credits refunded.';$('gdError').textContent='Admin reconciled submission. Credits were refunded.';}
+    await Promise.all([loadGenerations(),loadOverview()]);
+  }catch(e){if(gdCurrent===g){$('gdHuiquMessage').textContent=e.message;button.disabled=false;}}
 }
 async function downloadAividHandoff(){
   try{
