@@ -58,6 +58,13 @@ const { chromium } = require('playwright-core');
       renderTest = { id, model, status: 'verified', taskId: 'fixture_task', diagnostic: 'Completed and verified a full MP4.' };
       return json({ test: { id, model, status: 'queued' } });
     }
+    if(pathname==='/admin/huiqu/check')return json({accessibleModels:1,supportedModels:1,total:2});
+    if(pathname==='/admin/huiqu/sync')return json({total:2,enabled:1});
+    if(pathname==='/admin/huiqu/performance')return json({models:{}});
+    if(pathname==='/admin/provider-models'&&url.searchParams.get('provider')==='huiqu')return json({models:[
+      {id:100,label:'Wan 3.0 · Huiqu',providerModelId:'wan-fixture',publicModelId:'huiqu_fixture',available:true,ready:true,enabled:true,resolutions:['720p'],durations:[2,30],huiqu:{price:{priceCny:0.35,unit:'second'}},referenceCapabilities:{image:{max:10},video:{max:5},audio:{max:5}}},
+      {id:101,label:'Official token model',providerModelId:'token-fixture',available:true,ready:false,enabled:true,setupReason:'Token billing requires verification',resolutions:['720p'],durations:[4,15],huiqu:{},referenceCapabilities:{}}
+    ]});
     if (pathname === '/admin/puream/check') { assert.equal(request.method(),'POST'); pureamChecks++; return json({accessibleModels:1,supportedModels:1}); }
     if (pathname === '/admin/puream/sync') { assert.equal(request.method(),'POST'); pureamImports++; return json({total:1,enabled:Number(pureamEnabled)}); }
     if (pathname === '/admin/puream/models') {
@@ -124,6 +131,17 @@ const { chromium } = require('playwright-core');
   await page.locator('[data-source-key="aivid"]').click();
   await page.locator('[data-source-key="puream"]').click();
   assert.equal(await page.locator('#pureamApiKey').inputValue(),'synthetic-unsaved-puream-code');
+  await page.locator('[data-source-key="huiqu"]').click();
+  await page.locator('#huiquModelSummary').getByText('Wan 3.0 · Huiqu',{exact:true}).waitFor();
+  assert.match(await page.locator('#huiquModelSummary').innerText(),/¥0\.35\/sec/);
+  assert.match(await page.locator('#huiquModelSummary').innerText(),/Token billing requires verification/);
+  assert.equal(await page.locator('#huiquApiKey').getAttribute('type'),'password');
+  await page.locator('#huiquApiKey').fill('synthetic-unsaved-huiqu');
+  await page.locator('[data-provider-source="huiqu"]').getByRole('button',{name:'Import video catalog',exact:true}).click();
+  await page.locator('#huiquActionMsg').filter({hasText:'Imported 2'}).waitFor();
+  await page.locator('[data-source-key="aivid"]').click();
+  await page.locator('[data-source-key="huiqu"]').click();
+  assert.equal(await page.locator('#huiquApiKey').inputValue(),'synthetic-unsaved-huiqu');
   await page.locator('[data-source-key="aivid"]').click();
   await page.screenshot({ path: path.join(artifacts, 'connections-desktop.png'), fullPage: true });
 
@@ -143,7 +161,7 @@ const { chromium } = require('playwright-core');
   await page.locator('#providerSourceSearch').fill('voice');
   assert.equal(await page.locator('[data-source-key]:visible').count(), 1);
   await page.locator('#providerSourceSearch').fill('');
-  assert.equal(await page.locator('[data-source-key]:visible').count(), 14);
+  assert.equal(await page.locator('[data-source-key]:visible').count(), 15);
   assert.equal(await page.locator('[data-source-key="enhancer"]').count(), 0);
   assert.equal(await page.locator('[data-provider-source="enhancer"]').count(), 0);
   assert.equal(await page.locator('#providerSourceSelect option[value="enhancer"]').count(), 0);

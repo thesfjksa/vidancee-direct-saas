@@ -1,6 +1,6 @@
 'use strict';
 
-const PROVIDERS = Object.freeze(['aivid', 'api888', 'sluice', 'vidancee', 'longai', 'wxksai', 'puream', 'vgenv', 'vibi', 'smartaipi', 'vercel', 'argolink', 'higgsfield', 'fal']);
+const PROVIDERS = Object.freeze(['aivid', 'api888', 'sluice', 'vidancee', 'longai', 'wxksai', 'puream', 'huiqu', 'vgenv', 'vibi', 'smartaipi', 'vercel', 'argolink', 'higgsfield', 'fal']);
 const visibilityKey = provider => provider + '_models_visible';
 
 function readModelVisibility(read) {

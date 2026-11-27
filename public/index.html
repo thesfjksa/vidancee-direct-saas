@@ -994,11 +994,10 @@ function ratioPickerOptionHtml(o,i,selected){
 function filterCustomSelectOptions(wrap,query){
   if(!wrap)return;
   const q=String(query||'').trim().toLowerCase();
-  let visible=0,groupMatches=0;
-  const group=wrap.querySelector('.model-picker-new-group');
-  // Search expands matching New models without losing the user's normal
-  // expanded/collapsed state. Searching "New" also finds the entire submenu.
-  if(group){
+  let visible=0;
+  const groups=[...wrap.querySelectorAll('.model-picker-new-group')];
+  const matches=new Map(groups.map(group=>[group,0]));
+  for(const group of groups){
     if(q&&!Object.hasOwn(group.dataset,'beforeSearch'))group.dataset.beforeSearch=String(group.open);
     if(!q&&Object.hasOwn(group.dataset,'beforeSearch')){
       group.open=group.dataset.beforeSearch==='true';
@@ -1006,15 +1005,16 @@ function filterCustomSelectOptions(wrap,query){
     }
   }
   wrap.querySelectorAll('.custom-select-option').forEach(option=>{
-    const grouped=Boolean(group&&group.contains(option));
-    const match=!q||option.textContent.toLowerCase().includes(q)||(grouped&&'new'.includes(q));
+    const group=groups.find(g=>g.contains(option));
+    const match=!q||option.textContent.toLowerCase().includes(q)||(group&&(group.dataset.groupLabel||'New').toLowerCase().includes(q));
     option.style.display=match?'':'none';
-    if(match){visible+=1;if(grouped)groupMatches+=1;}
+    if(match){visible++;if(group)matches.set(group,matches.get(group)+1);}
   });
-  if(group){
-    group.hidden=groupMatches===0;
-    if(q&&groupMatches)group.open=true;
-    group.querySelector('.model-picker-group-count').textContent=groupMatches+(groupMatches===1?' model':' models');
+  for(const group of groups){
+    const count=matches.get(group);
+    group.hidden=count===0;
+    if(q&&count)group.open=true;
+    group.querySelector('.model-picker-group-count').textContent=count+(count===1?' model':' models');
   }
   const empty=wrap.querySelector('.custom-select-empty');
   if(empty)empty.classList.toggle('show',visible===0);
@@ -1439,27 +1439,28 @@ function rebuildCustomSelect(id){
   const searchWrap=menu.querySelector('.custom-select-search');
   const optionsRoot=menu.querySelector('.model-picker-options,.ratio-picker-options')||menu;
   const empty=optionsRoot.querySelector('.custom-select-empty');
-  const previousGroup=optionsRoot.querySelector('.model-picker-new-group');
-  const groupWasOpen=previousGroup?.open===true;
-  previousGroup?.remove();
+  const previousGroups=[...optionsRoot.querySelectorAll('.model-picker-new-group')];
+  const openGroups=new Set(previousGroups.filter(g=>g.open).map(g=>g.dataset.groupLabel||'New'));
+  previousGroups.forEach(group=>group.remove());
   optionsRoot.querySelectorAll('.custom-select-option').forEach(node=>node.remove());
-  const mainOptions=[],newOptions=[];
+  const mainOptions=[],newOptions=[],huiquOptions=[];
   [...select.options].forEach((o,i)=>{
     const selected=i===select.selectedIndex;
     const html=customSelectSearchable(id)
       ?modelPickerOptionHtml(id,o,i,selected)
       :customSelectRatioPicker(id)?ratioPickerOptionHtml(o,i,selected)
       :'<button type="button" class="custom-select-option'+(selected?' selected':'')+'" data-index="'+i+'" role="option" aria-selected="'+(selected?'true':'false')+'">'+escapeHtml(o.textContent)+'</button>';
-    // Group by the stable New public ID, not the admin-editable label.
-    (id==='model'&&/^new_/.test(o.value)?newOptions:mainOptions).push(html);
+    (id==='model'&&/^huiqu_/.test(o.value)?huiquOptions:id==='model'&&/^new_/.test(o.value)?newOptions:mainOptions).push(html);
   });
-  const selectedIsNew=id==='model'&&/^new_/.test(select.options[select.selectedIndex]?.value||'');
-  const newMenu=newOptions.length?'<details class="model-picker-new-group"'+(groupWasOpen||selectedIsNew?' open':'')+'>'+
-    '<summary class="model-picker-group-header"><span class="model-picker-group-name">New</span>'+
-    '<span class="model-picker-group-count">'+newOptions.length+(newOptions.length===1?' model':' models')+'</span>'+
-    '<svg class="model-picker-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></summary>'+
-    '<div class="model-picker-group-options" role="group" aria-label="New">'+newOptions.join('')+'</div></details>':'';
-  const optionsHtml=newMenu+mainOptions.join('');
+  const selectedValue=select.options[select.selectedIndex]?.value||'';
+  function groupMenu(label,options,selected){
+    return options.length?'<details class="model-picker-new-group"'+(label==='New'?'':' data-group-label="'+label+'"')+(openGroups.has(label)||selected?' open':'')+'>'+
+      '<summary class="model-picker-group-header"><span class="model-picker-group-name">'+label+'</span>'+
+      '<span class="model-picker-group-count">'+options.length+(options.length===1?' model':' models')+'</span>'+
+      '<svg class="model-picker-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></summary>'+
+      '<div class="model-picker-group-options" role="group" aria-label="'+label+'">'+options.join('')+'</div></details>':'';
+  }
+  const optionsHtml=groupMenu('Newly Listed',huiquOptions,/^huiqu_/.test(selectedValue))+groupMenu('New',newOptions,/^new_/.test(selectedValue))+mainOptions.join('');
   if(empty)empty.insertAdjacentHTML('beforebegin',optionsHtml);
   else optionsRoot.insertAdjacentHTML('beforeend',optionsHtml);
   if(id==='model'||id==='imageModel')globalThis.sortDopePerformanceOptions?.(optionsRoot);

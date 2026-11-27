@@ -171,7 +171,7 @@ async function syncProviderModels(provider, discoveredModels, connection = null,
 
 const positiveNumber=value=>Number.isFinite(Number(value))&&Number(value)>0;
 // Sources whose models are priced locally from a USD catalog (quoteGateway).
-const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai','puream'];
+const PRICED_SOURCES=['vercel','argolink','higgsfield','sluice','vidancee','api888','falimg','longai','wxksai','puream','huiqu'];
 const { customerModelId, storedModelId, customerModelLabel } = require('./dope_brand.js');
 const { customerNewModelId, storedNewModelId, customerNewLabel } = require('./new_brand.js');
 const { isRetiredModel } = require('./retired_models.js');
@@ -219,6 +219,7 @@ function serializeProviderModel(row, { includeInternal = true } = {}) {
     ...(row.provider==='api888'?{api888:options.api888||{}}:{}),
     ...(row.provider==='wxksai'?{wxksai:options.wxksai||{}}:{}),
     ...(row.provider==='puream'?{puream:options.puream||{}}:{}),
+    ...(row.provider==='huiqu'?{huiqu:options.huiqu||{}}:{}),
     ...(row.provider==='falimg'?{falImage:options.falImage||{}}:{}),
     ...(row.provider==='argolink'?{argoFrame:options.argoFrame||'aspect_ratio',pixelSizes:options.pixelSizes||{},adaptiveFrames:options.adaptiveFrames===true}:{}),
     ...(row.provider==='higgsfield'?higgsfieldFields(options):{}),
@@ -471,7 +472,7 @@ function publicVideoModel(model) {
 
   return {
     id: model.provider === 'wxksai' ? customerModelId(model.publicModelId) : model.provider==='puream' ? customerNewModelId(model.publicModelId) : model.publicModelId,
-    label: model.provider === 'wxksai' ? customerModelLabel(model.label) : model.provider==='puream' ? customerNewLabel(model.label) : hideApi888Name(model.label),
+    label: model.provider === 'wxksai' ? customerModelLabel(model.label) : model.provider==='puream' ? customerNewLabel(model.label) : model.provider==='huiqu' ? model.label.replace(/ · Huiqu$/,'') : hideApi888Name(model.label),
     dynamicCost: true,
     defaultResolution: model.defaultResolution || (resolutions[0]?.id || null),
     resolutions,

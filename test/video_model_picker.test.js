@@ -341,7 +341,7 @@ test('search expands New, hides nonmatching models, restores collapse and suppor
   const group={open:false,hidden:false,dataset:{},contains:item=>items.indexOf(item)>0,querySelector:()=>count};
   let emptyShown=false;
   const wrap={querySelector:s=>s==='.model-picker-new-group'?group:{classList:{toggle:(_s,active)=>{emptyShown=active;}}},
-    querySelectorAll:()=>items};
+    querySelectorAll:s=>s==='.model-picker-new-group'?[group]:items};
   const ctx=vm.createContext({});vm.runInContext(studio.slice(start,end),ctx);
   ctx.filterCustomSelectOptions(wrap,'Wan');
   assert.equal(group.open,true);assert.equal(group.hidden,false);assert.equal(count.textContent,'1 model');
@@ -376,4 +376,22 @@ test('performance sorting preserves the New submenu and ranks nested options wit
   vm.runInContext(perf.slice(start,end),ctx);ctx.sortOptions(root);
   assert.deepEqual(root.children,[group,normalB,normalA,empty]);
   assert.deepEqual(nested.children,[pureamB,pureamA]);
+});
+
+test('Huiqu gets its own Newly Listed submenu; existing New models retain their own group',()=>{
+  const a=studio.indexOf('function rebuildCustomSelect(id){'),b=studio.indexOf('function syncCustomSelect(id){',a);
+  let markup='';
+  const optionsRoot={querySelector:()=>null,querySelectorAll:()=>[],insertAdjacentHTML:(_,html)=>{markup=html;}};
+  const menu={querySelector:s=>s.includes('.model-picker-options')?optionsRoot:null};
+  const wrap={querySelector:s=>s==='.custom-select-menu'?menu:null,classList:{toggle(){}}};
+  const select={options:[{value:'normal',textContent:'Normal'},{value:'huiqu_a123',textContent:'Renamed by admin'},{value:'new_sd20_abc',textContent:'Existing New'},{value:'huiqu_b123',textContent:'Wan'}],selectedIndex:1,closest:()=>wrap};
+  const ctx=vm.createContext({$:()=>select,customSelectSearchable:()=>true,syncCustomSelect(){},modelPickerOptionHtml:(_id,o,i)=>'<button data-index="'+i+'">'+o.textContent+'</button>'});
+  vm.runInContext(studio.slice(a,b),ctx);ctx.rebuildCustomSelect('model');
+  const [huiqu,puream,flat]=markup.split('</details>');
+  assert.match(huiqu,/data-group-label="Newly Listed" open/);
+  assert.match(huiqu,/aria-label="Newly Listed"/);
+  assert.deepEqual([...huiqu.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[1,3]);
+  assert.match(puream,/aria-label="New"/);
+  assert.deepEqual([...puream.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[2]);
+  assert.deepEqual([...flat.matchAll(/data-index="(\d+)"/g)].map(m=>+m[1]),[0]);
 });

@@ -16,6 +16,9 @@ const DEFAULTS = {
   puream_api_key: '',
   puream_enabled: 'true',
   puream_max_inflight: '1',
+  huiqu_api_key: '',
+  huiqu_enabled: 'true',
+  huiqu_max_inflight: '1',
   wxksai_api_key: '',
   wxksai_enabled: 'false',
   wxksai_max_inflight: '2',
@@ -211,6 +214,9 @@ async function getProviderSettings(db = getPool()) {
     pureamApiKey: String(read('puream_api_key') || '').trim(),
     pureamEnabled: asBool(read('puream_enabled')),
     pureamMaxInflight: Math.max(1,Math.min(5,Number(read('puream_max_inflight')||1))),
+    huiquApiKey: String(read('huiqu_api_key') || '').trim(),
+    huiquEnabled: asBool(read('huiqu_enabled')),
+    huiquMaxInflight: Math.max(1,Math.min(5,Number(read('huiqu_max_inflight')||1))),
     wxksaiApiKey: String(read('wxksai_api_key') || '').trim(),
     wxksaiEnabled: asBool(read('wxksai_enabled')),
     wxksaiMaxInflight: Math.max(1, Math.min(5,Number(read('wxksai_max_inflight')||2))),
@@ -276,6 +282,12 @@ async function getAdminProviderSettings() {
       apiKeyConfigured: Boolean(s.pureamApiKey), configured: Boolean(s.pureamApiKey),
       enabled: s.pureamEnabled, active: Boolean(s.pureamEnabled && s.pureamApiKey),
       maxInflight: s.pureamMaxInflight, creditsPerUsd: CREDITS_PER_USD,
+    },
+    huiqu: {
+      baseUrl: require('./huiqu_models.js').BASE_URL,
+      apiKeyConfigured: Boolean(s.huiquApiKey), configured: Boolean(s.huiquApiKey),
+      enabled: s.huiquEnabled, active: Boolean(s.huiquEnabled && s.huiquApiKey),
+      maxInflight: s.huiquMaxInflight, creditsPerUsd: CREDITS_PER_USD,
     },
     wxksai: {
       baseUrl: 'https://api.wxksai.com/v1',
@@ -407,6 +419,20 @@ async function updateProviderSettings(input = {}) {
   for(const update of pureamUpdates)await put(...update);
   if(input.clearPureamApiKey===true)await del('puream_api_key');
   else if(input.pureamApiKey?.trim())await put('puream_api_key',input.pureamApiKey.trim(),true);
+  const huiquUpdates=[];
+  if ('huiquEnabled' in input) {
+    if (typeof input.huiquEnabled !== 'boolean') throw Object.assign(new Error('Huiqu enabled must be boolean.'),{statusCode:400});
+    huiquUpdates.push(['huiqu_enabled',String(input.huiquEnabled)]);
+  }
+  if ('huiquMaxInflight' in input) {
+    const max=Number(input.huiquMaxInflight);
+    if(!Number.isInteger(max)||max<1||max>5)throw Object.assign(new Error('Huiqu inflight limit must be 1–5.'),{statusCode:400});
+    huiquUpdates.push(['huiqu_max_inflight',String(max)]);
+  }
+  if(Object.hasOwn(input,'huiquApiKey')&&(typeof input.huiquApiKey!=='string'||input.huiquApiKey.length>512||/\s/.test(input.huiquApiKey.trim())))throw Object.assign(new Error('Invalid Huiqu API key.'),{statusCode:400});
+  for(const update of huiquUpdates)await put(...update);
+  if(input.clearHuiquApiKey===true)await del('huiqu_api_key');
+  else if(input.huiquApiKey?.trim())await put('huiqu_api_key',input.huiquApiKey.trim(),true);
   if ('wxksaiEnabled' in input) {
     if (typeof input.wxksaiEnabled !== 'boolean') throw Object.assign(new Error('WXKSAI enabled must be boolean.'), {statusCode:400});
     await put('wxksai_enabled',input.wxksaiEnabled?'true':'false');

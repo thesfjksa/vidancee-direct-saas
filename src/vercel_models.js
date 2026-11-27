@@ -352,7 +352,7 @@ function validateReferences(model,input={}, { forQuote=false }={}) {
   // WXKSAI BD2 counts every media type in its combined 30-file quota.
   // Preserve established caps for other providers (some exclude audio from
   // the combined image/video quota).
-  const combined=images.length+videos.length+reused+(['wxksai','puream'].includes(model.provider)?audios.length:0);
+  const combined=images.length+videos.length+reused+(['wxksai','puream','huiqu'].includes(model.provider)?audios.length:0);
   if (combined>caps.totalMax) fail('Too many total reference files for this model.');
   if (model.provider==='wxksai' && model.providerModelId==='seedance-2.5-bd-2') {
     const imageCount=images.length+reused;
@@ -363,11 +363,12 @@ function validateReferences(model,input={}, { forQuote=false }={}) {
       fail('WXKSAI BD2 reference uploads exceed the conservative 30 MB total limit.');
   }
   if (model.provider==='puream') require('./puream_models.js').validatePureamReferences(model,input,{forQuote});
+  if (model.provider==='huiqu') require('./huiqu_models.js').validateHuiquReferences(model,input,{forQuote});
   const roles=list(input.referenceOrder).map(r=>r.role);
   const frames=roles.some(r=>r==='start_image'||r==='end_image');
   const refs=roles.some(r=>r==='image_references')||videos.length>0;
   if (frames&&refs) fail('Choose either start/end frames or reference files for this generation.');
-  if (!forQuote && model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused) fail('This video model requires a reference file.');
+  if (!forQuote && model.mediaType==='video'&&!caps.textOnly&&!images.length&&!videos.length&&!reused&&!(model.provider==='huiqu'&&audios.length)) fail('This video model requires a reference file.');
 }
 
 module.exports={promptLimit,DEFAULT_VERCEL_CREDITS_PER_USD,publishedImageTiers,applyModelFixups,mp4Seconds,isGatewayModel,publicId,mediaModels,discoverModel,
