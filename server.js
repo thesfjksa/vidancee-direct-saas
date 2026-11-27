@@ -2722,6 +2722,14 @@ const server=http.createServer(async (req,res)=>{
         logActivity({category:'admin',event:'aivid.'+aividManage[2],provider:'aivid',generationId:aividManage[1],message:'Admin '+aividManage[2]+' video job.'});
         return sendJson(res,200,{ok:true,...result});
       }
+      const huiquReconcile=routePath.match(/^\/admin\/huiqu\/generations\/([0-9a-f-]{36})\/reconcile$/i);
+      if(req.method==='POST'&&huiquReconcile){
+        requireDatabase();
+        const result=await require('./src/huiqu_queue.js').refundHeldHuiqu(getPool(),huiquReconcile[1],await readJson(req));
+        logActivity({category:'admin',event:'huiqu.reconciled',provider:'huiqu',generationId:huiquReconcile[1],message:'Admin confirmed no accepted task or charge and reconciled held submission.'});
+        wakeGenerationWorker(req);
+        return sendJson(res,200,{ok:true,...result});
+      }
       const aividReconcile=routePath.match(/^\/admin\/aivid\/generations\/([0-9a-f-]{36})\/reconcile$/i);
       if(req.method==='POST'&&aividReconcile){
         requireDatabase();
@@ -3288,6 +3296,7 @@ const server=http.createServer(async (req,res)=>{
           media_type:row.media_type || 'video',
           provider_job_id:row.provider_job_id,
           manualHandoff:row.provider==='aivid'?require('./src/aivid_manual.js').activeStage(row):null,
+          huiquHeld:require('./src/huiqu_queue.js').heldHuiquSubmission(row),
           collectionPaused:row.provider==='aivid'&&require('./src/aivid_queue.js').operation(row).collectionPaused===true,
         }))});
       }
