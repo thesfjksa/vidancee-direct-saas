@@ -236,21 +236,15 @@ const {
   syncProviderModels, setGatewayPrice, ensureGatewayCatalog, ensureArgoCatalog, ensureHiggsfieldCatalog, ensureSluiceCatalog, ensureVidanceeCatalog, ensureApi888Catalog,
 } = require('./src/provider_models.js');
 
-const customerPage = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const { renderAdminPage, renderStudioPage } = require('./src/page_assets.js');
+const customerPage = renderStudioPage();
 const landingPage = fs.readFileSync(path.join(__dirname, 'public', 'landing.html'), 'utf8');
 const pricingPage = fs.readFileSync(path.join(__dirname, 'public', 'pricing.html'), 'utf8');
 const comparePage = fs.readFileSync(path.join(__dirname, 'public', 'compare.html'), 'utf8');
 // Visitors who are not signed in see the landing page at /; the studio is at /app.
 const hasSessionCookie = req => /(?:^|;\s*)cmm_session=/.test(String(req.headers.cookie || ''));
-// The admin page carries its stylesheets inline: one request instead of three
-// before anything can render.
-function inlineStylesheets(html) {
-  return html.replace(/<link rel="stylesheet" href="\/(brand|admin|site-visuals)\.css(?:\?[^"]*)?">/g, (tag, name) => {
-    const css = fs.readFileSync(path.join(__dirname, 'public', name + '.css'), 'utf8');
-    return '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>';
-  });
-}
-const adminPage = inlineStylesheets(fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8'));
+// Admin ships matching styles and scripts atomically with the no-store HTML.
+const adminPage = renderAdminPage();
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';

@@ -113,7 +113,8 @@ test('Admin controls save one provider, retain unsaved values across navigation 
   const html = fs.readFileSync(require.resolve('../public/admin.html'), 'utf8');
   for (const provider of PROVIDERS) assert.ok(html.includes('id="modelsVisible-' + provider + '"'), provider);
   let request, fail = false;
-  const context = { window: {}, setInterval:()=>{}, document: { getElementById: el, querySelectorAll: () => [] },
+  const cards = PROVIDERS.map(providerSource => ({dataset:{providerSource},hidden:false}));
+  const context = { window: {}, setInterval:()=>{}, document: { getElementById: el, querySelectorAll: selector => selector==='[data-provider-source]'?cards:[] },
     api: async (path, options) => {
       request = { path, method: options.method, ...JSON.parse(options.body) };
       if (fail) throw new Error('Could not save');
