@@ -1,3 +1,7 @@
+## 27 November 2026 — Huiqu November 24 capacity caps
+
+- Owner screenshot confirms prior Flash 480p held job was reconciled and UI reports refund. New Wan Pro 720p 30s job rejected duration and UI reports refund; provider common-log screenshot does not show this exact request. Current exact Apifox docs https://huiquyunapi.apifox.cn/539855906e0 and https://huiquyunapi.apifox.cn/539855907e0 confirm 2–22s and 2–11s respectively. Provider November 24 notice mirrored at https://www.leida.store/sites/7d61596c-0ec9-4427-9a0e-134ebf052160 lists tightened caps across Wan standard/Pro/Prime/HD and Seedance HD. Apply all listed caps to exact reviewed IDs, preserve other SKUs, pricing, credentials, switches and request routes. The notice also reports removed 1080p Seedance 2.5 variants, which are already absent from reviewed inventory. Worker preflight rejects excess durations before POST; refresh catalog after deploy to reflect picker limits. Actual route acceptance, refund ledger, CI and deployment not verified; no paid request.
+
 ## 27 November 2026 — Admin recovery for held Huiqu submission
 
 - Owner provided provider usage screenshot showing four Flash 480p error entries at 22:23:25–26, all zero CNY. CMMTools generation 669af7df-6d65-49b3-8968-5461f73aa33b has no provider job ID and 2520 credits reserved. Provider task history still needs confirmation; no automatic refund or paid retry performed.
