@@ -177,3 +177,24 @@ test('MX930 480p submits the documented 15-second request to /v1/videos/generati
  assert.deepEqual(await client.startVideo(model,payload),{requestId:'task_fixture'});
  assert.deepEqual(calls,[{url:'https://api.bjhuiqu.net/v1/videos/generations',method:'POST'}]);
 });
+
+test('held Huiqu refund requires explicit confirmation, no task receipt and an exclusive job lock',async()=>{
+ const {heldHuiquSubmission,refundHeldHuiqu}=require('../src/huiqu_queue');
+ const job={id:'test',provider:'huiqu',media_type:'video',status:'submitted',provider_job_id:null,refunded_at:null,credits_cost:2520,provider_operation:JSON.stringify({submissionPending:true,credential:'a'.repeat(64)})};
+ const confirmation={confirmedNoAcceptedTask:true,confirmedNoCharge:true};
+ let refunds=0,acquired=1,locked=false;
+ const db={getConnection:async()=>({query:async(sql)=>{
+  if(sql.includes('GET_LOCK')){locked=acquired===1;return [[{acquired}]];}
+  if(sql.includes('RELEASE_LOCK')){locked=false;return [[{}]];}
+  return [[job]];
+ },release(){}})};
+ const refund=async(id,status,_message,cost)=>{assert.equal(locked,true);assert.equal(id,job.id);assert.equal(status,'submit_error');assert.equal(cost,0);refunds++;job.refunded_at='now';return true;};
+ assert.equal(heldHuiquSubmission(job),true);
+ assert.equal(heldHuiquSubmission({...job,provider_job_id:'task123'}),false);
+ assert.equal(heldHuiquSubmission({...job,status:'submitting'}),false);
+ await assert.rejects(refundHeldHuiqu(db,job.id,{confirmedNoCharge:true},refund),e=>e.statusCode===400);
+ acquired=0;await assert.rejects(refundHeldHuiqu(db,job.id,confirmation,refund),e=>e.statusCode===409);
+ acquired=1;assert.deepEqual(await refundHeldHuiqu(db,job.id,confirmation,refund),{reconciled:true,creditsRefunded:2520});
+ await assert.rejects(refundHeldHuiqu(db,job.id,confirmation,refund),e=>e.statusCode===409);
+ assert.equal(refunds,1);assert.equal(locked,false);
+});
