@@ -137,3 +137,25 @@ test('polling a previously submitted job uses the original credential even after
  await queue.pollJob({}, {forCredential:id=>id===fingerprint('old')?original:null}, {id:'job',provider_operation:JSON.stringify({credential:fingerprint('old'),requestId:'task123'})});
  assert.equal(polled,1);
 });
+
+test('Seedance 2.5 Flash supports every integer duration from 4 to 30 at the same clip price',()=>{
+ for(const [resolution,price] of [['480p',2.5],['720p',2.8]]){
+  const model=full('sd2.5-flash-10.5.5-'+resolution);
+  const expected=Array.from({length:27},(_,i)=>i+4);
+  assert.deepEqual(model.durations,expected);
+  const publicModel=publicVideoModel(model);
+  assert.deepEqual(publicModel.durations.map(d=>d.seconds),expected);
+  assert.equal(publicModel.billingMode,'per_request');
+  for(const duration of expected){
+   const quote=quoteGateway(model,{duration,resolution},CREDITS_PER_USD);
+   assert.equal(quote.duration,duration);
+   assert.ok(Math.abs(quote.sourceUsd*require('../src/billing').CNY_PER_USD-price)<1e-8);
+   assert.equal(quote.cost,quoteGateway(model,{duration:4,resolution},CREDITS_PER_USD).cost);
+  }
+  assert.throws(()=>quoteGateway(model,{duration:31,resolution}));
+  const payload=payloadFor(model,{prompt:'@video1',duration:30,aspectRatio:'16:9'},[ref('video')]);
+  assert.equal(payload.seconds,30);
+  assert.deepEqual(payload.videos,['https://example.com/video']);
+  assert.equal(model.huiqu.videoClipSeconds,15);
+ }
+});

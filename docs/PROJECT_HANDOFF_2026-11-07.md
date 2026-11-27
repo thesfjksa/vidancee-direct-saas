@@ -1,3 +1,7 @@
+## 27 November 2026 — Huiqu Seedance 2.5 Flash 30-second durations
+
+- Owner screenshot confirms 4–30 seconds at ¥2.8 per request for sd2.5-flash-10.5.5-720p. Current exact provider contracts https://huiquyunapi.apifox.cn/539860662e0 and https://huiquyunapi.apifox.cn/539860661e0 confirm both Flash SKUs support every integer duration 4–30 seconds, fixed per-clip base prices ¥2.8 (720p) and ¥2.5 (480p), and /v1/videos. Correct the reviewed duration ranges for these two IDs only; leave reference limits, group pricing, account eligibility and paid submission safety unchanged. Catalog sync after deploy is required to refresh persisted price tiers and duration options. Regression covers every duration, flat quote, public selector, 30s request with video reference and rejection beyond max. No paid render or live charge verification. CI/deployment pending.
+
 ## 27 November 2026 — Multiple Huiqu group-specific credentials
 
 - Owner reports that Seedance 2.5 standard, flash, HD and deal routes shown on the provider marketplace are missing from Newly Listed and that each API key is limited to one group. All seven named routes are already in the reviewed catalog and the fixture permits them in the 1x video group; production account membership, per-model Admin switches and live prices remain unverified. The prior single-key filter is a possible cause, not a proven diagnosis.
